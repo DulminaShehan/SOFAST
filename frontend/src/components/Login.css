@@ -1,0 +1,181 @@
+/* Container for centering the login window on desktop screen */
+.login-page-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: #f0f0f0;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* Classic Desktop Dialog Window */
+.login-window {
+  width: 337px;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+/* Window Title Bar */
+.login-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  background-color: #ffffff;
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.window-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.window-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+  letter-spacing: -0.1px;
+}
+
+.titlebar-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  width: 22px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #333333;
+  padding: 0;
+  transition: background-color 0.1s ease;
+}
+
+.titlebar-close-btn:hover {
+  background-color: #e81123;
+  color: #ffffff;
+}
+
+/* Inner Frame / Panel */
+.login-frame {
+  margin: 4px 10px 10px 10px;
+  border: 1px solid #d9d9d9;
+  background-color: #ffffff;
+  padding: 14px 12px 14px 10px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+/* Left Group Icon */
+.login-icon-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 2px;
+}
+
+.user-group-icon {
+  width: 48px;
+  height: 52px;
+  object-fit: contain;
+}
+
+/* Form Section */
+.login-form-section {
+  flex: 1;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.login-label {
+  font-size: 12px;
+  color: #000000;
+  white-space: nowrap;
+  width: 74px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.login-input {
+  width: 122px;
+  height: 22px;
+  padding: 1px 4px;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  color: #000000;
+  background-color: #ffffff;
+  border: 1px solid #7a7a7a;
+  outline: none;
+  box-sizing: border-box;
+  border-radius: 0px;
+}
+
+.login-input:focus {
+  border-color: #005499;
+}
+
+/* Button Section */
+.login-button-row {
+  display: flex;
+  margin-left: 74px;
+  margin-top: 4px;
+}
+
+.login-submit-btn {
+  width: 58px;
+  height: 23px;
+  background-color: #f0f0f0;
+  border: 1px solid #adadad;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  color: #000000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.login-submit-btn:hover {
+  background-color: #e5f1fb;
+  border-color: #0078d7;
+}
+
+.login-submit-btn:active {
+  background-color: #cce4f7;
+  border-color: #005499;
+}
+
+.login-submit-btn:focus-visible {
+  outline: 1px dotted #000000;
+  outline-offset: -3px;
+}

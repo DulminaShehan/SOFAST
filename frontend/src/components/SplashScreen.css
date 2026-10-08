@@ -1,0 +1,55 @@
+.splash-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #005bbb;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  z-index: 9999;
+  opacity: 1;
+  transition: opacity 0.6s ease-in-out;
+}
+
+.splash-container.splash-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-logo {
+  max-width: 90vw;
+  max-height: 90vh;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  animation: splashLogoEnter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes splashLogoEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Respect user preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .splash-container {
+    transition: none !important;
+  }
+
+  .splash-logo {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
