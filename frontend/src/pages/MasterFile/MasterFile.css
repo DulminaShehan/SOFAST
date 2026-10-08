@@ -1,0 +1,127 @@
+.masterfile-page-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: #f0f0f0;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Optional System Sub-Header with Back Button */
+.masterfile-system-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  background-color: #2b579a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  height: 28px;
+  box-sizing: border-box;
+}
+
+.system-title-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.system-back-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.system-back-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* Main Workspace / MDI Desktop Area */
+.masterfile-workspace {
+  flex: 1;
+  background-color: #d4d0c8;
+  background-image: radial-gradient(#c0bcaf 1px, transparent 1px);
+  background-size: 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Classic Desktop Module Window */
+.module-placeholder-window {
+  width: 440px;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
+}
+
+.module-window-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 6px 0 8px;
+  background-color: #0055ea;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.module-window-body {
+  padding: 24px 20px;
+  background-color: #f4f4f4;
+  border: 1px solid #dfdfdf;
+  margin: 6px;
+  text-align: center;
+}
+
+.module-placeholder-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #000000;
+  margin-bottom: 8px;
+}
+
+.module-placeholder-desc {
+  font-size: 12px;
+  color: #555555;
+  margin-bottom: 18px;
+}
+
+.module-placeholder-note {
+  display: inline-block;
+  padding: 4px 12px;
+  background-color: #fffde7;
+  border: 1px solid #ffe082;
+  border-radius: 2px;
+  font-size: 11px;
+  color: #795548;
+}
+
+/* Status Bar at the bottom */
+.masterfile-statusbar {
+  height: 22px;
+  background-color: #f0f0f0;
+  border-top: 1px solid #c5c5c5;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  color: #555555;
+  box-sizing: border-box;
+}

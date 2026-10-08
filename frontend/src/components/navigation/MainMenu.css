@@ -1,0 +1,101 @@
+/* Classic Desktop Menu Bar */
+.sofast-menubar-container {
+  width: 100%;
+  background-color: #fbfbfb;
+  border-bottom: 1px solid #c5c5c5;
+  box-sizing: border-box;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  user-select: none;
+  position: relative;
+  z-index: 100;
+}
+
+.sofast-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 2px 6px;
+  height: 26px;
+  gap: 2px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* Individual Top Menu Item */
+.sofast-menu-item {
+  position: relative;
+}
+
+.sofast-menu-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 3px 8px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  border-radius: 2px;
+  white-space: nowrap;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+.sofast-menu-button:hover,
+.sofast-menu-button.active {
+  background-color: #e5f1fb;
+  border-color: #70c0e8;
+  color: #000000;
+}
+
+/* Classic Desktop Dropdown Menu */
+.sofast-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #979797;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.18);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 2px 0;
+  min-width: 190px;
+  z-index: 200;
+}
+
+.sofast-dropdown-item {
+  padding: 0;
+  margin: 0;
+}
+
+.sofast-dropdown-button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 16px;
+  cursor: pointer;
+  display: block;
+  outline: none;
+  white-space: nowrap;
+}
+
+.sofast-dropdown-button:hover,
+.sofast-dropdown-button:focus {
+  background-color: #0078d7;
+  color: #ffffff;
+}
+
+.sofast-menu-separator {
+  height: 1px;
+  background-color: #e0e0e0;
+  margin: 3px 0;
+}

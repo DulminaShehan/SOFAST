@@ -6,13 +6,16 @@ import windowIcon from '../assets/window-icon.png';
 /**
  * SOFAST Desktop Legacy-Style Login Component
  */
-function Login() {
+function Login({ onLoginSuccess }) {
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Authentication logic will be implemented in future instructions
+    // Transition to the post-login Selection Screen
+    if (onLoginSuccess) {
+      onLoginSuccess();
+    }
   };
 
   return (

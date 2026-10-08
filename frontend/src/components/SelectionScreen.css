@@ -1,0 +1,284 @@
+.selection-screen-container {
+  position: relative;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: #fafcfd;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 24px;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Background Decorative Shapes */
+.bg-blob-top-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32vw;
+  min-width: 280px;
+  max-width: 480px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.bg-blob-bottom-right {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 32vw;
+  min-width: 280px;
+  max-width: 480px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Background Dot Grids */
+.bg-dots-top-right {
+  position: absolute;
+  top: 56px;
+  right: 64px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.bg-dots-bottom-left {
+  position: absolute;
+  bottom: 56px;
+  left: 64px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Cards Wrapper - Accommodates 3 Cards */
+.selection-cards-wrapper {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 28px;
+  max-width: 1120px;
+  width: 100%;
+}
+
+/* Base Card Style */
+.selection-card {
+  position: relative;
+  background: #ffffff;
+  border-radius: 28px;
+  width: 320px;
+  height: 440px;
+  box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.08), 0 0 1px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 46px 20px 0 20px;
+  box-sizing: border-box;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+  user-select: none;
+}
+
+.selection-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 28px 50px -14px rgba(15, 23, 42, 0.12), 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+/* Icon Containers */
+.card-icon-wrapper {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+
+.selection-card:hover .card-icon-wrapper {
+  transform: scale(1.04);
+}
+
+/* Master File Card Styling */
+.master-card .card-icon-wrapper {
+  background-color: #ccfbf1;
+  color: #0d9488;
+}
+
+/* Invoice Card Styling */
+.invoice-card .card-icon-wrapper {
+  background-color: #dceaff;
+  color: #196eff;
+}
+
+/* Reports Card Styling */
+.reports-card .card-icon-wrapper {
+  background-color: #ede2fb;
+  color: #6736e2;
+}
+
+/* Card Typography */
+.card-title {
+  font-size: 25px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+
+.card-description {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-bottom: 20px;
+}
+
+/* Bottom Decorative Wave Section */
+.card-bottom-section {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 110px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.card-wave-svg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.master-card .card-wave-svg path {
+  fill: #f0fdfa;
+}
+
+.invoice-card .card-wave-svg path {
+  fill: #eaf2ff;
+}
+
+.reports-card .card-wave-svg path {
+  fill: #f5eefa;
+}
+
+/* Floating Action Button */
+.card-action-btn {
+  position: relative;
+  z-index: 3;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #ffffff;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-bottom: 8px;
+}
+
+.master-card .card-action-btn {
+  background-color: #0d9488;
+  box-shadow: 0 10px 22px -2px rgba(13, 148, 136, 0.42);
+}
+
+.invoice-card .card-action-btn {
+  background-color: #196eff;
+  box-shadow: 0 10px 22px -2px rgba(25, 110, 255, 0.42);
+}
+
+.reports-card .card-action-btn {
+  background-color: #6736e2;
+  box-shadow: 0 10px 22px -2px rgba(103, 54, 226, 0.42);
+}
+
+.selection-card:hover .card-action-btn {
+  transform: scale(1.08);
+}
+
+.master-card:hover .card-action-btn {
+  box-shadow: 0 12px 26px -2px rgba(13, 148, 136, 0.52);
+}
+
+.invoice-card:hover .card-action-btn {
+  box-shadow: 0 12px 26px -2px rgba(25, 110, 255, 0.52);
+}
+
+.reports-card:hover .card-action-btn {
+  box-shadow: 0 12px 26px -2px rgba(103, 54, 226, 0.52);
+}
+
+.btn-arrow-icon {
+  width: 20px;
+  height: 20px;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s ease;
+}
+
+.selection-card:hover .btn-arrow-icon {
+  transform: translateX(2px);
+}
+
+/* Responsive Layout */
+@media (max-width: 1040px) {
+  .selection-cards-wrapper {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 24px;
+    max-width: 700px;
+  }
+}
+
+@media (max-width: 768px) {
+  .selection-screen-container {
+    padding: 32px 16px;
+    align-items: flex-start;
+    overflow-y: auto;
+  }
+
+  .selection-cards-wrapper {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 24px;
+    margin: auto 0;
+  }
+
+  .selection-card {
+    width: 100%;
+    max-width: 330px;
+    height: 420px;
+    padding: 38px 20px 0 20px;
+  }
+
+  .bg-dots-top-right,
+  .bg-dots-bottom-left {
+    display: none;
+  }
+
+  .bg-blob-top-left,
+  .bg-blob-bottom-right {
+    width: 50vw;
+  }
+}
