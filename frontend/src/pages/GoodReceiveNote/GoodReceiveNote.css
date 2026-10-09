@@ -1,0 +1,628 @@
+/* Good Receive Note (GRN) - Visual Basic / Classic SOFAST ERP Styling */
+
+.grn-master-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #d4d0c8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 1. Windows Title Bar */
+.grn-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  background-color: #006ecb;
+  color: #ffffff;
+  padding: 0 0 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.grn-titlebar-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.grn-titlebar-car-icon {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+
+.grn-titlebar-heading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.grn-titlebar-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+/* 2. Top Navigation Menu Bar */
+.grn-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.grn-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.grn-menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.grn-menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 10px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+
+.grn-menubar-button:hover,
+.grn-menubar-button.active {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+/* Dropdown Menu */
+.grn-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 210px;
+  z-index: 200;
+}
+
+.grn-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.grn-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  outline: none;
+}
+
+.grn-dropdown-item-btn:hover,
+.grn-dropdown-item-btn.selected {
+  background-color: #2b78e4;
+  color: #ffffff;
+}
+
+/* 3. Main Form Canvas */
+.grn-main-canvas {
+  flex: 1;
+  padding: 8px 12px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.grn-panel-container {
+  background-color: #ece9d8;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 0px #ffffff, 1px 1px 2px rgba(0, 0, 0, 0.15);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Alert Box */
+.grn-alert {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.grn-alert.success {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.grn-alert.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.grn-alert.info {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+}
+
+/* Row & Field Layout */
+.grn-header-section {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border-bottom: 1px solid #d0ccc0;
+  padding-bottom: 8px;
+}
+
+.grn-header-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.grn-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.grn-label-blue {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000080;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Classic Desktop Input Controls */
+.grn-input {
+  height: 22px;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 1px 4px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.grn-input:focus {
+  border-color: #005bb7;
+  background-color: #ffffea;
+}
+
+.grn-input.readonly {
+  background-color: #f4f3ed;
+  color: #333333;
+  cursor: default;
+}
+
+.grn-select {
+  height: 22px;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 1px 2px;
+  box-sizing: border-box;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Classic Desktop Action Buttons */
+.grn-btn-classic {
+  height: 23px;
+  min-width: 62px;
+  padding: 0 8px;
+  background: linear-gradient(180deg, #fbfbf9 0%, #ece9d8 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  user-select: none;
+  box-shadow: 1px 1px 0px #000000;
+}
+
+.grn-btn-classic:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 100%);
+}
+
+.grn-btn-classic:active {
+  border-top: 1px solid #707070;
+  border-left: 1px solid #707070;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.grn-btn-classic:disabled {
+  color: #888888;
+  cursor: not-allowed;
+  background: #e0ded4;
+  border-color: #b0aea4;
+  box-shadow: none;
+}
+
+.grn-btn-lookup {
+  height: 22px;
+  min-width: 24px;
+  padding: 0 4px;
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  color: #000000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.grn-btn-lookup:hover {
+  background-color: #dfdbca;
+}
+
+/* Right-side Vertical Buttons */
+.grn-right-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 75px;
+}
+
+.grn-right-actions .grn-btn-classic {
+  width: 75px;
+  height: 24px;
+}
+
+/* 4. Item Entry Bar */
+.grn-item-entry-bar {
+  background-color: #ece9d8;
+  padding: 6px 4px 4px 4px;
+  border-bottom: 1px solid #d0ccc0;
+}
+
+.grn-entry-grid {
+  display: grid;
+  grid-template-columns: 130px 1fr 90px 95px 85px 85px 120px 45px;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.grn-entry-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.grn-entry-col-code {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.grn-col-header {
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000080;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* 5. Main Grid / Table (ActiveX style) */
+.grn-table-wrapper {
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+  min-height: 260px;
+  max-height: 380px;
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+}
+
+.grn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.grn-table th {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(180deg, #f7f6f0 0%, #ece9d8 100%);
+  border-right: 1px solid #aca899;
+  border-bottom: 1px solid #aca899;
+  color: #000080;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 6px;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 10;
+  user-select: none;
+}
+
+.grn-table td {
+  border-right: 1px solid #e0ded4;
+  border-bottom: 1px solid #e0ded4;
+  padding: 3px 6px;
+  color: #000000;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.grn-table tbody tr {
+  cursor: pointer;
+}
+
+.grn-table tbody tr:nth-child(even) {
+  background-color: #faf9f5;
+}
+
+.grn-table tbody tr:hover {
+  background-color: #e5f1fb;
+}
+
+.grn-table tbody tr.selected {
+  background-color: #316ac5 !important;
+  color: #ffffff !important;
+}
+
+.grn-table tbody tr.selected td {
+  color: #ffffff !important;
+  border-color: #4b80db;
+}
+
+.grn-activex-watermark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  color: #b0aba0;
+  pointer-events: none;
+  user-select: none;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+/* 6. Bottom Info & Actions Section */
+.grn-bottom-section {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.grn-bottom-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.grn-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+  cursor: pointer;
+  user-select: none;
+}
+
+.grn-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.grn-info-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.grn-bottom-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.grn-total-box {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+.grn-total-input {
+  width: 140px;
+  height: 24px;
+  font-size: 13px;
+  font-weight: bold;
+  text-align: right;
+  color: #000080;
+  background-color: #f0fdf4;
+  border: 1px solid #10b981;
+}
+
+/* 7. Modal Popups (Supplier / Item Lookup / Validation) */
+.grn-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.grn-modal-window {
+  background-color: #ece9d8;
+  border: 2px solid #005bb7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  width: 90%;
+  max-width: 680px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.grn-modal-titlebar {
+  background-color: #005bb7;
+  color: #ffffff;
+  padding: 4px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.grn-modal-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.grn-modal-footer {
+  padding: 6px 10px;
+  background-color: #dfdbca;
+  border-top: 1px solid #b8b4a5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.grn-lookup-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  font-size: 12px;
+}
+
+.grn-lookup-table th {
+  background: #ece9d8;
+  border: 1px solid #aca899;
+  padding: 4px 6px;
+  color: #000080;
+  font-size: 11px;
+  text-align: left;
+}
+
+.grn-lookup-table td {
+  border: 1px solid #e0ded4;
+  padding: 4px 6px;
+}
+
+.grn-lookup-table tr:hover {
+  background-color: #e5f1fb;
+  cursor: pointer;
+}

@@ -98,7 +98,7 @@ function ItemMaster() {
   const [selectedId, setSelectedId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(null); // 'master-files' | 'stock-control' | null
   const [dbStatus, setDbStatus] = useState({ connected: true, name: 'sofast_pos' });
 
   // Lookup modal states
@@ -159,12 +159,25 @@ function ItemMaster() {
   // Top Menu Items
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
-    { id: 'stock-control', label: 'Stock Control System', path: '/management' },
+    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', path: '/management' },
     { id: 'production', label: 'Production', path: '/management' },
     { id: 'reports', label: 'Reports', path: '/management' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', path: '/management' },
+  ];
+
+  const stockControlDropdownItems = [
+    {
+      id: 'good-receive-note',
+      label: 'Good Receive Note',
+      path: '/grn',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
   ];
 
   const masterFilesDropdownItems = [
@@ -614,11 +627,11 @@ function ItemMaster() {
               <button
                 type="button"
                 className={`menubar-button ${
-                  (item.id === 'master-files' && isDropdownOpen) || item.id === 'master-files' ? 'active' : ''
+                  (isDropdownOpen === item.id) || (item.id === 'master-files' && isDropdownOpen === 'master-files') ? 'active' : ''
                 }`}
                 onClick={() => {
                   if (item.hasDropdown) {
-                    setIsDropdownOpen(!isDropdownOpen);
+                    setIsDropdownOpen((prev) => (prev === item.id ? null : item.id));
                   } else if (item.path) {
                     navigate(item.path);
                   }
@@ -628,7 +641,7 @@ function ItemMaster() {
               </button>
 
               {/* Master Files Dropdown */}
-              {item.hasDropdown && isDropdownOpen && (
+              {item.id === 'master-files' && isDropdownOpen === 'master-files' && (
                 <ul className="masterfiles-dropdown">
                   {masterFilesDropdownItems.map((dropItem) => (
                     <li key={dropItem.id} className="dropdown-entry">
@@ -637,7 +650,29 @@ function ItemMaster() {
                         className={`dropdown-item-btn ${dropItem.id === 'item-master' ? 'selected' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setIsDropdownOpen(false);
+                          setIsDropdownOpen(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span className="dropdown-item-icon">{dropItem.renderIcon()}</span>
+                        <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Stock Control System Dropdown */}
+              {item.id === 'stock-control' && isDropdownOpen === 'stock-control' && (
+                <ul className="masterfiles-dropdown">
+                  {stockControlDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className="dropdown-item-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDropdownOpen(null);
                           navigate(dropItem.path);
                         }}
                       >

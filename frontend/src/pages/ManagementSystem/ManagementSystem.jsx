@@ -90,9 +90,25 @@ function ManagementSystem() {
     },
   ];
 
+  const stockControlItems = [
+    {
+      id: 'good-receive-note',
+      label: 'Good Receive Note',
+      path: '/grn',
+      iconColor: '#f59e0b',
+      badgeBg: '#fef3c7',
+      description: 'Record incoming supplier consignments, purchase invoices, and update inventory stock balances.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+  ];
+
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
-    { id: 'stock-control', label: 'Stock Control System', description: 'Real-time stock tracking, warehouse transfers and inventory balances.' },
+    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, description: 'Real-time stock tracking, warehouse transfers and inventory balances.' },
     { id: 'sales-service', label: 'Sales and Service', description: 'Point of sale, customer billing, and service order management.' },
     { id: 'production', label: 'Production', description: 'Production planning, work orders, bill of materials and assembly.' },
     { id: 'reports', label: 'Reports', description: 'Financial, inventory, sales and audit analytical reporting.' },
@@ -104,7 +120,7 @@ function ManagementSystem() {
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setIsDropdownOpen(false);
+        setIsDropdownOpen(null);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -112,7 +128,7 @@ function ManagementSystem() {
   }, []);
 
   const handleDropdownSelect = (item) => {
-    setIsDropdownOpen(false);
+    setIsDropdownOpen(null);
     if (item.path) {
       navigate(item.path);
     } else {
@@ -122,15 +138,15 @@ function ManagementSystem() {
 
   const handleTopMenuClick = (item) => {
     if (item.hasDropdown) {
-      setIsDropdownOpen((prev) => !prev);
+      setIsDropdownOpen((prev) => (prev === item.id ? null : item.id));
     } else {
-      setIsDropdownOpen(false);
+      setIsDropdownOpen(null);
       setSelectedModule(item.label);
     }
   };
 
   // Find active module metadata
-  const currentMasterItem = masterFilesItems.find((m) => m.label === selectedModule);
+  const currentMasterItem = masterFilesItems.find((m) => m.label === selectedModule) || stockControlItems.find((s) => s.label === selectedModule);
   const currentTopMenuItem = topMenuItems.find((t) => t.label === selectedModule);
 
   const activeTitle = selectedModule;
@@ -154,7 +170,7 @@ function ManagementSystem() {
         </div>
       </header>
 
-      {/* 2. Top Horizontal Menu Bar with Master Files Dropdown */}
+      {/* 2. Top Horizontal Menu Bar with Master Files & Stock Control Dropdown */}
       <nav className="management-menubar-container" ref={menuRef}>
         <ul className="management-menubar">
           {topMenuItems.map((item) => (
@@ -162,7 +178,7 @@ function ManagementSystem() {
               <button
                 type="button"
                 className={`menubar-button ${
-                  (item.id === 'master-files' && isDropdownOpen) || selectedModule === item.label ? 'active' : ''
+                  (isDropdownOpen === item.id) || selectedModule === item.label ? 'active' : ''
                 }`}
                 onClick={() => handleTopMenuClick(item)}
               >
@@ -170,7 +186,7 @@ function ManagementSystem() {
               </button>
 
               {/* Master Files Dropdown */}
-              {item.id === 'master-files' && isDropdownOpen && (
+              {item.id === 'master-files' && isDropdownOpen === 'master-files' && (
                 <ul className="masterfiles-dropdown">
                   {masterFilesItems.map((masterItem) => (
                     <li key={masterItem.id} className="dropdown-entry">
@@ -183,6 +199,26 @@ function ManagementSystem() {
                           {masterItem.renderIcon(18)}
                         </span>
                         <span>{masterItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Stock Control System Dropdown */}
+              {item.id === 'stock-control' && isDropdownOpen === 'stock-control' && (
+                <ul className="masterfiles-dropdown">
+                  {stockControlItems.map((scItem) => (
+                    <li key={scItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className={`dropdown-item-btn ${selectedModule === scItem.label ? 'selected' : ''}`}
+                        onClick={() => handleDropdownSelect(scItem)}
+                      >
+                        <span className="dropdown-item-icon">
+                          {scItem.renderIcon(18)}
+                        </span>
+                        <span>{scItem.label}</span>
                       </button>
                     </li>
                   ))}

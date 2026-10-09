@@ -5,6 +5,7 @@ import Login from './components/Login';
 import ManagementSystem from './pages/ManagementSystem/ManagementSystem';
 import SupplierMaster from './pages/SupplierMaster/SupplierMaster';
 import ItemMaster from './pages/ItemMaster/ItemMaster';
+import GoodReceiveNote from './pages/GoodReceiveNote/GoodReceiveNote';
 import SelectionScreen from './components/SelectionScreen';
 import InvoicePlaceholder from './components/InvoicePlaceholder';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
@@ -50,6 +51,8 @@ function App() {
       <Route path="/management" element={<ManagementSystem />} />
       <Route path="/item-master" element={<ItemMaster />} />
       <Route path="/supplier-master" element={<SupplierMaster />} />
+      <Route path="/grn" element={<GoodReceiveNote />} />
+      <Route path="/stock-control/grn" element={<GoodReceiveNote />} />
       <Route path="/master-file" element={<ManagementSystem />} />
       <Route path="/selection" element={<SelectionScreen />} />
       <Route path="/invoice" element={<InvoicePlaceholder />} />

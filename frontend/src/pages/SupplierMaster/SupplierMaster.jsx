@@ -13,7 +13,7 @@ function SupplierMaster() {
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(null); // 'master-files' | 'stock-control' | null
 
   const [formData, setFormData] = useState({
     code: '',
@@ -30,12 +30,25 @@ function SupplierMaster() {
   // Top Menu Items
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
-    { id: 'stock-control', label: 'Stock Control System', path: '/management' },
+    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', path: '/management' },
     { id: 'production', label: 'Production', path: '/management' },
     { id: 'reports', label: 'Reports', path: '/management' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', path: '/management' },
+  ];
+
+  const stockControlDropdownItems = [
+    {
+      id: 'good-receive-note',
+      label: 'Good Receive Note',
+      path: '/grn',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
   ];
 
   const masterFilesDropdownItems = [
@@ -282,13 +295,13 @@ function SupplierMaster() {
               <button
                 type="button"
                 className={`menubar-button ${
-                  (item.id === 'master-files' && isDropdownOpen) || item.id === 'master-files' ? 'active' : ''
+                  (isDropdownOpen === item.id) || (item.id === 'master-files' && isDropdownOpen === 'master-files') ? 'active' : ''
                 }`}
                 onClick={() => {
                   if (item.hasDropdown) {
-                    setIsDropdownOpen((prev) => !prev);
+                    setIsDropdownOpen((prev) => (prev === item.id ? null : item.id));
                   } else {
-                    setIsDropdownOpen(false);
+                    setIsDropdownOpen(null);
                     navigate(item.path || '/management');
                   }
                 }}
@@ -297,7 +310,7 @@ function SupplierMaster() {
               </button>
 
               {/* Master Files Dropdown */}
-              {item.id === 'master-files' && isDropdownOpen && (
+              {item.id === 'master-files' && isDropdownOpen === 'master-files' && (
                 <ul className="masterfiles-dropdown">
                   {masterFilesDropdownItems.map((masterItem) => (
                     <li key={masterItem.id} className="dropdown-entry">
@@ -305,7 +318,7 @@ function SupplierMaster() {
                         type="button"
                         className={`dropdown-item-btn ${masterItem.id === 'supplier-master' ? 'selected' : ''}`}
                         onClick={() => {
-                          setIsDropdownOpen(false);
+                          setIsDropdownOpen(null);
                           navigate(masterItem.path);
                         }}
                       >
@@ -313,6 +326,29 @@ function SupplierMaster() {
                           {masterItem.renderIcon()}
                         </span>
                         <span>{masterItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Stock Control System Dropdown */}
+              {item.id === 'stock-control' && isDropdownOpen === 'stock-control' && (
+                <ul className="masterfiles-dropdown">
+                  {stockControlDropdownItems.map((scItem) => (
+                    <li key={scItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className="dropdown-item-btn"
+                        onClick={() => {
+                          setIsDropdownOpen(null);
+                          navigate(scItem.path);
+                        }}
+                      >
+                        <span className="dropdown-item-icon">
+                          {scItem.renderIcon()}
+                        </span>
+                        <span>{scItem.label}</span>
                       </button>
                     </li>
                   ))}
