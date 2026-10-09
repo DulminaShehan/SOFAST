@@ -6,6 +6,7 @@ import './MasterFile.css';
 /**
  * MasterFile Screen
  * Classic SOFAST Desktop Workspace with Horizontal System Menu Bar
+ * Features: Supplier Master File, Stock Master File, and full Master Data modules.
  */
 function MasterFile() {
   const [activeModule, setActiveModule] = useState(null);
@@ -13,6 +14,10 @@ function MasterFile() {
 
   const handleSelectMenuItem = (itemLabel) => {
     setActiveModule(itemLabel);
+  };
+
+  const handleCloseModule = () => {
+    setActiveModule(null);
   };
 
   return (
@@ -42,13 +47,24 @@ function MasterFile() {
             <span>
               {activeModule ? `${activeModule} - Window` : 'SOFAST Master Files System'}
             </span>
+            {activeModule && (
+              <button
+                type="button"
+                className="module-window-close-btn"
+                onClick={handleCloseModule}
+                title="Close Window"
+                aria-label="Close"
+              >
+                &#x2715;
+              </button>
+            )}
           </div>
           <div className="module-window-body">
             {activeModule ? (
               <>
                 <h1 className="module-placeholder-title">{activeModule} - Coming Soon</h1>
                 <p className="module-placeholder-desc">
-                  The {activeModule} module interface and functionality will be available in an upcoming update.
+                  The <strong>{activeModule}</strong> interface and data operations will be available in an upcoming update.
                 </p>
                 <div className="module-placeholder-note">
                   Status: Placeholder Active &bull; Ready for module implementation
@@ -58,10 +74,43 @@ function MasterFile() {
               <>
                 <h1 className="module-placeholder-title">SOFAST Master Files Workspace</h1>
                 <p className="module-placeholder-desc">
-                  Please click on <strong>Master Files</strong> or any top-level menu item above to open a module.
+                  Select a module from the <strong>Master Files</strong> dropdown menu above or launch directly:
                 </p>
+
+                {/* Quick Launch Buttons for Core Master Files */}
+                <div className="quick-launch-grid">
+                  <button
+                    type="button"
+                    className="quick-launch-btn highlight"
+                    onClick={() => handleSelectMenuItem('Supplier Master File')}
+                  >
+                    🏢 Supplier Master File
+                  </button>
+                  <button
+                    type="button"
+                    className="quick-launch-btn highlight"
+                    onClick={() => handleSelectMenuItem('Stock Master File')}
+                  >
+                    📦 Stock Master File
+                  </button>
+                  <button
+                    type="button"
+                    className="quick-launch-btn"
+                    onClick={() => handleSelectMenuItem('Customer Master File')}
+                  >
+                    👥 Customer Master File
+                  </button>
+                  <button
+                    type="button"
+                    className="quick-launch-btn"
+                    onClick={() => handleSelectMenuItem('Category Master File')}
+                  >
+                    🏷️ Category Master File
+                  </button>
+                </div>
+
                 <div className="module-placeholder-note">
-                  Menu Ready: Master Files, Stock Control, Sales &amp; Service, Production, Reports, Accounting, Administration
+                  Menu Ready: Master Files (Supplier, Stock, Customer, Category, Sub Category)
                 </div>
               </>
             )}

@@ -1,0 +1,656 @@
+/* Item Master File Screen Styles - Clean Global Top-Down Document Flow */
+
+.item-master-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #d4d0c8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 1. Title Bar */
+.management-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  background-color: #006ecb;
+  color: #ffffff;
+  padding: 0 0 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.titlebar-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.titlebar-car-icon {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+
+.titlebar-heading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.titlebar-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+.control-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  width: 38px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.close:hover {
+  background-color: #e81123;
+}
+
+/* 2. Top Navigation Menu Bar (Explicit Horizontal Flex) */
+.management-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.management-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 10px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+
+.menubar-button:hover,
+.menubar-button.active {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+/* Dropdown Menu */
+.masterfiles-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 210px;
+  z-index: 200;
+}
+
+.dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  outline: none;
+}
+
+.dropdown-item-btn:hover,
+.dropdown-item-btn.selected {
+  background-color: #0078d7;
+  color: #ffffff;
+}
+
+.dropdown-item-btn:hover svg path,
+.dropdown-item-btn.selected svg path {
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.dropdown-item-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 3. Form Section: Item Master File */
+.item-form-wrapper {
+  width: 100%;
+  background-color: #d4d0c8;
+  padding: 6px 12px 4px 12px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.blue-section-header {
+  background: linear-gradient(to right, #005bb7, #0078d7);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  letter-spacing: 0.3px;
+  border: 1px solid #004c99;
+  border-bottom: none;
+  box-sizing: border-box;
+}
+
+.item-form-panel {
+  background-color: #ece9d8;
+  border: 1px solid #716f64;
+  border-top: none;
+  padding: 6px 10px 4px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.dotted-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #000080; /* Classic dark blue */
+  white-space: nowrap;
+}
+
+.desktop-input {
+  height: 20px;
+  padding: 1px 4px;
+  font-size: 11px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  border: 1px solid #7a7a7a;
+  background-color: #ffffff;
+  color: #000000;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.desktop-input:focus,
+.desktop-select:focus {
+  border-color: #005499;
+}
+
+.desktop-select {
+  height: 20px;
+  padding: 1px 3px;
+  font-size: 11px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  border: 1px solid #7a7a7a;
+  background-color: #ffffff;
+  color: #000000;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.btn-lookup {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 4px;
+  background: linear-gradient(to bottom, #fbfbfb, #e1e1e1);
+  border: 1px solid #7a7a7a;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000000;
+  cursor: pointer;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-lookup:hover {
+  background: #cfebfe;
+  border-color: #0078d7;
+}
+
+.checkbox-field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.checkbox-field input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #005bb7;
+}
+
+.item-actions-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0 2px 4px;
+}
+
+.btn-action-classic {
+  min-width: 60px;
+  height: 23px;
+  background: linear-gradient(to bottom, #ffffff, #e1e1e1);
+  border: 1px solid #716f64;
+  border-radius: 2px;
+  font-size: 11px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  color: #000000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+
+.btn-action-classic:hover {
+  background: #dbeafe;
+  border-color: #0078d7;
+}
+
+.btn-action-classic:active {
+  background: #bfdbfe;
+}
+
+.btn-action-classic:disabled {
+  background: #e0e0e0;
+  border-color: #cccccc;
+  color: #888888;
+  cursor: not-allowed;
+}
+
+/* 4. Section: Item List */
+.item-grid-section {
+  flex: 1;
+  width: 100%;
+  padding: 2px 12px 6px 12px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 240px;
+}
+
+.item-search-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  background-color: #ece9d8;
+  border-left: 1px solid #716f64;
+  border-right: 1px solid #716f64;
+  font-size: 11px;
+  box-sizing: border-box;
+}
+
+.item-table-container {
+  flex: 1;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  overflow: auto;
+  box-sizing: border-box;
+  max-height: 380px;
+  min-height: 180px;
+}
+
+.item-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.item-table th {
+  background: linear-gradient(to bottom, #f5f3e9, #dedad0);
+  color: #000000;
+  font-weight: 700;
+  text-align: left;
+  padding: 3px 6px;
+  border: 1px solid #b5b5b5;
+  border-top: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.item-table td {
+  padding: 2px 6px;
+  border: 1px solid #e2e2e2;
+  color: #000000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-row {
+  cursor: pointer;
+  background-color: #ffffff;
+}
+
+.item-row:nth-child(even) {
+  background-color: #f8f8f8;
+}
+
+.item-row:hover {
+  background-color: #e5f1fb;
+}
+
+.item-row.selected {
+  background-color: #0078d7 !important;
+  color: #ffffff !important;
+}
+
+.item-row.selected td {
+  color: #ffffff !important;
+  border-color: #005fb8;
+}
+
+.status-badge-active {
+  color: #16a34a;
+  font-weight: 700;
+  text-align: center;
+}
+
+.status-badge-inactive {
+  color: #dc2626;
+  font-weight: 700;
+  text-align: center;
+}
+
+.item-table-footer-bar {
+  background-color: #ece9d8;
+  border: 1px solid #716f64;
+  border-top: none;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000080;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+/* 5. Bottom Status Bar */
+.management-statusbar {
+  height: 26px;
+  min-height: 26px;
+  background-color: #ece9d8;
+  border-top: 1px solid #b5b5b5;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+  color: #333333;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.statusbar-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.statusbar-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+.statusbar-item-icon {
+  width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.statusbar-divider {
+  color: #999999;
+}
+
+.statusbar-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: #333333;
+}
+
+/* 6. Lookup Modal Dialog */
+.lookup-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lookup-modal-window {
+  background-color: #ece9d8;
+  border: 2px solid #005bb7;
+  border-radius: 2px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  width: 380px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+}
+
+.lookup-modal-header {
+  background: linear-gradient(to right, #005bb7, #0078d7);
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lookup-modal-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 350px;
+}
+
+.lookup-list {
+  background: #ffffff;
+  border: 1px solid #7a7a7a;
+  max-height: 220px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lookup-item {
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.lookup-item:hover {
+  background-color: #e5f1fb;
+}
+
+.lookup-item.selected {
+  background-color: #0078d7;
+  color: #ffffff;
+}
+
+.lookup-modal-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 10px;
+  background-color: #dedad0;
+  border-top: 1px solid #b5b5b5;
+}
+
+/* 7. Color Plate & Color Picker Styles */
+.color-field-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-plate-preview {
+  width: 26px;
+  height: 20px;
+  border: 1px solid #7a7a7a;
+  box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  box-sizing: border-box;
+  display: inline-block;
+  vertical-align: middle;
+  transition: transform 0.1s ease;
+}
+
+.color-plate-preview:hover {
+  border-color: #005bb7;
+  transform: scale(1.05);
+}
+
+.color-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 8px;
+  background: #ffffff;
+  border: 1px solid #7a7a7a;
+}
+
+.color-palette-tile {
+  height: 32px;
+  border: 1px solid #999999;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 9px;
+  color: #000;
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  transition: all 0.1s ease;
+}
+
+.color-palette-tile:hover {
+  transform: scale(1.08);
+  border-color: #005bb7;
+  box-shadow: 0 0 4px #005bb7;
+  z-index: 5;
+}
+

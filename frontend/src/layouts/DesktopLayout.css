@@ -1,4 +1,4 @@
-.masterfile-page-container {
+.desktop-layout-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -9,8 +9,8 @@
   user-select: none;
 }
 
-/* Optional System Sub-Header with Back Button */
-.masterfile-system-header {
+/* Classic Desktop System Window Header */
+.desktop-window-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -23,13 +23,25 @@
   box-sizing: border-box;
 }
 
-.system-title-section {
+.desktop-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.system-back-btn {
+.desktop-header-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.desktop-header-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.desktop-back-btn {
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: #ffffff;
@@ -43,12 +55,12 @@
   gap: 4px;
 }
 
-.system-back-btn:hover {
+.desktop-back-btn:hover {
   background: rgba(255, 255, 255, 0.28);
 }
 
-/* Main Workspace / MDI Desktop Area */
-.masterfile-workspace {
+/* Workspace Canvas */
+.desktop-workspace-canvas {
   flex: 1;
   background-color: #d4d0c8;
   background-image: radial-gradient(#c0bcaf 1px, transparent 1px);
@@ -61,16 +73,16 @@
   position: relative;
 }
 
-/* Classic Desktop Module Window */
-.module-placeholder-window {
-  width: 480px;
+/* Classic Desktop Window Card */
+.desktop-module-window {
+  width: 460px;
   background-color: #ffffff;
   border: 1px solid #716f64;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
   box-sizing: border-box;
 }
 
-.module-window-titlebar {
+.desktop-module-titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -82,77 +94,28 @@
   font-weight: 600;
 }
 
-.module-window-close-btn {
-  background: transparent;
-  border: none;
-  color: #ffffff;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-
-.module-window-close-btn:hover {
-  background-color: #e81123;
-}
-
-.module-window-body {
-  padding: 24px 20px;
+.desktop-module-body {
+  padding: 28px 24px;
   background-color: #f4f4f4;
   border: 1px solid #dfdfdf;
   margin: 6px;
   text-align: center;
 }
 
-.module-placeholder-title {
-  font-size: 16px;
+.desktop-module-title {
+  font-size: 17px;
   font-weight: 700;
   color: #000000;
   margin-bottom: 8px;
 }
 
-.module-placeholder-desc {
+.desktop-module-desc {
   font-size: 12px;
   color: #555555;
   margin-bottom: 18px;
 }
 
-/* Quick Action Buttons Grid inside Master Files Workspace */
-.quick-launch-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
-.quick-launch-btn {
-  padding: 8px 14px;
-  background-color: #ffffff;
-  border: 1px solid #adadad;
-  border-radius: 3px;
-  font-size: 12px;
-  font-family: inherit;
-  color: #000000;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.quick-launch-btn:hover {
-  background-color: #e5f1fb;
-  border-color: #0078d7;
-}
-
-.quick-launch-btn.highlight {
-  font-weight: 600;
-  border-color: #70c0e8;
-  background-color: #f0f7ff;
-}
-
-.module-placeholder-note {
+.desktop-module-tag {
   display: inline-block;
   padding: 4px 12px;
   background-color: #fffde7;
@@ -162,8 +125,8 @@
   color: #795548;
 }
 
-/* Status Bar at the bottom */
-.masterfile-statusbar {
+/* Desktop Bottom Status Bar */
+.desktop-statusbar {
   height: 22px;
   background-color: #f0f0f0;
   border-top: 1px solid #c5c5c5;

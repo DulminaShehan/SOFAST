@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import SplashScreen from './components/SplashScreen';
 import Login from './components/Login';
+import ManagementSystem from './pages/ManagementSystem/ManagementSystem';
+import SupplierMaster from './pages/SupplierMaster/SupplierMaster';
+import ItemMaster from './pages/ItemMaster/ItemMaster';
 import SelectionScreen from './components/SelectionScreen';
-import MasterFile from './pages/MasterFile/MasterFile';
 import InvoicePlaceholder from './components/InvoicePlaceholder';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
 
@@ -13,9 +15,7 @@ import ReportsPlaceholder from './components/ReportsPlaceholder';
  * Flow:
  * 1. Startup: SOFAST MOTORS Splash Screen (~2.7s)
  * 2. Login: Classic SOFAST Desktop Login Page
- * 3. Selection Screen: Minimal Dashboard for Master File, Invoice & Reports
- * 4. Master File Screen: Classic SOFAST Desktop Window with Horizontal System Menu Bar
- * 5. Navigation Placeholders for /invoice and /reports
+ * 3. Management System & Master Files (Supplier Master File, Item Master, etc.)
  */
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -28,7 +28,7 @@ function App() {
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
-    navigate('/selection');
+    navigate('/management');
   };
 
   if (showSplash) {
@@ -41,17 +41,20 @@ function App() {
         path="/"
         element={
           isAuthenticated ? (
-            <Navigate to="/selection" replace />
+            <Navigate to="/management" replace />
           ) : (
             <Login onLoginSuccess={handleLoginSuccess} />
           )
         }
       />
+      <Route path="/management" element={<ManagementSystem />} />
+      <Route path="/item-master" element={<ItemMaster />} />
+      <Route path="/supplier-master" element={<SupplierMaster />} />
+      <Route path="/master-file" element={<ManagementSystem />} />
       <Route path="/selection" element={<SelectionScreen />} />
-      <Route path="/master-file" element={<MasterFile />} />
       <Route path="/invoice" element={<InvoicePlaceholder />} />
       <Route path="/reports" element={<ReportsPlaceholder />} />
-      <Route path="*" element={<Navigate to="/selection" replace />} />
+      <Route path="*" element={<Navigate to="/management" replace />} />
     </Routes>
   );
 }

@@ -52,7 +52,7 @@
   z-index: 1;
 }
 
-/* Cards Wrapper - Accommodates 3 Cards */
+/* Cards Wrapper - 3 Cards: Master File, Invoice, Reports */
 .selection-cards-wrapper {
   position: relative;
   z-index: 2;

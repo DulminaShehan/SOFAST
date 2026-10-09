@@ -3,7 +3,7 @@ import './SelectionScreen.css';
 
 /**
  * Invoice, Reports & Master File Selection Screen
- * Recreates the exact minimal dashboard UI matching the reference design.
+ * Minimal Dashboard with 3 Cards: Master File, Invoice, and Reports.
  */
 function SelectionScreen() {
   const navigate = useNavigate();
@@ -120,7 +120,7 @@ function SelectionScreen() {
         </g>
       </svg>
 
-      {/* Main Center Selection Cards */}
+      {/* Main Center Selection Cards: Master File, Invoice, Reports */}
       <main className="selection-cards-wrapper">
         {/* Card 1: Master File */}
         <div

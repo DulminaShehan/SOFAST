@@ -1,14 +1,19 @@
 /**
  * MasterFilesDropdown Component
- * Displays classic desktop dropdown menu items under Master Files
+ * Displays classic desktop dropdown menu items under Master Files:
+ * - Item Master
+ * - Supplier Master
+ * - Customer Master
+ * - Category Master
+ * - Sub Category Master
  */
 function MasterFilesDropdown({ onItemClick }) {
   const masterItems = [
-    { id: 'item-master', label: 'Item Master' },
-    { id: 'supplier-master', label: 'Supplier Master' },
-    { id: 'customer-master', label: 'Customer Master' },
-    { id: 'category-master', label: 'Category Master' },
-    { id: 'sub-category-master', label: 'Sub Category Master' },
+    { id: 'item-master', label: 'Item Master', path: '/item-master' },
+    { id: 'supplier-master', label: 'Supplier Master', path: '/supplier-master' },
+    { id: 'customer-master', label: 'Customer Master', path: '/customer-master' },
+    { id: 'category-master', label: 'Category Master', path: '/category-master' },
+    { id: 'sub-category-master', label: 'Sub Category Master', path: '/sub-category-master' },
   ];
 
   return (
@@ -19,7 +24,10 @@ function MasterFilesDropdown({ onItemClick }) {
             type="button"
             className="sofast-dropdown-button"
             role="menuitem"
-            onClick={() => onItemClick(item.label)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onItemClick(item);
+            }}
           >
             {item.label}
           </button>
