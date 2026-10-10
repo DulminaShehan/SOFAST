@@ -1,0 +1,640 @@
+/* Alternative Product Master - Classic SOFAST ERP / Visual Basic 6 Desktop UI */
+
+.alt-prod-page,
+.alt-prod-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #d4d0c8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 1. Windows Title Bar */
+.alt-prod-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  background-color: #006ecb;
+  color: #ffffff;
+  padding: 0 0 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.alt-prod-titlebar-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.alt-prod-titlebar-car-icon {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+
+.alt-prod-titlebar-heading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.alt-prod-titlebar-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+.control-btn {
+  width: 32px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.close:hover {
+  background-color: #e81123;
+}
+
+/* 2. Top Navigation Menu Bar */
+.alt-prod-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.alt-prod-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.alt-prod-menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.alt-prod-menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 10px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+
+.alt-prod-menubar-button:hover,
+.alt-prod-menubar-button.active {
+  background-color: #0055ea;
+  border-color: #0044bb;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Dropdown Menu */
+.alt-prod-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 210px;
+  z-index: 200;
+}
+
+.alt-prod-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.alt-prod-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  outline: none;
+}
+
+.alt-prod-dropdown-item-btn:hover,
+.alt-prod-dropdown-item-btn.selected {
+  background-color: #2b78e4;
+  color: #ffffff;
+}
+
+/* 3. Main Content Canvas */
+.alt-prod-main-canvas {
+  flex: 1;
+  padding: 8px 12px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: 1500px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Form Panel */
+.alt-prod-panel-container {
+  background-color: #ece9d8;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 0px #ffffff, 1px 1px 2px rgba(0, 0, 0, 0.15);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Alert Notification */
+.alt-prod-alert {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.alt-prod-alert.success {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.alt-prod-alert.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.alt-prod-alert.info {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+}
+
+/* Dotted Blue Labels */
+.dotted-label-blue {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000080;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Inputs */
+.alt-prod-input {
+  height: 24px;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 2px 6px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.alt-prod-input:focus {
+  border-color: #005bb7;
+  background-color: #ffffea;
+}
+
+.item-code-input-wrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Classic ERP Action Buttons */
+.alt-prod-btn-classic {
+  height: 25px;
+  min-width: 65px;
+  padding: 0 10px;
+  background: linear-gradient(180deg, #fbfbf9 0%, #ece9d8 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  user-select: none;
+  box-shadow: 1px 1px 0px #000000;
+  white-space: nowrap;
+}
+
+.alt-prod-btn-classic:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 100%);
+}
+
+.alt-prod-btn-classic:active {
+  border-top: 1px solid #707070;
+  border-left: 1px solid #707070;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.alt-prod-btn-classic:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.alt-prod-btn-classic.delete {
+  color: #7f0000;
+}
+
+.alt-prod-btn-classic.add-alt-btn {
+  height: 23px;
+  font-size: 11px;
+  font-weight: 600;
+  background: linear-gradient(180deg, #f0f7ff 0%, #d8e8f8 100%);
+  color: #003366;
+}
+
+.alt-prod-btn-lookup {
+  height: 24px;
+  min-width: 26px;
+  padding: 0 4px;
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  color: #000000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.alt-prod-btn-lookup:hover {
+  background-color: #dfdbca;
+}
+
+/* Remove button in table */
+.alt-prod-btn-remove {
+  height: 20px;
+  min-width: 55px;
+  padding: 0 6px;
+  background: linear-gradient(180deg, #fff2f2 0%, #fed7d7 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #994444;
+  border-bottom: 1px solid #994444;
+  color: #990000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 1px 1px 0px rgba(0, 0, 0, 0.4);
+}
+
+.alt-prod-btn-remove:hover {
+  background: linear-gradient(180deg, #ffe5e5 0%, #feb2b2 100%);
+  color: #cc0000;
+}
+
+.alt-prod-btn-remove:active {
+  border-top: 1px solid #994444;
+  border-left: 1px solid #994444;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+/* ========================================================= */
+/* Top Header Controls Rows                                  */
+/* ========================================================= */
+.alt-prod-top-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alt-prod-row-1 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.alt-prod-row-1 .dotted-label-blue {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.alt-prod-btn-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin-left: 14px;
+}
+
+.alt-prod-row-2 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.alt-prod-row-2 .dotted-label-blue {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+/* Active Status Indicator Box on Right */
+.alt-prod-status-indicator {
+  height: 24px;
+  min-width: 80px;
+  padding: 0 10px;
+  background-color: #ece9d8;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 1px #ffffff, 1px 1px 1px rgba(0, 0, 0, 0.1);
+  color: #000080;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  margin-left: 8px;
+}
+
+/* ========================================================= */
+/* Bordered Containers (Matching Old SOFAST Screenshot)     */
+/* ========================================================= */
+.alt-prod-section-box {
+  background-color: #f4f3ed;
+  border-top: 2px solid #808080;
+  border-left: 2px solid #808080;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.alt-prod-section-box.upper {
+  min-height: 200px;
+  max-height: 250px;
+}
+
+.alt-prod-section-box.lower {
+  min-height: 260px;
+  max-height: 360px;
+}
+
+.section-header-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #e4e1d4;
+  border-bottom: 1px solid #b8b4a5;
+  padding: 4px 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #000080;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.section-subtitle {
+  font-size: 11px;
+  font-weight: 400;
+  color: #444444;
+}
+
+.badge-count {
+  display: inline-block;
+  background-color: #dbeafe;
+  color: #1e40af;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid #93c5fd;
+}
+
+.table-viewport {
+  flex: 1;
+  overflow-y: auto;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+}
+
+.upper-table-scroll {
+  max-height: 195px;
+}
+
+.lower-table-scroll {
+  max-height: 300px;
+}
+
+/* Alternative Products Table */
+.alt-prod-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  background-color: #ffffff;
+}
+
+.alt-prod-table th {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(180deg, #f7f6f0 0%, #ece9d8 100%);
+  border-right: 1px solid #aca899;
+  border-bottom: 1px solid #aca899;
+  color: #000080;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 6px;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 5;
+  user-select: none;
+}
+
+.alt-prod-table td {
+  border-right: 1px solid #e0ded4;
+  border-bottom: 1px solid #e0ded4;
+  padding: 4px 6px;
+  color: #000000;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.alt-prod-table tbody tr:hover {
+  background-color: #e5f1fb;
+  cursor: pointer;
+}
+
+.alt-prod-table tbody tr.selected {
+  background-color: #316ac5 !important;
+  color: #ffffff !important;
+}
+
+.alt-prod-table tbody tr.selected td {
+  color: #ffffff !important;
+  border-color: #4b80db;
+}
+
+.empty-table-message {
+  text-align: center;
+  padding: 30px 16px;
+  color: #666666;
+  font-style: italic;
+  background-color: #fafafa;
+}
+
+/* Item Search Lookup Modal */
+.alt-prod-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.alt-prod-modal-window {
+  background-color: #ece9d8;
+  border: 2px solid #005bb7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  width: 90%;
+  max-width: 780px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.alt-prod-modal-titlebar {
+  background-color: #005bb7;
+  color: #ffffff;
+  padding: 4px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.alt-prod-modal-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.modal-table-viewport {
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+}
+
+.alt-prod-modal-footer {
+  padding: 6px 10px;
+  background-color: #dfdbca;
+  border-top: 1px solid #b8b4a5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

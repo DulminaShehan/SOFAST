@@ -115,6 +115,30 @@ function GoodReceiveNote() {
         </svg>
       ),
     },
+    {
+      id: 'customer-details',
+      label: 'Customer Details',
+      path: '/customer-details',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+        </svg>
+      ),
+    },
+    {
+      id: 'alternative-product',
+      label: 'Alternative Product',
+      path: '/alternative-product',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+      ),
+    },
   ];
 
   const stockControlDropdownItems = [

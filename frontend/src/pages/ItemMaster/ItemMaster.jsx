@@ -205,9 +205,9 @@ function ItemMaster() {
       ),
     },
     {
-      id: 'customer-master',
-      label: 'Customer Master',
-      path: '/management',
+      id: 'customer-details',
+      label: 'Customer Details',
+      path: '/customer-details',
       renderIcon: () => (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -232,6 +232,19 @@ function ItemMaster() {
       renderIcon: () => (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="#64748b">
           <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'alternative-product',
+      label: 'Alternative Product',
+      path: '/alternative-product',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
         </svg>
       ),
     },

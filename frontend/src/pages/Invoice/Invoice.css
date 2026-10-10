@@ -1,0 +1,1022 @@
+.invoice-page,
+.invoice-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #d4d0c8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 1. Windows Title Bar */
+.invoice-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  background-color: #006ecb;
+  color: #ffffff;
+  padding: 0 0 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.invoice-titlebar-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.invoice-titlebar-car-icon {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+
+.invoice-titlebar-heading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.invoice-titlebar-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+.control-btn {
+  width: 32px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.close:hover {
+  background-color: #e81123;
+}
+
+/* 2. Top Navigation Menu Bar */
+.invoice-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.invoice-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.invoice-menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.invoice-menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 10px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+
+.invoice-menubar-button:hover,
+.invoice-menubar-button.active {
+  background-color: #0055ea;
+  border-color: #0044bb;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Dropdown Menu */
+.invoice-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 210px;
+  z-index: 200;
+}
+
+.invoice-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.invoice-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  outline: none;
+}
+
+.invoice-dropdown-item-btn:hover,
+.invoice-dropdown-item-btn.selected {
+  background-color: #2b78e4;
+  color: #ffffff;
+}
+
+/* 3. Main Form Canvas */
+.invoice-main-canvas {
+  flex: 1;
+  padding: 6px 12px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  max-width: 1600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.invoice-blue-header {
+  background: linear-gradient(180deg, #005bb7 0%, #00458a 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border: 1px solid #003366;
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.invoice-panel-container {
+  background-color: #ece9d8;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 0px #ffffff, 1px 1px 2px rgba(0, 0, 0, 0.15);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Alert Box */
+.invoice-alert {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.invoice-alert.success {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.invoice-alert.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.invoice-alert.info {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+}
+
+/* Dotted Blue Labels */
+.dotted-label-blue {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000080;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Standard Inputs and Selects */
+.invoice-input {
+  height: 24px;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 2px 6px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.invoice-input:focus {
+  border-color: #005bb7;
+  background-color: #ffffea;
+}
+
+.invoice-input.readonly {
+  background-color: #f4f3ed;
+  color: #222222;
+  cursor: default;
+}
+
+.invoice-select {
+  height: 24px;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  outline: none;
+  cursor: pointer;
+}
+
+.invoice-select:focus {
+  border-color: #005bb7;
+}
+
+/* Classic ERP Action Buttons */
+.invoice-btn-classic {
+  height: 26px;
+  min-width: 68px;
+  padding: 0 10px;
+  background: linear-gradient(180deg, #fbfbf9 0%, #ece9d8 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  user-select: none;
+  box-shadow: 1px 1px 0px #000000;
+}
+
+.invoice-btn-classic:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 100%);
+}
+
+.invoice-btn-classic:active {
+  border-top: 1px solid #707070;
+  border-left: 1px solid #707070;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.invoice-btn-classic:disabled {
+  color: #888888;
+  cursor: not-allowed;
+  background: #e0ded4;
+  border-color: #b0aea4;
+  box-shadow: none;
+}
+
+.invoice-btn-lookup {
+  height: 24px;
+  min-width: 26px;
+  padding: 0 4px;
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  color: #000000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.invoice-btn-lookup:hover {
+  background-color: #dfdbca;
+}
+
+/* ========================================================= */
+/* 1. CUSTOMER SECTION (Explicit 2-Column Desktop Grid)      */
+/* ========================================================= */
+.invoice-customer-section {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #c2beb4;
+  align-items: start;
+}
+
+.customer-left-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.customer-code-name-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.customer-code-name-row .dotted-label-blue {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.customer-address-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding-left: 106px; /* Aligns with code input */
+}
+
+.customer-right-box {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  gap: 5px 8px;
+  align-items: center;
+}
+
+/* ========================================================= */
+/* 2. TYPE OF JOB SECTION (Horizontal Row)                   */
+/* ========================================================= */
+.invoice-job-type {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+  padding: 4px 0 8px 0;
+  border-bottom: 1px solid #c2beb4;
+}
+
+.job-type-label {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000080;
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.job-type-radios {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+}
+
+.job-radio-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ========================================================= */
+/* 3. MAIN SPLIT: ITEM ENTRY (Left) + PAYMENT (Right)        */
+/* ========================================================= */
+.invoice-main {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Left Item Entry Panel */
+.invoice-item-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.item-code-location-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-code-location-row .dotted-label-blue {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.item-desc-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.item-desc-row .dotted-label-blue {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.item-entry-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 16px;
+  margin-top: 2px;
+}
+
+.item-entry-subcol {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-field-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-field-row .dotted-label-blue {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.form-field-row .invoice-input,
+.form-field-row .invoice-select {
+  width: 135px;
+}
+
+.item-save-btn-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* Right Payment Panel */
+.invoice-payment {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.payment-top-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.payment-top-actions .invoice-btn-classic {
+  height: 36px;
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+  padding: 2px 4px;
+}
+
+.payment-fields-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background-color: #faf9f5;
+  border: 1px solid #c2beb4;
+  padding: 8px 10px;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.payment-field-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.payment-field-row .dotted-label-blue {
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.payment-field-row .invoice-input {
+  width: 140px;
+  flex-shrink: 0;
+}
+
+/* ========================================================= */
+/* 4. REMARK SECTION (Below Item Entry + Payment)            */
+/* ========================================================= */
+.invoice-remark {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-top: 1px solid #c2beb4;
+}
+
+.invoice-remark .dotted-label-blue {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.invoice-remark .invoice-input {
+  flex: 1;
+}
+
+/* ========================================================= */
+/* 5. INVOICE ITEMS TABLE                                    */
+/* ========================================================= */
+.invoice-items-table-wrapper {
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+  min-height: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.invoice-items-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.invoice-items-table th {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(180deg, #f7f6f0 0%, #ece9d8 100%);
+  border-right: 1px solid #aca899;
+  border-bottom: 1px solid #aca899;
+  color: #000080;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 5px 6px;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 5;
+  user-select: none;
+}
+
+.invoice-items-table td {
+  border-right: 1px solid #e0ded4;
+  border-bottom: 1px solid #e0ded4;
+  padding: 4px 6px;
+  color: #000000;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.invoice-items-table tbody tr {
+  cursor: pointer;
+}
+
+.invoice-items-table tbody tr:nth-child(even) {
+  background-color: #faf9f5;
+}
+
+.invoice-items-table tbody tr:hover {
+  background-color: #e5f1fb;
+}
+
+.invoice-items-table tbody tr.selected {
+  background-color: #316ac5 !important;
+  color: #ffffff !important;
+}
+
+.invoice-items-table tbody tr.selected td {
+  color: #ffffff !important;
+  border-color: #4b80db;
+}
+
+/* ========================================================= */
+/* 6. BOTTOM ACTION BAR / FOOTER                             */
+/* ========================================================= */
+.invoice-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid #c2beb4;
+}
+
+.invoice-footer-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.invoice-footer-left .invoice-btn-classic {
+  height: 28px;
+  min-width: 72px;
+}
+
+.invoice-footer-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.invoice-total-display {
+  width: 160px;
+  height: 28px;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: right;
+  color: #000080;
+  background-color: #f0fdf4;
+  border: 1px solid #10b981;
+}
+
+/* ========================================================= */
+/* 7. MODALS (Customer / Item Lookup & Print Preview)         */
+/* ========================================================= */
+.invoice-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.invoice-modal-window {
+  background-color: #ece9d8;
+  border: 2px solid #005bb7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  width: 90%;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.invoice-modal-titlebar {
+  background-color: #005bb7;
+  color: #ffffff;
+  padding: 4px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.invoice-modal-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.invoice-modal-footer {
+  padding: 6px 10px;
+  background-color: #dfdbca;
+  border-top: 1px solid #b8b4a5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.invoice-lookup-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  font-size: 12px;
+}
+
+.invoice-lookup-table th {
+  background: #ece9d8;
+  border: 1px solid #aca899;
+  padding: 4px 6px;
+  color: #000080;
+  font-size: 11px;
+  text-align: left;
+}
+
+.invoice-lookup-table td {
+  border: 1px solid #e0ded4;
+  padding: 4px 6px;
+}
+
+.invoice-lookup-table tr:hover {
+  background-color: #e5f1fb;
+  cursor: pointer;
+}
+
+/* ========================================================= */
+/* 8. COMPACT THERMAL RECEIPT (80mm / 58mm)                   */
+/* ========================================================= */
+.thermal-receipt {
+  background-color: #ffffff;
+  width: var(--thermal-receipt-width, 72mm);
+  max-width: var(--thermal-receipt-width, 72mm);
+  margin: 0 auto;
+  padding: 1.5mm;
+  box-sizing: border-box;
+  font-family: Arial, Tahoma, sans-serif;
+  font-size: 9.5px;
+  line-height: 1.05;
+  color: #000000;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.thermal-receipt-header {
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
+
+.thermal-receipt-title {
+  color: #000000;
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+  margin: 0 0 1px 0;
+  line-height: 1.1;
+  letter-spacing: 0.3px;
+}
+
+.thermal-receipt-subtitle {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 1px 0;
+  line-height: 1.05;
+}
+
+.thermal-receipt-address {
+  font-size: 8.5px;
+  text-align: center;
+  margin: 0 0 0.5px 0;
+  line-height: 1.05;
+}
+
+.thermal-receipt-meta {
+  font-size: 9px;
+  font-weight: 600;
+  margin: 1px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.05;
+}
+
+.thermal-receipt-meta-row {
+  display: flex;
+  justify-content: space-between;
+  line-height: 1.05;
+}
+
+.thermal-receipt-dashed {
+  border-top: 1px dashed #000000;
+  margin: 2px 0;
+}
+
+.thermal-receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0;
+  padding: 0;
+  font-size: 9px;
+  line-height: 1.05;
+}
+
+.thermal-receipt-table th {
+  border-bottom: 1px dashed #000000;
+  padding: 1px 0;
+  font-size: 8.5px;
+  font-weight: bold;
+  line-height: 1.05;
+}
+
+.thermal-receipt-table td {
+  padding: 1px 0;
+  vertical-align: top;
+  line-height: 1.05;
+}
+
+.thermal-receipt-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 9.5px;
+  line-height: 1.05;
+}
+
+.thermal-receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  line-height: 1.05;
+  padding: 0.5px 0;
+}
+
+.thermal-receipt-notice {
+  text-align: center;
+  font-size: 8px;
+  font-style: italic;
+  margin: 1px 0 0 0;
+  padding: 0;
+  line-height: 1.05;
+}
+
+#thermal-receipt-print-area {
+  display: none;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* ========================================================= */
+/* PRINT MEDIA CSS: Print ONLY the 80mm/58mm Thermal Receipt */
+/* ========================================================= */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0mm;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body,
+  #root {
+    width: var(--thermal-paper-size, 80mm) !important;
+    max-width: var(--thermal-paper-size, 80mm) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .invoice-container {
+    display: block !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    width: var(--thermal-paper-size, 80mm) !important;
+    max-width: var(--thermal-paper-size, 80mm) !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    overflow: visible !important;
+  }
+
+  /* Hide screen elements */
+  .invoice-titlebar,
+  .invoice-menubar-container,
+  .invoice-main-canvas,
+  .invoice-modal-overlay,
+  .invoice-notification,
+  button,
+  header,
+  nav {
+    display: none !important;
+  }
+
+  /* When printing directly or from preview modal */
+  #thermal-receipt-print-area {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    width: var(--thermal-paper-size, 80mm) !important;
+    max-width: var(--thermal-paper-size, 80mm) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  .thermal-receipt {
+    display: block !important;
+    visibility: visible !important;
+    width: var(--thermal-receipt-width, 72mm) !important;
+    max-width: var(--thermal-receipt-width, 72mm) !important;
+    margin: 0 auto !important;
+    padding: 1.5mm !important;
+    box-sizing: border-box !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    font-family: Arial, Tahoma, sans-serif !important;
+    font-size: 9.5px !important;
+    line-height: 1.05 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .thermal-receipt * {
+    visibility: visible !important;
+    color: #000000 !important;
+  }
+
+  .thermal-receipt-title {
+    color: #000000 !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+  }
+}

@@ -47,12 +47,12 @@ function ManagementSystem() {
       ),
     },
     {
-      id: 'customer-master',
-      label: 'Customer Master',
-      path: null,
+      id: 'customer-details',
+      label: 'Customer Details',
+      path: '/customer-details',
       iconColor: '#8b5cf6',
       badgeBg: '#ede9fe',
-      description: 'Manage customer accounts, contact directories and credit limits.',
+      description: 'Manage customer accounts, contact directories, credit limits and VAT configurations.',
       renderIcon: (size = 20) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -88,6 +88,22 @@ function ManagementSystem() {
         </svg>
       ),
     },
+    {
+      id: 'alternative-product',
+      label: 'Alternative Product',
+      path: '/alternative-product',
+      iconColor: '#0284c7',
+      badgeBg: '#e0f2fe',
+      description: 'Manage interchangeable and alternative product mappings for inventory items.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+      ),
+    },
   ];
 
   const stockControlItems = [
@@ -106,14 +122,62 @@ function ManagementSystem() {
     },
   ];
 
+  const salesServiceItems = [
+    {
+      id: 'create-invoice',
+      label: 'Create Invoice',
+      path: '/invoice',
+      iconColor: '#2563eb',
+      badgeBg: '#dbeafe',
+      description: 'Customer sales invoicing, retail/wholesale billing, multiple items entry, and payment processing.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 14l6-6m-6 0l6 6m-9 7h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'settlement-invoice',
+      label: 'Settlement Invoice',
+      path: '/settlement-invoice',
+      iconColor: '#16a34a',
+      badgeBg: '#dcfce7',
+      description: 'Settle outstanding sales invoices with payments, cheque records, bank details, and special discounts.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      ),
+    },
+  ];
+
+  const administrationItems = [
+    {
+      id: 'printer-setup',
+      label: 'Printer Setup',
+      path: '/printer-setup',
+      iconColor: '#2563eb',
+      badgeBg: '#dbeafe',
+      description: 'Configure POS thermal printers, A4 report printers, and default printing hardware.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 6 2 18 2 18 9" />
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+          <rect x="6" y="14" width="12" height="8" />
+        </svg>
+      ),
+    },
+  ];
+
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, description: 'Real-time stock tracking, warehouse transfers and inventory balances.' },
-    { id: 'sales-service', label: 'Sales and Service', description: 'Point of sale, customer billing, and service order management.' },
+    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true, description: 'Point of sale, customer billing, and service order management.' },
     { id: 'production', label: 'Production', description: 'Production planning, work orders, bill of materials and assembly.' },
     { id: 'reports', label: 'Reports', description: 'Financial, inventory, sales and audit analytical reporting.' },
     { id: 'accounting', label: 'Accounting', description: 'General ledger, accounts receivable, payable and banking.' },
-    { id: 'administration', label: 'Administration', description: 'System configuration, user permissions, audit logs and backups.' },
+    { id: 'administration', label: 'Administration', hasDropdown: true, description: 'System configuration, user permissions, printer setup and audit logs.' },
   ];
 
   // Close dropdown on outside click
@@ -146,7 +210,7 @@ function ManagementSystem() {
   };
 
   // Find active module metadata
-  const currentMasterItem = masterFilesItems.find((m) => m.label === selectedModule) || stockControlItems.find((s) => s.label === selectedModule);
+  const currentMasterItem = masterFilesItems.find((m) => m.label === selectedModule) || stockControlItems.find((s) => s.label === selectedModule) || salesServiceItems.find((ss) => ss.label === selectedModule) || administrationItems.find((adm) => adm.label === selectedModule);
   const currentTopMenuItem = topMenuItems.find((t) => t.label === selectedModule);
 
   const activeTitle = selectedModule;
@@ -219,6 +283,46 @@ function ManagementSystem() {
                           {scItem.renderIcon(18)}
                         </span>
                         <span>{scItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Sales and Service Dropdown */}
+              {item.id === 'sales-service' && isDropdownOpen === 'sales-service' && (
+                <ul className="masterfiles-dropdown">
+                  {salesServiceItems.map((ssItem) => (
+                    <li key={ssItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className={`dropdown-item-btn ${selectedModule === ssItem.label ? 'selected' : ''}`}
+                        onClick={() => handleDropdownSelect(ssItem)}
+                      >
+                        <span className="dropdown-item-icon">
+                          {ssItem.renderIcon(18)}
+                        </span>
+                        <span>{ssItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Administration Dropdown */}
+              {item.id === 'administration' && isDropdownOpen === 'administration' && (
+                <ul className="masterfiles-dropdown">
+                  {administrationItems.map((admItem) => (
+                    <li key={admItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className={`dropdown-item-btn ${selectedModule === admItem.label ? 'selected' : ''}`}
+                        onClick={() => handleDropdownSelect(admItem)}
+                      >
+                        <span className="dropdown-item-icon">
+                          {admItem.renderIcon(18)}
+                        </span>
+                        <span>{admItem.label}</span>
                       </button>
                     </li>
                   ))}

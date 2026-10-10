@@ -1,0 +1,543 @@
+/* Customer Master / Customer Details - Classic SOFAST ERP / Visual Basic 6 Desktop UI */
+
+.cust-master-page,
+.cust-master-container {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #d4d0c8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 1. Windows Blue Title Bar */
+.cust-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  background-color: #006ecb;
+  color: #ffffff;
+  padding: 0 0 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.cust-titlebar-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.cust-titlebar-car-icon {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+
+.cust-titlebar-heading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.cust-titlebar-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+.control-btn {
+  width: 32px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.close:hover {
+  background-color: #e81123;
+}
+
+/* 2. Top Navigation Menu Bar */
+.cust-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.cust-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.cust-menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.cust-menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 10px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+
+.cust-menubar-button:hover,
+.cust-menubar-button.active {
+  background-color: #0055ea;
+  border-color: #0044bb;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Dropdown Menu */
+.cust-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 210px;
+  z-index: 200;
+}
+
+.cust-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.cust-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  outline: none;
+}
+
+.cust-dropdown-item-btn:hover,
+.cust-dropdown-item-btn.selected {
+  background-color: #2b78e4;
+  color: #ffffff;
+}
+
+/* 3. Main Content Canvas */
+.cust-main-canvas {
+  flex: 1;
+  padding: 8px 12px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: 1500px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Alert Notification */
+.cust-alert {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 2px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cust-alert.success {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.cust-alert.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.cust-alert.info {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #3b82f6;
+}
+
+/* Outer Panel Container */
+.cust-panel-container {
+  background-color: #f1ede1;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 0px #ffffff, 1px 1px 2px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Section Header Bar: Customer Master */
+.cust-section-header {
+  background: #004b97;
+  color: #ffffff;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-bottom: 1px solid #003366;
+  letter-spacing: 0.2px;
+}
+
+/* Two Column Grid */
+.cust-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 12px 14px 4px 14px;
+}
+
+.cust-left-col,
+.cust-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Form Row */
+.cust-form-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Dotted Blue Labels */
+.dotted-label-blue {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000080;
+  white-space: nowrap;
+  user-select: none;
+  width: 135px;
+  flex-shrink: 0;
+}
+
+/* Inputs & Selects */
+.cust-input,
+.cust-select {
+  height: 23px;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 2px 6px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.cust-input:focus,
+.cust-select:focus,
+.cust-textarea:focus {
+  border-color: #005bb7;
+  background-color: #ffffea;
+}
+
+.cust-textarea {
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.input-with-lookup {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 3px;
+}
+
+.cust-btn-lookup {
+  height: 23px;
+  min-width: 25px;
+  padding: 0 4px;
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  color: #000000;
+  font-family: Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.cust-btn-lookup:hover {
+  background-color: #dfdbca;
+}
+
+/* Notes Full Width Row */
+.cust-notes-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 14px 10px 14px;
+}
+
+.cust-notes-row .dotted-label-blue {
+  padding-top: 4px;
+}
+
+/* Action Buttons Bar */
+.cust-btn-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 12px 14px;
+}
+
+.cust-btn-classic {
+  height: 26px;
+  min-width: 70px;
+  padding: 0 12px;
+  background: linear-gradient(180deg, #fbfbf9 0%, #ece9d8 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  user-select: none;
+  box-shadow: 1px 1px 0px #000000;
+}
+
+.cust-btn-classic:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 100%);
+}
+
+.cust-btn-classic:active {
+  border-top: 1px solid #707070;
+  border-left: 1px solid #707070;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.cust-btn-classic:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cust-btn-classic.delete {
+  color: #7f0000;
+}
+
+/* Bottom Customer Table Section */
+.cust-table-section {
+  padding: 0 10px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cust-table-filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px;
+}
+
+.cust-table-viewport {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+}
+
+/* Data Table */
+.cust-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  background-color: #ffffff;
+}
+
+.cust-data-table th {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(180deg, #f7f6f0 0%, #ece9d8 100%);
+  border-right: 1px solid #aca899;
+  border-bottom: 1px solid #aca899;
+  color: #000080;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 6px;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 5;
+  user-select: none;
+}
+
+.cust-data-table td {
+  border-right: 1px solid #e0ded4;
+  border-bottom: 1px solid #e0ded4;
+  padding: 4px 6px;
+  color: #000000;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.cust-data-table tbody tr:hover {
+  background-color: #e5f1fb;
+  cursor: pointer;
+}
+
+.cust-data-table tbody tr.selected {
+  background-color: #316ac5 !important;
+  color: #ffffff !important;
+}
+
+.cust-data-table tbody tr.selected td {
+  color: #ffffff !important;
+  border-color: #4b80db;
+}
+
+/* Customer Search Lookup Modal */
+.cust-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.cust-modal-window {
+  background-color: #ece9d8;
+  border: 2px solid #005bb7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  width: 90%;
+  max-width: 780px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cust-modal-titlebar {
+  background-color: #005bb7;
+  color: #ffffff;
+  padding: 4px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.cust-modal-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.modal-table-viewport {
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+}
+
+.cust-modal-footer {
+  padding: 6px 10px;
+  background-color: #dfdbca;
+  border-top: 1px solid #b8b4a5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

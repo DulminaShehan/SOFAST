@@ -11,9 +11,10 @@ function MasterFilesDropdown({ onItemClick }) {
   const masterItems = [
     { id: 'item-master', label: 'Item Master', path: '/item-master' },
     { id: 'supplier-master', label: 'Supplier Master', path: '/supplier-master' },
-    { id: 'customer-master', label: 'Customer Master', path: '/customer-master' },
+    { id: 'customer-details', label: 'Customer Details', path: '/customer-details' },
     { id: 'category-master', label: 'Category Master', path: '/category-master' },
     { id: 'sub-category-master', label: 'Sub Category Master', path: '/sub-category-master' },
+    { id: 'alternative-product', label: 'Alternative Product', path: '/alternative-product' },
   ];
 
   return (
