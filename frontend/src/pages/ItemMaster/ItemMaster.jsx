@@ -160,7 +160,7 @@ function ItemMaster() {
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
-    { id: 'sales-service', label: 'Sales and Service', path: '/management' },
+    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
     { id: 'production', label: 'Production', path: '/management' },
     { id: 'reports', label: 'Reports', path: '/management' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
@@ -170,11 +170,76 @@ function ItemMaster() {
   const stockControlDropdownItems = [
     {
       id: 'good-receive-note',
-      label: 'Good Receive Note',
+      label: 'Good Receive Note (GRN)',
       path: '/grn',
       renderIcon: () => (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
           <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'damage-stock',
+      label: 'Damage Stock',
+      path: '/damage-stock',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        </svg>
+      ),
+    },
+    {
+      id: 'supplier-damage-claim',
+      label: 'Supplier Damage Claim / Replacement',
+      path: '/supplier-damage-claim',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z" />
+        </svg>
+      ),
+    },
+  ];
+
+  const salesServiceDropdownItems = [
+    {
+      id: 'create-invoice',
+      label: 'Create Invoice',
+      path: '/invoice',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+          <path d="M9 14l6-6m-6 0l6 6m-9 7h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'settlement-invoice',
+      label: 'Settlement Invoice',
+      path: '/settlement-invoice',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      ),
+    },
+    {
+      id: 'remaining-balance',
+      label: 'Remaining Balance',
+      path: '/remaining-balance',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      ),
+    },
+    {
+      id: 'customer-return-exchange',
+      label: 'Customer Return / Exchange',
+      path: '/customer-return-exchange',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+          <path d="M3 10h10a5 5 0 0 1 5 5v2m0 0l-3-3m3 3l3-3M3 10l3-3m-3 3l3 3" />
         </svg>
       ),
     },
@@ -679,6 +744,28 @@ function ItemMaster() {
               {item.id === 'stock-control' && isDropdownOpen === 'stock-control' && (
                 <ul className="masterfiles-dropdown">
                   {stockControlDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className="dropdown-item-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsDropdownOpen(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span className="dropdown-item-icon">{dropItem.renderIcon()}</span>
+                        <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Sales and Service Dropdown */}
+              {item.id === 'sales-service' && isDropdownOpen === 'sales-service' && (
+                <ul className="masterfiles-dropdown">
+                  {salesServiceDropdownItems.map((dropItem) => (
                     <li key={dropItem.id} className="dropdown-entry">
                       <button
                         type="button"

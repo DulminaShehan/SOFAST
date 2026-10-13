@@ -52,6 +52,7 @@ const normalizeItem = (item) => {
     isBulkItem: Boolean(item.isBulkItem),
     quantity: stock,
     stockInHand: stock,
+    damagedStock: item.damagedStock !== undefined ? Number(item.damagedStock) : 0,
     roundOff: item.roundOff !== undefined ? Number(item.roundOff) : 0,
     roundOffOption,
     roundOffStep,

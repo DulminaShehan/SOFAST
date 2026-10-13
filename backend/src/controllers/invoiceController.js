@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Invoice from '../models/Invoice.js';
 import Item from '../models/Item.js';
 import Customer from '../models/Customer.js';
+import Settlement from '../models/Settlement.js';
 
 /**
  * Get next sequential invoice number from MongoDB docnumbers and invoices
@@ -524,3 +525,167 @@ export const deleteInvoice = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Get remaining balances for all invoices and customers
+ * Accurately calculates invoice total, valid payments applied from settlements,
+ * remaining balance, and payment status (UNPAID, PARTIALLY PAID, PAID).
+ * Excludes fully paid invoices from default 'outstanding' filter.
+ */
+export const getRemainingBalances = async (req, res, next) => {
+  try {
+    const { search, filter = 'outstanding', limit = 300 } = req.query;
+
+    const query = {
+      isTemporary: { $ne: true },
+      isHold: { $ne: true },
+    };
+
+    const invoices = await Invoice.find(query)
+      .sort({ no: -1, date: -1, createdAt: -1 })
+      .limit(Math.min(parseInt(limit, 10) || 300, 1000))
+      .lean();
+
+    // Fetch settlements to calculate payments applied per invoice
+    const settlements = await Settlement.find({}).lean();
+
+    // Group valid payments applied by invoiceNumber (excluding customer change)
+    const settlementsByInvoice = {};
+    settlements.forEach((st) => {
+      const invNum = String(st.invoiceNumber || st.invoiceNo || '').trim().toLowerCase();
+      if (invNum) {
+        if (!settlementsByInvoice[invNum]) {
+          settlementsByInvoice[invNum] = 0;
+        }
+        settlementsByInvoice[invNum] += Number(st.amount || 0);
+      }
+    });
+
+    // Lookup customers map for phone numbers if missing on invoice
+    const customers = await Customer.find({}).lean();
+    const customerMap = {};
+    customers.forEach((c) => {
+      const code = String(c.code || c.customerCode || '').trim().toLowerCase();
+      if (code) {
+        customerMap[code] = c;
+      }
+    });
+
+    const results = [];
+    let totalOutstandingSum = 0;
+
+    for (const inv of invoices) {
+      const invNumStr = String(inv.invoiceNumber || inv.no || '').trim();
+      const invNumKey = invNumStr.toLowerCase();
+
+      // 1. Calculate actual invoice total
+      let invoiceTotal = 0;
+      if (inv.lineItems && inv.lineItems.length > 0) {
+        const gross = inv.lineItems.reduce(
+          (sum, li) => sum + (parseFloat(li.price || li.unitPrice || 0) * parseFloat(li.quantity || li.qty || 1)),
+          0
+        );
+        const discounts = inv.lineItems.reduce((sum, li) => sum + parseFloat(li.discountAmount || 0), 0) + (parseFloat(inv.specialDiscount) || 0);
+        invoiceTotal = Math.round(Math.max(0, gross - discounts) * 100) / 100;
+      } else {
+        invoiceTotal = Math.round(parseFloat(inv.amountToPay || inv.netTotal || inv.subTotal || inv.value || 0) * 100) / 100;
+      }
+
+      // Skip invalid zero or negative invoice totals
+      if (invoiceTotal <= 0) {
+        continue;
+      }
+
+      // 2. Calculate valid payments applied
+      let totalPaid = 0;
+      if (settlementsByInvoice[invNumKey] !== undefined) {
+        totalPaid = Math.round(settlementsByInvoice[invNumKey] * 100) / 100;
+      } else if (inv.paidAmount !== undefined && inv.paidAmount !== null && inv.paidAmount > 0) {
+        totalPaid = Math.round(Number(inv.paidAmount) * 100) / 100;
+      } else if (inv.amountReceived !== undefined && inv.amountReceived !== null && inv.amountReceived > 0) {
+        totalPaid = Math.round(Number(inv.amountReceived) * 100) / 100;
+      }
+
+      // 3. Remaining balance (decimal safe)
+      const remainingBalance = Math.round(Math.max(0, invoiceTotal - totalPaid) * 100) / 100;
+
+      // 4. Payment Status
+      let paymentStatus = 'UNPAID';
+      if (remainingBalance <= 0 && invoiceTotal > 0) {
+        paymentStatus = 'PAID';
+      } else if (totalPaid > 0 && remainingBalance > 0) {
+        paymentStatus = 'PARTIALLY PAID';
+      } else {
+        paymentStatus = 'UNPAID';
+      }
+
+      // 5. Customer information
+      const cusCodeKey = String(inv.customerCode || inv.cuscode || '').trim().toLowerCase();
+      const matchedCus = customerMap[cusCodeKey] || null;
+
+      const customerName = inv.customerName || inv.cusname || (matchedCus ? matchedCus.name : 'Walk-in Customer');
+      let customerTelephone = inv.customerTelephone || inv.telephone || '';
+      if (!customerTelephone && matchedCus) {
+        customerTelephone = matchedCus.telephone || matchedCus.telephone1 || matchedCus.telephone2 || '';
+      }
+
+      // 6. Filter check: 'outstanding' excludes fully paid invoices (remainingBalance > 0)
+      if (filter === 'outstanding' && remainingBalance <= 0) {
+        continue;
+      } else if (filter === 'paid' && remainingBalance > 0) {
+        continue;
+      } else if (filter === 'unpaid' && paymentStatus !== 'UNPAID') {
+        continue;
+      } else if (filter === 'partial' && paymentStatus !== 'PARTIALLY PAID') {
+        continue;
+      }
+
+      // 7. Search filter: customer name, telephone, or invoice number
+      if (search && search.trim() !== '') {
+        const q = search.trim().toLowerCase();
+        const matchesName = customerName.toLowerCase().includes(q);
+        const matchesTel = String(customerTelephone).toLowerCase().includes(q);
+        const matchesInv = invNumStr.toLowerCase().includes(q);
+        if (!matchesName && !matchesTel && !matchesInv) {
+          continue;
+        }
+      }
+
+      if (remainingBalance > 0) {
+        totalOutstandingSum += remainingBalance;
+      }
+
+      results.push({
+        _id: inv._id,
+        no: inv.no,
+        invoiceNumber: invNumStr,
+        date: inv.date,
+        customerCode: inv.customerCode || inv.cuscode || '',
+        customerName,
+        customerTelephone,
+        customerAddress: inv.customerAddress || (matchedCus ? matchedCus.address : ''),
+        invoiceTotal,
+        totalPaid,
+        remainingBalance,
+        paymentStatus,
+        isSettled: remainingBalance <= 0,
+        rawInvoice: {
+          ...inv,
+          customerName,
+          customerTelephone,
+          customerAddress: inv.customerAddress || (matchedCus ? matchedCus.address : ''),
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: results,
+      totalCount: results.length,
+      totalOutstandingSum: Math.round(totalOutstandingSum * 100) / 100,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

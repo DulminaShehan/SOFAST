@@ -1,0 +1,680 @@
+/* SOFAST MOTORS - CUSTOMER DAMAGE RETURN & REPLACEMENT (CLASSIC DESKTOP ERP) */
+
+.cdr-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #d4d0c8;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  color: #000000;
+  user-select: none;
+}
+
+/* 1. Window Title Bar */
+.cdr-win-titlebar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(90deg, #0a246a 0%, #a6caf0 100%);
+  color: #ffffff;
+  padding: 3px 6px;
+  height: 26px;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.cdr-win-title-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: bold;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.6);
+}
+
+.cdr-car-icon {
+  width: 15px;
+  height: 15px;
+  fill: #ffcc00;
+}
+
+.cdr-win-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.cdr-ctrl-btn {
+  width: 18px;
+  height: 18px;
+  background-color: #d4d0c8;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #404040;
+  border-bottom: 1px solid #404040;
+  color: #000000;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cdr-ctrl-btn:active {
+  border-top: 1px solid #404040;
+  border-left: 1px solid #404040;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+}
+
+.cdr-ctrl-btn.close {
+  font-size: 9px;
+  color: #800000;
+}
+
+/* 2. Top Classic Menu Bar */
+.cdr-menubar-container {
+  background-color: #ece9d8;
+  border-bottom: 1px solid #999999;
+  padding: 1px 4px;
+}
+
+.cdr-menubar {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 2px;
+}
+
+.cdr-menu-item-wrapper {
+  position: relative;
+}
+
+.cdr-menubar-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #000000;
+  cursor: pointer;
+}
+
+.cdr-menubar-btn:hover,
+.cdr-menubar-btn.active {
+  background-color: #316ac5;
+  color: #ffffff;
+  border-color: #316ac5;
+}
+
+.cdr-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.35);
+  list-style: none;
+  margin: 0;
+  padding: 2px 0;
+  min-width: 190px;
+  z-index: 9999;
+}
+
+.cdr-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.cdr-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #000000;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cdr-dropdown-item-btn:hover,
+.cdr-dropdown-item-btn.selected {
+  background-color: #316ac5;
+  color: #ffffff;
+}
+
+/* 3. Main Workspace */
+.cdr-main-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 6px;
+}
+
+/* Notification Alert Banner */
+.cdr-alert {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #7f9db9;
+  border-radius: 2px;
+}
+
+.cdr-alert.success {
+  background-color: #e6f4ea;
+  border-color: #34a853;
+  color: #137333;
+}
+
+.cdr-alert.error {
+  background-color: #fce8e6;
+  border-color: #ea4335;
+  color: #c5221f;
+}
+
+.cdr-alert.info {
+  background-color: #e8f0fe;
+  border-color: #4285f4;
+  color: #1a73e8;
+}
+
+/* Panels */
+.cdr-panel {
+  background-color: #ece9d8;
+  border: 1px solid #999999;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #d4d0c8;
+  padding: 6px 8px;
+}
+
+.cdr-panel-title {
+  font-weight: bold;
+  color: #000080;
+  font-size: 11px;
+  border-bottom: 1px solid #d4d0c8;
+  padding-bottom: 3px;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Search Bar */
+.cdr-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cdr-label {
+  font-weight: bold;
+  color: #333333;
+  white-space: nowrap;
+}
+
+.cdr-input {
+  height: 22px;
+  border: 1px solid #7f9db9;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  background-color: #ffffff;
+  color: #000000;
+  box-sizing: border-box;
+}
+
+.cdr-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 2px rgba(37, 99, 235, 0.5);
+}
+
+.cdr-btn-classic {
+  height: 22px;
+  background-color: #ece9d8;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #7f9db9;
+  border-bottom: 1px solid #7f9db9;
+  padding: 1px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.cdr-btn-classic:hover {
+  background-color: #f5f3e9;
+}
+
+.cdr-btn-classic:active {
+  border-top: 1px solid #7f9db9;
+  border-left: 1px solid #7f9db9;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+}
+
+.cdr-btn-classic.primary {
+  background-color: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+  font-weight: bold;
+}
+
+.cdr-btn-classic.primary:hover {
+  background-color: #1d4ed8;
+}
+
+/* Customer & Invoice Info Grid */
+.cdr-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 6px;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  padding: 6px 8px;
+  margin-top: 4px;
+}
+
+.cdr-info-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.cdr-info-label {
+  font-size: 10px;
+  color: #666666;
+  text-transform: uppercase;
+}
+
+.cdr-info-val {
+  font-weight: bold;
+  color: #000000;
+}
+
+.cdr-info-val.highlight {
+  color: #0a246a;
+}
+
+/* Tables */
+.cdr-table-container {
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  overflow: auto;
+  max-height: 200px;
+}
+
+.cdr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.cdr-table th {
+  background: linear-gradient(180deg, #ece9d8 0%, #d4d0c8 100%);
+  border: 1px solid #999999;
+  padding: 3px 6px;
+  text-align: left;
+  font-weight: bold;
+  color: #000000;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.cdr-table td {
+  border: 1px solid #d4d0c8;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+.cdr-table tr:hover {
+  background-color: #e8f4fd;
+}
+
+.cdr-table tr.selected {
+  background-color: #b9d8ff;
+  color: #000000;
+  font-weight: 500;
+}
+
+.cdr-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.cdr-badge.success {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.cdr-badge.warning {
+  background-color: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.cdr-badge.danger {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.cdr-badge.info {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+/* Two-column layout for Form + Traceability */
+.cdr-form-columns {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .cdr-form-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Form Sections */
+.cdr-field-group {
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cdr-select {
+  height: 22px;
+  border: 1px solid #7f9db9;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 11px;
+  background-color: #ffffff;
+}
+
+.cdr-textarea {
+  border: 1px solid #7f9db9;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  background-color: #ffffff;
+  resize: vertical;
+  min-height: 40px;
+}
+
+/* Radio Action Cards */
+.cdr-action-card-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.cdr-action-card {
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  padding: 6px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.cdr-action-card:hover {
+  background-color: #f0f7ff;
+}
+
+.cdr-action-card.active {
+  background-color: #e6f0fa;
+  border-color: #2563eb;
+  border-width: 2px;
+  padding: 5px 7px;
+}
+
+.cdr-action-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.cdr-action-card-title {
+  font-weight: bold;
+  color: #0a246a;
+}
+
+.cdr-action-card-desc {
+  font-size: 10px;
+  color: #666666;
+}
+
+/* Traceability Box */
+.cdr-trace-box {
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cdr-trace-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  border-bottom: 1px dotted #e0e0e0;
+}
+
+.cdr-trace-label {
+  color: #666666;
+  font-weight: 500;
+}
+
+.cdr-trace-val {
+  font-weight: bold;
+  color: #000000;
+  text-align: right;
+}
+
+/* Traceability History Selection Table */
+.cdr-history-table-box {
+  max-height: 120px;
+  overflow: auto;
+  border: 1px solid #d4d0c8;
+  margin-top: 4px;
+}
+
+/* Bottom Status Footer */
+.cdr-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #ece9d8;
+  border-top: 1px solid #999999;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.cdr-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #333333;
+}
+
+.cdr-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Modal Overlay & Dialogs */
+.cdr-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.cdr-modal-box {
+  background-color: #ece9d8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.4);
+  width: 90%;
+  max-width: 620px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cdr-modal-header {
+  background: linear-gradient(90deg, #0a246a 0%, #a6caf0 100%);
+  color: #ffffff;
+  padding: 4px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  font-size: 11px;
+}
+
+.cdr-modal-body {
+  padding: 10px;
+  overflow-y: auto;
+  font-size: 11px;
+  color: #000000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cdr-modal-footer {
+  padding: 6px 10px;
+  background-color: #d4d0c8;
+  border-top: 1px solid #ffffff;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Workflow Indicators */
+.cdr-workflow-banner {
+  padding: 6px 10px;
+  border-radius: 2px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.cdr-workflow-banner.workflow-a {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.cdr-workflow-banner.workflow-b {
+  background-color: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+/* Calculation & Price Difference Box */
+.cdr-diff-box {
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 8px;
+  margin-top: 6px;
+  border-radius: 2px;
+}
+
+.cdr-diff-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 11px;
+}
+
+.cdr-diff-total {
+  border-top: 1px dashed #94a3b8;
+  margin-top: 4px;
+  padding-top: 4px;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+/* Printable Thermal / A4 Voucher */
+.cdr-print-container {
+  background-color: #ffffff;
+  padding: 16px;
+  border: 1px solid #cccccc;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #000000;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .cdr-print-container, .cdr-print-container * {
+    visibility: visible;
+  }
+  .cdr-print-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 10px;
+    border: none;
+  }
+  .cdr-no-print {
+    display: none !important;
+  }
+}
+

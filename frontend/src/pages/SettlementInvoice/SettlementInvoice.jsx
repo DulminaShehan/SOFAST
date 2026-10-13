@@ -77,12 +77,16 @@ function SettlementInvoice() {
   ];
 
   const stockControlDropdownItems = [
-    { id: 'good-receive-note', label: 'Good Receive Note', path: '/grn' },
+    { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
+    { id: 'damage-stock', label: 'Damage Stock', path: '/damage-stock' },
+    { id: 'supplier-damage-claim', label: 'Supplier Damage Claim / Replacement', path: '/supplier-damage-claim' },
   ];
 
   const salesServiceDropdownItems = [
     { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
     { id: 'settlement-invoice', label: 'Settlement Invoice', path: '/settlement-invoice' },
+    { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
+    { id: 'customer-return-exchange', label: 'Customer Return / Exchange', path: '/customer-return-exchange' },
   ];
 
   const administrationDropdownItems = [
@@ -129,8 +133,10 @@ function SettlementInvoice() {
         setReceiptNo(recRes.data.data.receiptNo);
       }
 
-      // Check if routed from Create Invoice with specific invoiceNumber
-      if (location.state?.invoiceNumber) {
+      // Check if routed from Create Invoice or Remaining Balance with specific invoice
+      if (location.state?.invoice) {
+        handleSelectInvoice(location.state.invoice);
+      } else if (location.state?.invoiceNumber) {
         const invNum = String(location.state.invoiceNumber).trim();
         const match = availableInvoices.find(
           (i) => String(i.invoiceNumber).toLowerCase() === invNum.toLowerCase() || String(i.no) === invNum

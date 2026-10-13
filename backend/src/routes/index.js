@@ -7,6 +7,9 @@ import customerRoutes from './customer.routes.js';
 import invoiceRoutes from './invoice.routes.js';
 import alternativeProductRoutes from './alternativeProduct.routes.js';
 import settlementRoutes from './settlement.routes.js';
+import damageReturnRoutes from './damageReturn.routes.js';
+import supplierClaimRoutes from './supplierClaim.routes.js';
+import damageStockRoutes from './damageStock.routes.js';
 
 const router = Router();
 
@@ -23,6 +26,14 @@ router.use('/alternative-products', alternativeProductRoutes);
 router.use('/alternative-product', alternativeProductRoutes);
 router.use('/settlements', settlementRoutes);
 router.use('/settlement', settlementRoutes);
+router.use('/damage-returns', damageReturnRoutes);
+router.use('/customer-damage-returns', damageReturnRoutes);
+router.use('/customer-damage-return', damageReturnRoutes);
+router.use('/supplier-claims', supplierClaimRoutes);
+router.use('/supplier-damage-claims', supplierClaimRoutes);
+router.use('/supplier-damage-claim', supplierClaimRoutes);
+router.use('/damage-stock', damageStockRoutes);
+router.use('/damaged-stock', damageStockRoutes);
 
 export default router;
 

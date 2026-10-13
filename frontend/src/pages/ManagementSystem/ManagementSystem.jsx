@@ -109,7 +109,7 @@ function ManagementSystem() {
   const stockControlItems = [
     {
       id: 'good-receive-note',
-      label: 'Good Receive Note',
+      label: 'Good Receive Note (GRN)',
       path: '/grn',
       iconColor: '#f59e0b',
       badgeBg: '#fef3c7',
@@ -117,6 +117,36 @@ function ManagementSystem() {
       renderIcon: (size = 20) => (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'damage-stock',
+      label: 'Damage Stock',
+      path: '/damage-stock',
+      iconColor: '#ea580c',
+      badgeBg: '#ffedd5',
+      description: 'Track quarantined damaged items, maintain stock movement audit trails, and log shop floor damages.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
+        </svg>
+      ),
+    },
+    {
+      id: 'supplier-damage-claim',
+      label: 'Supplier Damage Claim / Replacement',
+      path: '/supplier-damage-claim',
+      iconColor: '#dc2626',
+      badgeBg: '#fee2e2',
+      description: 'Track defective items sent to suppliers, monitor claim approvals, and receive replacement stock.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
       ),
     },
@@ -147,6 +177,33 @@ function ManagementSystem() {
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="5" width="20" height="14" rx="2" />
           <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      ),
+    },
+    {
+      id: 'remaining-balance',
+      label: 'Remaining Balance',
+      path: '/remaining-balance',
+      iconColor: '#d97706',
+      badgeBg: '#fef3c7',
+      description: 'View customers and invoices with outstanding balances and process payments directly.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      ),
+    },
+    {
+      id: 'customer-return-exchange',
+      label: 'Customer Return / Exchange',
+      path: '/customer-return-exchange',
+      iconColor: '#e11d48',
+      badgeBg: '#ffe4e6',
+      description: 'Process customer returns for exchanges, defective goods, quarantine stock, and trace suppliers.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="1 4 1 10 7 10" />
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
         </svg>
       ),
     },

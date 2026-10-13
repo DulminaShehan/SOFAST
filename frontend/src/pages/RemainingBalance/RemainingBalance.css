@@ -1,0 +1,547 @@
+/* ========================================================= */
+/* SOFAST MOTORS - REMAINING BALANCE (CLASSIC DESKTOP ERP)   */
+/* ========================================================= */
+
+.remaining-balance-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+  background-color: #ece9d8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  user-select: none;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 1. Windows Blue Header Bar */
+.remaining-balance-win-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  background: linear-gradient(90deg, #0055ea 0%, #0080ff 100%);
+  color: #ffffff;
+  padding: 0 4px 0 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.remaining-balance-win-title-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.remaining-balance-car-icon {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+
+.remaining-balance-win-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  align-items: center;
+  gap: 2px;
+}
+
+.remaining-balance-ctrl-btn {
+  width: 22px;
+  height: 20px;
+  background-color: #ece9d8;
+  border: 1px solid #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  color: #000000;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.remaining-balance-ctrl-btn:active {
+  border: 1px solid #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+.remaining-balance-ctrl-btn.close {
+  background-color: #d13438;
+  color: #ffffff;
+  border-color: #f1707a #8a1f23 #8a1f23 #f1707a;
+}
+
+/* 2. Top Navigation Menubar */
+.remaining-balance-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.remaining-balance-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.remaining-balance-menu-item-wrapper {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.remaining-balance-menubar-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #000000;
+  cursor: pointer;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  border-radius: 2px;
+}
+
+.remaining-balance-menubar-btn:hover,
+.remaining-balance-menubar-btn.active {
+  background-color: #e5f1fb;
+  border-color: #70c0e7;
+}
+
+.remaining-balance-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #808080;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.25);
+  list-style: none;
+  padding: 2px;
+  margin: 0;
+  min-width: 200px;
+  z-index: 1000;
+}
+
+.remaining-balance-dropdown-entry {
+  padding: 0;
+  margin: 0;
+}
+
+.remaining-balance-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 5px 12px;
+  font-size: 11px;
+  color: #000000;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.remaining-balance-dropdown-item-btn:hover {
+  background-color: #0055ea;
+  color: #ffffff;
+}
+
+.remaining-balance-dropdown-item-btn.selected {
+  font-weight: bold;
+  background-color: #dbeafe;
+  color: #004085;
+}
+
+.remaining-balance-dropdown-item-btn.selected:hover {
+  background-color: #0055ea;
+  color: #ffffff;
+}
+
+/* 3. Main Workspace Canvas */
+.remaining-balance-main-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 8px 12px;
+  gap: 8px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Notification Banner */
+.remaining-balance-alert {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #000000;
+}
+
+.remaining-balance-alert.success {
+  background-color: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.remaining-balance-alert.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+/* Filter and KPI Header Card */
+.remaining-balance-panel {
+  background-color: #ece9d8;
+  border: 1px solid #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+
+.remaining-balance-panel-inset {
+  background-color: #ffffff;
+  border: 1px solid #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  box-sizing: border-box;
+}
+
+.remaining-balance-filter-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.remaining-balance-search-box {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 320px;
+}
+
+.remaining-balance-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: #000000;
+  white-space: nowrap;
+}
+
+.remaining-balance-input {
+  flex: 1;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-family: Tahoma, Arial, sans-serif;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  color: #000000;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.remaining-balance-input:focus {
+  border-color: #0055ea;
+  box-shadow: 0 0 2px rgba(0, 85, 234, 0.5);
+}
+
+.remaining-balance-filter-options {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.remaining-balance-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #000000;
+}
+
+.remaining-balance-radio-label input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* KPI Summary Cards */
+.remaining-balance-kpi-container {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+}
+
+.remaining-balance-kpi-card {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px;
+  background: #f7f5ea;
+  border: 1px solid #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  min-width: 140px;
+}
+
+.remaining-balance-kpi-title {
+  font-size: 9.5px;
+  font-weight: bold;
+  color: #666666;
+  text-transform: uppercase;
+}
+
+.remaining-balance-kpi-value {
+  font-size: 14px;
+  font-weight: bold;
+  color: #000080;
+}
+
+.remaining-balance-kpi-value.outstanding {
+  color: #b91c1c;
+}
+
+/* Table Section */
+.remaining-balance-table-container {
+  flex: 1;
+  min-height: 380px;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.remaining-balance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.remaining-balance-table thead th {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(180deg, #f0ede0 0%, #ded9c7 100%);
+  border-bottom: 1px solid #999999;
+  border-right: 1px solid #d4d0c8;
+  padding: 5px 6px;
+  font-weight: bold;
+  color: #000000;
+  text-align: left;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.remaining-balance-table thead th.text-right {
+  text-align: right;
+}
+
+.remaining-balance-table thead th.text-center {
+  text-align: center;
+}
+
+.remaining-balance-table tbody td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #e5e5e5;
+  border-right: 1px solid #f0ede0;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.remaining-balance-table tbody td.text-right {
+  text-align: right;
+}
+
+.remaining-balance-table tbody td.text-center {
+  text-align: center;
+}
+
+.remaining-balance-table tbody tr:hover {
+  background-color: #e5f1fb;
+}
+
+.remaining-balance-table tbody tr.row-selected {
+  background-color: #cce8ff;
+}
+
+/* Invoice Number Link Style */
+.remaining-balance-inv-link {
+  color: #0055ea;
+  font-weight: bold;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.remaining-balance-inv-link:hover {
+  color: #003399;
+}
+
+/* Amount Styles */
+.remaining-balance-amt-total {
+  font-weight: 600;
+  color: #111827;
+}
+
+.remaining-balance-amt-paid {
+  color: #047857;
+  font-weight: 600;
+}
+
+.remaining-balance-amt-due {
+  font-weight: bold;
+  color: #b91c1c;
+}
+
+.remaining-balance-amt-settled {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Status Badges */
+.remaining-balance-status-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 9.5px;
+  font-weight: bold;
+  text-transform: uppercase;
+  text-align: center;
+  min-width: 75px;
+}
+
+.remaining-balance-status-badge.unpaid {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+.remaining-balance-status-badge.partial {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.remaining-balance-status-badge.paid {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+/* Action Buttons */
+.remaining-balance-btn-classic {
+  height: 22px;
+  min-width: 60px;
+  background-color: #ece9d8;
+  border: 1px solid #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  color: #000000;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: Tahoma, Arial, sans-serif;
+  cursor: pointer;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.remaining-balance-btn-classic:hover:not(:disabled) {
+  background-color: #f0eee2;
+}
+
+.remaining-balance-btn-classic:active:not(:disabled) {
+  border: 1px solid #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+.remaining-balance-btn-classic:disabled {
+  color: #888888;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.remaining-balance-btn-receive {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: 1px solid #34d399;
+  border-right-color: #047857;
+  border-bottom-color: #047857;
+  font-weight: bold;
+  height: 22px;
+  padding: 0 8px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.remaining-balance-btn-receive:hover {
+  background: linear-gradient(180deg, #059669 0%, #047857 100%);
+}
+
+.remaining-balance-btn-receive:active {
+  border-color: #047857 #34d399 #34d399 #047857;
+}
+
+/* Bottom Bar / Footer Controls */
+.remaining-balance-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #ece9d8;
+  border: 1px solid #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #444444;
+}
+
+.remaining-balance-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.remaining-balance-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

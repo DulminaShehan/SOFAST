@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './MainMenu.css';
 import MasterFilesDropdown from './MasterFilesDropdown';
+import StockControlDropdown from './StockControlDropdown';
+import SalesServiceDropdown from './SalesServiceDropdown';
 
 /**
  * MainMenu Component
@@ -21,8 +23,8 @@ function MainMenu({ onMenuSelect }) {
 
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
-    { id: 'stock-control', label: 'Stock Control System', path: '/stock-control' },
-    { id: 'sales-service', label: 'Sales and Service', path: '/sales-service' },
+    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
+    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
     { id: 'production', label: 'Production', path: '/production' },
     { id: 'reports', label: 'Reports', path: '/reports' },
     { id: 'accounting', label: 'Accounting', path: '/accounting' },
@@ -97,6 +99,14 @@ function MainMenu({ onMenuSelect }) {
 
             {item.id === 'master-files' && openDropdown === 'master-files' && (
               <MasterFilesDropdown onItemClick={handleDropdownItemClick} />
+            )}
+
+            {item.id === 'stock-control' && openDropdown === 'stock-control' && (
+              <StockControlDropdown onItemClick={handleDropdownItemClick} />
+            )}
+
+            {item.id === 'sales-service' && openDropdown === 'sales-service' && (
+              <SalesServiceDropdown onItemClick={handleDropdownItemClick} />
             )}
           </li>
         ))}
