@@ -267,7 +267,7 @@ function Invoice() {
   const invoiceSubTotal = lineItems.reduce((acc, item) => acc + (parseFloat(item.value) || 0), 0);
   const specialDiscVal = parseFloat(payment.specialDiscount) || 0;
   const amountToPay = Math.max(0, invoiceSubTotal - specialDiscVal);
-  const amountReceivedVal = payment.amountReceived !== '' ? parseFloat(payment.amountReceived) || 0 : amountToPay;
+  const amountReceivedVal = payment.amountReceived !== '' ? parseFloat(payment.amountReceived) || 0 : 0;
   const dueAmount = Math.max(0, amountToPay - amountReceivedVal);
 
   // Handle Customer Selection / Changes
@@ -676,7 +676,7 @@ function Invoice() {
       subTotal: invoiceSubTotal,
       specialDiscount: specialDiscVal,
       amountToPay: amountToPay,
-      amountReceived: payment.amountReceived !== '' ? parseFloat(payment.amountReceived) || 0 : amountToPay,
+      amountReceived: payment.amountReceived !== '' ? parseFloat(payment.amountReceived) || 0 : 0,
       chequeNo: payment.chequeNo,
       bank: payment.bank,
       dateRealized: payment.dateRealized,
@@ -868,28 +868,28 @@ function Invoice() {
         <table className="thermal-receipt-table">
           <thead>
             <tr>
-              <th style={{ textAlign: 'left' }}>Item</th>
-              <th style={{ textAlign: 'right', width: '38%' }}>Qty x Rate</th>
-              <th style={{ textAlign: 'right', width: '26%' }}>Amount</th>
+              <th className="thermal-th-item" style={{ textAlign: 'left' }}>Item</th>
+              <th className="thermal-th-qtyrate" style={{ textAlign: 'right' }}>Qty x Rate</th>
+              <th className="thermal-th-amount" style={{ textAlign: 'right' }}>Amount</th>
             </tr>
           </thead>
           <tbody>
             {lineItems.length === 0 ? (
               <tr>
-                <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '1px 0' }}>
+                <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '2px 0' }}>
                   No line items
                 </td>
               </tr>
             ) : (
               lineItems.map((item, idx) => (
-                <tr key={idx}>
-                  <td style={{ textAlign: 'left', wordBreak: 'break-word' }}>
+                <tr key={idx} className="thermal-tr-item">
+                  <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
                     {item.code ? `${item.code} - ` : ''}{item.description || ''}
                   </td>
-                  <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                     {Number(item.quantity || 1).toFixed(2)} x {Number(item.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                  <td className="thermal-td-amount" style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                     {Number(item.value || (item.price * item.quantity) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
@@ -902,9 +902,9 @@ function Invoice() {
 
         {/* Totals Section */}
         <div className="thermal-receipt-totals">
-          <div className="thermal-receipt-total-row">
+          <div className="thermal-receipt-total-row thermal-receipt-total-main">
             <span>Amount to Be Paid:</span>
-            <span style={{ fontWeight: 'bold' }}>
+            <span>
               {amountToPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>

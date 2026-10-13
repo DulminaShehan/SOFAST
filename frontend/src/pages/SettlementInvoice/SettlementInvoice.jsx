@@ -218,12 +218,19 @@ function SettlementInvoice() {
   // =========================================================================
   // CORE BUSINESS CALCULATIONS
   // =========================================================================
+  const round2 = (val) => Math.round((Number(val) || 0) * 100) / 100;
+
   const formatCurrency = (val) => {
     if (val === undefined || val === null || val === '') return '';
     const num = Number(val);
     if (isNaN(num)) return '';
     return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
+
+  // State to track calculation and prevent duplicate submission
+  const [calculatedState, setCalculatedState] = useState(null);
+  const [isCalculated, setIsCalculated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 1. Invoice Totals from Real Database Record
   const invoiceTotalGross = selectedInvoice
@@ -232,7 +239,7 @@ function SettlementInvoice() {
             (sum, li) => sum + (parseFloat(li.price || li.unitPrice || 0) * parseFloat(li.quantity || li.qty || 1)),
             0
           )
-        : parseFloat(selectedInvoice.subTotal || selectedInvoice.amountToPay || 0))
+        : parseFloat(selectedInvoice.subTotal || selectedInvoice.amountToPay || selectedInvoice.netTotal || 0))
     : 0;
 
   const invoiceLineDiscounts = selectedInvoice
@@ -241,39 +248,49 @@ function SettlementInvoice() {
         : (parseFloat(selectedInvoice.specialDiscount) || 0))
     : 0;
 
-  const amountToBePaid = selectedInvoice ? Math.max(0, invoiceTotalGross - invoiceLineDiscounts) : 0;
+  const amountToBePaid = selectedInvoice ? round2(Math.max(0, invoiceTotalGross - invoiceLineDiscounts)) : 0;
 
   // 2. Previously Saved Settlements Sum from MongoDB
-  const savedSettlementsPaid = selectedInvoice
-    ? (settlementsList.length > 0
-        ? settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0)
-        : (selectedInvoice.amountReceived !== undefined && Number(selectedInvoice.amountReceived) > 0
-            ? Number(selectedInvoice.amountReceived)
-            : (selectedInvoice.paidAmount !== undefined && Number(selectedInvoice.paidAmount) > 0
-                ? Number(selectedInvoice.paidAmount)
-                : (selectedInvoice.dueAmount === 0 && selectedInvoice.paidStatus === 'Paid'
-                    ? amountToBePaid
-                    : 0))))
+  const previouslyAppliedPayments = selectedInvoice
+    ? round2(settlementsList.reduce((sum, s) => sum + (Number(s.amount) || 0), 0))
     : 0;
 
   // 3. Outstanding Balance Before Current Payment
   const outstandingBalanceBefore = selectedInvoice
-    ? Math.max(0, amountToBePaid - savedSettlementsPaid)
+    ? (settlementsList.length > 0
+        ? round2(Math.max(0, amountToBePaid - previouslyAppliedPayments))
+        : (selectedInvoice.isSettled === true || (selectedInvoice.paymentStatus === 'paid' && Number(selectedInvoice.dueAmount) === 0 && Number(selectedInvoice.paidAmount) > 0)
+            ? 0
+            : (selectedInvoice.dueAmount !== undefined && Number(selectedInvoice.dueAmount) > 0
+                ? round2(Number(selectedInvoice.dueAmount))
+                : amountToBePaid)))
     : 0;
 
   // 4. Current Typed Payment Calculations
   const hasTypedPayment = paymentAmount !== '' && !isNaN(parseFloat(paymentAmount));
-  const typedAmount = hasTypedPayment ? Math.max(0, parseFloat(paymentAmount)) : 0;
+  const typedAmount = hasTypedPayment ? round2(parseFloat(paymentAmount)) : 0;
 
-  const amountReceivedVal = hasTypedPayment ? typedAmount : 0;
-  const amountAppliedVal = hasTypedPayment ? Math.min(amountReceivedVal, outstandingBalanceBefore) : 0;
-  const changeCashReturnVal = hasTypedPayment ? Math.max(0, amountReceivedVal - amountAppliedVal) : 0;
+  const amountReceivedVal = hasTypedPayment && typedAmount > 0 ? typedAmount : 0;
+  const amountAppliedVal = hasTypedPayment && typedAmount > 0
+    ? round2(Math.min(amountReceivedVal, outstandingBalanceBefore))
+    : 0;
+  const changeCashReturnVal = hasTypedPayment && typedAmount > 0
+    ? round2(Math.max(0, amountReceivedVal - amountAppliedVal))
+    : 0;
 
-  const totalAmountReceivedVal = savedSettlementsPaid + amountAppliedVal;
-  const balanceAfterVal = Math.max(0, outstandingBalanceBefore - amountAppliedVal);
+  const totalAmountReceivedVal = round2(previouslyAppliedPayments + amountAppliedVal);
+  const balanceAfterVal = hasTypedPayment && typedAmount > 0
+    ? round2(Math.max(0, outstandingBalanceBefore - amountAppliedVal))
+    : outstandingBalanceBefore;
+
+  const initialStatus = selectedInvoice
+    ? (outstandingBalanceBefore === 0 ? 'PAID' : (previouslyAppliedPayments > 0 ? 'PARTIALLY PAID' : 'UNPAID'))
+    : '';
 
   const statusVal = selectedInvoice
-    ? (balanceAfterVal === 0 ? 'PAID' : (totalAmountReceivedVal > 0 ? 'PARTIAL' : 'UNPAID'))
+    ? (hasTypedPayment && typedAmount > 0
+        ? (balanceAfterVal === 0 ? 'PAID' : (totalAmountReceivedVal > 0 ? 'PARTIALLY PAID' : 'UNPAID'))
+        : initialStatus)
     : '';
 
   // Calculate Button Trigger / Verification
@@ -282,12 +299,40 @@ function SettlementInvoice() {
       showNotification('Please select an Invoice first', 'error');
       return;
     }
-    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
-      showNotification('Please enter a valid Payment Amount to calculate', 'error');
+    if (!paymentAmount || isNaN(parseFloat(paymentAmount)) || parseFloat(paymentAmount) <= 0) {
+      showNotification('Please enter a valid Payment Amount greater than 0 to calculate', 'error');
       return;
     }
+
+    const payAmt = round2(parseFloat(paymentAmount));
+    if (outstandingBalanceBefore <= 0) {
+      showNotification(
+        `Invoice is already fully paid. Amount Applied: Rs. 0.00, Change / Cash Return: Rs. ${formatCurrency(payAmt)}`,
+        'info'
+      );
+      setIsCalculated(true);
+      return;
+    }
+
+    const applied = round2(Math.min(payAmt, outstandingBalanceBefore));
+    const chg = round2(Math.max(0, payAmt - applied));
+    const balAfter = round2(Math.max(0, outstandingBalanceBefore - applied));
+    const totPaid = round2(previouslyAppliedPayments + applied);
+    const stat = balAfter === 0 ? 'PAID' : (totPaid > 0 ? 'PARTIALLY PAID' : 'UNPAID');
+
+    setCalculatedState({
+      paymentAmount: payAmt,
+      amountReceived: payAmt,
+      amountApplied: applied,
+      change: chg,
+      balanceAfter: balAfter,
+      totalPaid: totPaid,
+      status: stat,
+    });
+    setIsCalculated(true);
+
     showNotification(
-      `Calculation applied: Received Rs. ${formatCurrency(amountReceivedVal)}, Applied Rs. ${formatCurrency(amountAppliedVal)}, Change Rs. ${formatCurrency(changeCashReturnVal)}`,
+      `Calculation applied: Received Rs. ${formatCurrency(payAmt)}, Applied Rs. ${formatCurrency(applied)}, Change Rs. ${formatCurrency(chg)}, Balance Rs. ${formatCurrency(balAfter)} [${stat}]`,
       'info'
     );
   };
@@ -306,6 +351,8 @@ function SettlementInvoice() {
     setBank('');
     setSelectedSettlementId(null);
     setSettlementsList([]);
+    setCalculatedState(null);
+    setIsCalculated(false);
 
     try {
       const recRes = await api.get('/settlements/next-receipt');
@@ -321,6 +368,8 @@ function SettlementInvoice() {
 
   // Button: Save Settlement
   const handleSaveSettlement = async () => {
+    if (isSubmitting || loading) return;
+
     if (!selectedInvoice || !selectedInvoiceNumber) {
       showNotification('Please select an Invoice first', 'error');
       return;
@@ -333,6 +382,11 @@ function SettlementInvoice() {
 
     if (outstandingBalanceBefore <= 0) {
       showNotification('This invoice is already fully paid and settled', 'error');
+      return;
+    }
+
+    if (amountAppliedVal <= 0) {
+      showNotification('No payment amount can be applied to this invoice', 'error');
       return;
     }
 
@@ -352,7 +406,8 @@ function SettlementInvoice() {
       invoiceNumber: selectedInvoiceNumber,
       amount: amountAppliedVal, // Amount applied to reduce invoice balance
       method,
-      received: amountReceivedVal, // Actual amount customer gave
+      received: amountReceivedVal, // Actual customer payment amount
+      change: changeCashReturnVal, // Change / cash return amount
       chequeNo: chequeNo.trim(),
       bank: bank.trim(),
       dateRealized: dateRealized ? dateRealized.trim() : '',
@@ -361,20 +416,30 @@ function SettlementInvoice() {
     };
 
     try {
+      setIsSubmitting(true);
       setLoading(true);
       const res = await api.post('/settlements', payload);
       if (res.data?.success) {
         showNotification(res.data.message || 'Settlement saved successfully!', 'success');
 
         // Update local invoice state
-        if (res.data.invoice?.remainingBalance !== undefined) {
+        if (res.data.invoice) {
           setSelectedInvoice((prev) =>
-            prev ? { ...prev, dueAmount: res.data.invoice.remainingBalance } : null
+            prev
+              ? {
+                  ...prev,
+                  dueAmount: res.data.invoice.remainingBalance,
+                  paidAmount: res.data.invoice.totalPaid,
+                  amountReceived: res.data.invoice.totalPaid,
+                  paymentStatus: res.data.invoice.paymentStatus,
+                  isSettled: res.data.invoice.isSettled,
+                }
+              : null
           );
         }
 
         // Refresh settlements list for this invoice
-        fetchInvoiceSettlements(selectedInvoiceNumber);
+        await fetchInvoiceSettlements(selectedInvoiceNumber);
 
         // Refresh global invoices list
         const invsRes = await api.get('/invoices?limit=250').catch(() => null);
@@ -392,11 +457,14 @@ function SettlementInvoice() {
         setDateRealized('');
         setBank('');
         setSelectedSettlementId(null);
+        setCalculatedState(null);
+        setIsCalculated(false);
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to save Settlement';
       showNotification(msg, 'error');
     } finally {
+      setIsSubmitting(false);
       setLoading(false);
     }
   };
@@ -419,18 +487,19 @@ function SettlementInvoice() {
       if (res.data?.success) {
         showNotification(res.data.message || 'Settlement deleted and balance restored', 'success');
 
+        await fetchInvoiceSettlements(selectedInvoiceNumber);
+
         if (res.data.data?.restoredBalance !== undefined) {
           setSelectedInvoice((prev) =>
             prev ? { ...prev, dueAmount: res.data.data.restoredBalance } : null
           );
         }
 
-        fetchInvoiceSettlements(selectedInvoiceNumber);
-
         const invsRes = await api.get('/invoices?limit=250').catch(() => null);
         if (invsRes?.data?.data) setInvoicesList(invsRes.data.data);
 
         setSelectedSettlementId(null);
+        setIsCalculated(false);
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to delete Settlement';
@@ -507,28 +576,28 @@ function SettlementInvoice() {
       <table className="thermal-receipt-table">
         <thead>
           <tr>
-            <th style={{ textAlign: 'left' }}>Item</th>
-            <th style={{ textAlign: 'right', width: '38%' }}>Qty x Rate</th>
-            <th style={{ textAlign: 'right', width: '26%' }}>Amount</th>
+            <th className="thermal-th-item" style={{ textAlign: 'left' }}>Item</th>
+            <th className="thermal-th-qtyrate" style={{ textAlign: 'right' }}>Qty x Rate</th>
+            <th className="thermal-th-amount" style={{ textAlign: 'right' }}>Amount</th>
           </tr>
         </thead>
         <tbody>
           {displayLineItems.length === 0 ? (
             <tr>
-              <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '1px 0' }}>
+              <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '2px 0' }}>
                 No line items
               </td>
             </tr>
           ) : (
             displayLineItems.map((li, idx) => (
-              <tr key={idx}>
-                <td style={{ textAlign: 'left', wordBreak: 'break-word' }}>
+              <tr key={idx} className="thermal-tr-item">
+                <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
                   {li.code || li.itemCode ? `${li.code || li.itemCode} - ` : ''}{li.description || ''}
                 </td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {Number(li.quantity || li.qty || 1).toFixed(2)} x {Number(li.price || li.unitPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
-                <td style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                <td className="thermal-td-amount" style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                   {Number(li.value || (li.price * li.quantity) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
@@ -541,26 +610,46 @@ function SettlementInvoice() {
 
       {/* Totals */}
       <div className="thermal-receipt-totals">
-        <div className="thermal-receipt-total-row">
+        <div className="thermal-receipt-total-row thermal-receipt-total-main">
           <span>Amount to Be Paid:</span>
-          <span style={{ fontWeight: 'bold' }}>
+          <span>
             {formatCurrency(amountToBePaid)}
           </span>
         </div>
+        {invoiceLineDiscounts > 0 && (
+          <div className="thermal-receipt-total-row">
+            <span>Total Discount:</span>
+            <span>
+              {formatCurrency(invoiceLineDiscounts)}
+            </span>
+          </div>
+        )}
         <div className="thermal-receipt-total-row">
-          <span>Total Discount:</span>
-          <span>
-            {formatCurrency(invoiceLineDiscounts)}
-          </span>
-        </div>
-        <div className="thermal-receipt-total-row">
-          <span>Amount Received:</span>
+          <span>Total Paid Toward Inv:</span>
           <span style={{ fontWeight: 'bold' }}>
             {formatCurrency(totalAmountReceivedVal)}
           </span>
         </div>
+        {hasTypedPayment && typedAmount > 0 && (
+          <>
+            <div className="thermal-receipt-total-row">
+              <span>Payment Received:</span>
+              <span>{formatCurrency(amountReceivedVal)}</span>
+            </div>
+            <div className="thermal-receipt-total-row">
+              <span>Amount Applied:</span>
+              <span style={{ fontWeight: 'bold' }}>{formatCurrency(amountAppliedVal)}</span>
+            </div>
+            {changeCashReturnVal > 0 && (
+              <div className="thermal-receipt-total-row">
+                <span>Change / Cash Return:</span>
+                <span style={{ fontWeight: 'bold' }}>{formatCurrency(changeCashReturnVal)}</span>
+              </div>
+            )}
+          </>
+        )}
         <div className="thermal-receipt-total-row">
-          <span>Balance:</span>
+          <span>Remaining Balance:</span>
           <span style={{ fontWeight: 'bold' }}>
             {formatCurrency(balanceAfterVal)}
           </span>
@@ -576,10 +665,19 @@ function SettlementInvoice() {
   );
 
   // Settlement History Summary Totals
-  const totalSettledAmount = settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0);
-  const totalSettledReceived = settlementsList.reduce((sum, s) => sum + Number(s.received || s.amount || 0), 0);
-  const totalSettledApplied = settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0);
-  const totalSettledChange = settlementsList.reduce((sum, s) => sum + Math.max(0, Number(s.received || s.amount || 0) - Number(s.amount || 0)), 0);
+  const totalSettledAmount = round2(settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0));
+  const totalSettledReceived = round2(
+    settlementsList.reduce((sum, s) => sum + Number(s.received !== undefined && s.received !== null ? s.received : (s.amount || 0)), 0)
+  );
+  const totalSettledApplied = round2(settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0));
+  const totalSettledChange = round2(
+    settlementsList.reduce((sum, s) => {
+      const chg = s.change !== undefined && s.change !== null
+        ? Number(s.change)
+        : Math.max(0, Number(s.received || s.amount || 0) - Number(s.amount || 0));
+      return sum + chg;
+    }, 0)
+  );
 
   return (
     <div className="settlement-page-wrapper">
@@ -1185,9 +1283,13 @@ function SettlementInvoice() {
                   settlementsList.map((st, idx) => {
                     const isSelected = selectedSettlementId === st._id;
                     const stAmount = Number(st.amount || 0);
-                    const stReceived = Number(st.received || st.amount || 0);
+                    const stReceived = Number(st.received !== undefined && st.received !== null ? st.received : (st.amount || 0));
                     const stApplied = Number(st.amount || 0);
-                    const stChange = Math.max(0, stReceived - stApplied);
+                    const stChange = Number(
+                      st.change !== undefined && st.change !== null
+                        ? st.change
+                        : Math.max(0, stReceived - stApplied)
+                    );
 
                     return (
                       <tr
@@ -1257,7 +1359,7 @@ function SettlementInvoice() {
             type="button"
             className="settlement-btn-classic settlement-btn-save-blue"
             onClick={handleSaveSettlement}
-            disabled={loading}
+            disabled={loading || isSubmitting}
           >
             Save
           </button>

@@ -91,9 +91,13 @@ export const getSettlementsByInvoice = async (req, res, next) => {
     }
 
     const settlements = await Settlement.find({
-      invoiceNumber: { $regex: new RegExp(`^${invNumTrimmed}$`, 'i') },
+      $or: [
+        { invoiceNumber: { $regex: new RegExp(`^${invNumTrimmed}$`, 'i') } },
+        { invoiceNo: { $regex: new RegExp(`^${invNumTrimmed}$`, 'i') } },
+        { invoiceNo: Number(invNumTrimmed) ? Number(invNumTrimmed) : null },
+      ],
     })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: 1, _id: 1 })
       .lean();
 
     return res.status(200).json({
@@ -115,7 +119,10 @@ export const getSettlements = async (req, res, next) => {
     const query = {};
 
     if (invoiceNumber) {
-      query.invoiceNumber = String(invoiceNumber).trim();
+      query.$or = [
+        { invoiceNumber: String(invoiceNumber).trim() },
+        { invoiceNo: String(invoiceNumber).trim() },
+      ];
     }
 
     if (customerCode) {
@@ -127,6 +134,7 @@ export const getSettlements = async (req, res, next) => {
       query.$or = [
         { receiptNo: regex },
         { invoiceNumber: regex },
+        { invoiceNo: regex },
         { customerCode: regex },
         { customerName: regex },
         { chequeNo: regex },
@@ -186,17 +194,22 @@ export const createSettlement = async (req, res, next) => {
       });
     }
 
-    const payAmount = parseFloat(amount);
-    if (isNaN(payAmount) || payAmount <= 0) {
+    // Determine actual customer payment received
+    const payReceived = Math.round((parseFloat(received !== undefined && received !== null && received !== '' ? received : amount) || 0) * 100) / 100;
+    if (isNaN(payReceived) || payReceived <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Settlement amount must be greater than 0',
+        message: 'Payment amount must be greater than 0',
       });
     }
 
     // Find the original invoice
     const invoice = await Invoice.findOne({
-      $or: [{ invoiceNumber: invNum }, { no: Number(invNum) ? Number(invNum) : null }],
+      $or: [
+        { invoiceNumber: invNum },
+        { invoiceNumber: { $regex: new RegExp(`^${invNum}$`, 'i') } },
+        { no: Number(invNum) ? Number(invNum) : null },
+      ],
     });
 
     if (!invoice) {
@@ -206,40 +219,82 @@ export const createSettlement = async (req, res, next) => {
       });
     }
 
-    // Determine current invoice balance
-    let currentBalance = 0;
-    if (invoice.dueAmount !== undefined && invoice.dueAmount !== null) {
-      currentBalance = Number(invoice.dueAmount);
-    } else {
-      const invTotal = Number(invoice.amountToPay || invoice.subTotal || invoice.netTotal || 0);
-      const prevSettlements = await Settlement.find({ invoiceNumber: invoice.invoiceNumber }).lean();
-      const settledSum = prevSettlements.reduce((sum, s) => sum + (Number(s.amount) || 0) + (Number(s.specialDiscountAmount) || 0), 0);
-      const initReceived = Number(invoice.amountReceived || 0);
-      currentBalance = Math.max(0, invTotal - settledSum - initReceived);
-    }
+    // Calculate actual invoice total after line discounts and special discount
+    const invGross = invoice.lineItems && invoice.lineItems.length > 0
+      ? invoice.lineItems.reduce((sum, li) => sum + (parseFloat(li.price || li.unitPrice || 0) * parseFloat(li.quantity || li.qty || 1)), 0)
+      : parseFloat(invoice.subTotal || invoice.amountToPay || invoice.netTotal || 0);
 
-    const specDiscAmt = Math.max(0, parseFloat(specialDiscountAmount) || 0);
+    const invDiscounts = (invoice.lineItems && invoice.lineItems.length > 0
+      ? invoice.lineItems.reduce((sum, li) => sum + parseFloat(li.discountAmount || 0), 0)
+      : 0) + (parseFloat(invoice.specialDiscount) || 0);
 
-    // Validate payment method specifics
-    if ((method === 'Cheque' || method === 'Credit Note') && !chequeNo?.trim()) {
+    const invoiceTotal = Math.round(Math.max(0, invGross - invDiscounts) * 100) / 100;
+
+    // Find all previously saved settlements for this invoice
+    const prevSettlements = await Settlement.find({
+      $or: [
+        { invoiceNumber: invoice.invoiceNumber },
+        { invoiceNo: invoice.invoiceNumber },
+        { invoiceNumber: String(invoice.no) },
+        { invoiceNo: String(invoice.no) },
+        { invoiceNo: Number(invoice.no) ? Number(invoice.no) : null },
+      ],
+    }).lean();
+
+    const prevSettledSum = Math.round(prevSettlements.reduce((sum, s) => sum + (Number(s.amount) || 0), 0) * 100) / 100;
+
+    // Determine outstanding balance before this payment
+    let currentBalance = Math.round(Math.max(0, invoiceTotal - prevSettledSum) * 100) / 100;
+
+    // If invoice is already fully paid, prevent adding payment
+    if (currentBalance <= 0) {
       return res.status(400).json({
         success: false,
-        message: `Please enter the ${method === 'Cheque' ? 'Cheque' : 'Credit Note'} number`,
+        message: `Invoice '${invoice.invoiceNumber}' is already fully paid and settled. No additional payment can be applied.`,
       });
     }
 
-    if (method === 'Cheque' && !bank?.trim()) {
+    // Calculate Amount Applied, Change, and Balance After
+    const amountApplied = Math.round(Math.min(payReceived, currentBalance) * 100) / 100;
+    if (amountApplied <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No settlement amount can be applied to this invoice',
+      });
+    }
+
+    const changeAmount = Math.round(Math.max(0, payReceived - amountApplied) * 100) / 100;
+    const balanceAfter = Math.round(Math.max(0, currentBalance - amountApplied) * 100) / 100;
+    const totalPaidTowardInvoice = Math.round((prevSettledSum + amountApplied) * 100) / 100;
+
+    // Validate payment method specifics
+    const payMethod = method || 'Cash';
+    if ((payMethod === 'Cheque' || payMethod === 'Credit Note') && !chequeNo?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: `Please enter the ${payMethod === 'Cheque' ? 'Cheque' : 'Credit Note'} number`,
+      });
+    }
+
+    if (payMethod === 'Cheque' && !bank?.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Please enter or select the Bank for the cheque',
       });
     }
 
-    // Generate or use Receipt Number
-    let finalReceiptNo = providedReceiptNo;
+    // Generate or use Receipt Number (with collision protection)
+    let finalReceiptNo = providedReceiptNo ? String(providedReceiptNo).trim() : '';
     let nextNo = 1001;
 
-    if (!finalReceiptNo || finalReceiptNo.trim() === '') {
+    if (finalReceiptNo) {
+      const existingReceipt = await Settlement.findOne({ receiptNo: finalReceiptNo });
+      if (existingReceipt) {
+        finalReceiptNo = ''; // Generate fresh unique receipt
+      }
+    }
+
+    if (!finalReceiptNo) {
       const docNum = await db.collection('docnumbers').findOne({ docType: 'REC' });
       const latestSettlement = await Settlement.findOne({ no: { $exists: true, $ne: null } })
         .sort({ no: -1, createdAt: -1 })
@@ -254,49 +309,50 @@ export const createSettlement = async (req, res, next) => {
       nextNo = matchNum ? parseInt(matchNum[0], 10) : 1001;
     }
 
-    const balanceBefore = Math.round(currentBalance * 100) / 100;
-    const balanceAfter = Math.max(0, Math.round((currentBalance - payAmount - specDiscAmt) * 100) / 100);
-
-    // Create Settlement record
+    // Create Settlement record with separate received, applied, and change amounts
     const settlement = new Settlement({
-      receiptNo: String(finalReceiptNo).trim(),
+      receiptNo: finalReceiptNo,
       no: nextNo,
       invoiceId: invoice._id,
       invoiceNumber: invoice.invoiceNumber,
+      invoiceNo: invoice.invoiceNumber,
       customerCode: invoice.customerCode || invoice.cuscode || '',
       customerName: invoice.customerName || invoice.cusname || '',
       date: date ? new Date(date) : new Date(),
-      amount: Math.round(payAmount * 100) / 100,
-      method,
-      received: received !== '' && !isNaN(parseFloat(received)) ? parseFloat(received) : payAmount,
+      amount: amountApplied, // Amount applied toward invoice
+      received: payReceived, // Actual customer payment received
+      change: changeAmount, // Change / cash return amount
+      method: payMethod,
       chequeNo: chequeNo ? chequeNo.trim() : '',
       bank: bank ? bank.trim() : '',
       dateRealized: dateRealized ? String(dateRealized).trim() : '',
       specialDiscountType: specialDiscountType || '',
-      specialDiscountAmount: Math.round(specDiscAmt * 100) / 100,
+      specialDiscountAmount: Math.round((parseFloat(specialDiscountAmount) || 0) * 100) / 100,
       specialDiscountBasis,
       specialAmount: parseFloat(specialAmount) || 0,
-      balanceBefore,
+      balanceBefore: currentBalance,
       balanceAfter,
       remark: remark || '',
-      createdBy: req.user?.username || 'Admin',
+      createdBy: req.user?.username || req.user?.userCode || 'Admin',
     });
 
     await settlement.save();
 
-    // Update Docnumbers for receipt
+    // Update Docnumbers for receipt sequence
     await db.collection('docnumbers').updateOne(
       { docType: 'REC' },
       { $set: { currentNumber: nextNo, prefix: 'REC', padding: 4 } },
       { upsert: true }
     );
 
-    // Update original Invoice due amount and amount received
+    // Update original Invoice due amount, paid amount, and payment status
     invoice.dueAmount = balanceAfter;
-    invoice.amountReceived = Math.round(((invoice.amountReceived || 0) + payAmount) * 100) / 100;
+    invoice.paidAmount = totalPaidTowardInvoice;
+    invoice.amountReceived = totalPaidTowardInvoice;
+    invoice.isSettled = balanceAfter <= 0;
+    invoice.paymentStatus = balanceAfter <= 0 ? 'paid' : 'partial';
     if (balanceAfter <= 0) {
-      invoice.isSettled = true;
-      invoice.paymentStatus = 'paid';
+      invoice.status = 'completed';
     }
     await invoice.save();
 
@@ -308,9 +364,15 @@ export const createSettlement = async (req, res, next) => {
         invoiceNumber: invoice.invoiceNumber,
         customerCode: invoice.customerCode,
         customerName: invoice.customerName,
-        value: invoice.amountToPay || invoice.subTotal,
-        balanceBefore,
+        value: invoiceTotal,
+        balanceBefore: currentBalance,
         remainingBalance: balanceAfter,
+        amountApplied,
+        received: payReceived,
+        change: changeAmount,
+        totalPaid: totalPaidTowardInvoice,
+        paymentStatus: invoice.paymentStatus,
+        isSettled: invoice.isSettled,
       },
     });
   } catch (error) {
@@ -333,31 +395,58 @@ export const deleteSettlement = async (req, res, next) => {
       });
     }
 
-    // Find and update original invoice
-    const invoice = await Invoice.findOne({ invoiceNumber: settlement.invoiceNumber });
+    const invNum = settlement.invoiceNumber || settlement.invoiceNo;
+    await Settlement.findByIdAndDelete(id);
+
+    // Find and recalculate original invoice from remaining settlements
+    const invoice = await Invoice.findOne({
+      $or: [
+        { invoiceNumber: invNum },
+        { invoiceNumber: { $regex: new RegExp(`^${invNum}$`, 'i') } },
+        { no: Number(invNum) ? Number(invNum) : null },
+      ],
+    });
+
     let restoredBalance = 0;
 
     if (invoice) {
-      const refundAmt = Number(settlement.amount || 0);
-      const refundDisc = Number(settlement.specialDiscountAmount || 0);
-      invoice.dueAmount = Math.round(((invoice.dueAmount || 0) + refundAmt + refundDisc) * 100) / 100;
-      invoice.amountReceived = Math.max(0, Math.round(((invoice.amountReceived || 0) - refundAmt) * 100) / 100);
-      if (invoice.dueAmount > 0) {
-        invoice.isSettled = false;
-        invoice.paymentStatus = 'partial';
-      }
-      await invoice.save();
-      restoredBalance = invoice.dueAmount;
-    }
+      const remainingSettlements = await Settlement.find({
+        $or: [
+          { invoiceNumber: invoice.invoiceNumber },
+          { invoiceNo: invoice.invoiceNumber },
+          { invoiceNumber: String(invoice.no) },
+          { invoiceNo: String(invoice.no) },
+          { invoiceNo: Number(invoice.no) ? Number(invoice.no) : null },
+        ],
+      }).lean();
 
-    await Settlement.findByIdAndDelete(id);
+      const remainingPaid = Math.round(remainingSettlements.reduce((sum, s) => sum + (Number(s.amount) || 0), 0) * 100) / 100;
+
+      const invGross = invoice.lineItems && invoice.lineItems.length > 0
+        ? invoice.lineItems.reduce((sum, li) => sum + (parseFloat(li.price || li.unitPrice || 0) * parseFloat(li.quantity || li.qty || 1)), 0)
+        : parseFloat(invoice.subTotal || invoice.amountToPay || invoice.netTotal || 0);
+
+      const invDiscounts = (invoice.lineItems && invoice.lineItems.length > 0
+        ? invoice.lineItems.reduce((sum, li) => sum + parseFloat(li.discountAmount || 0), 0)
+        : 0) + (parseFloat(invoice.specialDiscount) || 0);
+
+      const invoiceTotal = Math.round(Math.max(0, invGross - invDiscounts) * 100) / 100;
+      restoredBalance = Math.round(Math.max(0, invoiceTotal - remainingPaid) * 100) / 100;
+
+      invoice.dueAmount = restoredBalance;
+      invoice.paidAmount = remainingPaid;
+      invoice.amountReceived = remainingPaid;
+      invoice.isSettled = restoredBalance <= 0 && invoiceTotal > 0;
+      invoice.paymentStatus = restoredBalance <= 0 ? 'paid' : (remainingPaid > 0 ? 'partial' : 'unpaid');
+      await invoice.save();
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Settlement '${settlement.receiptNo}' deleted and Rs. ${settlement.amount.toFixed(2)} restored to Invoice '${settlement.invoiceNumber}'`,
+      message: `Settlement '${settlement.receiptNo}' deleted and balance updated for Invoice '${invNum}'`,
       data: {
         deletedId: id,
-        invoiceNumber: settlement.invoiceNumber,
+        invoiceNumber: invNum,
         restoredBalance,
       },
     });

@@ -29,6 +29,11 @@ const settlementSchema = new mongoose.Schema(
       required: [true, 'Invoice number is required'],
       index: true,
     },
+    invoiceNo: {
+      type: String,
+      trim: true,
+      index: true,
+    },
     customerCode: {
       type: String,
       trim: true,
@@ -56,6 +61,10 @@ const settlementSchema = new mongoose.Schema(
       default: 'Cash',
     },
     received: {
+      type: Number,
+      default: 0,
+    },
+    change: {
       type: Number,
       default: 0,
     },

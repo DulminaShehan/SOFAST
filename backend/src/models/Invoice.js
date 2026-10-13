@@ -214,6 +214,19 @@ const invoiceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    paidAmount: {
+      type: Number,
+      default: 0,
+    },
+    paymentStatus: {
+      type: String,
+      trim: true,
+      default: 'unpaid',
+    },
+    isSettled: {
+      type: Boolean,
+      default: false,
+    },
     isStockUpdated: {
       type: Boolean,
       default: false,
