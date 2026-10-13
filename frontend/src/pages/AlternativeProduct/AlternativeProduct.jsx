@@ -76,14 +76,15 @@ function AlternativeProduct() {
 
   const stockControlDropdownItems = [
     { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
+    { id: 'damage-claim', label: 'Damage Claim', path: '/damage-claim' },
   ];
 
   const salesServiceDropdownItems = [
     { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
     { id: 'settlement-invoice', label: 'Settlement Invoice', path: '/settlement-invoice' },
     { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
-    { id: 'customer-return-exchange', label: 'Customer Return / Exchange', path: '/customer-return-exchange' },
   ];
+
 
   const administrationDropdownItems = [
     { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },

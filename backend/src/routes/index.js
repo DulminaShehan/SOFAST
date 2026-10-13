@@ -29,6 +29,9 @@ router.use('/settlement', settlementRoutes);
 router.use('/damage-returns', damageReturnRoutes);
 router.use('/customer-damage-returns', damageReturnRoutes);
 router.use('/customer-damage-return', damageReturnRoutes);
+router.use('/damage-claims', damageReturnRoutes);
+router.use('/damage-claim', damageReturnRoutes);
+
 router.use('/supplier-claims', supplierClaimRoutes);
 router.use('/supplier-damage-claims', supplierClaimRoutes);
 router.use('/supplier-damage-claim', supplierClaimRoutes);

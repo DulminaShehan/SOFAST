@@ -14,6 +14,16 @@ const customerDamageReturnSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    claimNumber: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    claimDate: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
     no: {
       type: Number,
       index: true,
@@ -132,17 +142,10 @@ const customerDamageReturnSchema = new mongoose.Schema(
     // Damage lifecycle status
     damageStatus: {
       type: String,
-      enum: [
-        'RECEIVED',
-        'UNDER INSPECTION',
-        'CLAIM PENDING',
-        'REPLACEMENT APPROVED',
-        'RESOLVED',
-        'COMPLETED_EXCHANGE',
-      ],
       default: 'RECEIVED',
       index: true,
     },
+
     // Inspection Details
     inspection: {
       inspected: {

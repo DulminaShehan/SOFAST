@@ -178,6 +178,18 @@ function ItemMaster() {
         </svg>
       ),
     },
+    {
+      id: 'damage-claim',
+      label: 'Damage Claim',
+      path: '/damage-claim',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      ),
+    },
   ];
 
   const salesServiceDropdownItems = [
@@ -212,17 +224,8 @@ function ItemMaster() {
         </svg>
       ),
     },
-    {
-      id: 'customer-return-exchange',
-      label: 'Customer Return / Exchange',
-      path: '/customer-return-exchange',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
-          <path d="M3 10h10a5 5 0 0 1 5 5v2m0 0l-3-3m3 3l3-3M3 10l3-3m-3 3l3 3" />
-        </svg>
-      ),
-    },
   ];
+
 
   const masterFilesDropdownItems = [
     {

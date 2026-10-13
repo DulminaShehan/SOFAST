@@ -1,0 +1,762 @@
+/* ==========================================================================
+   SOFAST POS - Damage Claim Window (Stock Control System)
+   Classic Windows ERP Desktop Aesthetics matching Reference Design
+   ========================================================================== */
+
+.dc-desktop-viewport {
+  min-height: 100vh;
+  background-color: #cbd5e1;
+  background-image: 
+    radial-gradient(#94a3b8 1px, transparent 1px),
+    radial-gradient(#94a3b8 1px, #cbd5e1 1px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #1e293b;
+  box-sizing: border-box;
+}
+
+/* Classic System Menubar on top of desktop */
+.dc-system-menubar {
+  background: #f1f5f9;
+  border-bottom: 1px solid #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 13px;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  position: relative;
+  z-index: 50;
+}
+
+.dc-menu-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dc-menu-item-wrapper {
+  position: relative;
+}
+
+.dc-menu-item-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dc-menu-item-btn:hover,
+.dc-menu-item-btn.active {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.dc-menu-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.dc-system-status-pill {
+  background: #dcfce7;
+  color: #166534;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+  border: 1px solid #bbf7d0;
+}
+
+/* Dropdown Menu */
+.dc-dropdown-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  min-width: 220px;
+  padding: 4px 0;
+  z-index: 100;
+}
+
+.dc-dropdown-action {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.dc-dropdown-action:hover {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+/* Main Window Container */
+.dc-window-container {
+  max-width: 1220px;
+  width: 98%;
+  margin: 12px auto 20px auto;
+  background: #e6ebf2;
+  border: 1px solid #7c90a8;
+  border-radius: 6px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Classic Windows Titlebar */
+.dc-window-titlebar {
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  border-bottom: 1px solid #94a3b8;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.dc-titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-folder-icon {
+  width: 18px;
+  height: 18px;
+  color: #eab308;
+}
+
+.dc-window-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.dc-titlebar-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dc-window-btn {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  color: #475569;
+  line-height: 1;
+}
+
+.dc-window-btn:hover {
+  background: #e2e8f0;
+}
+
+.dc-window-btn.close:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #dc2626;
+}
+
+/* Window Content Body */
+.dc-window-body {
+  padding: 10px 14px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: #e6ebf2;
+}
+
+/* Notification Banner */
+.dc-alert {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid transparent;
+}
+
+.dc-alert.success {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.dc-alert.error {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.dc-alert.info {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #7dd3fc;
+}
+
+.dc-alert-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: inherit;
+  line-height: 1;
+}
+
+/* Generic Section Styles */
+.dc-section-card {
+  border: 1px solid #7ea3cc;
+  border-radius: 4px;
+  background: #dce7f5;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dc-section-header {
+  background: linear-gradient(180deg, #4488db 0%, #2563eb 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  letter-spacing: 0.2px;
+  border-bottom: 1px solid #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dc-section-body {
+  padding: 8px 12px;
+}
+
+/* Label with classic dots leader */
+.dc-label-dots {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
+  white-space: nowrap;
+  font-family: inherit;
+  user-select: none;
+}
+
+/* Compact Inset Inputs */
+.dc-input {
+  height: 25px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  border-radius: 2px;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.dc-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #2563eb, inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.dc-input:disabled,
+.dc-input.readonly {
+  background: #e2e8f0;
+  color: #334155;
+  cursor: default;
+}
+
+.dc-select {
+  height: 25px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  border-radius: 2px;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.dc-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.dc-textarea {
+  padding: 4px 6px;
+  font-size: 12px;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #94a3b8;
+  border-radius: 2px;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.dc-textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb, inset 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Small Classic Buttons */
+.dc-btn-compact {
+  height: 25px;
+  padding: 0 10px;
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 1px solid #94a3b8;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+
+.dc-btn-compact:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #edf2f7 100%);
+  border-color: #64748b;
+}
+
+.dc-btn-compact:active {
+  background: #cbd5e1;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.dc-btn-dots {
+  height: 25px;
+  width: 28px;
+  padding: 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 1px solid #94a3b8;
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+
+.dc-btn-dots:hover {
+  background: #ffffff;
+  border-color: #64748b;
+}
+
+.dc-btn-dots:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Section 1: Invoice Details Layout
+   -------------------------------------------------------------------------- */
+.dc-invoice-details-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 8px 24px;
+  align-items: center;
+}
+
+.dc-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-field-row.full {
+  grid-column: 1 / -1;
+}
+
+/* --------------------------------------------------------------------------
+   Section 2: Invoice Items Table Layout
+   -------------------------------------------------------------------------- */
+.dc-table-container {
+  background: #ffffff;
+  border: 1px solid #7ea3cc;
+  border-radius: 2px;
+  overflow-x: auto;
+  max-height: 210px;
+}
+
+.dc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.dc-table th {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-right: 1px solid #1d4ed8;
+  border-bottom: 1px solid #1d4ed8;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dc-table th:last-child {
+  border-right: none;
+}
+
+.dc-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  white-space: nowrap;
+  color: #1e293b;
+}
+
+.dc-table td:last-child {
+  border-right: none;
+}
+
+.dc-table tbody tr {
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+}
+
+.dc-table tbody tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.dc-table tbody tr:hover {
+  background-color: #e0f2fe;
+}
+
+/* Selected row highlighted in rich solid blue */
+.dc-table tbody tr.selected {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.dc-table tbody tr.selected td {
+  color: #ffffff !important;
+  border-bottom-color: #1d4ed8;
+  border-right-color: #3b82f6;
+  font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+   Middle Grid: Return Claim Details & Supplier Details & Exchange Item
+   -------------------------------------------------------------------------- */
+.dc-middle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.dc-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dc-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Form Rows inside Return Claim Details */
+.dc-form-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.dc-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.dc-radio-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.dc-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.dc-radio-label input[type="radio"] {
+  accent-color: #2563eb;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+/* Dimmed / Disabled state for inactive conditional sections */
+.dc-section-card.inactive {
+  opacity: 0.6;
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.dc-section-card.inactive .dc-section-header {
+  background: linear-gradient(180deg, #94a3b8 0%, #64748b 100%);
+  border-color: #64748b;
+}
+
+.dc-section-card.inactive .dc-input,
+.dc-section-card.inactive .dc-select,
+.dc-section-card.inactive .dc-textarea {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Section 7 & Bottom Bar: Action Buttons & Damage Claim No
+   -------------------------------------------------------------------------- */
+.dc-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #cbd5e1;
+}
+
+.dc-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dc-action-btn {
+  height: 34px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+  border: 1px solid #94a3b8;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.1s ease;
+}
+
+.dc-action-btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+  border-color: #64748b;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.dc-action-btn:active {
+  background: #cbd5e1;
+  transform: translateY(1px);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.dc-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.dc-claim-info-card {
+  background: #dce7f5;
+  border: 1px solid #7ea3cc;
+  border-radius: 4px;
+  padding: 6px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.dc-claim-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Modal Dialogs (Windows ERP Look)
+   -------------------------------------------------------------------------- */
+.dc-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(1.5px);
+  padding: 16px;
+}
+
+.dc-modal-window {
+  background: #e6ebf2;
+  border: 1px solid #64748b;
+  border-radius: 6px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  max-width: 650px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: dcModalPop 0.15s ease-out;
+}
+
+@keyframes dcModalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.dc-modal-header {
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  color: #ffffff;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dc-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.dc-modal-close-btn:hover {
+  background: #ef4444;
+}
+
+.dc-modal-content {
+  padding: 12px 14px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: #1e293b;
+}
+
+.dc-modal-footer {
+  background: #dbe4f0;
+  border-top: 1px solid #cbd5e1;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 980px) {
+  .dc-middle-grid {
+    grid-template-columns: 1fr;
+  }
+  .dc-invoice-details-grid {
+    grid-template-columns: 1fr;
+  }
+  .dc-bottom-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .dc-action-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .dc-claim-info-card {
+    align-self: flex-end;
+  }
+}
+
+/* Printable Voucher styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .dc-print-sheet,
+  .dc-print-sheet * {
+    visibility: visible;
+  }
+  .dc-print-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 10mm;
+    background: #ffffff;
+    color: #000000;
+  }
+}

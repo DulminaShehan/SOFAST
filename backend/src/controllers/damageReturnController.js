@@ -39,6 +39,58 @@ export const getNextReturnNumber = async (req, res, next) => {
 };
 
 /**
+ * Get next sequential damage claim number (e.g. DC-2025-0008)
+ */
+export const getNextDamageClaimNumber = async (req, res, next) => {
+  try {
+    const db = mongoose.connection.db;
+    const currentYear = new Date().getFullYear();
+    const docNum = await db.collection('docnumbers').findOne({ docType: 'DC' });
+    
+    // Find latest claim matching DC- pattern or highest numerical no
+    const latestClaim = await CustomerDamageReturn.findOne({
+      $or: [
+        { claimNumber: new RegExp(`^DC-${currentYear}-`, 'i') },
+        { claimNumber: /^DC-/i },
+        { no: { $exists: true, $ne: null } },
+      ],
+    })
+      .sort({ createdAt: -1, no: -1 })
+      .lean();
+
+    let docCurrent = docNum && Number(docNum.currentNumber) ? Number(docNum.currentNumber) : 0;
+    let claimCurrent = 0;
+
+    if (latestClaim && latestClaim.claimNumber) {
+      const match = latestClaim.claimNumber.match(/DC-\d{4}-(\d+)/i) || latestClaim.claimNumber.match(/DC-(\d+)/i);
+      if (match && match[1]) {
+        claimCurrent = parseInt(match[1], 10) || 0;
+      }
+    }
+    if (latestClaim && Number(latestClaim.no) && Number(latestClaim.no) > claimCurrent) {
+      claimCurrent = Number(latestClaim.no);
+    }
+
+    const currentMax = Math.max(docCurrent, claimCurrent);
+    const nextNo = currentMax + 1;
+    const claimNumber = `DC-${currentYear}-${String(nextNo).padStart(4, '0')}`;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        no: nextNo,
+        claimNumber,
+        year: currentYear,
+        prefix: `DC-${currentYear}-`,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+/**
  * Look up original sales invoice by invoice number,
  * enrich customer details, and calculate previous return history per line item.
  */
@@ -300,21 +352,40 @@ export const getItemSupplierTraceability = async (req, res, next) => {
 export const createCustomerDamageReturn = async (req, res, next) => {
   try {
     const {
+      claimNumber,
+      claimDate,
       invoiceNumber,
       itemCode,
       returnedQuantity,
       returnReason,
       damageReason,
       damageNotes,
+      notes,
       itemCondition,
       workflowType,
+      returnType,
       disposition = 'QUARANTINE',
       damageStatus,
       inspection,
       replacement,
       verifiedSupplier,
+      supplierDetails,
       remarks,
     } = req.body;
+
+    // 0. Duplicate prevention if claimNumber is provided
+    if (claimNumber && claimNumber.trim()) {
+      const existingClaim = await CustomerDamageReturn.findOne({
+        claimNumber: claimNumber.trim(),
+      }).lean();
+      if (existingClaim) {
+        return res.status(409).json({
+          success: false,
+          message: `Damage Claim '${claimNumber.trim()}' has already been saved. Please click 'New' to start a new claim or 'Update' to modify.`,
+          data: existingClaim,
+        });
+      }
+    }
 
     // 1. Mandatory Validations
     if (!invoiceNumber || !invoiceNumber.trim()) {
@@ -328,20 +399,18 @@ export const createCustomerDamageReturn = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Returned quantity must be greater than zero' });
     }
 
-    const effectiveReason = (returnReason || damageReason || '').trim();
-    if (!effectiveReason) {
-      return res.status(400).json({ success: false, message: 'Return reason is required' });
-    }
+    const effectiveReason = (damageReason || returnReason || 'Broken').trim();
 
     // Determine condition & workflow
-    const isGoodCondition =
-      effectiveReason === 'Exchange — item is in good condition' ||
-      itemCondition === 'GOOD' ||
+    const isExchangeType =
+      returnType === 'EXCHANGE' ||
       workflowType === 'EXCHANGE' ||
-      inspection?.conditionResult === 'SELLABLE_STOCK';
+      itemCondition === 'GOOD' ||
+      effectiveReason === 'Exchange — item is in good condition';
 
-    const finalWorkflow = isGoodCondition ? 'EXCHANGE' : (workflowType || 'DAMAGE_RETURN');
-    const finalCondition = isGoodCondition ? 'GOOD' : (itemCondition || 'DAMAGED');
+    const isGoodCondition = isExchangeType || inspection?.conditionResult === 'SELLABLE_STOCK';
+    const finalWorkflow = isGoodCondition ? 'EXCHANGE' : 'DAMAGE_RETURN';
+    const finalCondition = isGoodCondition ? 'GOOD' : 'DAMAGED';
 
     const cleanInv = invoiceNumber.trim();
     const cleanItemCode = itemCode.trim();
@@ -356,6 +425,7 @@ export const createCustomerDamageReturn = async (req, res, next) => {
     if (!invoice) {
       return res.status(404).json({ success: false, message: `Invoice '${cleanInv}' does not exist` });
     }
+
 
     const matchedLine = (invoice.lineItems || []).find(
       (li) =>
@@ -473,8 +543,10 @@ export const createCustomerDamageReturn = async (req, res, next) => {
       };
     }
 
-    // 5. Sequence generation for Return / Exchange Reference (CDR-XXXX / CRE-XXXX)
+    // 5. Sequence generation for Return / Exchange Reference (CDR-XXXX & DC-YYYY-XXXX)
     const db = mongoose.connection.db;
+    const currentYear = (claimDate ? new Date(claimDate) : new Date()).getFullYear();
+
     const docNum = await db.collection('docnumbers').findOne({ docType: 'CDR' });
     const latestReturn = await CustomerDamageReturn.findOne({ no: { $exists: true, $ne: null } })
       .sort({ no: -1, createdAt: -1 })
@@ -485,17 +557,30 @@ export const createCustomerDamageReturn = async (req, res, next) => {
     const nextNo = Math.max(docCurrent, returnCurrent) + 1;
     const finalReturnNumber = `CDR-${String(nextNo).padStart(4, '0')}`;
 
-    // 6. Traceability structure
+    // Manage Damage Claim Number (e.g. DC-2025-0008)
+    let finalClaimNumber = (claimNumber || '').trim();
+    if (!finalClaimNumber) {
+      const dcDocNum = await db.collection('docnumbers').findOne({ docType: 'DC' });
+      const dcDocCurrent = dcDocNum && Number(dcDocNum.currentNumber) ? Number(dcDocNum.currentNumber) : 0;
+      const nextDcNo = Math.max(dcDocCurrent, nextNo);
+      finalClaimNumber = `DC-${currentYear}-${String(nextDcNo).padStart(4, '0')}`;
+    }
+
+    // 6. Traceability structure (merging verifiedSupplier and supplierDetails)
+    const suppSrc = supplierDetails || verifiedSupplier || {};
     const traceData = {
-      supplierCode: verifiedSupplier?.supplierCode || '',
-      supplierName: verifiedSupplier?.supplierName || '',
-      supplierTelephone: verifiedSupplier?.supplierTelephone || '',
-      supplierInvoiceNo: verifiedSupplier?.supplierInvoiceNo || '',
-      grnNumber: verifiedSupplier?.grnNumber || '',
-      purchaseDate: verifiedSupplier?.purchaseDate ? new Date(verifiedSupplier.purchaseDate) : null,
-      batchInfo: verifiedSupplier?.batchInfo || '',
-      verificationStatus: verifiedSupplier?.verificationStatus || 'UNVERIFIED',
-      purchaseHistorySnapshot: verifiedSupplier?.purchaseHistorySnapshot || [],
+      supplierCode: suppSrc.supplierCode || '',
+      supplierName: suppSrc.supplierName || '',
+      supplierTelephone: suppSrc.supplierTelephone || '',
+      supplierInvoiceNo: suppSrc.supplierInvoiceNo || '',
+      grnNumber: suppSrc.grnNumber || '',
+      purchaseDate: suppSrc.purchaseDate ? new Date(suppSrc.purchaseDate) : null,
+      purchaseQuantity: Number(suppSrc.purchaseQuantity) || 0,
+      batchInfo: suppSrc.batchInfo || '',
+      verificationStatus: suppSrc.verificationStatus || 'VERIFIED',
+      purchaseHistorySnapshot: suppSrc.purchaseHistorySnapshot || [],
+      claimStatus: suppSrc.claimStatus || (isGoodCondition ? 'Resolved' : 'Claim to Supplier'),
+      supplierNotes: suppSrc.supplierNotes || '',
     };
 
     // 7. Atomic Stock Updates & Segregation:
@@ -540,7 +625,7 @@ export const createCustomerDamageReturn = async (req, res, next) => {
           quantity: returnQtyNum,
           movementType: 'IN_CUSTOMER_RETURN',
           origin: 'CUSTOMER RETURN',
-          referenceNumber: finalReturnNumber,
+          referenceNumber: finalClaimNumber || finalReturnNumber,
           invoiceNumber: invoice.invoiceNumber || cleanInv,
           customerName: invoice.customerName || invoice.cusname || '',
           supplierCode: traceData.supplierCode || '',
@@ -548,7 +633,7 @@ export const createCustomerDamageReturn = async (req, res, next) => {
           unitCost: returnedItemUnitPrice,
           totalValue: Math.round(returnedItemUnitPrice * returnQtyNum * 100) / 100,
           damageReason: effectiveReason,
-          notes: damageNotes || `Returned on invoice #${cleanInv}`,
+          notes: notes || damageNotes || `Damage Claim ${finalClaimNumber} from invoice #${cleanInv}`,
           recordedBy: req.user?.username || req.user?.userCode || 'Admin',
         });
         await damageMovement.save();
@@ -576,9 +661,13 @@ export const createCustomerDamageReturn = async (req, res, next) => {
       );
     }
 
-    // 8. If disposition === 'SUPPLIER_CLAIM', automatically create linked Supplier Damage Claim
+    // 8. If disposition === 'SUPPLIER_CLAIM' or damage workflow with supplier details
     let linkedClaim = null;
-    if (disposition === 'SUPPLIER_CLAIM') {
+    const shouldLinkSupplierClaim =
+      disposition === 'SUPPLIER_CLAIM' ||
+      (!isGoodCondition && (traceData.supplierName || traceData.supplierCode));
+
+    if (shouldLinkSupplierClaim) {
       const claimDocNum = await db.collection('docnumbers').findOne({ docType: 'SDC' });
       const latestClaim = await SupplierDamageClaim.findOne({ no: { $exists: true, $ne: null } })
         .sort({ no: -1, createdAt: -1 })
@@ -586,13 +675,13 @@ export const createCustomerDamageReturn = async (req, res, next) => {
       const claimDocCurrent = claimDocNum && Number(claimDocNum.currentNumber) ? Number(claimDocNum.currentNumber) : 0;
       const claimLatestNo = latestClaim && Number(latestClaim.no) ? Number(latestClaim.no) : 0;
       const nextClaimNo = Math.max(claimDocCurrent, claimLatestNo) + 1;
-      const claimNumber = `SDC-${String(nextClaimNo).padStart(4, '0')}`;
+      const supplierClaimNum = `SDC-${String(nextClaimNo).padStart(4, '0')}`;
 
       linkedClaim = new SupplierDamageClaim({
-        claimNumber,
+        claimNumber: supplierClaimNum,
         no: nextClaimNo,
         date: new Date(),
-        customerReturnNumber: finalReturnNumber,
+        customerReturnNumber: finalClaimNumber || finalReturnNumber,
         supplierCode: traceData.supplierCode || 'GEN-SUPP',
         supplierName: traceData.supplierName || 'General Supplier / Inspection',
         supplierTelephone: traceData.supplierTelephone || '',
@@ -604,8 +693,8 @@ export const createCustomerDamageReturn = async (req, res, next) => {
         unitCost: Number(matchedLine.itemCost || matchedLine.price || 0),
         totalValue: Math.round(Number(matchedLine.itemCost || matchedLine.price || 0) * returnQtyNum * 100) / 100,
         damageReason: effectiveReason,
-        claimStatus: 'PENDING',
-        notes: `Auto-generated from Customer Return #${finalReturnNumber}. ${damageNotes || ''}`.trim(),
+        claimStatus: traceData.claimStatus === 'Claim to Supplier' ? 'PENDING' : (traceData.claimStatus || 'PENDING'),
+        notes: `Damage Claim #${finalClaimNumber}. ${notes || damageNotes || traceData.supplierNotes || ''}`.trim(),
         createdBy: req.user?.username || req.user?.userCode || 'Admin',
       });
 
@@ -622,13 +711,17 @@ export const createCustomerDamageReturn = async (req, res, next) => {
     // Determine initial damage status
     const initialDamageStatus = isGoodCondition
       ? 'COMPLETED_EXCHANGE'
-      : (damageStatus || (disposition === 'SUPPLIER_CLAIM' ? 'CLAIM PENDING' : 'RECEIVED'));
+      : (damageStatus || (traceData.claimStatus ? traceData.claimStatus.toUpperCase() : 'RECEIVED'));
 
-    // 9. Save Customer Damage Return / Exchange Document
+    // 9. Save Customer Damage Return / Claim Document
+    const parsedClaimDate = claimDate ? new Date(claimDate) : new Date();
+
     const customerReturn = new CustomerDamageReturn({
       returnNumber: finalReturnNumber,
+      claimNumber: finalClaimNumber,
+      claimDate: parsedClaimDate,
       no: nextNo,
-      date: new Date(),
+      date: parsedClaimDate,
       invoiceId: invoice._id,
       invoiceNumber: invoice.invoiceNumber || cleanInv,
       invoiceDate: invoice.date,
@@ -645,11 +738,11 @@ export const createCustomerDamageReturn = async (req, res, next) => {
         returnReason: effectiveReason,
         damageReason: effectiveReason,
         itemCondition: finalCondition,
-        damageNotes: damageNotes ? damageNotes.trim() : '',
+        damageNotes: (notes || damageNotes || '').trim(),
       },
       workflowType: finalWorkflow,
       itemCondition: finalCondition,
-      disposition,
+      disposition: isGoodCondition ? 'REPLACEMENT' : disposition,
       damageStatus: initialDamageStatus,
       inspection: {
         inspected: Boolean(inspection?.inspected || isGoodCondition),
@@ -661,50 +754,47 @@ export const createCustomerDamageReturn = async (req, res, next) => {
       replacement: replacementData,
       supplierTraceability: traceData,
       supplierClaimId: linkedClaim ? linkedClaim._id : undefined,
-      supplierClaimNumber: linkedClaim ? linkedClaim.claimNumber : '',
-      supplierClaim: linkedClaim
-        ? {
-            claimNumber: linkedClaim.claimNumber,
-            supplierCode: traceData.supplierCode || '',
-            supplierName: traceData.supplierName || '',
-            supplierTelephone: traceData.supplierTelephone || '',
-            supplierInvoiceNo: traceData.supplierInvoiceNo || '',
-            grnNumber: traceData.grnNumber || '',
-            claimDate: new Date(),
-            claimStatus: 'CLAIM PENDING',
-            resolutionType: 'PENDING',
-            notes: damageNotes || '',
-          }
-        : {
-            claimNumber: '',
-            supplierCode: traceData.supplierCode || '',
-            supplierName: traceData.supplierName || '',
-            supplierTelephone: traceData.supplierTelephone || '',
-            supplierInvoiceNo: traceData.supplierInvoiceNo || '',
-            grnNumber: traceData.grnNumber || '',
-            claimStatus: 'NONE',
-            resolutionType: 'NONE',
-            notes: '',
-          },
-      status: disposition === 'SUPPLIER_CLAIM' ? 'PENDING_CLAIM' : 'COMPLETED',
+      supplierClaimNumber: linkedClaim ? linkedClaim.claimNumber : finalClaimNumber,
+      supplierClaim: {
+        claimNumber: finalClaimNumber,
+        supplierCode: traceData.supplierCode || '',
+        supplierName: traceData.supplierName || '',
+        supplierTelephone: traceData.supplierTelephone || '',
+        supplierInvoiceNo: traceData.supplierInvoiceNo || '',
+        grnNumber: traceData.grnNumber || '',
+        claimDate: parsedClaimDate,
+        claimStatus: traceData.claimStatus || (isGoodCondition ? 'Resolved' : 'Claim to Supplier'),
+        resolutionType: isGoodCondition ? 'EXCHANGE' : 'PENDING',
+        notes: traceData.supplierNotes || notes || '',
+      },
+      status: 'COMPLETED',
       stockUpdated: true,
       createdBy: req.user?.username || req.user?.userCode || 'Admin',
-      remarks: remarks || '',
+      remarks: remarks || notes || '',
     });
 
     await customerReturn.save();
 
-    // 10. Update CDR docnumbers sequence
+    // 10. Update docnumbers sequence for CDR and DC
     await db.collection('docnumbers').updateOne(
       { docType: 'CDR' },
       { $set: { currentNumber: nextNo, prefix: 'CDR', padding: 4 } },
       { upsert: true }
     );
 
+    const matchDcNo = finalClaimNumber.match(/DC-\d{4}-(\d+)/i) || finalClaimNumber.match(/DC-(\d+)/i);
+    const dcNumeric = matchDcNo && matchDcNo[1] ? parseInt(matchDcNo[1], 10) : nextNo;
+    await db.collection('docnumbers').updateOne(
+      { docType: 'DC' },
+      { $set: { currentNumber: dcNumeric, prefix: `DC-${currentYear}-`, padding: 4 } },
+      { upsert: true }
+    );
+
     return res.status(201).json({
       success: true,
-      message: `Customer Return '${finalReturnNumber}' (${finalWorkflow}) recorded successfully`,
+      message: `Damage Claim '${finalClaimNumber}' recorded successfully`,
       data: {
+        claimNumber: finalClaimNumber,
         returnNumber: customerReturn.returnNumber,
         returnRecord: customerReturn,
         claimRecord: linkedClaim,
@@ -714,6 +804,144 @@ export const createCustomerDamageReturn = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Update existing Customer Damage Claim
+ * Allows updating claim status, supplier notes, supplier details, or receiving replacement goods
+ */
+export const updateCustomerDamageClaim = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      claimStatus,
+      supplierDetails,
+      supplierNotes,
+      damageNotes,
+      notes,
+      damageReason,
+      remarks,
+      replacementReceived,
+    } = req.body;
+
+    let query = {};
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query = { _id: id };
+    } else {
+      query = {
+        $or: [
+          { claimNumber: id.trim() },
+          { returnNumber: id.trim() },
+        ],
+      };
+    }
+
+    const claimRecord = await CustomerDamageReturn.findOne(query);
+    if (!claimRecord) {
+      return res.status(404).json({
+        success: false,
+        message: `Damage Claim '${id}' not found`,
+      });
+    }
+
+    // Update supplier details
+    if (supplierDetails) {
+      if (!claimRecord.supplierTraceability) {
+        claimRecord.supplierTraceability = {};
+      }
+      if (supplierDetails.supplierName) claimRecord.supplierTraceability.supplierName = supplierDetails.supplierName;
+      if (supplierDetails.supplierTelephone) claimRecord.supplierTraceability.supplierTelephone = supplierDetails.supplierTelephone;
+      if (supplierDetails.supplierInvoiceNo) claimRecord.supplierTraceability.supplierInvoiceNo = supplierDetails.supplierInvoiceNo;
+      if (supplierDetails.grnNumber) claimRecord.supplierTraceability.grnNumber = supplierDetails.grnNumber;
+      if (supplierDetails.purchaseDate) claimRecord.supplierTraceability.purchaseDate = new Date(supplierDetails.purchaseDate);
+      if (supplierDetails.purchaseQuantity !== undefined) claimRecord.supplierTraceability.purchaseQuantity = Number(supplierDetails.purchaseQuantity);
+      if (supplierDetails.claimStatus) claimRecord.supplierTraceability.claimStatus = supplierDetails.claimStatus;
+      if (supplierDetails.supplierNotes) claimRecord.supplierTraceability.supplierNotes = supplierDetails.supplierNotes;
+    }
+
+    if (claimStatus) {
+      if (!claimRecord.supplierClaim) claimRecord.supplierClaim = {};
+      claimRecord.supplierClaim.claimStatus = claimStatus;
+      if (claimRecord.supplierTraceability) {
+        claimRecord.supplierTraceability.claimStatus = claimStatus;
+      }
+      claimRecord.damageStatus = claimStatus.toUpperCase();
+    }
+
+    if (supplierNotes) {
+      if (!claimRecord.supplierClaim) claimRecord.supplierClaim = {};
+      claimRecord.supplierClaim.notes = supplierNotes;
+      if (claimRecord.supplierTraceability) {
+        claimRecord.supplierTraceability.supplierNotes = supplierNotes;
+      }
+    }
+
+    if (damageReason && claimRecord.returnedItem) {
+      claimRecord.returnedItem.damageReason = damageReason;
+      claimRecord.returnedItem.returnReason = damageReason;
+    }
+
+    if (damageNotes || notes) {
+      const combinedNotes = (notes || damageNotes || '').trim();
+      if (claimRecord.returnedItem) {
+        claimRecord.returnedItem.damageNotes = combinedNotes;
+      }
+      claimRecord.remarks = combinedNotes;
+    }
+
+    if (remarks) {
+      claimRecord.remarks = remarks;
+    }
+
+    // If replacement was physically received from supplier and accepted
+    if (replacementReceived && Number(replacementReceived.quantityReceived) > 0) {
+      if (!claimRecord.supplierClaim?.replacementReceived?.received) {
+        const qtyRec = Number(replacementReceived.quantityReceived);
+        const targetItemCode = replacementReceived.replacementItemCode || claimRecord.returnedItem?.itemCode;
+        const replItem = await Item.findOne({ code: new RegExp(`^${targetItemCode}$`, 'i') });
+
+        if (replItem) {
+          // Increment sellable stock and decrement damaged quarantine stock
+          await Item.updateOne(
+            { _id: replItem._id },
+            {
+              $inc: {
+                quantity: qtyRec,
+                stockInHand: qtyRec,
+                damagedStock: -qtyRec,
+              },
+            }
+          );
+          await Item.updateOne(
+            { _id: replItem._id, damagedStock: { $lt: 0 } },
+            { $set: { damagedStock: 0 } }
+          );
+
+          if (!claimRecord.supplierClaim) claimRecord.supplierClaim = {};
+          claimRecord.supplierClaim.replacementReceived = {
+            received: true,
+            receivedDate: new Date(),
+            quantityReceived: qtyRec,
+            replacementItemCode: replItem.code,
+            receivedBy: req.user?.username || 'Admin',
+          };
+          claimRecord.damageStatus = 'RESOLVED';
+          claimRecord.supplierClaim.claimStatus = 'Replaced';
+        }
+      }
+    }
+
+    await claimRecord.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Damage Claim '${claimRecord.claimNumber || claimRecord.returnNumber}' updated successfully`,
+      data: claimRecord,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * Update Return Inspection Result & Damage Status
