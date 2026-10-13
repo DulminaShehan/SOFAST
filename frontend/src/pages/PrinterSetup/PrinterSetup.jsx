@@ -111,8 +111,6 @@ function PrinterSetup() {
 
   const stockControlDropdownItems = [
     { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
-    { id: 'damage-stock', label: 'Damage Stock', path: '/damage-stock' },
-    { id: 'supplier-damage-claim', label: 'Supplier Damage Claim / Replacement', path: '/supplier-damage-claim' },
   ];
 
   const salesServiceDropdownItems = [

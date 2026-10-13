@@ -71,12 +71,28 @@ function CustomerDamageReturn() {
   const [historySearch, setHistorySearch] = useState('');
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Inspection Update Modal State
+  // Inspection & Supplier Claim Modal State
   const [inspectingReturn, setInspectingReturn] = useState(null);
+  const [modalSubTab, setModalSubTab] = useState('inspection'); // 'inspection' | 'claim'
   const [modalDamageStatus, setModalDamageStatus] = useState('UNDER INSPECTION');
   const [modalConditionResult, setModalConditionResult] = useState('DAMAGED_QUARANTINE');
   const [modalInspectionNotes, setModalInspectionNotes] = useState('');
   const [isSavingInspection, setIsSavingInspection] = useState(false);
+
+  // Supplier Claim Tracking State inside Modal
+  const [modalClaimStatus, setModalClaimStatus] = useState('PENDING');
+  const [modalSupplierResponse, setModalSupplierResponse] = useState('PENDING');
+  const [modalResolutionType, setModalResolutionType] = useState('REPLACEMENT');
+  const [modalCreditNoteRef, setModalCreditNoteRef] = useState('');
+  const [modalClaimNotes, setModalClaimNotes] = useState('');
+  const [isSavingClaim, setIsSavingClaim] = useState(false);
+
+  // Physical Replacement Receipt State inside Modal
+  const [showReplacementReceiptForm, setShowReplacementReceiptForm] = useState(false);
+  const [modalDeliveryNoteNo, setModalDeliveryNoteNo] = useState('');
+  const [modalReceivedQty, setModalReceivedQty] = useState('1');
+  const [modalReplacementItemCode, setModalReplacementItemCode] = useState('');
+  const [isReceivingReplacement, setIsReceivingReplacement] = useState(false);
 
   // Print Voucher Modal State
   const [printingReturn, setPrintingReturn] = useState(null);
@@ -106,8 +122,6 @@ function CustomerDamageReturn() {
 
   const stockControlDropdownItems = [
     { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
-    { id: 'damage-stock', label: 'Damage Stock', path: '/damage-stock' },
-    { id: 'supplier-damage-claim', label: 'Supplier Damage Claim / Replacement', path: '/supplier-damage-claim' },
   ];
 
   const salesServiceDropdownItems = [
@@ -441,7 +455,7 @@ function CustomerDamageReturn() {
           `Return '${inspectingReturn.returnNumber}' inspection updated successfully!`,
           'success'
         );
-        setInspectingReturn(null);
+        setInspectingReturn(res.data.data);
         fetchReturnsHistory();
       }
     } catch (err) {
@@ -449,6 +463,95 @@ function CustomerDamageReturn() {
       showNotification(msg, 'error');
     } finally {
       setIsSavingInspection(false);
+    }
+  };
+
+  // Open Inspection & Claim Modal
+  const handleOpenInspectModal = (ret, initialTab = 'inspection') => {
+    setInspectingReturn(ret);
+    setModalSubTab(initialTab);
+    setModalDamageStatus(ret.damageStatus || 'UNDER INSPECTION');
+    setModalConditionResult(ret.inspection?.conditionResult || 'DAMAGED_QUARANTINE');
+    setModalInspectionNotes(ret.inspection?.inspectionNotes || '');
+
+    const sc = ret.supplierClaim || {};
+    setModalClaimStatus(sc.claimStatus || (ret.supplierClaimNumber ? 'SUBMITTED' : 'PENDING'));
+    setModalSupplierResponse(sc.supplierResponse || 'PENDING');
+    setModalResolutionType(sc.resolutionType || 'REPLACEMENT');
+    setModalCreditNoteRef(sc.creditNoteReference || '');
+    setModalClaimNotes(sc.notes || '');
+
+    setModalReceivedQty(String(ret.returnedItem?.returnedQuantity || 1));
+    setModalReplacementItemCode(ret.returnedItem?.itemCode || '');
+    setModalDeliveryNoteNo('');
+    setShowReplacementReceiptForm(false);
+  };
+
+  // Save Supplier Claim Update
+  const handleSaveSupplierClaim = async () => {
+    if (!inspectingReturn) return;
+    try {
+      setIsSavingClaim(true);
+      const res = await api.patch(`/damage-returns/${inspectingReturn._id}/supplier-claim`, {
+        claimStatus: modalClaimStatus,
+        supplierResponse: modalSupplierResponse,
+        resolutionType: modalResolutionType,
+        creditNoteReference: modalCreditNoteRef,
+        notes: modalClaimNotes,
+      });
+
+      if (res.data?.success) {
+        showNotification(
+          `Supplier Claim for '${inspectingReturn.returnNumber}' updated successfully!`,
+          'success'
+        );
+        setInspectingReturn(res.data.data);
+        fetchReturnsHistory();
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to update supplier claim';
+      showNotification(msg, 'error');
+    } finally {
+      setIsSavingClaim(false);
+    }
+  };
+
+  // Receive Physical Replacement from Supplier into Stock
+  const handleReceiveReplacement = async () => {
+    if (!inspectingReturn) return;
+    const qtyToReceive = Number(modalReceivedQty);
+    if (!qtyToReceive || qtyToReceive <= 0) {
+      showNotification('Please enter a valid received quantity (> 0)', 'error');
+      return;
+    }
+
+    try {
+      setIsReceivingReplacement(true);
+      const res = await api.patch(`/damage-returns/${inspectingReturn._id}/supplier-claim`, {
+        replacementReceived: {
+          received: true,
+          receivedDate: new Date(),
+          quantityReceived: qtyToReceive,
+          replacementItemCode: modalReplacementItemCode || inspectingReturn.returnedItem?.itemCode,
+          deliveryNoteNo: modalDeliveryNoteNo,
+          receivedBy: cashierUser,
+        },
+      });
+
+      if (res.data?.success) {
+        showNotification(
+          `Supplier replacement received for '${inspectingReturn.returnNumber}'! Quantity restored into sellable inventory.`,
+          'success'
+        );
+        setShowReplacementReceiptForm(false);
+        setInspectingReturn(res.data.data);
+        fetchReturnsHistory();
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to receive supplier replacement';
+      showNotification(msg, 'error');
+    } finally {
+      setIsReceivingReplacement(false);
     }
   };
 
@@ -1464,15 +1567,10 @@ function CustomerDamageReturn() {
                               type="button"
                               className="cdr-btn-classic"
                               style={{ height: '18px', padding: '0 4px', fontSize: '9px' }}
-                              onClick={() => {
-                                setInspectingReturn(ret);
-                                setModalDamageStatus(ret.damageStatus || 'UNDER INSPECTION');
-                                setModalConditionResult(ret.inspection?.conditionResult || 'DAMAGED_QUARANTINE');
-                                setModalInspectionNotes(ret.inspection?.inspectionNotes || '');
-                              }}
-                              title="Update inspection or damage status"
+                              onClick={() => handleOpenInspectModal(ret, ret.disposition === 'SUPPLIER_CLAIM' ? 'claim' : 'inspection')}
+                              title="Update inspection or manage supplier claim"
                             >
-                              Inspect
+                              {ret.disposition === 'SUPPLIER_CLAIM' || ret.supplierClaimNumber ? 'Claim / Inspect' : 'Inspect'}
                             </button>
                             <button
                               type="button"
@@ -1519,20 +1617,6 @@ function CustomerDamageReturn() {
             <button
               type="button"
               className="cdr-btn-classic"
-              onClick={() => navigate('/damage-stock')}
-            >
-              Damage Stock
-            </button>
-            <button
-              type="button"
-              className="cdr-btn-classic"
-              onClick={() => navigate('/supplier-damage-claim')}
-            >
-              Supplier Claims
-            </button>
-            <button
-              type="button"
-              className="cdr-btn-classic"
               onClick={() => navigate('/management')}
             >
               Close
@@ -1541,12 +1625,12 @@ function CustomerDamageReturn() {
         </footer>
       </main>
 
-      {/* 5. Inspection & Damage Status Modal */}
+      {/* 5. Inspection & Supplier Claim Management Modal */}
       {inspectingReturn && (
         <div className="cdr-modal-backdrop">
-          <div className="cdr-modal-box">
+          <div className="cdr-modal-box" style={{ maxWidth: '680px' }}>
             <div className="cdr-modal-header">
-              <span>Inspect &amp; Update Damage Status - {inspectingReturn.returnNumber}</span>
+              <span>Inspect Return &amp; Manage Supplier Claim - {inspectingReturn.returnNumber}</span>
               <button
                 type="button"
                 className="cdr-ctrl-btn close"
@@ -1555,74 +1639,354 @@ function CustomerDamageReturn() {
                 &#x2715;
               </button>
             </div>
-            <div className="cdr-modal-body">
-              <div style={{ padding: '6px', backgroundColor: '#ffffff', border: '1px solid #ccc' }}>
-                <div><strong>Return Ref:</strong> {inspectingReturn.returnNumber} | <strong>Invoice:</strong> #{inspectingReturn.invoiceNumber}</div>
-                <div><strong>Customer:</strong> {inspectingReturn.customerName}</div>
-                <div><strong>Item:</strong> [{inspectingReturn.returnedItem?.itemCode}] {inspectingReturn.returnedItem?.description}</div>
-                <div><strong>Returned Qty:</strong> {inspectingReturn.returnedItem?.returnedQuantity} | <strong>Reason:</strong> {inspectingReturn.returnedItem?.damageReason}</div>
-              </div>
 
-              <div className="cdr-field-group">
-                <label className="cdr-label">Damage / Inspection Status:</label>
-                <select
-                  className="cdr-select"
-                  value={modalDamageStatus}
-                  onChange={(e) => setModalDamageStatus(e.target.value)}
-                >
-                  <option value="RECEIVED">RECEIVED</option>
-                  <option value="UNDER INSPECTION">UNDER INSPECTION</option>
-                  <option value="CLAIM PENDING">CLAIM PENDING</option>
-                  <option value="REPLACEMENT APPROVED">REPLACEMENT APPROVED</option>
-                  <option value="RESOLVED">RESOLVED</option>
-                </select>
-              </div>
-
-              <div className="cdr-field-group">
-                <label className="cdr-label">Inspection Condition Result:</label>
-                <select
-                  className="cdr-select"
-                  value={modalConditionResult}
-                  onChange={(e) => setModalConditionResult(e.target.value)}
-                >
-                  <option value="DAMAGED_QUARANTINE">DAMAGED_QUARANTINE (Keep in quarantine)</option>
-                  <option value="SELLABLE_STOCK">SELLABLE_STOCK (Approved - restore to sellable stock)</option>
-                  <option value="REJECTED_RETURN">REJECTED_RETURN (Rejected)</option>
-                  <option value="SCRAP_WRITEOFF">SCRAP_WRITEOFF (Unsalvageable)</option>
-                </select>
-                {modalConditionResult === 'SELLABLE_STOCK' && (
-                  <span style={{ fontSize: '10px', color: '#15803d', fontWeight: 'bold', marginTop: '2px' }}>
-                    Note: Selecting SELLABLE_STOCK will automatically restore returned quantity from quarantine into sellable stock!
-                  </span>
-                )}
-              </div>
-
-              <div className="cdr-field-group">
-                <label className="cdr-label">Inspection Notes &amp; Findings:</label>
-                <textarea
-                  className="cdr-textarea"
-                  rows="3"
-                  placeholder="Record inspection results, defects observed, next action..."
-                  value={modalInspectionNotes}
-                  onChange={(e) => setModalInspectionNotes(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="cdr-modal-footer">
+            {/* Modal Sub-Tab Selector */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #7f9db9', backgroundColor: '#e2dfd5', padding: '4px 8px 0' }}>
               <button
                 type="button"
-                className="cdr-btn-classic primary"
-                onClick={handleSaveInspection}
-                disabled={isSavingInspection}
+                style={{
+                  padding: '3px 12px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  border: '1px solid #7f9db9',
+                  borderBottom: modalSubTab === 'inspection' ? '1px solid #ffffff' : '1px solid #7f9db9',
+                  backgroundColor: modalSubTab === 'inspection' ? '#ffffff' : '#d4d0c8',
+                  cursor: 'pointer',
+                  marginRight: '3px',
+                }}
+                onClick={() => setModalSubTab('inspection')}
               >
-                {isSavingInspection ? 'Saving...' : 'Save Inspection'}
+                1. Item Inspection &amp; Condition
               </button>
+              <button
+                type="button"
+                style={{
+                  padding: '3px 12px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  border: '1px solid #7f9db9',
+                  borderBottom: modalSubTab === 'claim' ? '1px solid #ffffff' : '1px solid #7f9db9',
+                  backgroundColor: modalSubTab === 'claim' ? '#ffffff' : '#d4d0c8',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setModalSubTab('claim')}
+              >
+                2. Supplier Claim &amp; Replacement
+                {(inspectingReturn.supplierClaim?.claimStatus || inspectingReturn.supplierClaimNumber) && (
+                  <span style={{ marginLeft: '4px', fontSize: '9px', color: '#0369a1' }}>
+                    ({inspectingReturn.supplierClaim?.claimStatus || 'PENDING'})
+                  </span>
+                )}
+              </button>
+            </div>
+
+            <div className="cdr-modal-body" style={{ maxHeight: '70vh' }}>
+              {/* Return Item Summary Card */}
+              <div style={{ padding: '6px 8px', backgroundColor: '#ffffff', border: '1px solid #cbd5e1', fontSize: '11px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span><strong>Return Ref:</strong> {inspectingReturn.returnNumber} | <strong>Invoice:</strong> #{inspectingReturn.invoiceNumber}</span>
+                  <span><strong>Date:</strong> {formatDate(inspectingReturn.date)}</span>
+                </div>
+                <div><strong>Customer:</strong> {inspectingReturn.customerName}</div>
+                <div><strong>Item:</strong> [{inspectingReturn.returnedItem?.itemCode}] {inspectingReturn.returnedItem?.description}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
+                  <span><strong>Returned Qty:</strong> <span style={{ color: '#b91c1c', fontWeight: 'bold' }}>{inspectingReturn.returnedItem?.returnedQuantity}</span></span>
+                  <span><strong>Condition:</strong> {inspectingReturn.itemCondition || 'DAMAGED'}</span>
+                  <span><strong>Damage Reason:</strong> {inspectingReturn.returnedItem?.damageReason || '-'}</span>
+                </div>
+              </div>
+
+              {modalSubTab === 'inspection' ? (
+                <>
+                  <div className="cdr-field-group">
+                    <label className="cdr-label">Damage / Inspection Status:</label>
+                    <select
+                      className="cdr-select"
+                      value={modalDamageStatus}
+                      onChange={(e) => setModalDamageStatus(e.target.value)}
+                    >
+                      <option value="RECEIVED">RECEIVED</option>
+                      <option value="UNDER INSPECTION">UNDER INSPECTION</option>
+                      <option value="CLAIM PENDING">CLAIM PENDING</option>
+                      <option value="REPLACEMENT APPROVED">REPLACEMENT APPROVED</option>
+                      <option value="RESOLVED">RESOLVED</option>
+                    </select>
+                  </div>
+
+                  <div className="cdr-field-group">
+                    <label className="cdr-label">Inspection Condition Result:</label>
+                    <select
+                      className="cdr-select"
+                      value={modalConditionResult}
+                      onChange={(e) => setModalConditionResult(e.target.value)}
+                    >
+                      <option value="DAMAGED_QUARANTINE">DAMAGED_QUARANTINE (Keep in quarantine)</option>
+                      <option value="SELLABLE_STOCK">SELLABLE_STOCK (Approved - restore to sellable stock)</option>
+                      <option value="REJECTED_RETURN">REJECTED_RETURN (Rejected)</option>
+                      <option value="SCRAP_WRITEOFF">SCRAP_WRITEOFF (Unsalvageable)</option>
+                    </select>
+                    {modalConditionResult === 'SELLABLE_STOCK' && (
+                      <span style={{ fontSize: '10px', color: '#15803d', fontWeight: 'bold', marginTop: '2px' }}>
+                        Note: Selecting SELLABLE_STOCK will automatically restore returned quantity from quarantine into sellable stock!
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="cdr-field-group">
+                    <label className="cdr-label">Inspection Notes &amp; Findings:</label>
+                    <textarea
+                      className="cdr-textarea"
+                      rows="3"
+                      placeholder="Record inspection results, defects observed, next action..."
+                      value={modalInspectionNotes}
+                      onChange={(e) => setModalInspectionNotes(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      className="cdr-btn-classic primary"
+                      onClick={handleSaveInspection}
+                      disabled={isSavingInspection}
+                    >
+                      {isSavingInspection ? 'Saving Inspection...' : 'Save Inspection Details'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Sub-Tab 2: Supplier Claim & Replacement Workflow */
+                <>
+                  {/* Supplier Traceability & GRN Information Box */}
+                  <div style={{ backgroundColor: '#f1f5f9', border: '1px solid #94a3b8', padding: '6px 8px', fontSize: '11px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#000080', borderBottom: '1px solid #cbd5e1', paddingBottom: '3px', marginBottom: '4px' }}>
+                      Linked Supplier &amp; Purchase Traceability (From GRN)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
+                      <div>
+                        <strong>Supplier:</strong>{' '}
+                        {inspectingReturn.supplierClaim?.supplierName ||
+                          inspectingReturn.supplierTraceability?.supplierName ||
+                          'Not Specified'}
+                      </div>
+                      <div>
+                        <strong>Telephone:</strong>{' '}
+                        {inspectingReturn.supplierClaim?.supplierTelephone ||
+                          inspectingReturn.supplierTraceability?.supplierTelephone ||
+                          '-'}
+                      </div>
+                      <div>
+                        <strong>Supplier Invoice #:</strong>{' '}
+                        {inspectingReturn.supplierClaim?.supplierInvoiceNo ||
+                          inspectingReturn.supplierTraceability?.supplierInvoiceNo ||
+                          '-'}
+                      </div>
+                      <div>
+                        <strong>GRN Reference:</strong>{' '}
+                        {inspectingReturn.supplierClaim?.grnNumber ||
+                          inspectingReturn.supplierTraceability?.grnNumber ||
+                          '-'}
+                      </div>
+                      <div>
+                        <strong>Claim Number:</strong>{' '}
+                        <span style={{ fontWeight: 'bold', color: '#b45309' }}>
+                          {inspectingReturn.supplierClaim?.claimNumber ||
+                            inspectingReturn.supplierClaimNumber ||
+                            (inspectingReturn.returnNumber ? `SDC-${inspectingReturn.returnNumber.replace('CDR-', '')}` : 'Pending')}
+                        </span>
+                      </div>
+                      <div>
+                        <strong>Claim Date:</strong>{' '}
+                        {formatDate(inspectingReturn.supplierClaim?.claimDate || inspectingReturn.date)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Supplier Claim Status & Response Controls */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div className="cdr-field-group">
+                      <label className="cdr-label">Supplier Claim Status:</label>
+                      <select
+                        className="cdr-select"
+                        value={modalClaimStatus}
+                        onChange={(e) => setModalClaimStatus(e.target.value)}
+                      >
+                        <option value="PENDING">PENDING (Pending Review)</option>
+                        <option value="SUBMITTED">SUBMITTED (Sent to Supplier)</option>
+                        <option value="ACKNOWLEDGED">ACKNOWLEDGED (Supplier Acknowledged)</option>
+                        <option value="INSPECTION_BY_SUPPLIER">INSPECTION_BY_SUPPLIER</option>
+                        <option value="REPLACEMENT_RECEIVED">REPLACEMENT_RECEIVED</option>
+                        <option value="CREDIT_NOTE_ISSUED">CREDIT_NOTE_ISSUED</option>
+                        <option value="REJECTED">REJECTED</option>
+                        <option value="RESOLVED">RESOLVED (Closed)</option>
+                      </select>
+                    </div>
+
+                    <div className="cdr-field-group">
+                      <label className="cdr-label">Supplier Response:</label>
+                      <select
+                        className="cdr-select"
+                        value={modalSupplierResponse}
+                        onChange={(e) => setModalSupplierResponse(e.target.value)}
+                      >
+                        <option value="PENDING">PENDING (Awaiting Response)</option>
+                        <option value="APPROVED_REPLACEMENT">APPROVED_REPLACEMENT</option>
+                        <option value="APPROVED_CREDIT_NOTE">APPROVED_CREDIT_NOTE</option>
+                        <option value="REJECTED">REJECTED</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div className="cdr-field-group">
+                      <label className="cdr-label">Resolution Type:</label>
+                      <select
+                        className="cdr-select"
+                        value={modalResolutionType}
+                        onChange={(e) => setModalResolutionType(e.target.value)}
+                      >
+                        <option value="REPLACEMENT">REPLACEMENT (Supplier Replacement)</option>
+                        <option value="CREDIT_NOTE">CREDIT_NOTE (Supplier Credit Note)</option>
+                        <option value="REPAIR">REPAIR (Supplier Repair)</option>
+                        <option value="REJECTED">REJECTED (No Compensation)</option>
+                      </select>
+                    </div>
+
+                    <div className="cdr-field-group">
+                      <label className="cdr-label">Credit Note Reference (If applicable):</label>
+                      <input
+                        type="text"
+                        className="cdr-input"
+                        placeholder="e.g. CN-2026-0042"
+                        value={modalCreditNoteRef}
+                        onChange={(e) => setModalCreditNoteRef(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="cdr-field-group">
+                    <label className="cdr-label">Supplier Claim Notes / Remarks:</label>
+                    <textarea
+                      className="cdr-textarea"
+                      rows="2"
+                      placeholder="Notes regarding communication with supplier, return delivery note, credit note terms..."
+                      value={modalClaimNotes}
+                      onChange={(e) => setModalClaimNotes(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="cdr-btn-classic primary"
+                      onClick={handleSaveSupplierClaim}
+                      disabled={isSavingClaim}
+                    >
+                      {isSavingClaim ? 'Saving Claim...' : 'Save Supplier Claim'}
+                    </button>
+                  </div>
+
+                  {/* Physical Replacement Receipt Section */}
+                  <div style={{ marginTop: '8px', borderTop: '1px solid #cbd5e1', paddingTop: '8px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '4px' }}>
+                      Physical Replacement Receipt (Restores Sellable Inventory):
+                    </div>
+
+                    {inspectingReturn.supplierClaim?.replacementReceived?.received ? (
+                      <div style={{ backgroundColor: '#dcfce7', border: '1px solid #86efac', padding: '6px 8px', color: '#166534', fontSize: '11px' }}>
+                        <div><strong>✓ Replacement Received &amp; Stock Restored:</strong></div>
+                        <div>
+                          Quantity: <strong>{inspectingReturn.supplierClaim.replacementReceived.quantityReceived} unit(s)</strong> of item [<strong>{inspectingReturn.supplierClaim.replacementReceived.replacementItemCode}</strong>]
+                        </div>
+                        <div>
+                          Date Received: {formatDate(inspectingReturn.supplierClaim.replacementReceived.receivedDate)} | DO #: {inspectingReturn.supplierClaim.replacementReceived.deliveryNoteNo || 'N/A'} | Handled By: {inspectingReturn.supplierClaim.replacementReceived.receivedBy}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', padding: '6px 8px' }}>
+                        {!showReplacementReceiptForm ? (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', color: '#92400e' }}>
+                              Has supplier delivered the replacement item? Receive it here to automatically restore sellable stock.
+                            </span>
+                            <button
+                              type="button"
+                              className="cdr-btn-classic"
+                              style={{ backgroundColor: '#16a34a', color: '#ffffff', fontWeight: 'bold' }}
+                              onClick={() => setShowReplacementReceiptForm(true)}
+                            >
+                              + Receive Replacement
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#92400e' }}>
+                              Record Supplier Replacement Goods Receipt:
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '6px' }}>
+                              <div className="cdr-field-group">
+                                <label className="cdr-label">Delivery Note / DO #:</label>
+                                <input
+                                  type="text"
+                                  className="cdr-input"
+                                  placeholder="e.g. DN-9912"
+                                  value={modalDeliveryNoteNo}
+                                  onChange={(e) => setModalDeliveryNoteNo(e.target.value)}
+                                />
+                              </div>
+                              <div className="cdr-field-group">
+                                <label className="cdr-label">Received Qty:</label>
+                                <input
+                                  type="number"
+                                  className="cdr-input"
+                                  min="1"
+                                  value={modalReceivedQty}
+                                  onChange={(e) => setModalReceivedQty(e.target.value)}
+                                />
+                              </div>
+                              <div className="cdr-field-group">
+                                <label className="cdr-label">Replacement Item Code:</label>
+                                <input
+                                  type="text"
+                                  className="cdr-input"
+                                  value={modalReplacementItemCode}
+                                  onChange={(e) => setModalReplacementItemCode(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '2px' }}>
+                              <button
+                                type="button"
+                                className="cdr-btn-classic"
+                                onClick={() => setShowReplacementReceiptForm(false)}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                className="cdr-btn-classic primary"
+                                onClick={handleReceiveReplacement}
+                                disabled={isReceivingReplacement}
+                              >
+                                {isReceivingReplacement ? 'Processing Stock In...' : 'Confirm Stock Receipt (Restores Sellable Stock)'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="cdr-modal-footer">
               <button
                 type="button"
                 className="cdr-btn-classic"
                 onClick={() => setInspectingReturn(null)}
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>

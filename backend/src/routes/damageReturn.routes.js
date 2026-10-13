@@ -7,6 +7,7 @@ import {
   getCustomerDamageReturns,
   getCustomerDamageReturnById,
   updateReturnInspectionAndStatus,
+  updateReturnSupplierClaimAndResolution,
 } from '../controllers/damageReturnController.js';
 
 const router = Router();
@@ -19,5 +20,7 @@ router.post('/', createCustomerDamageReturn);
 router.get('/:id', getCustomerDamageReturnById);
 router.patch('/:id/inspection', updateReturnInspectionAndStatus);
 router.put('/:id/inspection', updateReturnInspectionAndStatus);
+router.patch('/:id/supplier-claim', updateReturnSupplierClaimAndResolution);
+router.put('/:id/supplier-claim', updateReturnSupplierClaimAndResolution);
 
 export default router;

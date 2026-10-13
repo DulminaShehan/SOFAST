@@ -154,27 +154,6 @@ function Invoice() {
         </svg>
       ),
     },
-    {
-      id: 'damage-stock',
-      label: 'Damage Stock',
-      path: '/damage-stock',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-        </svg>
-      ),
-    },
-    {
-      id: 'supplier-damage-claim',
-      label: 'Supplier Damage Claim / Replacement',
-      path: '/supplier-damage-claim',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
-          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z" />
-        </svg>
-      ),
-    },
   ];
 
   const salesServiceDropdownItems = [

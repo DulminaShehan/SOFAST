@@ -13,8 +13,6 @@ import Invoice from './pages/Invoice/Invoice';
 import SettlementInvoice from './pages/SettlementInvoice/SettlementInvoice';
 import RemainingBalance from './pages/RemainingBalance/RemainingBalance';
 import CustomerDamageReturn from './pages/CustomerDamageReturn/CustomerDamageReturn';
-import SupplierDamageClaim from './pages/SupplierDamageClaim/SupplierDamageClaim';
-import DamageStock from './pages/DamageStock/DamageStock';
 import PrinterSetup from './pages/PrinterSetup/PrinterSetup';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
 
@@ -68,9 +66,9 @@ function App() {
       <Route path="/master-file/alternative-product" element={<AlternativeProduct />} />
       <Route path="/grn" element={<GoodReceiveNote />} />
       <Route path="/stock-control/grn" element={<GoodReceiveNote />} />
-      <Route path="/supplier-damage-claim" element={<SupplierDamageClaim />} />
-      <Route path="/stock-control/supplier-damage-claim" element={<SupplierDamageClaim />} />
-      <Route path="/stock-control/damage-claim" element={<SupplierDamageClaim />} />
+      <Route path="/supplier-damage-claim" element={<Navigate to="/customer-return-exchange" replace />} />
+      <Route path="/stock-control/supplier-damage-claim" element={<Navigate to="/customer-return-exchange" replace />} />
+      <Route path="/stock-control/damage-claim" element={<Navigate to="/customer-return-exchange" replace />} />
       <Route path="/master-file" element={<ManagementSystem />} />
       <Route path="/selection" element={<SelectionScreen />} />
       <Route path="/invoice" element={<Invoice />} />
@@ -81,8 +79,8 @@ function App() {
       <Route path="/invoice/settlement" element={<SettlementInvoice />} />
       <Route path="/remaining-balance" element={<RemainingBalance />} />
       <Route path="/sales-service/remaining-balance" element={<RemainingBalance />} />
-      <Route path="/damage-stock" element={<DamageStock />} />
-      <Route path="/stock-control/damage-stock" element={<DamageStock />} />
+      <Route path="/damage-stock" element={<Navigate to="/customer-return-exchange" replace />} />
+      <Route path="/stock-control/damage-stock" element={<Navigate to="/customer-return-exchange" replace />} />
       <Route path="/customer-damage-return" element={<CustomerDamageReturn />} />
       <Route path="/customer-return-exchange" element={<CustomerDamageReturn />} />
       <Route path="/sales-service/customer-return-exchange" element={<CustomerDamageReturn />} />

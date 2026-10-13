@@ -662,6 +662,30 @@ export const createCustomerDamageReturn = async (req, res, next) => {
       supplierTraceability: traceData,
       supplierClaimId: linkedClaim ? linkedClaim._id : undefined,
       supplierClaimNumber: linkedClaim ? linkedClaim.claimNumber : '',
+      supplierClaim: linkedClaim
+        ? {
+            claimNumber: linkedClaim.claimNumber,
+            supplierCode: traceData.supplierCode || '',
+            supplierName: traceData.supplierName || '',
+            supplierTelephone: traceData.supplierTelephone || '',
+            supplierInvoiceNo: traceData.supplierInvoiceNo || '',
+            grnNumber: traceData.grnNumber || '',
+            claimDate: new Date(),
+            claimStatus: 'CLAIM PENDING',
+            resolutionType: 'PENDING',
+            notes: damageNotes || '',
+          }
+        : {
+            claimNumber: '',
+            supplierCode: traceData.supplierCode || '',
+            supplierName: traceData.supplierName || '',
+            supplierTelephone: traceData.supplierTelephone || '',
+            supplierInvoiceNo: traceData.supplierInvoiceNo || '',
+            grnNumber: traceData.grnNumber || '',
+            claimStatus: 'NONE',
+            resolutionType: 'NONE',
+            notes: '',
+          },
       status: disposition === 'SUPPLIER_CLAIM' ? 'PENDING_CLAIM' : 'COMPLETED',
       stockUpdated: true,
       createdBy: req.user?.username || req.user?.userCode || 'Admin',
@@ -886,3 +910,174 @@ export const getCustomerDamageReturnById = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Update Supplier Claim & Resolution directly on a Customer Return Record
+ * Manages:
+ * - Claim status updates (CLAIM PENDING, SENT_TO_SUPPLIER, REPLACEMENT_APPROVED, etc.)
+ * - Physical replacement goods receipt from supplier (increments sellable stock, releases quarantine)
+ * - Supplier credit notes / refunds
+ */
+export const updateReturnSupplierClaimAndResolution = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      claimStatus,
+      resolutionType,
+      supplierResponse,
+      creditNoteReference,
+      replacementReceived,
+      notes,
+    } = req.body;
+
+    const returnRecord = await CustomerDamageReturn.findById(id);
+    if (!returnRecord) {
+      return res.status(404).json({ success: false, message: 'Customer return record not found' });
+    }
+
+    if (!returnRecord.supplierClaim) {
+      returnRecord.supplierClaim = {};
+    }
+
+    // 1. If Physical Replacement is received from supplier:
+    if (replacementReceived && Number(replacementReceived.quantityReceived) > 0) {
+      if (returnRecord.supplierClaim?.replacementReceived?.received) {
+        return res.status(400).json({
+          success: false,
+          message: 'Supplier replacement has already been accepted and processed for this return',
+        });
+      }
+
+      const qtyRec = Number(replacementReceived.quantityReceived);
+      const targetItemCode = replacementReceived.replacementItemCode || returnRecord.returnedItem?.itemCode;
+      const replItem = await Item.findOne({ code: new RegExp(`^${targetItemCode}$`, 'i') });
+
+      if (!replItem) {
+        return res.status(404).json({
+          success: false,
+          message: `Replacement item '${targetItemCode}' not found in inventory`,
+        });
+      }
+
+      // Atomically increment sellable stock and release from quarantine
+      await Item.updateOne(
+        { _id: replItem._id },
+        {
+          $inc: {
+            quantity: qtyRec,
+            stockInHand: qtyRec,
+            damagedStock: -qtyRec,
+          },
+        }
+      );
+
+      // Ensure damagedStock does not drop below 0
+      await Item.updateOne(
+        { _id: replItem._id, damagedStock: { $lt: 0 } },
+        { $set: { damagedStock: 0 } }
+      );
+
+      // Log DamageStockMovement audit trail
+      try {
+        const db = mongoose.connection.db;
+        const dsmDocNum = await db.collection('docnumbers').findOne({ docType: 'DSM' });
+        const latestDsm = await DamageStockMovement.findOne({ no: { $exists: true, $ne: null } })
+          .sort({ no: -1, createdAt: -1 })
+          .lean();
+        const dsmDocCurrent = dsmDocNum && Number(dsmDocNum.currentNumber) ? Number(dsmDocNum.currentNumber) : 0;
+        const dsmLatestNo = latestDsm && Number(latestDsm.no) ? Number(latestDsm.no) : 0;
+        const nextDsmNo = Math.max(dsmDocCurrent, dsmLatestNo) + 1;
+        const dsmNumber = `DSM-${String(nextDsmNo).padStart(4, '0')}`;
+
+        const damageMovement = new DamageStockMovement({
+          movementNumber: dsmNumber,
+          no: nextDsmNo,
+          date: new Date(),
+          itemCode: replItem.code,
+          description: replItem.description || '',
+          quantity: qtyRec,
+          movementType: 'OUT_REPLACED_BY_SUPPLIER',
+          origin: 'SUPPLIER DAMAGE',
+          referenceNumber: returnRecord.supplierClaimNumber || returnRecord.returnNumber,
+          supplierCode: returnRecord.supplierTraceability?.supplierCode || '',
+          supplierName: returnRecord.supplierTraceability?.supplierName || '',
+          notes: `Supplier replacement received for Return #${returnRecord.returnNumber}. ${replacementReceived.deliveryNoteNo ? `DO #${replacementReceived.deliveryNoteNo}` : ''}`.trim(),
+          recordedBy: req.user?.username || req.user?.userCode || 'Admin',
+        });
+        await damageMovement.save();
+
+        await db.collection('docnumbers').updateOne(
+          { docType: 'DSM' },
+          { $set: { currentNumber: nextDsmNo, prefix: 'DSM', padding: 4 } },
+          { upsert: true }
+        );
+      } catch (dsmErr) {
+        console.warn('Failed to log DSM on supplier replacement:', dsmErr);
+      }
+
+      returnRecord.supplierClaim.replacementReceived = {
+        received: true,
+        receivedDate: replacementReceived.receivedDate ? new Date(replacementReceived.receivedDate) : new Date(),
+        quantityReceived: qtyRec,
+        replacementItemCode: replItem.code,
+        deliveryNoteNo: replacementReceived.deliveryNoteNo || '',
+        receivedBy: replacementReceived.receivedBy || (req.user?.username || 'Stores'),
+      };
+
+      returnRecord.damageStatus = 'RESOLVED';
+      returnRecord.status = 'COMPLETED';
+      returnRecord.supplierClaim.claimStatus = 'REPLACEMENT_RECEIVED';
+      returnRecord.supplierClaim.resolutionType = 'REPLACEMENT';
+
+      // Synchronize linked claim document if present
+      if (returnRecord.supplierClaimId) {
+        await SupplierDamageClaim.updateOne(
+          { _id: returnRecord.supplierClaimId },
+          {
+            $set: {
+              claimStatus: 'REPLACEMENT_RECEIVED',
+              resolutionDate: new Date(),
+              'replacementReceipt.received': true,
+              'replacementReceipt.quantityReceived': qtyRec,
+              'replacementReceipt.replacementItemCode': replItem.code,
+              'replacementReceipt.deliveryNoteNo': replacementReceived.deliveryNoteNo || '',
+              'replacementReceipt.stockIncremented': true,
+            },
+          }
+        );
+      }
+    } else {
+      if (claimStatus) {
+        returnRecord.supplierClaim.claimStatus = claimStatus;
+        if (claimStatus === 'RESOLVED' || claimStatus === 'CREDIT_NOTE_ISSUED') {
+          returnRecord.damageStatus = 'RESOLVED';
+          returnRecord.status = 'COMPLETED';
+        }
+      }
+      if (resolutionType) {
+        returnRecord.supplierClaim.resolutionType = resolutionType;
+      }
+      if (creditNoteReference) {
+        returnRecord.supplierClaim.creditNoteReference = creditNoteReference;
+      }
+    }
+
+    if (supplierResponse) {
+      returnRecord.supplierClaim.supplierResponse = supplierResponse;
+    }
+    if (notes) {
+      returnRecord.supplierClaim.notes = notes;
+    }
+
+    await returnRecord.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Supplier claim for Return '${returnRecord.returnNumber}' updated successfully`,
+      data: returnRecord,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

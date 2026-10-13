@@ -270,6 +270,92 @@ const customerDamageReturnSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    supplierClaim: {
+      claimNumber: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      supplierCode: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      supplierName: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      supplierTelephone: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      supplierInvoiceNo: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      grnNumber: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      claimDate: {
+        type: Date,
+      },
+      claimStatus: {
+        type: String,
+        default: 'NONE',
+      },
+      supplierResponse: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      resolutionType: {
+        type: String,
+        default: 'NONE',
+      },
+      creditNoteReference: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      replacementReceived: {
+        received: {
+          type: Boolean,
+          default: false,
+        },
+        receivedDate: {
+          type: Date,
+        },
+        quantityReceived: {
+          type: Number,
+          default: 0,
+        },
+        replacementItemCode: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+        deliveryNoteNo: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+        receivedBy: {
+          type: String,
+          trim: true,
+          default: '',
+        },
+      },
+      notes: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+    },
     status: {
       type: String,
       enum: ['COMPLETED', 'PENDING_CLAIM', 'CANCELLED'],

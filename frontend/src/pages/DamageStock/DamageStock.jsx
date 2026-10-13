@@ -373,9 +373,9 @@ function DamageStock() {
             <button
               type="button"
               className="sofast-action-btn secondary"
-              onClick={() => navigate('/supplier-damage-claim')}
+              onClick={() => navigate('/customer-return-exchange')}
             >
-              Supplier Damage Claims &rarr;
+              Customer Returns & Claims &rarr;
             </button>
             <button
               type="button"
@@ -518,10 +518,10 @@ function DamageStock() {
                             <button
                               type="button"
                               className="dmg-row-btn claim"
-                              title="Create Supplier Claim for this damaged item"
-                              onClick={() => navigate(`/supplier-damage-claim?itemCode=${encodeURIComponent(itm.itemCode)}`)}
+                              title="Process Customer Return or Supplier Claim for this item"
+                              onClick={() => navigate('/customer-return-exchange')}
                             >
-                              Claim Supplier
+                              Return / Claim
                             </button>
                             <button
                               type="button"
