@@ -516,8 +516,12 @@ function DamageClaim() {
                 <button type="button" className="dc-dropdown-action" onClick={() => navigate('/damage-claim')}>
                   Damage Claim
                 </button>
+                <button type="button" className="dc-dropdown-action" onClick={() => navigate('/damage-items')}>
+                  Damage Items
+                </button>
               </div>
             )}
+
           </div>
 
           {/* Sales and Service */}

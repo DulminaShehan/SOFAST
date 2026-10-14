@@ -8,6 +8,7 @@ import invoiceRoutes from './invoice.routes.js';
 import alternativeProductRoutes from './alternativeProduct.routes.js';
 import settlementRoutes from './settlement.routes.js';
 import damageReturnRoutes from './damageReturn.routes.js';
+import damageItemRoutes from './damageItem.routes.js';
 import supplierClaimRoutes from './supplierClaim.routes.js';
 import damageStockRoutes from './damageStock.routes.js';
 
@@ -31,6 +32,8 @@ router.use('/customer-damage-returns', damageReturnRoutes);
 router.use('/customer-damage-return', damageReturnRoutes);
 router.use('/damage-claims', damageReturnRoutes);
 router.use('/damage-claim', damageReturnRoutes);
+router.use('/damage-items', damageItemRoutes);
+
 
 router.use('/supplier-claims', supplierClaimRoutes);
 router.use('/supplier-damage-claims', supplierClaimRoutes);

@@ -19,6 +19,34 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Ensure database connection for incoming requests (serverless & local)
+app.use(async (req, res, next) => {
+  try {
+    await connectDatabase();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Root friendly check
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'SOFAST POS Backend API is running',
+    healthCheck: '/api/health',
+  });
+});
+
+// API root friendly check
+app.get('/api', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'SOFAST POS Backend API',
+    healthCheck: '/api/health',
+  });
+});
+
 // Mount central API router
 app.use('/api', routes);
 
@@ -28,16 +56,18 @@ app.use(notFoundHandler);
 // Handle application errors
 app.use(errorHandler);
 
-// Start server and initialize database connection
-const startServer = async () => {
-  await connectDatabase();
+// Start server locally when not running in a serverless environment (e.g., Vercel)
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
+  const startServer = async () => {
+    await connectDatabase();
 
-  app.listen(PORT, () => {
-    console.log(`🚀 SOFAST Backend Server running on port ${PORT}`);
-    console.log(`🔗 Health Check URL: http://localhost:${PORT}/api/health`);
-  });
-};
+    app.listen(PORT, () => {
+      console.log(`🚀 SOFAST Backend Server running on port ${PORT}`);
+      console.log(`🔗 Health Check URL: http://localhost:${PORT}/api/health`);
+    });
+  };
 
-startServer();
+  startServer();
+}
 
 export default app;

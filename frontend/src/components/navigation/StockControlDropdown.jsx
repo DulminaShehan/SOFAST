@@ -8,7 +8,9 @@ function StockControlDropdown({ onItemClick }) {
   const stockItems = [
     { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
     { id: 'damage-claim', label: 'Damage Claim', path: '/damage-claim' },
+    { id: 'damage-items', label: 'Damage Items', path: '/damage-items' },
   ];
+
 
 
   return (

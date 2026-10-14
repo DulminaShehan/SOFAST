@@ -14,6 +14,7 @@ import SettlementInvoice from './pages/SettlementInvoice/SettlementInvoice';
 import RemainingBalance from './pages/RemainingBalance/RemainingBalance';
 import CustomerDamageReturn from './pages/CustomerDamageReturn/CustomerDamageReturn';
 import DamageClaim from './pages/DamageClaim/DamageClaim';
+import DamageItems from './pages/DamageItems/DamageItems';
 import PrinterSetup from './pages/PrinterSetup/PrinterSetup';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
 
@@ -70,6 +71,8 @@ function App() {
       <Route path="/stock-control/grn" element={<GoodReceiveNote />} />
       <Route path="/damage-claim" element={<DamageClaim />} />
       <Route path="/stock-control/damage-claim" element={<DamageClaim />} />
+      <Route path="/damage-items" element={<DamageItems />} />
+      <Route path="/stock-control/damage-items" element={<DamageItems />} />
       <Route path="/supplier-damage-claim" element={<Navigate to="/damage-claim" replace />} />
       <Route path="/stock-control/supplier-damage-claim" element={<Navigate to="/damage-claim" replace />} />
       <Route path="/damage-stock" element={<Navigate to="/damage-claim" replace />} />

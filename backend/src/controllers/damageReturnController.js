@@ -1110,6 +1110,198 @@ export const getCustomerDamageReturns = async (req, res, next) => {
 };
 
 /**
+ * Get all damaged items recorded through the Damage Claim workflow
+ * Supports search, item filter, invoice filter, supplier filter, claim status filter, and date ranges.
+ * Strictly read-only: does not alter stock quantities or create duplicate records.
+ */
+export const getDamageItems = async (req, res, next) => {
+  try {
+    const {
+      page = 1,
+      limit = 100,
+      search = '',
+      claimNumber = '',
+      invoiceNumber = '',
+      itemCode = '',
+      supplier = '',
+      claimStatus = '',
+      startDate = '',
+      endDate = '',
+      fromDate = '',
+      toDate = '',
+    } = req.query;
+
+    const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+    const parsedLimit = Math.min(250, Math.max(1, parseInt(limit, 10) || 50));
+    const skip = (parsedPage - 1) * parsedLimit;
+
+    const andConditions = [];
+
+    // Filter to damaged workflow records
+    andConditions.push({
+      $or: [
+        { workflowType: 'DAMAGE_RETURN' },
+        { workflowType: { $ne: 'EXCHANGE' } },
+        { itemCondition: { $ne: 'GOOD' } },
+        { 'returnedItem.itemCondition': { $ne: 'GOOD' } },
+      ],
+    });
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      const regex = new RegExp(q, 'i');
+      andConditions.push({
+        $or: [
+          { claimNumber: regex },
+          { returnNumber: regex },
+          { invoiceNumber: regex },
+          { customerName: regex },
+          { customerTelephone: regex },
+          { 'returnedItem.itemCode': regex },
+          { 'returnedItem.description': regex },
+          { 'returnedItem.damageReason': regex },
+          { 'supplierTraceability.supplierName': regex },
+          { 'supplierTraceability.supplierInvoiceNo': regex },
+          { 'supplierTraceability.grnNumber': regex },
+          { 'supplierClaim.claimStatus': regex },
+        ],
+      });
+    }
+
+    if (claimNumber && claimNumber.trim()) {
+      const cRegex = new RegExp(claimNumber.trim(), 'i');
+      andConditions.push({
+        $or: [{ claimNumber: cRegex }, { returnNumber: cRegex }],
+      });
+    }
+
+    if (invoiceNumber && invoiceNumber.trim()) {
+      andConditions.push({
+        invoiceNumber: new RegExp(invoiceNumber.trim(), 'i'),
+      });
+    }
+
+    if (itemCode && itemCode.trim()) {
+      const iRegex = new RegExp(itemCode.trim(), 'i');
+      andConditions.push({
+        $or: [
+          { 'returnedItem.itemCode': iRegex },
+          { 'returnedItem.description': iRegex },
+        ],
+      });
+    }
+
+    if (supplier && supplier.trim()) {
+      const sRegex = new RegExp(supplier.trim(), 'i');
+      andConditions.push({
+        $or: [
+          { 'supplierTraceability.supplierName': sRegex },
+          { 'supplierTraceability.supplierCode': sRegex },
+          { 'supplierClaim.supplierName': sRegex },
+        ],
+      });
+    }
+
+    if (claimStatus && claimStatus.trim() && claimStatus.toLowerCase() !== 'all') {
+      const stRegex = new RegExp(`^${claimStatus.trim()}$`, 'i');
+      andConditions.push({
+        $or: [
+          { 'supplierClaim.claimStatus': stRegex },
+          { 'supplierTraceability.claimStatus': stRegex },
+          { damageStatus: stRegex },
+        ],
+      });
+    }
+
+    const start = startDate || fromDate;
+    const end = endDate || toDate;
+    if (start || end) {
+      const dateRange = {};
+      if (start) {
+        dateRange.$gte = new Date(start);
+      }
+      if (end) {
+        const eDate = new Date(end);
+        eDate.setHours(23, 59, 59, 999);
+        dateRange.$lte = eDate;
+      }
+      andConditions.push({
+        $or: [
+          { claimDate: dateRange },
+          { date: dateRange },
+          { createdAt: dateRange },
+        ],
+      });
+    }
+
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
+
+    const [damageClaims, totalCount] = await Promise.all([
+      CustomerDamageReturn.find(query)
+        .sort({ claimDate: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(parsedLimit)
+        .lean(),
+      CustomerDamageReturn.countDocuments(query),
+    ]);
+
+    // Format item records for the Damage Items screen
+    const formattedItems = damageClaims.map((claim) => ({
+      _id: claim._id,
+      claimNumber: claim.claimNumber || claim.returnNumber || `DC-${claim.no}`,
+      claimDate: claim.claimDate || claim.date || claim.createdAt,
+      invoiceNumber: claim.invoiceNumber,
+      invoiceDate: claim.invoiceDate,
+      customerName: claim.customerName || 'Walk-in Customer',
+      customerTelephone: claim.customerTelephone || '',
+      itemCode: claim.returnedItem?.itemCode || '',
+      itemDescription: claim.returnedItem?.description || '',
+      damagedQuantity: Number(claim.returnedItem?.returnedQuantity || 0),
+      unitPrice: Number(claim.returnedItem?.unitPrice || 0),
+      damageReason: claim.returnedItem?.damageReason || claim.returnedItem?.returnReason || 'Broken',
+      damageNotes: claim.returnedItem?.damageNotes || claim.remarks || '',
+      supplierName:
+        claim.supplierTraceability?.supplierName ||
+        claim.supplierClaim?.supplierName ||
+        'N/A',
+      supplierCode: claim.supplierTraceability?.supplierCode || '',
+      supplierTelephone: claim.supplierTraceability?.supplierTelephone || '',
+      supplierInvoiceNo: claim.supplierTraceability?.supplierInvoiceNo || '',
+      grnNumber: claim.supplierTraceability?.grnNumber || '',
+      purchaseDate: claim.supplierTraceability?.purchaseDate || null,
+      purchaseQuantity: Number(claim.supplierTraceability?.purchaseQuantity || 0),
+      claimStatus:
+        claim.supplierClaim?.claimStatus ||
+        claim.supplierTraceability?.claimStatus ||
+        claim.damageStatus ||
+        'Pending',
+      supplierNotes:
+        claim.supplierTraceability?.supplierNotes ||
+        claim.supplierClaim?.notes ||
+        '',
+      workflowType: claim.workflowType,
+      itemCondition: claim.itemCondition,
+      replacementReceived: claim.supplierClaim?.replacementReceived || null,
+      rawClaim: claim,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formattedItems,
+      pagination: {
+        page: parsedPage,
+        limit: parsedLimit,
+        total: totalCount,
+        pages: Math.ceil(totalCount / parsedLimit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+/**
  * Get single customer damage return details
  */
 export const getCustomerDamageReturnById = async (req, res, next) => {

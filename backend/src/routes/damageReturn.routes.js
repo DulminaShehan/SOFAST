@@ -6,6 +6,7 @@ import {
   getItemSupplierTraceability,
   createCustomerDamageReturn,
   getCustomerDamageReturns,
+  getDamageItems,
   getCustomerDamageReturnById,
   updateCustomerDamageClaim,
   updateReturnInspectionAndStatus,
@@ -18,7 +19,10 @@ router.get('/next-number', getNextReturnNumber);
 router.get('/next-claim-number', getNextDamageClaimNumber);
 router.get('/invoice/:invoiceNumber', getInvoiceForReturn);
 router.get('/traceability/:itemCode', getItemSupplierTraceability);
+router.get('/items', getDamageItems);
+router.get('/damage-items', getDamageItems);
 router.get('/', getCustomerDamageReturns);
+
 router.post('/', createCustomerDamageReturn);
 router.get('/:id', getCustomerDamageReturnById);
 router.put('/:id', updateCustomerDamageClaim);

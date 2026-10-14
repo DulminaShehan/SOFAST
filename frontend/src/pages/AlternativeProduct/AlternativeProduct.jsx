@@ -77,7 +77,9 @@ function AlternativeProduct() {
   const stockControlDropdownItems = [
     { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
     { id: 'damage-claim', label: 'Damage Claim', path: '/damage-claim' },
+    { id: 'damage-items', label: 'Damage Items', path: '/damage-items' },
   ];
+
 
   const salesServiceDropdownItems = [
     { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
