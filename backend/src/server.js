@@ -15,9 +15,9 @@ const PORT = process.env.PORT || 5000;
 // Enable Cross-Origin Resource Sharing
 app.use(cors());
 
-// Enable JSON and URL-encoded request body parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Enable JSON and URL-encoded request body parsing (supporting image payloads up to 10MB)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Ensure database connection for incoming requests (serverless & local)
 app.use(async (req, res, next) => {

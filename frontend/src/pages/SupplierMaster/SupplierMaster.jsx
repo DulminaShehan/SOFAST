@@ -1,19 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import windowIcon from '../../assets/window-icon.png';
 import './SupplierMaster.css';
 import '../ManagementSystem/ManagementSystem.css';
 
 /**
  * Supplier Master File Screen
- * Recreates the exact Visual Basic / desktop layout and operations of legacy SOFAST.
+ * Full SOFAST MOTORS Desktop Application with top Header Bar, Menu Navigation,
+ * Status Bar, and the classic Supplier Master File dialog window (#EAF3FF pale blue theme).
  */
 function SupplierMaster() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(null); // 'master-files' | 'stock-control' | null
+  const [isDirty, setIsDirty] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState(null); // 'master-files' | 'stock-control' | 'sales-service' | 'administration' | null
 
   const [formData, setFormData] = useState({
     code: '',
@@ -21,13 +24,15 @@ function SupplierMaster() {
     address: '',
     telephone1: '',
     telephone2: '',
+    status: 'A', // 'A' = Active, 'I' = Inactive
   });
 
   const codeInputRef = useRef(null);
+  const nameInputRef = useRef(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
-  // Top Menu Items
+  // Top Menu Navigation Items matching SOFAST POS
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
@@ -35,156 +40,46 @@ function SupplierMaster() {
     { id: 'production', label: 'Production', path: '/management' },
     { id: 'reports', label: 'Reports', path: '/management' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
-    { id: 'administration', label: 'Administration', path: '/management' },
+    { id: 'administration', label: 'Administration', hasDropdown: true },
+  ];
+
+  const masterFilesDropdownItems = [
+    { id: 'item-master', label: 'Item Master', path: '/item-master' },
+    { id: 'supplier-master', label: 'Supplier Master', path: '/supplier-master' },
+    { id: 'customer-details', label: 'Customer Details', path: '/customer-details' },
+    { id: 'category-master', label: 'Category Master', path: '/management' },
+    { id: 'sub-category-master', label: 'Sub Category Master', path: '/management' },
+    { id: 'alternative-product', label: 'Alternative Product', path: '/alternative-product' },
   ];
 
   const stockControlDropdownItems = [
-    {
-      id: 'good-receive-note',
-      label: 'Good Receive Note (GRN)',
-      path: '/grn',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
-          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'damage-claim',
-      label: 'Damage Claim',
-      path: '/damage-claim',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      ),
-    },
-    {
-      id: 'damage-items',
-      label: 'Damage Items',
-      path: '/damage-items',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="9" y1="15" x2="15" y2="15" />
-          <line x1="9" y1="11" x2="15" y2="11" />
-        </svg>
-      ),
-    },
+    { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
+    { id: 'damage-claim', label: 'Damage Claim', path: '/damage-claim' },
+    { id: 'damage-items', label: 'Damage Items', path: '/damage-items' },
   ];
-
 
   const salesServiceDropdownItems = [
-    {
-      id: 'create-invoice',
-      label: 'Create Invoice',
-      path: '/invoice',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
-          <path d="M9 14l6-6m-6 0l6 6m-9 7h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'settlement-invoice',
-      label: 'Settlement Invoice',
-      path: '/settlement-invoice',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
-          <rect x="2" y="5" width="20" height="14" rx="2" />
-          <line x1="2" y1="10" x2="22" y2="10" />
-        </svg>
-      ),
-    },
-    {
-      id: 'remaining-balance',
-      label: 'Remaining Balance',
-      path: '/remaining-balance',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
-          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
-      ),
-    },
+    { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
+    { id: 'settlement-invoice', label: 'Settlement Invoice', path: '/settlement-invoice' },
+    { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
   ];
 
-
-  const masterFilesDropdownItems = [
-    {
-      id: 'item-master',
-      label: 'Item Master',
-      path: '/item-master',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#60a5fa" />
-          <path d="M2 17l10 5V12L2 7v10z" fill="#2563eb" />
-          <path d="M22 17l-10 5V12l10-5v10z" fill="#1d4ed8" />
-        </svg>
-      ),
-    },
-    {
-      id: 'supplier-master',
-      label: 'Supplier Master',
-      path: '/supplier-master',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-        </svg>
-      ),
-    },
-    {
-      id: 'customer-details',
-      label: 'Customer Details',
-      path: '/customer-details',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-        </svg>
-      ),
-    },
-    {
-      id: 'category-master',
-      label: 'Category Master',
-      path: '/management',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="#f97316">
-          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'sub-category-master',
-      label: 'Sub Category Master',
-      path: '/management',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="#64748b">
-          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'alternative-product',
-      label: 'Alternative Product',
-      path: '/alternative-product',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="17 1 21 5 17 9" />
-          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-          <polyline points="7 23 3 19 7 15" />
-          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-        </svg>
-      ),
-    },
+  const administrationDropdownItems = [
+    { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
   ];
 
-  const [dbStatus, setDbStatus] = useState({ connected: true, name: 'sofast' });
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
-  // Fetch supplier records and DB status from API
+  // Fetch supplier records from API
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
@@ -193,104 +88,137 @@ function SupplierMaster() {
         setSuppliers(response.data.data || []);
       }
     } catch (error) {
-      showNotification('Failed to load suppliers from API', 'error');
+      showNotification('Failed to load suppliers from database.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const checkDbHealth = async () => {
+  // Fetch next sequential supplier code
+  const fetchNextCode = async () => {
     try {
-      const res = await api.get('/health');
-      if (res.data && res.data.database) {
-        setDbStatus(res.data.database);
+      const response = await api.get('/suppliers/next-code');
+      if (response.data && response.data.success && response.data.nextCode) {
+        setFormData({
+          code: response.data.nextCode,
+          name: '',
+          address: '',
+          telephone1: '',
+          telephone2: '',
+          status: 'A',
+        });
+      } else {
+        setFormData({
+          code: 'SUP-001',
+          name: '',
+          address: '',
+          telephone1: '',
+          telephone2: '',
+          status: 'A',
+        });
       }
-    } catch (e) {
-      setDbStatus({ connected: false, name: 'offline' });
+      setIsDirty(false);
+      setSelectedId(null);
+    } catch (error) {
+      setFormData({
+        code: '',
+        name: '',
+        address: '',
+        telephone1: '',
+        telephone2: '',
+        status: 'A',
+      });
+      setIsDirty(false);
+      setSelectedId(null);
     }
   };
 
   useEffect(() => {
     fetchSuppliers();
-    checkDbHealth();
-  }, []);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    fetchNextCode();
   }, []);
 
   const showNotification = (msg, type = 'success') => {
     setNotification({ message: msg, type });
     setTimeout(() => {
-      setNotification(null);
-    }, 4000);
+      setNotification((curr) => (curr?.message === msg ? null : curr));
+    }, 4500);
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    setIsDirty(true);
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
-  // Button: New
-  const handleNew = () => {
-    setSelectedId(null);
-    setFormData({
-      code: '',
-      name: '',
-      address: '',
-      telephone1: '',
-      telephone2: '',
-    });
-    if (codeInputRef.current) {
-      codeInputRef.current.focus();
+
+  // 1. Button: New
+  const handleNew = async () => {
+    if (isDirty) {
+      const confirmDiscard = window.confirm('Discard unsaved changes?');
+      if (!confirmDiscard) return;
+    }
+    await fetchNextCode();
+    if (nameInputRef.current) {
+      nameInputRef.current.focus();
     }
   };
 
-  // Button: Cancel
-  const handleCancel = () => {
-    handleNew();
+  // 4. Button: Cancel
+  const handleCancel = async () => {
+    if (isDirty) {
+      const confirmDiscard = window.confirm('Discard changes and restore form?');
+      if (!confirmDiscard) return;
+    }
+    await fetchNextCode();
+    showNotification('Form cleared.', 'info');
   };
 
-  // Button: Save
+  // 2. Button: Save
   const handleSave = async (e) => {
     if (e) e.preventDefault();
 
-    if (!formData.code.trim()) {
+    if (!formData.code || !formData.code.trim()) {
       showNotification('Please enter Supplier Code.', 'error');
       if (codeInputRef.current) codeInputRef.current.focus();
       return;
     }
 
-    if (!formData.name.trim()) {
+    if (!formData.name || !formData.name.trim()) {
       showNotification('Please enter Supplier Name.', 'error');
+      if (nameInputRef.current) nameInputRef.current.focus();
       return;
     }
+
+    const payload = {
+      code: formData.code.trim(),
+      name: formData.name.trim(),
+      address: formData.address ? formData.address.trim() : '',
+      telephone1: formData.telephone1 ? formData.telephone1.trim() : '',
+      telephone2: formData.telephone2 ? formData.telephone2.trim() : '',
+      status: formData.status || 'A',
+    };
 
     try {
       if (selectedId) {
         // Update existing supplier
-        const res = await api.put(`/suppliers/${selectedId}`, formData);
+        const res = await api.put(`/suppliers/${selectedId}`, payload);
         if (res.data && res.data.success) {
           showNotification('Supplier updated successfully.', 'success');
-          fetchSuppliers();
+          setIsDirty(false);
+          await fetchSuppliers();
         }
       } else {
         // Create new supplier
-        const res = await api.post('/suppliers', formData);
+        const res = await api.post('/suppliers', payload);
         if (res.data && res.data.success) {
-          showNotification('Supplier created successfully.', 'success');
-          handleNew();
-          fetchSuppliers();
+          showNotification('Supplier saved successfully.', 'success');
+          setSelectedId(res.data.data?._id || null);
+          setIsDirty(false);
+          await fetchSuppliers();
         }
       }
     } catch (error) {
@@ -299,7 +227,7 @@ function SupplierMaster() {
     }
   };
 
-  // Button: Delete
+  // 3. Button: Delete
   const handleDelete = async () => {
     if (!selectedId) {
       showNotification('Please select a supplier from the list to delete.', 'error');
@@ -315,9 +243,9 @@ function SupplierMaster() {
     try {
       const res = await api.delete(`/suppliers/${selectedId}`);
       if (res.data && res.data.success) {
-        showNotification('Supplier deleted successfully.', 'success');
-        handleNew();
-        fetchSuppliers();
+        showNotification(res.data.message || 'Supplier deleted successfully.', res.data.isDeactivated ? 'info' : 'success');
+        await fetchNextCode();
+        await fetchSuppliers();
       }
     } catch (error) {
       const msg = error.response?.data?.message || 'Error deleting supplier.';
@@ -325,21 +253,37 @@ function SupplierMaster() {
     }
   };
 
-  // Row selection
+  // 5. Lower panel row selection
   const handleRowClick = (supplier) => {
+    if (isDirty) {
+      const confirmDiscard = window.confirm('Discard unsaved changes and load selected supplier?');
+      if (!confirmDiscard) return;
+    }
+
     setSelectedId(supplier._id);
+    setIsDirty(false);
     setFormData({
       code: supplier.code || '',
       name: supplier.name || '',
       address: supplier.address || '',
       telephone1: supplier.telephone1 || supplier.telephone || '',
       telephone2: supplier.telephone2 || '',
+      status: supplier.status || 'A',
     });
   };
 
+  // Window Close
+  const handleClose = () => {
+    if (isDirty) {
+      const confirmClose = window.confirm('Close Supplier Master File? Unsaved changes will be discarded.');
+      if (!confirmClose) return;
+    }
+    navigate('/management');
+  };
+
   return (
-    <div className="supplier-master-container">
-      {/* 1. Top Windows/App Blue Title Bar */}
+    <div className="supplier-master-page-container">
+      {/* 1. Top Windows/App Blue Header Bar */}
       <header className="management-titlebar">
         <div className="titlebar-brand">
           <svg className="titlebar-car-icon" viewBox="0 0 24 24">
@@ -354,14 +298,14 @@ function SupplierMaster() {
             type="button"
             className="control-btn close"
             aria-label="Close"
-            onClick={() => navigate('/management')}
+            onClick={handleClose}
           >
             &#x2715;
           </button>
         </div>
       </header>
 
-      {/* 2. Top Horizontal Menu Bar */}
+      {/* 2. Top Classic Menu Bar */}
       <nav className="management-menubar-container" ref={menuRef}>
         <ul className="management-menubar">
           {topMenuItems.map((item) => (
@@ -369,13 +313,13 @@ function SupplierMaster() {
               <button
                 type="button"
                 className={`menubar-button ${
-                  (isDropdownOpen === item.id) || (item.id === 'master-files' && isDropdownOpen === 'master-files') ? 'active' : ''
+                  (activeDropdown === item.id) || (item.id === 'master-files' && activeDropdown === 'master-files') ? 'active' : ''
                 }`}
                 onClick={() => {
                   if (item.hasDropdown) {
-                    setIsDropdownOpen((prev) => (prev === item.id ? null : item.id));
+                    setActiveDropdown((prev) => (prev === item.id ? null : item.id));
                   } else {
-                    setIsDropdownOpen(null);
+                    setActiveDropdown(null);
                     navigate(item.path || '/management');
                   }
                 }}
@@ -384,7 +328,7 @@ function SupplierMaster() {
               </button>
 
               {/* Master Files Dropdown */}
-              {item.id === 'master-files' && isDropdownOpen === 'master-files' && (
+              {item.id === 'master-files' && activeDropdown === 'master-files' && (
                 <ul className="masterfiles-dropdown">
                   {masterFilesDropdownItems.map((masterItem) => (
                     <li key={masterItem.id} className="dropdown-entry">
@@ -392,13 +336,10 @@ function SupplierMaster() {
                         type="button"
                         className={`dropdown-item-btn ${masterItem.id === 'supplier-master' ? 'selected' : ''}`}
                         onClick={() => {
-                          setIsDropdownOpen(null);
+                          setActiveDropdown(null);
                           navigate(masterItem.path);
                         }}
                       >
-                        <span className="dropdown-item-icon">
-                          {masterItem.renderIcon()}
-                        </span>
                         <span>{masterItem.label}</span>
                       </button>
                     </li>
@@ -407,7 +348,7 @@ function SupplierMaster() {
               )}
 
               {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && isDropdownOpen === 'stock-control' && (
+              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
                 <ul className="masterfiles-dropdown">
                   {stockControlDropdownItems.map((scItem) => (
                     <li key={scItem.id} className="dropdown-entry">
@@ -415,13 +356,10 @@ function SupplierMaster() {
                         type="button"
                         className="dropdown-item-btn"
                         onClick={() => {
-                          setIsDropdownOpen(null);
+                          setActiveDropdown(null);
                           navigate(scItem.path);
                         }}
                       >
-                        <span className="dropdown-item-icon">
-                          {scItem.renderIcon()}
-                        </span>
                         <span>{scItem.label}</span>
                       </button>
                     </li>
@@ -430,7 +368,7 @@ function SupplierMaster() {
               )}
 
               {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && isDropdownOpen === 'sales-service' && (
+              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
                 <ul className="masterfiles-dropdown">
                   {salesServiceDropdownItems.map((dropItem) => (
                     <li key={dropItem.id} className="dropdown-entry">
@@ -438,14 +376,31 @@ function SupplierMaster() {
                         type="button"
                         className="dropdown-item-btn"
                         onClick={() => {
-                          setIsDropdownOpen(null);
+                          setActiveDropdown(null);
                           navigate(dropItem.path);
                         }}
                       >
-                        <span className="dropdown-item-icon">
-                          {dropItem.renderIcon()}
-                        </span>
                         <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Administration Dropdown */}
+              {item.id === 'administration' && activeDropdown === 'administration' && (
+                <ul className="masterfiles-dropdown">
+                  {administrationDropdownItems.map((admItem) => (
+                    <li key={admItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className="dropdown-item-btn"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(admItem.path);
+                        }}
+                      >
+                        <span>{admItem.label}</span>
                       </button>
                     </li>
                   ))}
@@ -456,177 +411,205 @@ function SupplierMaster() {
         </ul>
       </nav>
 
-      {/* 3. Form Input Section */}
-      <div className="supplier-form-wrapper">
-        {notification && (
-          <div className={`supplier-alert ${notification.type}`}>
-            <span>{notification.message}</span>
+      {/* 3. Main Desktop Workspace centering the Supplier Master Window */}
+      <main className="supplier-master-workspace">
+        <div className="supplier-master-window">
+          {/* Fixed Dialog Title Bar (Always visible at the top) */}
+          <div className="supplier-titlebar">
+            <div className="titlebar-left">
+              <img src={windowIcon} alt="" className="window-icon" />
+              <span className="window-title">Supplier Master File</span>
+            </div>
             <button
               type="button"
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
-              onClick={() => setNotification(null)}
+              className="titlebar-close-btn"
+              aria-label="Close"
+              onClick={handleClose}
+              title="Close"
             >
-              &times;
+              &#x2715;
             </button>
           </div>
-        )}
 
-        <form className="supplier-form" onSubmit={handleSave}>
-          {/* Code */}
-          <div className="form-field-row">
-            <label className="form-label" htmlFor="supplier-code">
-              Code ..........
-            </label>
-            <input
-              id="supplier-code"
-              name="code"
-              type="text"
-              className="form-input-code"
-              value={formData.code}
-              onChange={handleInputChange}
-              ref={codeInputRef}
-              autoComplete="off"
-            />
-          </div>
+          {/* Scrollable Window Body */}
+          <div className="supplier-window-body">
+            {/* Status / Validation Notification Bar */}
+            {notification && (
+              <div className={`supplier-notification-banner ${notification.type}`}>
+                <span className="notification-text">{notification.message}</span>
+                <button
+                  type="button"
+                  className="notification-dismiss"
+                  onClick={() => setNotification(null)}
+                  aria-label="Dismiss notification"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
 
-          {/* Name */}
-          <div className="form-field-row">
-            <label className="form-label" htmlFor="supplier-name">
-              Name .........
-            </label>
-            <input
-              id="supplier-name"
-              name="name"
-              type="text"
-              className="form-input-name"
-              value={formData.name}
-              onChange={handleInputChange}
-              autoComplete="off"
-            />
-          </div>
+            <form className="supplier-form" onSubmit={handleSave} autoComplete="off">
+              {/* Field: Code */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="supplier-code">
+                  Code . . . . . . . . .
+                </label>
+                <input
+                  id="supplier-code"
+                  name="code"
+                  type="text"
+                  className="input-code"
+                  value={formData.code}
+                  onChange={handleInputChange}
+                  ref={codeInputRef}
+                  autoComplete="off"
+                />
+              </div>
 
-          {/* Address */}
-          <div className="form-field-row">
-            <label className="form-label" htmlFor="supplier-address">
-              Address .......
-            </label>
-            <textarea
-              id="supplier-address"
-              name="address"
-              className="form-textarea-address"
-              value={formData.address}
-              onChange={handleInputChange}
-            />
-          </div>
+              {/* Field: Name */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="supplier-name">
+                  Name . . . . . . . .
+                </label>
+                <input
+                  id="supplier-name"
+                  name="name"
+                  type="text"
+                  className="input-name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  ref={nameInputRef}
+                  autoComplete="off"
+                />
+              </div>
 
-          {/* Telephone No */}
-          <div className="form-field-row">
-            <label className="form-label" htmlFor="supplier-telephone1">
-              Telephone No ..
-            </label>
-            <div className="phone-inputs-group">
-              <input
-                id="supplier-telephone1"
-                name="telephone1"
-                type="text"
-                className="form-input-phone"
-                value={formData.telephone1}
-                onChange={handleInputChange}
-                autoComplete="off"
-              />
-              <input
-                id="supplier-telephone2"
-                name="telephone2"
-                type="text"
-                className="form-input-phone"
-                value={formData.telephone2}
-                onChange={handleInputChange}
-                autoComplete="off"
-              />
+              {/* Field: Address */}
+              <div className="field-row field-row-address">
+                <label className="field-label" htmlFor="supplier-address">
+                  Address . . . . . .
+                </label>
+                <textarea
+                  id="supplier-address"
+                  name="address"
+                  className="textarea-address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              {/* Field: Telephone No */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="supplier-telephone1">
+                  Telephone No . .
+                </label>
+                <div className="phone-inputs-container">
+                  <input
+                    id="supplier-telephone1"
+                    name="telephone1"
+                    type="text"
+                    className="input-phone"
+                    value={formData.telephone1}
+                    onChange={handleInputChange}
+                    placeholder="Telephone 1"
+                    autoComplete="off"
+                  />
+                  <input
+                    id="supplier-telephone2"
+                    name="telephone2"
+                    type="text"
+                    className="input-phone"
+                    value={formData.telephone2}
+                    onChange={handleInputChange}
+                    placeholder="Telephone 2"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+
+              {/* Buttons Row: New, Save, Delete, Cancel */}
+              <div className="buttons-row">
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleNew}
+                >
+                  New
+                </button>
+                <button
+                  type="submit"
+                  className="btn-classic"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleDelete}
+                  disabled={!selectedId}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+
+            {/* Lower Panel: Displays real supplier records for selection */}
+            <div className="lower-panel">
+              <div className="lower-panel-table-wrapper">
+                <table className="lower-panel-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '75px' }}>Code</th>
+                      <th style={{ width: '175px' }}>Name</th>
+                      <th style={{ width: '110px' }}>Telephone 1</th>
+                      <th style={{ width: '110px' }}>Telephone 2</th>
+                      <th style={{ width: '150px' }}>Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan="5" className="lower-panel-empty">
+                          Loading...
+                        </td>
+                      </tr>
+                    ) : suppliers.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="lower-panel-empty">
+                          No supplier records found.
+                        </td>
+                      </tr>
+                    ) : (
+                      suppliers.map((supplier) => (
+                        <tr
+                          key={supplier._id}
+                          className={`lower-panel-row ${selectedId === supplier._id ? 'selected' : ''}`}
+                          onClick={() => handleRowClick(supplier)}
+                          title={`Select ${supplier.name}`}
+                        >
+                          <td className="col-code">{supplier.code}</td>
+                          <td className="col-name">{supplier.name}</td>
+                          <td className="col-phone">{supplier.telephone1 || supplier.telephone || ''}</td>
+                          <td className="col-phone">{supplier.telephone2 || ''}</td>
+                          <td className="col-address">{supplier.address || ''}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="form-button-row">
-            <button
-              type="button"
-              className="btn-classic"
-              onClick={handleNew}
-            >
-              New
-            </button>
-            <button
-              type="submit"
-              className="btn-classic"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              className="btn-classic"
-              onClick={handleDelete}
-              disabled={!selectedId}
-            >
-              Delete
-            </button>
-            <button
-              type="button"
-              className="btn-classic"
-              onClick={handleCancel}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* 4. Supplier List Grid Section */}
-      <div className="supplier-grid-section">
-        <div className="supplier-table-container">
-          <table className="supplier-table">
-            <thead>
-              <tr>
-                <th style={{ width: '100px' }}>Code</th>
-                <th style={{ width: '220px' }}>Name</th>
-                <th>Address</th>
-                <th style={{ width: '130px' }}>Telephone 1</th>
-                <th style={{ width: '130px' }}>Telephone 2</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="5" className="table-empty-message">
-                    Loading suppliers...
-                  </td>
-                </tr>
-              ) : suppliers.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="table-empty-message">
-                    No supplier records found. Click &quot;New&quot; to add a supplier.
-                  </td>
-                </tr>
-              ) : (
-                suppliers.map((supplier) => (
-                  <tr
-                    key={supplier._id}
-                    className={`supplier-row ${selectedId === supplier._id ? 'selected' : ''}`}
-                    onClick={() => handleRowClick(supplier)}
-                  >
-                    <td style={{ fontWeight: '600' }}>{supplier.code}</td>
-                    <td>{supplier.name}</td>
-                    <td>{supplier.address || ''}</td>
-                    <td>{supplier.telephone1 || supplier.telephone || ''}</td>
-                    <td>{supplier.telephone2 || ''}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
-      </div>
+      </main>
 
-      {/* 5. Bottom Status Bar */}
+      {/* 4. Bottom Desktop Status Bar */}
       <footer className="management-statusbar">
         <div className="statusbar-left">
           <div className="statusbar-item">
@@ -642,14 +625,14 @@ function SupplierMaster() {
 
           <div className="statusbar-item">
             <span className="statusbar-item-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill={dbStatus.connected ? '#16a34a' : '#dc2626'}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#16a34a">
                 <ellipse cx="12" cy="5" rx="9" ry="3"/>
                 <path d="M3 5v6c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
                 <path d="M3 11v6c0 1.66 4 3 9 3s9-1.34 9-3v-6"/>
               </svg>
             </span>
             <span>
-              Database: MongoDB ({dbStatus.connected ? 'Connected' : 'Offline'})
+              Database: MongoDB (Connected)
             </span>
           </div>
         </div>

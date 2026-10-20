@@ -13,7 +13,7 @@ async function request(url, options = {}) {
 }
 
 async function runInvoiceTests() {
-  console.log('--- STARTING SALES INVOICE MODULE AUTOMATED TESTS ---');
+  console.log('--- STARTING SALES INVOICE MODULE AUTOMATED TESTS ---');https://127.0.0.1:55176/static/artifacts/f3b4cb8a-e959-4fc6-8328-eb210c30ea2b/.user_uploaded/media_1791564847752.png?csrf=c5395a96-e527-4a77-84b6-259cd5e3e58f
   let testInvoiceId = null;
   let holdInvoiceId = null;
 

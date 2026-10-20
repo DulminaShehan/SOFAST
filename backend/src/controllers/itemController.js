@@ -59,9 +59,13 @@ const normalizeItem = (item) => {
     discountPercentage: discPct,
     discountAmount: discAmt,
     discountedPrice,
-    costChange: Boolean(item.costChange),
+    image: item.image || '',
+    barcode: item.barcode || item.barCode || '',
+    supplier: item.supplier || '',
+    supplierCode: item.supplierCode || item.suppCode || '',
     lastGrnPrice: item.lastGrnPrice !== undefined ? Number(item.lastGrnPrice) : 0,
     lastGrn: item.lastGrn || '',
+    lastGrnDate: item.lastGrnDate || item.lastGrn || '',
     remark: item.remark || '',
     color: item.color || '',
     status: item.status || 'A',
@@ -133,8 +137,38 @@ export const getItems = async (req, res, next) => {
 };
 
 /**
+ * @route   GET /api/items/next-code
+ * @desc    Generate the next sequential item code
+ */
+export const getNextItemCode = async (req, res, next) => {
+  try {
+    let nextCode = 'ITM-001';
+    if (isDbConnected()) {
+      const items = await Item.find({}, { code: 1 }).lean();
+      let maxNum = 0;
+      for (const itm of items) {
+        if (!itm.code) continue;
+        const match = String(itm.code).trim().match(/^ITM[-_]?(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      const nextNum = maxNum + 1;
+      nextCode = `ITM-${String(nextNum).padStart(3, '0')}`;
+    }
+    return res.status(200).json({
+      success: true,
+      nextCode,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @route   GET /api/items/lookup-options
- * @desc    Get categories, subcategories, locations, types for dropdowns
+ * @desc    Get categories, subcategories, locations, types, and categorySubCategoryMap for dropdowns
  */
 export const getLookupOptions = async (req, res, next) => {
   try {
@@ -142,22 +176,28 @@ export const getLookupOptions = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         data: {
-          categories: ['2W', 'Lubricants', 'Ignition & Electrical', 'CAT T53174'],
-          subCategories: ['2W', 'Engine Oils', 'Spark Plugs'],
+          categories: ['2W', 'Lubricants', 'Ignition & Electrical', 'CAT_T04828', 'CAT_T63174', 'General Spare Parts'],
+          subCategories: ['2W', 'Engine Oils', 'Spark Plugs', 'Brake Systems', 'Body Parts'],
           locations: ['Main Store', 'Store 2', 'Shop Floor', 'Main Warehouse'],
-          types: ['Item', 'Service', 'Raw Material', 'Packaging'],
+          categorySubCategoryMap: {
+            '2W': ['2W', 'Body Parts', 'Engine Oils'],
+            'Lubricants': ['Engine Oils', 'Brake Systems'],
+            'Ignition & Electrical': ['Spark Plugs'],
+            'CAT_T63174': ['Fake Synthetic Oils T63174'],
+          },
         },
       });
     }
 
     const db = mongoose.connection.db;
 
-    // Fetch distinct categories from items & categories collection
-    const [itemCategories, directCategories, directSubcategories, directLocations] = await Promise.all([
+    // Fetch distinct categories, subcategories, locations, and item pairs
+    const [itemCategories, directCategories, directSubcategories, directLocations, itemPairs] = await Promise.all([
       Item.distinct('category'),
       db.collection('categories').find({}).toArray().catch(() => []),
       db.collection('subcategories').find({}).toArray().catch(() => []),
       db.collection('locations').find({}).toArray().catch(() => []),
+      Item.find({ category: { $ne: '' } }, { category: 1, subCategory: 1 }).lean().catch(() => []),
     ]);
 
     const categoriesSet = new Set(itemCategories.filter(Boolean));
@@ -167,11 +207,32 @@ export const getLookupOptions = async (req, res, next) => {
     });
 
     const subCategoriesSet = new Set();
+    const categorySubCategoryMap = {};
+
     directSubcategories.forEach((s) => {
-      if (s.code) subCategoriesSet.add(s.code);
-      if (s.description) subCategoriesSet.add(s.description);
+      const subName = s.description || s.code;
+      if (subName) subCategoriesSet.add(subName);
+      const parent = s.parentCategory || s.category;
+      if (parent) {
+        if (!categorySubCategoryMap[parent]) categorySubCategoryMap[parent] = [];
+        if (!categorySubCategoryMap[parent].includes(subName)) {
+          categorySubCategoryMap[parent].push(subName);
+        }
+      }
     });
-    // Add common fallback subcategories if empty
+
+    itemPairs.forEach((item) => {
+      const cat = item.category ? item.category.trim() : '';
+      const sub = item.subCategory ? item.subCategory.trim() : '';
+      if (cat && sub) {
+        subCategoriesSet.add(sub);
+        if (!categorySubCategoryMap[cat]) categorySubCategoryMap[cat] = [];
+        if (!categorySubCategoryMap[cat].includes(sub)) {
+          categorySubCategoryMap[cat].push(sub);
+        }
+      }
+    });
+
     ['2W', 'Engine Oils', 'Spark Plugs', 'Brake Systems', 'Body Parts'].forEach((sc) => subCategoriesSet.add(sc));
 
     const locationsSet = new Set();
@@ -184,10 +245,10 @@ export const getLookupOptions = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: {
-        categories: Array.from(categoriesSet).filter(Boolean),
-        subCategories: Array.from(subCategoriesSet).filter(Boolean),
-        locations: Array.from(locationsSet).filter(Boolean),
-        types: ['Item', 'Service', 'Raw Material', 'Packaging'],
+        categories: Array.from(categoriesSet).filter(Boolean).sort(),
+        subCategories: Array.from(subCategoriesSet).filter(Boolean).sort(),
+        locations: Array.from(locationsSet).filter(Boolean).sort(),
+        categorySubCategoryMap,
       },
     });
   } catch (error) {
@@ -236,34 +297,40 @@ export const createItem = async (req, res, next) => {
   try {
     const {
       code,
-      suppCode = '',
-      type = 'Item',
+      image = '',
       description,
       category = '',
       subCategory = '',
       location = 'Main Store',
-      masterPack = '',
       reorderLevel = 0,
       reorderQty = 0,
       maxStockLevel = 0,
       isBulkItem = false,
-      stockInHand = 0,
-      quantity = 0,
-      roundOff = 0,
+      sellingPrice = 0,
+      barcode = '',
+      barCode = '',
+      lastGrnPrice = 0,
+      lastGrnDate = '',
+      lastGrn = '',
+      supplier = '',
+      supplierCode = '',
+      suppCode = '',
+      remark = '',
+      color = '',
       roundOffOption = 'No Round Off',
-      roundOffStep = 5,
       discountPercentage = 0,
       discountAmount = 0,
       discountedPrice = 0,
-      costChange = false,
-      lastGrnPrice = 0,
-      lastGrn = '',
-      remark = '',
-      color = '',
-      status = 'A',
-      averageCost = 0,
-      sellingPrice = 0,
       finalSellingPrice = 0,
+      status = 'A',
+      type = 'Item',
+      masterPack = '',
+      stockInHand = 0,
+      quantity = 0,
+      roundOff = 0,
+      roundOffStep = 5,
+      costChange = false,
+      averageCost = 0,
       value = 0,
     } = req.body;
 
@@ -285,11 +352,12 @@ export const createItem = async (req, res, next) => {
       return res.status(500).json({ success: false, message: 'Database offline' });
     }
 
-    const existing = await Item.findOne({ code: code.trim() });
+    const cleanCode = code.trim();
+    const existing = await Item.findOne({ code: { $regex: new RegExp(`^${cleanCode}$`, 'i') } });
     if (existing) {
       return res.status(400).json({
         success: false,
-        message: `Item with code '${code.trim()}' already exists`,
+        message: `Item with code '${cleanCode}' already exists`,
       });
     }
 
@@ -311,45 +379,56 @@ export const createItem = async (req, res, next) => {
 
     let fsp = finalSellingPrice !== undefined && Number(finalSellingPrice) > 0 ? Number(finalSellingPrice) : 0;
     if (!fsp) {
-      if (roundOffOption === 'Round Up') {
+      if (roundOffOption === 'Round Up' || roundOffOption === 'Up') {
         fsp = Math.ceil(discPrice / step) * step;
-      } else if (roundOffOption === 'Round Down') {
+      } else if (roundOffOption === 'Round Down' || roundOffOption === 'Down') {
         fsp = Math.floor(discPrice / step) * step;
       } else {
         fsp = discPrice > 0 ? discPrice : sp;
       }
     }
 
+    const cleanSuppCode = (supplierCode || suppCode || '').trim();
+    const cleanSupplier = (supplier || '').trim();
+    const cleanBarcode = (barcode || barCode || '').trim();
+    const cleanGrnDate = (lastGrnDate || lastGrn || '').trim();
+
     const newItem = await Item.create({
-      code: code.trim(),
-      suppCode: suppCode.trim(),
-      type: type.trim(),
+      code: cleanCode,
+      image: image || '',
       description: description.trim(),
-      category: category.trim(),
-      subCategory: subCategory.trim(),
-      location: location.trim(),
-      masterPack: masterPack.trim(),
-      reorderLevel: Number(reorderLevel) || 0,
-      reorderQty: Number(reorderQty) || 0,
-      maxStockLevel: Number(maxStockLevel) || 0,
+      category: (category || '').trim(),
+      subCategory: (subCategory || '').trim(),
+      location: (location || 'Main Store').trim(),
+      reorderLevel: Math.max(0, Number(reorderLevel) || 0),
+      reorderQty: Math.max(0, Number(reorderQty) || 0),
+      maxStockLevel: Math.max(0, Number(maxStockLevel) || 0),
       isBulkItem: Boolean(isBulkItem),
-      quantity: stockQty,
-      stockInHand: stockQty,
-      roundOff: Number(roundOff) || 0,
-      roundOffOption: roundOffOption.trim() || 'No Round Off',
+      sellingPrice: sp,
+      barcode: cleanBarcode,
+      barCode: cleanBarcode,
+      lastGrnPrice: Number(lastGrnPrice) || 0,
+      lastGrnDate: cleanGrnDate,
+      lastGrn: cleanGrnDate,
+      supplier: cleanSupplier,
+      supplierCode: cleanSuppCode,
+      suppCode: cleanSuppCode,
+      remark: (remark || '').trim(),
+      color: (color || '').trim(),
+      roundOffOption: (roundOffOption || 'No Round Off').trim(),
       roundOffStep: step,
       discountPercentage: discPct,
       discountAmount: discAmt,
       discountedPrice: discPrice,
-      costChange: Boolean(costChange),
-      lastGrnPrice: Number(lastGrnPrice) || 0,
-      lastGrn: lastGrn.trim(),
-      remark: remark.trim(),
-      color: color.trim(),
-      status: status.trim() || 'A',
-      averageCost: Number(averageCost) || 0,
-      sellingPrice: sp,
       finalSellingPrice: fsp,
+      type: (type || 'Item').trim(),
+      masterPack: (masterPack || '').trim(),
+      quantity: stockQty,
+      stockInHand: stockQty,
+      roundOff: Number(roundOff) || 0,
+      costChange: Boolean(costChange),
+      status: (status || 'A').trim(),
+      averageCost: Number(averageCost) || 0,
       value: Number(value) || 0,
     });
 
@@ -381,7 +460,7 @@ export const updateItem = async (req, res, next) => {
       item = await Item.findById(id);
     }
     if (!item) {
-      item = await Item.findOne({ code: id.trim() });
+      item = await Item.findOne({ code: String(id).trim() });
     }
     if (!item && updateData.code) {
       item = await Item.findOne({ code: updateData.code.trim() });
@@ -391,84 +470,77 @@ export const updateItem = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Item not found' });
     }
 
-    if (updateData.code) item.code = updateData.code.trim();
+    if (updateData.code && updateData.code.trim().toLowerCase() !== item.code.toLowerCase()) {
+      const dup = await Item.findOne({
+        _id: { $ne: item._id },
+        code: { $regex: new RegExp(`^${updateData.code.trim()}$`, 'i') },
+      });
+      if (dup) {
+        return res.status(400).json({
+          success: false,
+          message: `Item with code '${updateData.code.trim()}' already exists`,
+        });
+      }
+      item.code = updateData.code.trim();
+    }
+
     if (updateData.description !== undefined) item.description = updateData.description.trim();
-    if (updateData.suppCode !== undefined) item.suppCode = updateData.suppCode.trim();
-    if (updateData.type !== undefined) item.type = updateData.type.trim();
+    if (updateData.image !== undefined) item.image = updateData.image;
     if (updateData.category !== undefined) item.category = updateData.category.trim();
     if (updateData.subCategory !== undefined) item.subCategory = updateData.subCategory.trim();
     if (updateData.location !== undefined) item.location = updateData.location.trim();
-    if (updateData.masterPack !== undefined) item.masterPack = updateData.masterPack.trim();
-    if (updateData.reorderLevel !== undefined) item.reorderLevel = Number(updateData.reorderLevel) || 0;
-    if (updateData.reorderQty !== undefined) item.reorderQty = Number(updateData.reorderQty) || 0;
-    if (updateData.maxStockLevel !== undefined) item.maxStockLevel = Number(updateData.maxStockLevel) || 0;
+    if (updateData.reorderLevel !== undefined) item.reorderLevel = Math.max(0, Number(updateData.reorderLevel) || 0);
+    if (updateData.reorderQty !== undefined) item.reorderQty = Math.max(0, Number(updateData.reorderQty) || 0);
+    if (updateData.maxStockLevel !== undefined) item.maxStockLevel = Math.max(0, Number(updateData.maxStockLevel) || 0);
     if (updateData.isBulkItem !== undefined) item.isBulkItem = Boolean(updateData.isBulkItem);
-    
-    if (updateData.stockInHand !== undefined || updateData.quantity !== undefined) {
-      const stock = Number(updateData.stockInHand !== undefined ? updateData.stockInHand : updateData.quantity) || 0;
-      item.quantity = stock;
-      item.stockInHand = stock;
-    }
-
-    if (updateData.roundOff !== undefined) item.roundOff = Number(updateData.roundOff) || 0;
-    if (updateData.roundOffOption !== undefined) item.roundOffOption = updateData.roundOffOption.trim();
-    if (updateData.roundOffStep !== undefined) item.roundOffStep = Number(updateData.roundOffStep) || 5;
-    if (updateData.discountPercentage !== undefined) item.discountPercentage = Number(updateData.discountPercentage) || 0;
-    if (updateData.discountAmount !== undefined) item.discountAmount = Number(updateData.discountAmount) || 0;
-    if (updateData.discountedPrice !== undefined) item.discountedPrice = Number(updateData.discountedPrice) || 0;
-    if (updateData.costChange !== undefined) item.costChange = Boolean(updateData.costChange);
-    if (updateData.lastGrnPrice !== undefined) item.lastGrnPrice = Number(updateData.lastGrnPrice) || 0;
-    if (updateData.lastGrn !== undefined) item.lastGrn = updateData.lastGrn.trim();
-    if (updateData.remark !== undefined) item.remark = updateData.remark.trim();
-    if (updateData.color !== undefined) item.color = updateData.color.trim();
-    if (updateData.status !== undefined) item.status = updateData.status.trim();
-    if (updateData.averageCost !== undefined) item.averageCost = Number(updateData.averageCost) || 0;
     if (updateData.sellingPrice !== undefined) item.sellingPrice = Number(updateData.sellingPrice) || 0;
-    if (updateData.finalSellingPrice !== undefined) item.finalSellingPrice = Number(updateData.finalSellingPrice) || 0;
-    if (updateData.value !== undefined) item.value = Number(updateData.value) || 0;
 
-    // Recalculate discount & finalSellingPrice if price or discount changed
-    if (
-      updateData.discountPercentage !== undefined ||
-      updateData.discountAmount !== undefined ||
-      updateData.sellingPrice !== undefined ||
-      updateData.roundOffOption !== undefined ||
-      updateData.roundOffStep !== undefined
-    ) {
-      const curSp = item.sellingPrice || 0;
-      let curDiscPct = item.discountPercentage || 0;
-      let curDiscAmt = item.discountAmount || 0;
-
-      if (updateData.discountPercentage !== undefined && updateData.discountAmount === undefined) {
-        curDiscAmt = (curSp * curDiscPct) / 100;
-      } else if (updateData.discountAmount !== undefined && updateData.discountPercentage === undefined) {
-        curDiscPct = curSp > 0 ? (curDiscAmt / curSp) * 100 : 0;
-      } else if (curDiscPct > 0 && (!curDiscAmt || curDiscAmt === 0)) {
-        curDiscAmt = (curSp * curDiscPct) / 100;
-      }
-
-      const curDiscPrice = updateData.discountedPrice !== undefined && Number(updateData.discountedPrice) > 0
-        ? Number(updateData.discountedPrice)
-        : Math.max(0, curSp - curDiscAmt);
-      const curRoundOpt = item.roundOffOption || 'No Round Off';
-      const curStep = item.roundOffStep > 0 ? item.roundOffStep : 5;
-
-      let curFsp = updateData.finalSellingPrice !== undefined && Number(updateData.finalSellingPrice) > 0 ? Number(updateData.finalSellingPrice) : 0;
-      if (!curFsp) {
-        if (curRoundOpt === 'Round Up') {
-          curFsp = Math.ceil(curDiscPrice / curStep) * curStep;
-        } else if (curRoundOpt === 'Round Down') {
-          curFsp = Math.floor(curDiscPrice / curStep) * curStep;
-        } else {
-          curFsp = curDiscPrice > 0 ? curDiscPrice : curSp;
-        }
-      }
-
-      item.discountPercentage = curDiscPct;
-      item.discountAmount = curDiscAmt;
-      item.discountedPrice = curDiscPrice;
-      item.finalSellingPrice = curFsp;
+    if (updateData.barcode !== undefined || updateData.barCode !== undefined) {
+      const bc = (updateData.barcode || updateData.barCode || '').trim();
+      item.barcode = bc;
+      item.barCode = bc;
     }
+
+    if (updateData.lastGrnPrice !== undefined) item.lastGrnPrice = Number(updateData.lastGrnPrice) || 0;
+    if (updateData.lastGrnDate !== undefined || updateData.lastGrn !== undefined) {
+      const gd = (updateData.lastGrnDate || updateData.lastGrn || '').trim();
+      item.lastGrnDate = gd;
+      item.lastGrn = gd;
+    }
+
+    if (updateData.supplier !== undefined) item.supplier = (updateData.supplier || '').trim();
+    if (updateData.supplierCode !== undefined || updateData.suppCode !== undefined) {
+      const sc = (updateData.supplierCode || updateData.suppCode || '').trim();
+      item.supplierCode = sc;
+      item.suppCode = sc;
+    }
+
+    if (updateData.remark !== undefined) item.remark = (updateData.remark || '').trim();
+    if (updateData.color !== undefined) item.color = (updateData.color || '').trim();
+    if (updateData.roundOffOption !== undefined) item.roundOffOption = updateData.roundOffOption.trim();
+    if (updateData.status !== undefined) item.status = updateData.status.trim();
+
+    // Discount & pricing calculation
+    const curSp = item.sellingPrice || 0;
+    let curDiscPct = updateData.discountPercentage !== undefined ? Number(updateData.discountPercentage) || 0 : (item.discountPercentage || 0);
+    let curDiscAmt = (curSp * curDiscPct) / 100;
+    const curDiscPrice = Math.max(0, curSp - curDiscAmt);
+    const curRoundOpt = item.roundOffOption || 'No Round Off';
+    const curStep = item.roundOffStep > 0 ? item.roundOffStep : 5;
+
+    let curFsp = curDiscPrice;
+    if (curRoundOpt === 'Round Up' || curRoundOpt === 'Up') {
+      curFsp = Math.ceil(curDiscPrice / curStep) * curStep;
+    } else if (curRoundOpt === 'Round Down' || curRoundOpt === 'Down') {
+      curFsp = Math.floor(curDiscPrice / curStep) * curStep;
+    } else {
+      curFsp = curDiscPrice > 0 ? curDiscPrice : curSp;
+    }
+
+    item.discountPercentage = curDiscPct;
+    item.discountAmount = curDiscAmt;
+    item.discountedPrice = curDiscPrice;
+    item.finalSellingPrice = curFsp;
 
     await item.save();
 
@@ -484,7 +556,7 @@ export const updateItem = async (req, res, next) => {
 
 /**
  * @route   DELETE /api/items/:id
- * @desc    Delete an item
+ * @desc    Safely delete or deactivate an item, protecting transactions
  */
 export const deleteItem = async (req, res, next) => {
   try {
@@ -494,22 +566,55 @@ export const deleteItem = async (req, res, next) => {
       return res.status(500).json({ success: false, message: 'Database offline' });
     }
 
-    let deleted = null;
+    let item = null;
     if (mongoose.Types.ObjectId.isValid(id)) {
-      deleted = await Item.findByIdAndDelete(id);
+      item = await Item.findById(id);
     }
-    if (!deleted) {
-      deleted = await Item.findOneAndDelete({ code: id.trim() });
+    if (!item) {
+      item = await Item.findOne({ code: String(id).trim() });
     }
 
-    if (!deleted) {
+    if (!item) {
       return res.status(404).json({ success: false, message: 'Item not found' });
     }
 
+    const cleanCode = item.code.trim();
+    const db = mongoose.connection.db;
+
+    // Check references in transactions
+    const [invRef, grnRef, retRef, claimRef, stockRef] = await Promise.all([
+      db.collection('invoices').findOne({ $or: [{ 'items.code': cleanCode }, { 'items.itemCode': cleanCode }] }).catch(() => null),
+      db.collection('grns').findOne({ $or: [{ 'lineItems.code': cleanCode }, { 'lineItems.itemCode': cleanCode }] }).catch(() => null),
+      db.collection('customerdamagereturns').findOne({ $or: [{ 'items.code': cleanCode }, { 'items.itemCode': cleanCode }] }).catch(() => null),
+      db.collection('supplierdamageclaims').findOne({ $or: [{ 'items.code': cleanCode }, { 'items.itemCode': cleanCode }] }).catch(() => null),
+      db.collection('damagestockmovements').findOne({ $or: [{ code: cleanCode }, { itemCode: cleanCode }] }).catch(() => null),
+    ]);
+
+    let refReason = '';
+    if (invRef) refReason = 'Customer Invoices';
+    else if (grnRef) refReason = 'GRN Purchases';
+    else if (retRef) refReason = 'Customer Damage Returns';
+    else if (claimRef) refReason = 'Supplier Damage Claims';
+    else if (stockRef) refReason = 'Damage Stock Movements';
+
+    if (refReason) {
+      item.status = 'I';
+      await item.save();
+      return res.status(200).json({
+        success: true,
+        isDeactivated: true,
+        message: `Item '${item.description}' (${item.code}) is referenced in ${refReason} and was safely deactivated instead of deleted to protect historical records.`,
+        data: { id: item._id, code: item.code, status: 'I' },
+      });
+    }
+
+    await Item.findByIdAndDelete(item._id);
+
     return res.status(200).json({
       success: true,
-      message: 'Item deleted successfully',
-      data: { id: deleted._id, code: deleted.code },
+      isDeactivated: false,
+      message: `Item '${item.description}' (${item.code}) deleted successfully.`,
+      data: { id: item._id, code: item.code },
     });
   } catch (error) {
     next(error);

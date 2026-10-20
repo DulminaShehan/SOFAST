@@ -1,132 +1,456 @@
-.supplier-master-container {
+/* ==========================================================================
+   SOFAST POS — Supplier Register (Supplier Master File)
+   Classic Desktop ERP / POS UI with Subtle Light Blue Palette (#EAF3FF)
+   Includes Top Blue Header Bar, Menubar, Fixed Dialog Titlebar, and Status Bar
+   ========================================================================== */
+
+/* Full Page Container */
+.supplier-master-page-container {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   width: 100%;
-  background-color: #d4d0c8;
+  background-color: #D8E6F8;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
   overflow-x: hidden;
   user-select: none;
 }
 
-/* Form Container Area */
-.supplier-form-wrapper {
-  background-color: #d4d0c8;
-  padding: 16px 20px 12px 20px;
+/* 1. Top Windows/App Blue Title Bar */
+.management-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  background-color: #006ecb;
+  color: #ffffff;
+  padding: 0 0 0 12px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.titlebar-car-icon {
+  width: 18px;
+  height: 18px;
+  fill: #ffffff;
+}
+
+.titlebar-heading {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+}
+
+.control-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  width: 44px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  transition: background-color 0.1s ease;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.control-btn.close:hover {
+  background-color: #e81123;
+}
+
+/* 2. Top Horizontal Menu Bar */
+.management-menubar-container {
+  position: relative;
+  background-color: #fbfbfb;
+  border-bottom: 1px solid #d1d5db;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.management-menubar {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  align-items: center;
+}
+
+.menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: #1f2937;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 14px;
+  height: 26px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  border-radius: 4px 4px 0 0;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+}
+
+.menubar-button:hover,
+.menubar-button.active {
+  background-color: #dbeafe;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+/* Dropdown Menus */
+.masterfiles-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 4px;
+  min-width: 200px;
+  z-index: 1000;
+}
+
+.dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.dropdown-item-btn {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-family: inherit;
+  color: #1f2937;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 3px;
+  transition: background-color 0.1s ease;
+}
+
+.dropdown-item-btn:hover {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+
+.dropdown-item-btn.selected {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+/* 3. Main Desktop Workspace centering the Supplier Master Window */
+.supplier-master-workspace {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* Classic Dialog Window Container */
+.supplier-master-window {
+  width: 660px;
+  max-width: 95vw;
+  max-height: calc(100vh - 110px);
+  background-color: #EAF3FF;
+  border: 1px solid #7FA7D8;
+  box-shadow: 0 4px 18px rgba(18, 48, 86, 0.2);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  margin: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Fixed Dialog Titlebar (Always stays visible at the top of the form) */
+.supplier-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  min-height: 28px;
+  background-color: #D4E5F9;
+  border-bottom: 1px solid #B0CCEC;
+  padding: 0 4px 0 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.window-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+}
+
+.window-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #10335C;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  white-space: nowrap;
+  letter-spacing: 0.1px;
+}
+
+.titlebar-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  width: 26px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #2D4A70;
+  padding: 0;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.titlebar-close-btn:hover {
+  background-color: #E81123;
+  color: #FFFFFF;
+}
+
+/* Scrollable Window Body */
+.supplier-window-body {
+  padding: 16px 20px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  background-color: #EAF3FF;
+  box-sizing: border-box;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Compact Notification Banner */
+.supplier-notification-banner {
+  padding: 4px 10px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #B0CCEC;
+  margin-bottom: 9px;
+  border-radius: 2px;
   box-sizing: border-box;
 }
 
+.supplier-notification-banner.success {
+  background-color: #E3F5E7;
+  color: #145523;
+  border-color: #A7DBB4;
+}
+
+.supplier-notification-banner.error {
+  background-color: #FDE8E8;
+  color: #7A1B1B;
+  border-color: #F5B8B8;
+}
+
+.supplier-notification-banner.info {
+  background-color: #E0EEFD;
+  color: #10477D;
+  border-color: #A9D1FB;
+}
+
+.notification-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notification-dismiss {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: bold;
+  color: inherit;
+  margin-left: 6px;
+  padding: 0;
+}
+
+/* Main Form Area */
 .supplier-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
   width: 100%;
-  max-width: 520px;
 }
 
-/* Field Row */
-.form-field-row {
+/* Field Rows */
+.field-row {
   display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.field-row-address {
   align-items: flex-start;
 }
 
-.form-label {
-  width: 130px;
-  font-size: 12px;
+/* Labels: Deep Blue with Dotted Lines */
+.field-label {
+  width: 110px;
+  font-size: 12.5px;
   font-weight: 700;
-  color: #000080; /* Classic dark blue label */
+  color: #002D62; /* Classic dark blue label */
   white-space: nowrap;
-  line-height: 22px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  letter-spacing: 0.1px;
+  flex-shrink: 0;
 }
 
-.form-input-code {
+/* Inputs with Pure White Background and Subtle Blue Borders */
+.input-code {
   width: 100px;
-  height: 22px;
-  padding: 2px 5px;
+  height: 25px;
+  padding: 3px 6px;
   font-size: 12px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  border: 1px solid #7a7a7a;
-  background-color: #ffffff;
+  border: 1px solid #99BBE0;
+  background-color: #FFFFFF;
   color: #000000;
   outline: none;
   box-sizing: border-box;
 }
 
-.form-input-name {
-  width: 320px;
-  height: 22px;
-  padding: 2px 5px;
+.input-name {
+  flex: 1;
+  height: 25px;
+  padding: 3px 6px;
   font-size: 12px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  border: 1px solid #7a7a7a;
-  background-color: #ffffff;
+  border: 1px solid #99BBE0;
+  background-color: #FFFFFF;
   color: #000000;
   outline: none;
   box-sizing: border-box;
 }
 
-.form-textarea-address {
-  width: 320px;
-  height: 64px;
-  padding: 4px 5px;
+.textarea-address {
+  flex: 1;
+  height: 85px;
+  padding: 5px 6px;
   font-size: 12px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  border: 1px solid #7a7a7a;
-  background-color: #ffffff;
+  border: 1px solid #99BBE0;
+  background-color: #FFFFFF;
   color: #000000;
   outline: none;
   resize: none;
   box-sizing: border-box;
 }
 
-.phone-inputs-group {
-  display: flex;
-  gap: 8px;
-  width: 320px;
+.textarea-address:focus {
+  border-color: #1A60B0;
 }
 
-.form-input-phone {
+.phone-inputs-container {
+  display: flex;
+  gap: 10px;
   flex: 1;
-  height: 22px;
-  padding: 2px 5px;
+}
+
+.input-phone {
+  flex: 1;
+  height: 25px;
+  padding: 3px 6px;
   font-size: 12px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  border: 1px solid #7a7a7a;
-  background-color: #ffffff;
+  border: 1px solid #99BBE0;
+  background-color: #FFFFFF;
   color: #000000;
   outline: none;
   box-sizing: border-box;
 }
 
-.form-input-code:focus,
-.form-input-name:focus,
-.form-textarea-address:focus,
-.form-input-phone:focus {
-  border-color: #005499;
+.input-code:focus,
+.input-name:focus,
+.input-phone:focus {
+  border-color: #1A60B0;
 }
 
-/* Button Group Row */
-.form-button-row {
+/* Button Group Row: Centered (New, Save, Delete, Cancel) */
+.buttons-row {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   width: 100%;
-  max-width: 450px;
   margin-top: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 
 .btn-classic {
-  min-width: 65px;
-  height: 25px;
-  background-color: #f0f0f0;
-  border: 1px solid #adadad;
+  width: 78px;
+  height: 26px;
+  background-color: #F0F4FA;
+  border: 1px solid #98B8DE;
   border-radius: 2px;
   font-size: 12px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -135,60 +459,66 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  box-shadow: 0 1px 2px rgba(18, 48, 86, 0.08);
   transition: background-color 0.1s ease, border-color 0.1s ease;
 }
 
 .btn-classic:hover {
-  background-color: #e5f1fb;
-  border-color: #0078d7;
+  background-color: #DEEBFA;
+  border-color: #1A60B0;
 }
 
 .btn-classic:active {
-  background-color: #cce4f7;
-  border-color: #005499;
+  background-color: #CCE1F8;
+  border-color: #0E4889;
 }
 
 .btn-classic:disabled {
-  background-color: #e0e0e0;
-  border-color: #cccccc;
-  color: #888888;
+  background-color: #E2E8F0;
+  border-color: #C0CCE0;
+  color: #8C9CAE;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-/* Supplier Records Table Area */
-.supplier-grid-section {
-  flex: 1;
-  padding: 0 16px 12px 16px;
+/* Lower Panel: Larger Table Area with Subtle Blue Borders */
+.lower-panel {
+  width: 100%;
+  height: 260px;
+  min-height: 220px;
+  background-color: #FFFFFF;
+  border: 1px solid #99BBE0;
+  box-sizing: border-box;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-sizing: border-box;
 }
 
-.supplier-table-container {
-  flex: 1;
-  background-color: #ffffff;
-  border: 1px solid #716f64;
-  overflow: auto;
-  box-sizing: border-box;
+.lower-panel-table-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color: #FFFFFF;
 }
 
-.supplier-table {
+/* Classic Windows Data Table */
+.lower-panel-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 11px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  table-layout: fixed;
 }
 
-.supplier-table th {
-  background-color: #ece9d8;
-  color: #000000;
+.lower-panel-table th {
+  background-color: #DCE9F9;
+  color: #0A2B55;
   font-weight: 700;
   text-align: left;
   padding: 5px 8px;
-  border: 1px solid #b5b5b5;
+  border: 1px solid #ADC7E6;
   border-top: none;
   position: sticky;
   top: 0;
@@ -196,65 +526,84 @@
   white-space: nowrap;
 }
 
-.supplier-table td {
+.lower-panel-table td {
   padding: 4px 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #E1ECF7;
   color: #000000;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 250px;
+  line-height: 16px;
 }
 
-.supplier-row {
+.col-code {
+  font-weight: 600;
+}
+
+.lower-panel-row {
   cursor: pointer;
-  background-color: #ffffff;
+  background-color: #FFFFFF;
 }
 
-.supplier-row:nth-child(even) {
-  background-color: #f9f9f9;
+.lower-panel-row:nth-child(even) {
+  background-color: #F5F9FE;
 }
 
-.supplier-row:hover {
-  background-color: #e5f1fb;
+.lower-panel-row:hover {
+  background-color: #DEEBFA;
 }
 
-.supplier-row.selected {
-  background-color: #0078d7 !important;
-  color: #ffffff !important;
+.lower-panel-row.selected {
+  background-color: #1C68C5 !important;
+  color: #FFFFFF !important;
 }
 
-.supplier-row.selected td {
-  color: #ffffff !important;
-  border-color: #005fb8;
+.lower-panel-row.selected td {
+  color: #FFFFFF !important;
+  border-color: #1254A4 !important;
 }
 
-.table-empty-message {
+.lower-panel-empty {
   text-align: center;
-  color: #666666;
-  padding: 30px 0;
+  color: #557090;
+  padding: 70px 0;
   font-size: 12px;
 }
 
-/* Notification Bar */
-.supplier-alert {
-  padding: 4px 10px;
-  font-size: 12px;
-  margin-bottom: 6px;
-  border-radius: 2px;
+
+/* 4. Bottom Management Status Bar */
+.management-statusbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: 24px;
+  background-color: #ece9d8;
+  border-top: 1px solid #c0c0c0;
+  padding: 0 10px;
+  font-size: 11px;
+  color: #333333;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-.supplier-alert.success {
-  background-color: #d4edda;
-  border: 1px solid #c3e6cb;
-  color: #155724;
+.statusbar-left,
+.statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.supplier-alert.error {
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
-  color: #721c24;
+.statusbar-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.statusbar-item-icon {
+  display: flex;
+  align-items: center;
+}
+
+.statusbar-divider {
+  color: #999999;
 }

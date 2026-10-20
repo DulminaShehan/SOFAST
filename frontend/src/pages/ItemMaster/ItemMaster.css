@@ -1,6 +1,10 @@
-/* Item Master File Screen Styles - Clean Global Top-Down Document Flow */
+/* ==========================================================================
+   SOFAST POS — Item Master File (Data Entry for Master File)
+   Classic Windows ERP Desktop Interface Styling
+   ========================================================================== */
 
-.item-master-container {
+/* 1. Global Page Layout Container */
+.item-master-page-container {
   width: 100%;
   min-height: 100vh;
   display: flex;
@@ -13,25 +17,24 @@
   overflow-x: hidden;
 }
 
-/* 1. Title Bar */
+/* 2. Top Application Title Bar */
 .management-titlebar {
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  height: 32px;
-  min-height: 32px;
+  height: 30px;
+  min-height: 30px;
   background-color: #006ecb;
   color: #ffffff;
   padding: 0 0 0 10px;
   box-sizing: border-box;
   width: 100%;
   flex-shrink: 0;
+  z-index: 100;
 }
 
 .titlebar-brand {
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 8px;
 }
@@ -50,7 +53,6 @@
 
 .titlebar-controls {
   display: flex;
-  flex-direction: row;
   height: 100%;
 }
 
@@ -66,6 +68,7 @@
   cursor: pointer;
   font-size: 12px;
   padding: 0;
+  transition: background-color 0.1s ease;
 }
 
 .control-btn:hover {
@@ -76,7 +79,7 @@
   background-color: #e81123;
 }
 
-/* 2. Top Navigation Menu Bar (Explicit Horizontal Flex) */
+/* 3. Top Menu Navigation Bar */
 .management-menubar-container {
   position: relative;
   background-color: #f6f6f6;
@@ -84,7 +87,6 @@
   height: 28px;
   min-height: 28px;
   display: flex;
-  flex-direction: row;
   align-items: center;
   padding: 0 4px;
   box-sizing: border-box;
@@ -95,7 +97,6 @@
 
 .management-menubar {
   display: flex;
-  flex-direction: row;
   align-items: center;
   list-style: none;
   margin: 0;
@@ -108,10 +109,7 @@
   position: relative;
   height: 100%;
   display: flex;
-  flex-direction: row;
   align-items: center;
-  margin: 0;
-  padding: 0;
 }
 
 .menubar-button {
@@ -139,7 +137,7 @@
   color: #1d4ed8;
 }
 
-/* Dropdown Menu */
+/* Dropdown Menus */
 .masterfiles-dropdown {
   position: absolute;
   top: 100%;
@@ -171,7 +169,6 @@
   padding: 5px 10px;
   cursor: pointer;
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 10px;
   outline: none;
@@ -183,72 +180,285 @@
   color: #ffffff;
 }
 
-.dropdown-item-btn:hover svg path,
-.dropdown-item-btn.selected svg path {
-  fill: #ffffff !important;
-  stroke: #ffffff !important;
+/* 4. Main Workspace & Desktop Window */
+.item-master-workspace {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
-.dropdown-item-icon {
-  width: 16px;
-  height: 16px;
+/* Classic Dialog Window: "Data Entry for Master File" */
+.item-master-window {
+  width: 820px;
+  max-width: 96vw;
+  background-color: #ece9d8;
+  border: 2px solid #808080;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* Fixed Dialog Titlebar */
+.item-titlebar {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  height: 26px;
+  min-height: 26px;
+  background: linear-gradient(to right, #005bb7, #0078d7);
+  color: #ffffff;
+  padding: 0 4px 0 6px;
+  box-sizing: border-box;
   flex-shrink: 0;
 }
 
-/* 3. Form Section: Item Master File */
-.item-form-wrapper {
-  width: 100%;
-  background-color: #d4d0c8;
-  padding: 6px 12px 4px 12px;
+.titlebar-left {
   display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-.blue-section-header {
-  background: linear-gradient(to right, #005bb7, #0078d7);
-  color: #ffffff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
-  letter-spacing: 0.3px;
-  border: 1px solid #004c99;
-  border-bottom: none;
-  box-sizing: border-box;
-}
-
-.item-form-panel {
-  background-color: #ece9d8;
-  border: 1px solid #716f64;
-  border-top: none;
-  padding: 6px 10px 4px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-sizing: border-box;
-}
-
-.form-row {
-  display: flex;
-  flex-direction: row;
   align-items: center;
-  flex-wrap: nowrap;
-  gap: 8px;
-  font-size: 11px;
+  gap: 6px;
+  overflow: hidden;
 }
 
-.dotted-label {
-  font-size: 11px;
+.window-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.window-title {
+  font-size: 12px;
   font-weight: 700;
-  color: #000080; /* Classic dark blue */
+  color: #ffffff;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   white-space: nowrap;
+  letter-spacing: 0.2px;
 }
 
-.desktop-input {
-  height: 20px;
+.titlebar-right-controls {
+  display: flex;
+  align-items: center;
+}
+
+.titlebar-close-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 13px;
+  line-height: 1;
+  width: 22px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.titlebar-close-btn:hover {
+  background-color: #e81123;
+}
+
+/* Window Body */
+.item-window-body {
+  padding: 10px 14px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: #ece9d8;
+  box-sizing: border-box;
+}
+
+/* Notification Banner */
+.item-notification-banner {
+  padding: 4px 10px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #716f64;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.item-notification-banner.success {
+  background-color: #dcfce7;
+  color: #14532d;
+  border-color: #86efac;
+}
+
+.item-notification-banner.error {
+  background-color: #fee2e2;
+  color: #7f1d1d;
+  border-color: #fca5a5;
+}
+
+.item-notification-banner.info {
+  background-color: #e0f2fe;
+  color: #075985;
+  border-color: #7dd3fc;
+}
+
+.notification-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notification-dismiss {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  color: inherit;
+  margin-left: 6px;
+  padding: 0;
+}
+
+/* 5. Form Fields Area */
+.item-master-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+
+/* Top Block: Rows 1 & 2 matching reference layout */
+.form-top-block {
+  display: grid;
+  grid-template-columns: 115px 140px 1fr auto auto auto;
+  grid-template-rows: 24px 24px;
+  align-items: center;
+  row-gap: 5px;
+  column-gap: 5px;
+  width: 100%;
+}
+
+.top-label-code {
+  grid-column: 1;
+  grid-row: 1;
+  width: 115px;
+}
+
+.top-input-code {
+  grid-column: 2;
+  grid-row: 1;
+  width: 140px;
+}
+
+.top-label-image {
+  grid-column: 4;
+  grid-row: 1;
+  white-space: nowrap;
+  padding-left: 20px;
+}
+
+.top-image-box {
+  grid-column: 5;
+  grid-row: 1 / span 2;
+  width: 175px;
+  height: 52px;
+  border: 1px solid #7a7a7a;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.top-image-box:hover {
+  border-color: #005bb7;
+}
+
+.top-image-btn-col {
+  grid-column: 6;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.top-label-desc {
+  grid-column: 1;
+  grid-row: 2;
+  width: 115px;
+}
+
+.top-input-desc {
+  grid-column: 2 / span 3;
+  grid-row: 2;
+  width: 100%;
+}
+
+.item-image-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.image-empty-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 12px;
+  color: #333333;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  user-select: none;
+}
+
+.btn-lookup-clear {
+  width: 18px;
+  height: 18px;
+  background: #f87171;
+  color: #ffffff;
+  border: 1px solid #dc2626;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Standard Field Row */
+.field-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  font-size: 11px;
+}
+
+/* Dotted Blue Labels matching Visual Basic Screenshot */
+.field-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #002D62; /* Classic Visual Basic Deep Blue */
+  white-space: nowrap;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  letter-spacing: 0.1px;
+  flex-shrink: 0;
+}
+
+/* Inputs with Classic Windows Look */
+.input-classic {
+  height: 21px;
   padding: 1px 4px;
   font-size: 11px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -259,13 +469,49 @@
   box-sizing: border-box;
 }
 
-.desktop-input:focus,
-.desktop-select:focus {
-  border-color: #005499;
+.input-classic:focus,
+.select-classic:focus {
+  border-color: #005bb7;
 }
 
-.desktop-select {
-  height: 20px;
+.input-item-code {
+  width: 140px;
+}
+
+.input-description {
+  flex: 1;
+}
+
+.input-num-small {
+  width: 90px;
+}
+
+.input-selling-price {
+  width: 105px;
+  font-weight: 600;
+}
+
+.input-barcode {
+  width: 200px;
+}
+
+.input-color {
+  width: 160px;
+}
+
+.input-full-width {
+  flex: 1;
+}
+
+.input-readonly {
+  background-color: #e5e5e5;
+  color: #4b5563;
+  cursor: not-allowed;
+}
+
+/* Select Dropdown */
+.select-classic {
+  height: 21px;
   padding: 1px 3px;
   font-size: 11px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -274,131 +520,163 @@
   color: #000000;
   outline: none;
   box-sizing: border-box;
+  flex: 1;
 }
 
+.field-control-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Small Lookup Button [...] */
 .btn-lookup {
   min-width: 22px;
-  height: 20px;
-  padding: 0 4px;
-  background: linear-gradient(to bottom, #fbfbfb, #e1e1e1);
-  border: 1px solid #7a7a7a;
+  width: 22px;
+  height: 21px;
+  background: linear-gradient(to bottom, #ffffff, #dcd8cc);
+  border: 1px solid #716f64;
+  border-radius: 1px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: bold;
   color: #000000;
   cursor: pointer;
-  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
 }
 
 .btn-lookup:hover {
-  background: #cfebfe;
-  border-color: #0078d7;
+  background: #dbeafe;
+  border-color: #005bb7;
 }
 
+.btn-lookup:active {
+  background: #bfdbfe;
+}
+
+/* Checkbox and Radio controls */
 .checkbox-field {
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 4px;
   cursor: pointer;
+  user-select: none;
 }
 
 .checkbox-field input[type="checkbox"] {
   margin: 0;
   cursor: pointer;
-  accent-color: #005bb7;
+  accent-color: #002D62;
+  width: 14px;
+  height: 14px;
 }
 
-.item-actions-row {
+.round-off-group {
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 10px;
-  padding: 4px 0 2px 4px;
 }
 
-.btn-action-classic {
-  min-width: 60px;
-  height: 23px;
-  background: linear-gradient(to bottom, #ffffff, #e1e1e1);
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #000000;
+  cursor: pointer;
+  user-select: none;
+}
+
+.radio-label input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+  accent-color: #002D62;
+}
+
+/* 6. Buttons Row: New, Delete, Save, Link, Excel */
+.buttons-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding-left: 2px;
+}
+
+.btn-classic {
+  min-width: 68px;
+  height: 24px;
+  background: linear-gradient(to bottom, #ffffff, #dcd8cc);
   border: 1px solid #716f64;
   border-radius: 2px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   color: #000000;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
+  padding: 0 12px;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+  transition: background 0.1s ease, border-color 0.1s ease;
 }
 
-.btn-action-classic:hover {
+.btn-classic:hover {
   background: #dbeafe;
-  border-color: #0078d7;
+  border-color: #005bb7;
 }
 
-.btn-action-classic:active {
+.btn-classic:active {
   background: #bfdbfe;
 }
 
-.btn-action-classic:disabled {
-  background: #e0e0e0;
-  border-color: #cccccc;
-  color: #888888;
+.btn-classic:disabled {
+  background: #e5e5e5;
+  border-color: #b0b0b0;
+  color: #8c8c8c;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-/* 4. Section: Item List */
-.item-grid-section {
-  flex: 1;
+/* 7. Lower Grid Panel (Item Records) */
+.item-records-grid-container {
   width: 100%;
-  padding: 2px 12px 6px 12px;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  min-height: 240px;
-}
-
-.item-search-bar {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 6px;
-  background-color: #ece9d8;
-  border-left: 1px solid #716f64;
-  border-right: 1px solid #716f64;
-  font-size: 11px;
-  box-sizing: border-box;
-}
-
-.item-table-container {
-  flex: 1;
   background-color: #ffffff;
   border: 1px solid #716f64;
-  overflow: auto;
   box-sizing: border-box;
-  max-height: 380px;
-  min-height: 180px;
+  display: flex;
+  flex-direction: column;
 }
 
-.item-table {
+.item-grid-table-wrapper {
+  width: 100%;
+  height: 230px;
+  overflow-y: auto;
+  overflow-x: auto;
+  background-color: #ffffff;
+}
+
+.item-records-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 11px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  table-layout: fixed;
 }
 
-.item-table th {
-  background: linear-gradient(to bottom, #f5f3e9, #dedad0);
-  color: #000000;
+.item-records-table th {
+  background-color: #ece9d8;
+  color: #002D62;
   font-weight: 700;
   text-align: left;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border: 1px solid #b5b5b5;
   border-top: none;
   position: sticky;
@@ -407,100 +685,128 @@
   white-space: nowrap;
 }
 
-.item-table td {
-  padding: 2px 6px;
-  border: 1px solid #e2e2e2;
+.item-records-table td {
+  padding: 3px 6px;
+  border: 1px solid #e5e5e5;
   color: #000000;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 16px;
 }
 
-.item-row {
+.col-code {
+  font-weight: 600;
+}
+
+.col-desc {
+  font-weight: 500;
+}
+
+.grid-data-row {
   cursor: pointer;
   background-color: #ffffff;
 }
 
-.item-row:nth-child(even) {
-  background-color: #f8f8f8;
+.grid-data-row:nth-child(even) {
+  background-color: #f7f7f7;
 }
 
-.item-row:hover {
-  background-color: #e5f1fb;
+.grid-data-row:hover {
+  background-color: #dbeafe;
 }
 
-.item-row.selected {
-  background-color: #0078d7 !important;
+.grid-data-row.selected {
+  background-color: #1c68c5 !important;
   color: #ffffff !important;
 }
 
-.item-row.selected td {
+.grid-data-row.selected td {
   color: #ffffff !important;
-  border-color: #005fb8;
+  border-color: #1254a4 !important;
 }
 
-.status-badge-active {
-  color: #16a34a;
-  font-weight: 700;
+.grid-empty-state {
   text-align: center;
+  color: #6b7280;
+  padding: 60px 0;
+  font-size: 11.5px;
 }
 
-.status-badge-inactive {
-  color: #dc2626;
-  font-weight: 700;
-  text-align: center;
+/* Badges */
+.badge-active {
+  background-color: #dcfce7;
+  color: #15803d;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: bold;
 }
 
-.item-table-footer-bar {
-  background-color: #ece9d8;
-  border: 1px solid #716f64;
-  border-top: none;
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #000080;
+.badge-inactive {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+/* Grid Footer & Quick Search */
+.grid-footer-bar {
   display: flex;
-  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  box-sizing: border-box;
-}
-
-/* 5. Bottom Status Bar */
-.management-statusbar {
-  height: 26px;
-  min-height: 26px;
   background-color: #ece9d8;
   border-top: 1px solid #b5b5b5;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.grid-footer-count {
+  font-weight: bold;
+  color: #002D62;
+}
+
+.grid-search-control {
   display: flex;
-  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+.input-table-search {
+  width: 240px;
+}
+
+/* 8. Bottom Management Status Bar */
+.management-statusbar {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
+  height: 24px;
+  background-color: #ece9d8;
+  border-top: 1px solid #c0c0c0;
+  padding: 0 10px;
   font-size: 11px;
   color: #333333;
   box-sizing: border-box;
-  width: 100%;
   flex-shrink: 0;
 }
 
-.statusbar-left {
+.statusbar-left,
+.statusbar-right {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .statusbar-item {
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 5px;
 }
 
 .statusbar-item-icon {
-  width: 13px;
-  height: 13px;
   display: flex;
   align-items: center;
 }
@@ -509,148 +815,104 @@
   color: #999999;
 }
 
-.statusbar-right {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  color: #333333;
-}
-
-/* 6. Lookup Modal Dialog */
-.lookup-modal-backdrop {
+/* 9. Classic Modal Styles */
+.item-modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 1000;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1000;
 }
 
-.lookup-modal-window {
-  background-color: #ece9d8;
-  border: 2px solid #005bb7;
-  border-radius: 2px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+.item-modal-dialog {
   width: 380px;
-  max-width: 90vw;
+  background-color: #ece9d8;
+  border: 2px solid #808080;
+  box-shadow: 2px 2px 14px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
 }
 
-.lookup-modal-header {
+.item-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   background: linear-gradient(to right, #005bb7, #0078d7);
   color: #ffffff;
   padding: 4px 8px;
   font-size: 12px;
   font-weight: 700;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
 }
 
-.lookup-modal-body {
+.item-modal-close {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.item-modal-body {
   padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 350px;
+  gap: 6px;
 }
 
-.lookup-list {
-  background: #ffffff;
-  border: 1px solid #7a7a7a;
-  max-height: 220px;
-  overflow-y: auto;
+.lookup-options-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
 }
 
-.lookup-item {
+.lookup-option-row {
   padding: 4px 8px;
   font-size: 11px;
   cursor: pointer;
   border-bottom: 1px solid #f0f0f0;
 }
 
-.lookup-item:hover {
-  background-color: #e5f1fb;
+.lookup-option-row:hover {
+  background-color: #dbeafe;
 }
 
-.lookup-item.selected {
-  background-color: #0078d7;
+.lookup-option-row.selected {
+  background-color: #1c68c5;
   color: #ffffff;
 }
 
-.lookup-modal-footer {
+.lookup-option-empty {
+  padding: 10px;
+  text-align: center;
+  color: #888888;
+  font-size: 11px;
+}
+
+.item-modal-footer {
   display: flex;
-  flex-direction: row;
   justify-content: flex-end;
   gap: 8px;
-  padding: 6px 10px;
-  background-color: #dedad0;
-  border-top: 1px solid #b5b5b5;
+  padding: 6px 10px 8px 10px;
+  background-color: #ece9d8;
+  border-top: 1px solid #c0c0c0;
 }
 
-/* 7. Color Plate & Color Picker Styles */
-.color-field-container {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-}
-
-.color-plate-preview {
-  width: 26px;
-  height: 20px;
-  border: 1px solid #7a7a7a;
-  box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.5);
-  cursor: pointer;
-  box-sizing: border-box;
-  display: inline-block;
-  vertical-align: middle;
-  transition: transform 0.1s ease;
-}
-
-.color-plate-preview:hover {
-  border-color: #005bb7;
-  transform: scale(1.05);
-}
-
-.color-palette-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
-  padding: 8px;
-  background: #ffffff;
-  border: 1px solid #7a7a7a;
-}
-
-.color-palette-tile {
-  height: 32px;
-  border: 1px solid #999999;
-  cursor: pointer;
+.link-item-summary {
+  background-color: #ffffff;
+  border: 1px solid #b5b5b5;
+  padding: 6px;
+  font-size: 11px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  font-size: 9px;
-  color: #000;
-  border-radius: 2px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-  transition: all 0.1s ease;
+  gap: 3px;
 }
-
-.color-palette-tile:hover {
-  transform: scale(1.08);
-  border-color: #005bb7;
-  box-shadow: 0 0 4px #005bb7;
-  z-index: 5;
-}
-

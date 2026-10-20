@@ -116,6 +116,30 @@ const itemSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    lastGrnDate: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    supplier: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    supplierCode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    barcode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    image: {
+      type: String,
+      default: '',
+    },
     remark: {
       type: String,
       trim: true,

@@ -67,6 +67,50 @@ export const getSuppliers = async (req, res, next) => {
 };
 
 /**
+ * @route   GET /api/suppliers/next-code
+ * @desc    Generate the next sequential supplier code
+ */
+export const getNextSupplierCode = async (req, res, next) => {
+  try {
+    let nextCode = 'SUP-001';
+
+    if (isDbConnected()) {
+      const suppliers = await Supplier.find({}, { code: 1 }).lean();
+      let maxNum = 0;
+      for (const s of suppliers) {
+        if (!s.code) continue;
+        const match = String(s.code).trim().match(/^SUP[-_]?(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      const nextNum = maxNum + 1;
+      nextCode = `SUP-${String(nextNum).padStart(3, '0')}`;
+    } else {
+      let maxNum = 0;
+      for (const s of memorySuppliers) {
+        if (!s.code) continue;
+        const match = String(s.code).trim().match(/^SUP[-_]?(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      const nextNum = maxNum + 1;
+      nextCode = `SUP-${String(nextNum).padStart(3, '0')}`;
+    }
+
+    return res.status(200).json({
+      success: true,
+      nextCode,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @route   GET /api/suppliers/:id
  * @desc    Get single supplier by ID
  */
@@ -74,8 +118,15 @@ export const getSupplierById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (isDbConnected() && mongoose.Types.ObjectId.isValid(id)) {
-      const supplier = await Supplier.findById(id).lean();
+    if (isDbConnected()) {
+      let query = {};
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        query._id = id;
+      } else {
+        query.code = String(id).trim();
+      }
+
+      const supplier = await Supplier.findOne(query).lean();
       if (!supplier) {
         return res.status(404).json({
           success: false,
@@ -115,41 +166,54 @@ export const getSupplierById = async (req, res, next) => {
  */
 export const createSupplier = async (req, res, next) => {
   try {
-    const { code, name, address, telephone1, telephone2 } = req.body;
+    const { code, name, address, telephone1, telephone2, status } = req.body;
 
-    if (!code || !name) {
+    if (!code || !String(code).trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide both Supplier Code and Supplier Name',
+        message: 'Supplier Code is required',
       });
     }
 
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Supplier Name is required',
+      });
+    }
+
+    const cleanCode = String(code).trim();
+    const cleanName = String(name).trim();
+    const phone1 = telephone1 ? String(telephone1).trim() : '';
+    const phone2 = telephone2 ? String(telephone2).trim() : '';
+    const cleanAddress = address ? String(address).trim() : '';
+    const suppStatus = status === 'I' ? 'I' : 'A';
+
     if (isDbConnected()) {
-      const existing = await Supplier.findOne({ code: code.trim() });
+      const existing = await Supplier.findOne({
+        code: { $regex: new RegExp(`^${cleanCode}$`, 'i') },
+      });
       if (existing) {
         return res.status(400).json({
           success: false,
-          message: `Supplier with code '${code.trim()}' already exists`,
+          message: `Supplier with code '${cleanCode}' already exists`,
         });
       }
 
-      const phone1 = telephone1 ? telephone1.trim() : '';
-      const phone2 = telephone2 ? telephone2.trim() : '';
-
       const supplier = await Supplier.create({
-        code: code.trim(),
-        name: name.trim(),
-        address: address ? address.trim() : '',
+        code: cleanCode,
+        name: cleanName,
+        address: cleanAddress,
         telephone: phone1,
         telephone1: phone1,
         telephone2: phone2,
         dueAmount: 0,
-        status: 'A',
+        status: suppStatus,
       });
 
       return res.status(201).json({
         success: true,
-        message: 'Supplier created successfully',
+        message: 'Supplier saved successfully',
         data: {
           ...supplier.toObject(),
           telephone1: phone1,
@@ -159,21 +223,22 @@ export const createSupplier = async (req, res, next) => {
     }
 
     // In-memory creation
-    const existingMem = memorySuppliers.find((s) => s.code.toLowerCase() === code.trim().toLowerCase());
+    const existingMem = memorySuppliers.find((s) => s.code.toLowerCase() === cleanCode.toLowerCase());
     if (existingMem) {
       return res.status(400).json({
         success: false,
-        message: `Supplier with code '${code.trim()}' already exists`,
+        message: `Supplier with code '${cleanCode}' already exists`,
       });
     }
 
     const newSupplier = {
       _id: 'mem_' + Date.now(),
-      code: code.trim(),
-      name: name.trim(),
-      address: address ? address.trim() : '',
-      telephone1: telephone1 ? telephone1.trim() : '',
-      telephone2: telephone2 ? telephone2.trim() : '',
+      code: cleanCode,
+      name: cleanName,
+      address: cleanAddress,
+      telephone1: phone1,
+      telephone2: phone2,
+      status: 'A',
       createdAt: new Date(),
     };
 
@@ -181,7 +246,7 @@ export const createSupplier = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Supplier created successfully',
+      message: 'Supplier saved successfully',
       data: newSupplier,
     });
   } catch (error) {
@@ -196,17 +261,37 @@ export const createSupplier = async (req, res, next) => {
 export const updateSupplier = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { code, name, address, telephone1, telephone2 } = req.body;
+    const { code, name, address, telephone1, telephone2, status } = req.body;
 
-    if (!name) {
+    if (!name || !String(name).trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Supplier name is required',
+        message: 'Supplier Name is required',
       });
     }
 
-    if (isDbConnected() && mongoose.Types.ObjectId.isValid(id)) {
-      const supplier = await Supplier.findById(id);
+    if (!code || !String(code).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Supplier Code is required',
+      });
+    }
+
+    const cleanCode = String(code).trim();
+    const cleanName = String(name).trim();
+    const cleanAddress = address !== undefined ? String(address).trim() : undefined;
+    const p1 = telephone1 !== undefined ? String(telephone1).trim() : undefined;
+    const p2 = telephone2 !== undefined ? String(telephone2).trim() : undefined;
+
+    if (isDbConnected()) {
+      let query = {};
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        query._id = id;
+      } else {
+        query.code = String(id).trim();
+      }
+
+      const supplier = await Supplier.findOne(query);
       if (!supplier) {
         return res.status(404).json({
           success: false,
@@ -214,16 +299,31 @@ export const updateSupplier = async (req, res, next) => {
         });
       }
 
-      supplier.name = name.trim();
-      if (code) supplier.code = code.trim();
-      supplier.address = address !== undefined ? address.trim() : supplier.address;
+      // Check for code uniqueness if code changed
+      if (cleanCode.toLowerCase() !== String(supplier.code).toLowerCase()) {
+        const dup = await Supplier.findOne({
+          _id: { $ne: supplier._id },
+          code: { $regex: new RegExp(`^${cleanCode}$`, 'i') },
+        });
+        if (dup) {
+          return res.status(400).json({
+            success: false,
+            message: `Supplier with code '${cleanCode}' already exists`,
+          });
+        }
+        supplier.code = cleanCode;
+      }
+
+      supplier.name = cleanName;
+      if (cleanAddress !== undefined) supplier.address = cleanAddress;
+      if (status !== undefined) supplier.status = status === 'I' ? 'I' : 'A';
       
-      const p1 = telephone1 !== undefined ? telephone1.trim() : (supplier.telephone1 || supplier.telephone || '');
-      const p2 = telephone2 !== undefined ? telephone2.trim() : (supplier.telephone2 || '');
+      const phone1 = p1 !== undefined ? p1 : (supplier.telephone1 || supplier.telephone || '');
+      const phone2 = p2 !== undefined ? p2 : (supplier.telephone2 || '');
       
-      supplier.telephone = p1;
-      supplier.telephone1 = p1;
-      supplier.telephone2 = p2;
+      supplier.telephone = phone1;
+      supplier.telephone1 = phone1;
+      supplier.telephone2 = phone2;
 
       await supplier.save();
 
@@ -232,8 +332,8 @@ export const updateSupplier = async (req, res, next) => {
         message: 'Supplier updated successfully',
         data: {
           ...supplier.toObject(),
-          telephone1: p1,
-          telephone2: p2,
+          telephone1: phone1,
+          telephone2: phone2,
         },
       });
     }
@@ -246,13 +346,24 @@ export const updateSupplier = async (req, res, next) => {
       });
     }
 
+    // Check duplicate code in memory
+    if (cleanCode.toLowerCase() !== memorySuppliers[index].code.toLowerCase()) {
+      const dup = memorySuppliers.find((s, idx) => idx !== index && s.code.toLowerCase() === cleanCode.toLowerCase());
+      if (dup) {
+        return res.status(400).json({
+          success: false,
+          message: `Supplier with code '${cleanCode}' already exists`,
+        });
+      }
+    }
+
     memorySuppliers[index] = {
       ...memorySuppliers[index],
-      name: name.trim(),
-      ...(code && { code: code.trim() }),
-      address: address !== undefined ? address.trim() : memorySuppliers[index].address,
-      telephone1: telephone1 !== undefined ? telephone1.trim() : memorySuppliers[index].telephone1,
-      telephone2: telephone2 !== undefined ? telephone2.trim() : memorySuppliers[index].telephone2,
+      code: cleanCode,
+      name: cleanName,
+      address: cleanAddress !== undefined ? cleanAddress : memorySuppliers[index].address,
+      telephone1: p1 !== undefined ? p1 : memorySuppliers[index].telephone1,
+      telephone2: p2 !== undefined ? p2 : memorySuppliers[index].telephone2,
       updatedAt: new Date(),
     };
 
@@ -268,14 +379,21 @@ export const updateSupplier = async (req, res, next) => {
 
 /**
  * @route   DELETE /api/suppliers/:id
- * @desc    Delete a supplier
+ * @desc    Delete a supplier with transaction and historical record safety checks
  */
 export const deleteSupplier = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    if (isDbConnected() && mongoose.Types.ObjectId.isValid(id)) {
-      const supplier = await Supplier.findByIdAndDelete(id);
+    if (isDbConnected()) {
+      let query = {};
+      if (mongoose.Types.ObjectId.isValid(id)) {
+        query._id = id;
+      } else {
+        query.code = String(id).trim();
+      }
+
+      const supplier = await Supplier.findOne(query);
       if (!supplier) {
         return res.status(404).json({
           success: false,
@@ -283,10 +401,60 @@ export const deleteSupplier = async (req, res, next) => {
         });
       }
 
+      const suppCode = supplier.code;
+      const suppName = supplier.name;
+
+      // Check whether the supplier is referenced by purchase records, GRNs, damage claims, or other transactions
+      const db = mongoose.connection.db;
+      let referenceFound = false;
+      let refModuleName = '';
+
+      const checkCollections = [
+        { name: 'grns', module: 'GRN (Goods Receive Notes)', filter: { $or: [{ supplierCode: suppCode }, { supplier: suppCode }] } },
+        { name: 'items', module: 'Items (Inventory)', filter: { $or: [{ suppCode: suppCode }, { 'itemSuppliers.supplierCode': suppCode }] } },
+        { name: 'supplierdamageclaims', module: 'Supplier Damage Claims', filter: { supplierCode: suppCode } },
+        { name: 'damageclaimsclaims', module: 'Damage Claims', filter: { supplierCode: suppCode } },
+        { name: 'damageclaimreturnnotes', module: 'Damage Return Notes', filter: { supplierCode: suppCode } },
+        { name: 'damages', module: 'Damages', filter: { supplierCode: suppCode } },
+        { name: 'supplierreturns', module: 'Supplier Returns', filter: { supplierCode: suppCode } },
+        { name: 'purchaseorders', module: 'Purchase Orders', filter: { supplierCode: suppCode } },
+        { name: 'itemsuppliers', module: 'Item Suppliers', filter: { supplierCode: suppCode } },
+      ];
+
+      for (const col of checkCollections) {
+        try {
+          const count = await db.collection(col.name).countDocuments(col.filter);
+          if (count > 0) {
+            referenceFound = true;
+            refModuleName = col.module;
+            break;
+          }
+        } catch (e) {
+          // Skip if collection doesn't exist
+        }
+      }
+
+      if (referenceFound) {
+        // Safe deactivation to preserve historical records, financial reports, and transaction integrity
+        supplier.status = 'I';
+        await supplier.save();
+
+        return res.status(200).json({
+          success: true,
+          isDeactivated: true,
+          message: `Supplier '${suppName}' (${suppCode}) is referenced in ${refModuleName} and was safely deactivated instead of deleted to protect historical records.`,
+          data: { id: supplier._id, code: suppCode, name: suppName, status: 'I' },
+        });
+      }
+
+      // No references found - safe to delete permanently
+      await Supplier.findByIdAndDelete(supplier._id);
+
       return res.status(200).json({
         success: true,
-        message: 'Supplier deleted successfully',
-        data: { id },
+        isDeactivated: false,
+        message: `Supplier '${suppName}' (${suppCode}) deleted successfully.`,
+        data: { id: supplier._id, code: suppCode, name: suppName },
       });
     }
 
@@ -302,7 +470,8 @@ export const deleteSupplier = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Supplier deleted successfully',
+      isDeactivated: false,
+      message: `Supplier '${deleted[0].name}' deleted successfully`,
       data: deleted[0],
     });
   } catch (error) {

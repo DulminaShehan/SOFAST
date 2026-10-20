@@ -3,74 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import './ItemMaster.css';
 
-// Standard Visual Basic & Automotive Color Palette
+// Window Icon (SVG data URI for classic window titlebar)
+const windowIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f59e0b' d='M12 2L2 7l10 5 10-5-10-5z'/%3E%3Cpath fill='%232563eb' d='M2 17l10 5V12L2 7v10z'/%3E%3Cpath fill='%231d4ed8' d='M22 17l-10 5V12l10-5v10z'/%3E%3C/svg%3E";
+
+// Visual Basic & Automotive Color Palette
 const standardColorPalettes = [
-  { name: 'Black', hex: '#000000' },
-  { name: 'Silver', hex: '#C0C0C0' },
-  { name: 'Gray', hex: '#808080' },
-  { name: 'White', hex: '#FFFFFF' },
-  { name: 'Red', hex: '#EF4444' },
-  { name: 'Maroon', hex: '#800000' },
-  { name: 'Orange', hex: '#F97316' },
-  { name: 'Gold', hex: '#FFD700' },
-  { name: 'Yellow', hex: '#EAB308' },
-  { name: 'Lime', hex: '#84CC16' },
-  { name: 'Green', hex: '#22C55E' },
-  { name: 'Teal', hex: '#14B8A6' },
-  { name: 'Cyan', hex: '#06B6D4' },
-  { name: 'Blue', hex: '#3B82F6' },
-  { name: 'Navy', hex: '#000080' },
-  { name: 'Purple', hex: '#A855F7' },
-  { name: 'Pink', hex: '#EC4899' },
-  { name: 'Brown', hex: '#8B4513' },
+  'Black', 'Silver', 'Gray', 'White', 'Red', 'Maroon', 'Orange', 'Gold',
+  'Yellow', 'Green', 'Teal', 'Blue', 'Navy', 'Purple', 'Pink', 'Brown'
 ];
 
-const colorNameToHex = (colorName) => {
-  if (!colorName) return '#ffffff';
-  const name = String(colorName).toLowerCase().trim();
-  const map = {
-    black: '#000000',
-    silver: '#c0c0c0',
-    gray: '#808080',
-    grey: '#808080',
-    white: '#ffffff',
-    red: '#ef4444',
-    maroon: '#800000',
-    yellow: '#eab308',
-    gold: '#ffd700',
-    green: '#22c55e',
-    lime: '#84cc16',
-    blue: '#3b82f6',
-    navy: '#000080',
-    cyan: '#06b6d4',
-    teal: '#14b8a6',
-    orange: '#f97316',
-    purple: '#a855f7',
-    pink: '#ec4899',
-    brown: '#8b4513',
-  };
-  return map[name] || (colorName.startsWith('#') ? colorName : '#ffffff');
-};
-
-// Calculate Discount Amount, Discounted Price, and Final Selling Price with Round Off
-const computePricing = (spVal, discPctVal, discAmtVal, roundOption = 'No Round Off', stepVal = 5, sourceField = 'percentage') => {
+/**
+ * Calculate Pricing with Round Off & Discount
+ */
+const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal = 5) => {
   const sellingPrice = parseFloat(spVal) || 0;
-  let discountPercentage = parseFloat(discPctVal) || 0;
-  let discountAmount = parseFloat(discAmtVal) || 0;
-
-  if (sourceField === 'amount') {
-    discountPercentage = sellingPrice > 0 ? (discountAmount / sellingPrice) * 100 : 0;
-  } else {
-    discountAmount = (sellingPrice * discountPercentage) / 100;
-  }
-
+  const discountPercentage = Math.min(100, Math.max(0, parseFloat(discPctVal) || 0));
+  const discountAmount = (sellingPrice * discountPercentage) / 100;
   const discountedPrice = Math.max(0, sellingPrice - discountAmount);
   const step = Math.max(0.01, parseFloat(stepVal) || 5);
 
   let finalPrice = discountedPrice;
-  if (roundOption === 'Round Up') {
+  if (roundOption === 'Round Up' || roundOption === 'Up') {
     finalPrice = Math.ceil(discountedPrice / step) * step;
-  } else if (roundOption === 'Round Down') {
+  } else if (roundOption === 'Round Down' || roundOption === 'Down') {
     finalPrice = Math.floor(discountedPrice / step) * step;
   } else {
     finalPrice = discountedPrice;
@@ -78,18 +33,17 @@ const computePricing = (spVal, discPctVal, discAmtVal, roundOption = 'No Round O
 
   return {
     sellingPrice: spVal,
-    discountPercentage: discountPercentage ? (sourceField === 'amount' ? Math.round(discountPercentage * 100) / 100 : discPctVal) : (discPctVal !== '' ? discPctVal : ''),
-    discountAmount: discountAmount ? (sourceField === 'percentage' || sourceField === 'sellingPrice' ? Math.round(discountAmount * 100) / 100 : discAmtVal) : (discAmtVal !== '' ? discAmtVal : ''),
+    discountPercentage: discPctVal,
+    discountAmount: Math.round(discountAmount * 100) / 100,
     discountedPrice: Math.round(discountedPrice * 100) / 100,
     roundOffOption: roundOption,
-    roundOffStep: stepVal,
     finalSellingPrice: Math.round(finalPrice * 100) / 100,
   };
 };
 
 /**
- * Item Master File Screen
- * Recreates the exact Visual Basic / ERP layout and operations from legacy SOFAST
+ * Item Master File Screen (Data Entry for Master File)
+ * Recreates the exact 20-field Visual Basic SOFAST POS interface from the reference screenshot
  */
 function ItemMaster() {
   const [items, setItems] = useState([]);
@@ -98,10 +52,10 @@ function ItemMaster() {
   const [selectedId, setSelectedId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(null); // 'master-files' | 'stock-control' | null
-  const [dbStatus, setDbStatus] = useState({ connected: true, name: 'sofast_pos' });
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [dbStatus, setDbStatus] = useState({ connected: true });
 
-  // Lookup modal states
+  // Lookup modal state
   const [lookupModal, setLookupModal] = useState({
     isOpen: false,
     type: null,
@@ -114,49 +68,44 @@ function ItemMaster() {
     categories: [],
     subCategories: [],
     locations: [],
-    types: ['Item', 'Service', 'Raw Material', 'Packaging'],
+    categorySubCategoryMap: {},
   });
 
   const [suppliersList, setSuppliersList] = useState([]);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
-  // Form State matching all 20+ fields from reference image
+  // Exact 20 Fields matching Section 2 of prompt
   const [formData, setFormData] = useState({
-    code: '',
-    suppCode: '',
-    type: 'Item',
-    description: '',
-    category: '',
-    subCategory: '',
-    location: 'Main Store',
-    masterPack: '',
-    reorderLevel: '',
-    reorderQty: '',
-    maxStockLevel: '',
-    isBulkItem: false,
-    stockInHand: '',
-    roundOff: '',
-    roundOffOption: 'No Round Off',
-    roundOffStep: 5,
-    discountPercentage: '',
-    discountAmount: '',
-    discountedPrice: '',
-    costChange: false,
-    lastGrnPrice: '',
-    lastGrn: '',
-    sellingPrice: '',
-    finalSellingPrice: '',
-    averageCost: '',
-    remark: '',
-    color: '',
-    status: 'A',
+    code: '',               // 1. Item Code
+    image: '',              // 2. Item Image
+    description: '',        // 3. Description
+    category: '',           // 4. Category
+    subCategory: '',        // 5. Sub Category
+    location: 'Main Store', // 6. Location
+    reorderLevel: '',       // 7. Re-Order Level
+    reorderQty: '',         // 8. Re-Order Quantity
+    maxStockLevel: '',      // 9. Max Stock Level
+    isBulkItem: false,      // 10. Bulk Item
+    sellingPrice: '',       // 11. Selling Price
+    barcode: '',            // 12. Bar Code
+    lastGrnPrice: '',       // 13. Last GRN Price
+    lastGrnDate: '',        // 14. Last GRN Date
+    supplier: '',           // 15. Supplier
+    supplierCode: '',       // 16. Supplier Code
+    remark: '',             // 17. Remark
+    color: '',              // 18. Color
+    roundOffOption: 'No Round Off', // 19. Round Off (Up / Down)
+    discountPercentage: '', // 20. Discount (%)
   });
 
+  const [isDirty, setIsDirty] = useState(false);
+
   const codeInputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
-  // Top Menu Items
+  // Top Menu Items for standard management layout
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
@@ -167,156 +116,35 @@ function ItemMaster() {
     { id: 'administration', label: 'Administration', path: '/management' },
   ];
 
-  const stockControlDropdownItems = [
-    {
-      id: 'good-receive-note',
-      label: 'Good Receive Note (GRN)',
-      path: '/grn',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
-          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'damage-claim',
-      label: 'Damage Claim',
-      path: '/damage-claim',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      ),
-    },
-    {
-      id: 'damage-items',
-      label: 'Damage Items',
-      path: '/damage-items',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" strokeWidth="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="9" y1="15" x2="15" y2="15" />
-          <line x1="9" y1="11" x2="15" y2="11" />
-        </svg>
-      ),
-    },
+  const masterFilesDropdownItems = [
+    { id: 'item-master', label: 'Item Master', path: '/item-master' },
+    { id: 'supplier-master', label: 'Supplier Master', path: '/supplier-master' },
+    { id: 'customer-details', label: 'Customer Details', path: '/customer-details' },
+    { id: 'category-master', label: 'Category Master', path: '/management' },
+    { id: 'sub-category-master', label: 'Sub Category Master', path: '/management' },
   ];
 
+  const stockControlDropdownItems = [
+    { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
+    { id: 'damage-claim', label: 'Damage Claim', path: '/damage-claim' },
+    { id: 'damage-items', label: 'Damage Items', path: '/damage-items' },
+  ];
 
   const salesServiceDropdownItems = [
-    {
-      id: 'create-invoice',
-      label: 'Create Invoice',
-      path: '/invoice',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
-          <path d="M9 14l6-6m-6 0l6 6m-9 7h12a2 2 0 002-2V5a2 2 0 00-2-2H6a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'settlement-invoice',
-      label: 'Settlement Invoice',
-      path: '/settlement-invoice',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2">
-          <rect x="2" y="5" width="20" height="14" rx="2" />
-          <line x1="2" y1="10" x2="22" y2="10" />
-        </svg>
-      ),
-    },
-    {
-      id: 'remaining-balance',
-      label: 'Remaining Balance',
-      path: '/remaining-balance',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
-          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-        </svg>
-      ),
-    },
+    { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
+    { id: 'settlement-invoice', label: 'Settlement Invoice', path: '/settlement-invoice' },
+    { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
   ];
 
-
-  const masterFilesDropdownItems = [
-    {
-      id: 'item-master',
-      label: 'Item Master',
-      path: '/item-master',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#60a5fa" />
-          <path d="M2 17l10 5V12L2 7v10z" fill="#2563eb" />
-          <path d="M22 17l-10 5V12l10-5v10z" fill="#1d4ed8" />
-        </svg>
-      ),
-    },
-    {
-      id: 'supplier-master',
-      label: 'Supplier Master',
-      path: '/supplier-master',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-        </svg>
-      ),
-    },
-    {
-      id: 'customer-details',
-      label: 'Customer Details',
-      path: '/customer-details',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-        </svg>
-      ),
-    },
-    {
-      id: 'category-master',
-      label: 'Category Master',
-      path: '/management',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="#f97316">
-          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'sub-category-master',
-      label: 'Sub Category Master',
-      path: '/management',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="#64748b">
-          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58s1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41s-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'alternative-product',
-      label: 'Alternative Product',
-      path: '/alternative-product',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="17 1 21 5 17 9" />
-          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-          <polyline points="7 23 3 19 7 15" />
-          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-        </svg>
-      ),
-    },
-  ];
-
-  // Fetch Items from Backend
+  // Fetch items from backend
   const fetchItems = async (search = '') => {
     try {
       setLoading(true);
-      const params = { limit: 1000 };
-      if (search) params.search = search;
+      const params = {};
+      if (search && search.trim()) {
+        params.search = search.trim();
+      }
+      params.limit = 1000;
 
       const res = await api.get('/items', { params });
       if (res.data && res.data.success) {
@@ -330,7 +158,7 @@ function ItemMaster() {
     }
   };
 
-  // Fetch lookup options, db health, and suppliers from MongoDB
+  // Fetch lookup data & suppliers
   const fetchLookupData = async () => {
     try {
       const [optRes, healthRes, suppRes] = await Promise.all([
@@ -353,16 +181,32 @@ function ItemMaster() {
     }
   };
 
+  // Fetch next item code from backend
+  const fetchNextCode = async () => {
+    try {
+      const res = await api.get('/items/next-code');
+      if (res.data && res.data.success && res.data.nextCode) {
+        setFormData((prev) => ({
+          ...prev,
+          code: res.data.nextCode,
+        }));
+      }
+    } catch (e) {
+      // fallback
+    }
+  };
+
   useEffect(() => {
     fetchItems();
     fetchLookupData();
+    fetchNextCode();
   }, []);
 
-  // Close dropdown on outside click
+  // Close top menu on outside click
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setIsDropdownOpen(false);
+        setActiveDropdown(null);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -372,49 +216,19 @@ function ItemMaster() {
   const showNotification = (msg, type = 'success') => {
     setNotification({ message: msg, type });
     setTimeout(() => {
-      setNotification(null);
-    }, 4000);
+      setNotification((curr) => (curr?.message === msg ? null : curr));
+    }, 4500);
   };
 
+  // Form input changes
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    setIsDirty(true);
 
-    if (
-      name === 'sellingPrice' ||
-      name === 'discountPercentage' ||
-      name === 'discountAmount' ||
-      name === 'roundOffOption' ||
-      name === 'roundOffStep'
-    ) {
-      setFormData((prev) => {
-        const nextVals = {
-          ...prev,
-          [name]: type === 'checkbox' ? checked : value,
-        };
-
-        let sourceField = 'percentage';
-        if (name === 'discountAmount') sourceField = 'amount';
-        else if (name === 'sellingPrice') sourceField = 'sellingPrice';
-        else if (name === 'roundOffOption' || name === 'roundOffStep') sourceField = 'roundOff';
-
-        const computed = computePricing(
-          name === 'sellingPrice' ? value : nextVals.sellingPrice,
-          name === 'discountPercentage' ? value : nextVals.discountPercentage,
-          name === 'discountAmount' ? value : nextVals.discountAmount,
-          name === 'roundOffOption' ? value : nextVals.roundOffOption,
-          name === 'roundOffStep' ? value : nextVals.roundOffStep,
-          sourceField
-        );
-
-        return {
-          ...nextVals,
-          discountPercentage: name === 'discountPercentage' ? value : computed.discountPercentage,
-          discountAmount: name === 'discountAmount' ? value : computed.discountAmount,
-          discountedPrice: computed.discountedPrice,
-          finalSellingPrice: computed.finalSellingPrice,
-        };
-      });
-      return;
+    if (name === 'sellingPrice' || name === 'discountPercentage') {
+      const sp = name === 'sellingPrice' ? value : formData.sellingPrice;
+      const disc = name === 'discountPercentage' ? value : formData.discountPercentage;
+      computePricing(sp, disc, formData.roundOffOption);
     }
 
     setFormData((prev) => ({
@@ -423,39 +237,118 @@ function ItemMaster() {
     }));
   };
 
+  // Category change with dependent Sub Category filtering
+  const handleCategoryChange = (e) => {
+    const cat = e.target.value;
+    setIsDirty(true);
+    setFormData((prev) => {
+      const map = lookupOptions.categorySubCategoryMap || {};
+      const subsForCat = map[cat] || [];
+      const currentSubValid = subsForCat.includes(prev.subCategory);
+      return {
+        ...prev,
+        category: cat,
+        subCategory: currentSubValid ? prev.subCategory : (subsForCat[0] || ''),
+      };
+    });
+  };
+
+  // Supplier dropdown change: automatically populates Supplier Code
+  const handleSupplierChange = (e) => {
+    const selectedSupplierName = e.target.value;
+    setIsDirty(true);
+
+    const foundSupp = suppliersList.find((s) => s.name === selectedSupplierName);
+    const suppCode = foundSupp ? foundSupp.code : '';
+
+    setFormData((prev) => ({
+      ...prev,
+      supplier: selectedSupplierName,
+      supplierCode: suppCode,
+    }));
+  };
+
+  // Round Off radio button toggle (Up / Down)
+  const handleRoundOffChange = (opt) => {
+    setIsDirty(true);
+    setFormData((prev) => {
+      // Toggle off if clicked again
+      const newOption = prev.roundOffOption === opt ? 'No Round Off' : opt;
+      return {
+        ...prev,
+        roundOffOption: newOption,
+      };
+    });
+  };
+
+  // Image Selection Handler
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showNotification('Please select a valid image file (PNG, JPG, WEBP).', 'error');
+      return;
+    }
+
+    // Limit image size to 2MB to keep database payload clean
+    if (file.size > 2 * 1024 * 1024) {
+      showNotification('Image size must be less than 2MB.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result;
+      setIsDirty(true);
+      setFormData((prev) => ({
+        ...prev,
+        image: dataUrl,
+      }));
+      showNotification('Item image loaded successfully.', 'info');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   // Button: New
-  const handleNew = () => {
+  const handleNew = async () => {
+    if (isDirty) {
+      const confirmDiscard = window.confirm('Discard unsaved changes?');
+      if (!confirmDiscard) return;
+    }
+
     setSelectedId(null);
+    setIsDirty(false);
     setFormData({
       code: '',
-      suppCode: '',
-      type: 'Item',
+      image: '',
       description: '',
-      category: '',
+      category: lookupOptions.categories[0] || '',
       subCategory: '',
       location: 'Main Store',
-      masterPack: '',
       reorderLevel: '',
       reorderQty: '',
       maxStockLevel: '',
       isBulkItem: false,
-      stockInHand: '',
-      roundOff: '',
-      roundOffOption: 'No Round Off',
-      roundOffStep: 5,
-      discountPercentage: '',
-      discountAmount: '',
-      discountedPrice: '',
-      costChange: false,
-      lastGrnPrice: '',
-      lastGrn: '',
       sellingPrice: '',
-      finalSellingPrice: '',
-      averageCost: '',
+      barcode: '',
+      lastGrnPrice: '',
+      lastGrnDate: '',
+      supplier: '',
+      supplierCode: '',
       remark: '',
       color: '',
-      status: 'A',
+      roundOffOption: 'No Round Off',
+      discountPercentage: '',
     });
+
+    await fetchNextCode();
     if (codeInputRef.current) {
       codeInputRef.current.focus();
     }
@@ -465,30 +358,58 @@ function ItemMaster() {
   const handleSave = async (e) => {
     if (e) e.preventDefault();
 
-    if (!formData.code.trim()) {
+    if (!formData.code || !formData.code.trim()) {
       showNotification('Please enter Item Code.', 'error');
       if (codeInputRef.current) codeInputRef.current.focus();
       return;
     }
 
-    if (!formData.description.trim()) {
+    if (!formData.description || !formData.description.trim()) {
       showNotification('Please enter Item Description.', 'error');
       return;
     }
 
+    const payload = {
+      code: formData.code.trim(),
+      image: formData.image || '',
+      description: formData.description.trim(),
+      category: formData.category ? formData.category.trim() : '',
+      subCategory: formData.subCategory ? formData.subCategory.trim() : '',
+      location: formData.location ? formData.location.trim() : 'Main Store',
+      reorderLevel: formData.reorderLevel !== '' ? Math.max(0, Number(formData.reorderLevel) || 0) : 0,
+      reorderQty: formData.reorderQty !== '' ? Math.max(0, Number(formData.reorderQty) || 0) : 0,
+      maxStockLevel: formData.maxStockLevel !== '' ? Math.max(0, Number(formData.maxStockLevel) || 0) : 0,
+      isBulkItem: Boolean(formData.isBulkItem),
+      sellingPrice: formData.sellingPrice !== '' ? Number(formData.sellingPrice) || 0 : 0,
+      barcode: formData.barcode ? formData.barcode.trim() : '',
+      barCode: formData.barcode ? formData.barcode.trim() : '',
+      lastGrnPrice: formData.lastGrnPrice !== '' ? Number(formData.lastGrnPrice) || 0 : 0,
+      lastGrnDate: formData.lastGrnDate ? formData.lastGrnDate.trim() : '',
+      lastGrn: formData.lastGrnDate ? formData.lastGrnDate.trim() : '',
+      supplier: formData.supplier ? formData.supplier.trim() : '',
+      supplierCode: formData.supplierCode ? formData.supplierCode.trim() : '',
+      suppCode: formData.supplierCode ? formData.supplierCode.trim() : '',
+      remark: formData.remark ? formData.remark.trim() : '',
+      color: formData.color ? formData.color.trim() : '',
+      roundOffOption: formData.roundOffOption || 'No Round Off',
+      discountPercentage: formData.discountPercentage !== '' ? Number(formData.discountPercentage) || 0 : 0,
+    };
+
     try {
       if (selectedId) {
-        const res = await api.put(`/items/${selectedId}`, formData);
+        const res = await api.put(`/items/${selectedId}`, payload);
         if (res.data && res.data.success) {
           showNotification('Item updated successfully.', 'success');
-          fetchItems(searchTerm);
+          setIsDirty(false);
+          await fetchItems(searchTerm);
         }
       } else {
-        const res = await api.post('/items', formData);
+        const res = await api.post('/items', payload);
         if (res.data && res.data.success) {
-          showNotification('Item created successfully.', 'success');
-          handleNew();
-          fetchItems(searchTerm);
+          showNotification('Item saved successfully.', 'success');
+          setSelectedId(res.data.data?._id || null);
+          setIsDirty(false);
+          await fetchItems(searchTerm);
         }
       }
     } catch (error) {
@@ -497,7 +418,7 @@ function ItemMaster() {
     }
   };
 
-  // Button: Delete
+  // Button: Delete (Safe reference-checked deletion)
   const handleDelete = async () => {
     if (!selectedId) {
       showNotification('Please select an item from the list to delete.', 'error');
@@ -513,14 +434,23 @@ function ItemMaster() {
     try {
       const res = await api.delete(`/items/${selectedId}`);
       if (res.data && res.data.success) {
-        showNotification('Item deleted successfully.', 'success');
+        showNotification(res.data.message || 'Item deleted successfully.', res.data.isDeactivated ? 'info' : 'success');
         handleNew();
-        fetchItems(searchTerm);
+        await fetchItems(searchTerm);
       }
     } catch (error) {
       const msg = error.response?.data?.message || 'Error deleting item.';
       showNotification(msg, 'error');
     }
+  };
+
+  // Button: Link
+  const handleLink = () => {
+    if (!formData.code) {
+      showNotification('Please select or enter an Item Code to link a supplier.', 'error');
+      return;
+    }
+    setIsLinkModalOpen(true);
   };
 
   // Button: Export to Excel / CSV
@@ -535,34 +465,44 @@ function ItemMaster() {
       'Description',
       'Category',
       'Sub Category',
-      'Type',
       'Location',
       'Selling Price',
       'Discount %',
-      'Discount (Rs.)',
       'Round Off',
-      'Step',
-      'Final Selling Price',
-      'Stock Qty',
       'Re-Order Level',
+      'Re-Order Qty',
+      'Max Stock Level',
+      'Bulk Item',
+      'Bar Code',
+      'Supplier',
+      'Supplier Code',
+      'Last GRN Price',
+      'Last GRN Date',
+      'Remark',
+      'Color',
       'Status',
     ];
 
     const rows = items.map((i) => [
-      `"${i.code}"`,
+      `"${i.code || ''}"`,
       `"${(i.description || '').replace(/"/g, '""')}"`,
       `"${i.category || ''}"`,
       `"${i.subCategory || ''}"`,
-      `"${i.type || 'Item'}"`,
       `"${i.location || 'Main Store'}"`,
       i.sellingPrice || 0,
       i.discountPercentage || 0,
-      i.discountAmount || 0,
       `"${i.roundOffOption || 'No Round Off'}"`,
-      i.roundOffStep || 5,
-      i.finalSellingPrice || i.sellingPrice || 0,
-      i.quantity || 0,
       i.reorderLevel || 0,
+      i.reorderQty || 0,
+      i.maxStockLevel || 0,
+      i.isBulkItem ? 'Yes' : 'No',
+      `"${i.barcode || ''}"`,
+      `"${i.supplier || ''}"`,
+      `"${i.supplierCode || i.suppCode || ''}"`,
+      i.lastGrnPrice || 0,
+      `"${i.lastGrnDate || i.lastGrn || ''}"`,
+      `"${(i.remark || '').replace(/"/g, '""')}"`,
+      `"${i.color || ''}"`,
       `"${i.status || 'A'}"`,
     ]);
 
@@ -578,61 +518,45 @@ function ItemMaster() {
     showNotification('Item Master list exported successfully.', 'success');
   };
 
-  // Button: Link
-  const handleLink = () => {
-    if (!formData.code) {
-      showNotification('Please select or enter an item code to link a supplier.', 'error');
-      return;
-    }
-    setIsLinkModalOpen(true);
-  };
-
-  // Row selection
+  // Row selection from lower grid
   const handleRowClick = (item) => {
-    setSelectedId(item._id);
-    const sp = item.sellingPrice !== undefined ? item.sellingPrice : '';
-    const discPct = item.discountPercentage !== undefined ? item.discountPercentage : '';
-    const discAmt = item.discountAmount !== undefined ? item.discountAmount : '';
-    const roundOpt = item.roundOffOption || 'No Round Off';
-    const step = item.roundOffStep !== undefined && Number(item.roundOffStep) > 0 ? item.roundOffStep : 5;
+    if (isDirty) {
+      const confirmDiscard = window.confirm('Discard unsaved changes and load selected item?');
+      if (!confirmDiscard) return;
+    }
 
-    let fsp = item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0
-      ? item.finalSellingPrice
-      : '';
-    if (!fsp && sp) {
-      const comp = computePricing(sp, discPct, discAmt, roundOpt, step, 'percentage');
-      fsp = comp.finalSellingPrice;
+    setSelectedId(item._id);
+    setIsDirty(false);
+
+    // Look up supplier name if missing but supplierCode exists
+    let suppName = item.supplier || '';
+    const suppCode = item.supplierCode || item.suppCode || '';
+    if (!suppName && suppCode) {
+      const matched = suppliersList.find((s) => s.code === suppCode);
+      if (matched) suppName = matched.name;
     }
 
     setFormData({
       code: item.code || '',
-      suppCode: item.suppCode || '',
-      type: item.type || 'Item',
+      image: item.image || '',
       description: item.description || '',
       category: item.category || '',
       subCategory: item.subCategory || '',
       location: item.location || 'Main Store',
-      masterPack: item.masterPack || '',
       reorderLevel: item.reorderLevel !== undefined ? item.reorderLevel : '',
       reorderQty: item.reorderQty !== undefined ? item.reorderQty : '',
       maxStockLevel: item.maxStockLevel !== undefined ? item.maxStockLevel : '',
       isBulkItem: Boolean(item.isBulkItem),
-      stockInHand: item.quantity !== undefined ? item.quantity : (item.stockInHand || ''),
-      roundOff: item.roundOff !== undefined ? item.roundOff : '',
-      roundOffOption: roundOpt,
-      roundOffStep: step,
-      discountPercentage: discPct,
-      discountAmount: discAmt,
-      discountedPrice: item.discountedPrice !== undefined ? item.discountedPrice : '',
-      costChange: Boolean(item.costChange),
+      sellingPrice: item.sellingPrice !== undefined ? item.sellingPrice : '',
+      barcode: item.barcode || item.barCode || '',
       lastGrnPrice: item.lastGrnPrice !== undefined ? item.lastGrnPrice : '',
-      lastGrn: item.lastGrn || '',
-      sellingPrice: sp,
-      finalSellingPrice: fsp,
-      averageCost: item.averageCost !== undefined ? item.averageCost : '',
+      lastGrnDate: item.lastGrnDate || item.lastGrn || '',
+      supplier: suppName,
+      supplierCode: suppCode,
       remark: item.remark || '',
       color: item.color || '',
-      status: item.status || 'A',
+      roundOffOption: item.roundOffOption || 'No Round Off',
+      discountPercentage: item.discountPercentage !== undefined ? item.discountPercentage : '',
     });
   };
 
@@ -649,35 +573,54 @@ function ItemMaster() {
 
   // Apply Lookup Selection
   const applyLookup = (val) => {
-    if (lookupModal.type) {
-      let finalVal = val;
-      if (lookupModal.type === 'suppCode' && typeof val === 'string' && val.includes(' - ')) {
-        finalVal = val.split(' - ')[0].trim();
-      }
+    setIsDirty(true);
+    if (lookupModal.type === 'supplier') {
+      const foundSupp = suppliersList.find((s) => s.name === val || `${s.code} - ${s.name}` === val);
       setFormData((prev) => ({
         ...prev,
-        [lookupModal.type]: finalVal,
+        supplier: foundSupp ? foundSupp.name : val,
+        supplierCode: foundSupp ? foundSupp.code : '',
+      }));
+    } else if (lookupModal.type === 'category') {
+      const map = lookupOptions.categorySubCategoryMap || {};
+      const subsForCat = map[val] || [];
+      setFormData((prev) => ({
+        ...prev,
+        category: val,
+        subCategory: subsForCat[0] || '',
+      }));
+    } else if (lookupModal.type) {
+      setFormData((prev) => ({
+        ...prev,
+        [lookupModal.type]: val,
       }));
     }
     setLookupModal({ isOpen: false, type: null, title: '', options: [], selectedVal: '' });
   };
 
-  // Quick Search Handler
-  const handleSearchChange = (e) => {
-    const val = e.target.value;
-    setSearchTerm(val);
-    fetchItems(val);
-  };
+  // Sub Categories available based on currently selected Category
+  const availableSubCategories = (lookupOptions.categorySubCategoryMap && formData.category && lookupOptions.categorySubCategoryMap[formData.category])
+    ? lookupOptions.categorySubCategoryMap[formData.category]
+    : (lookupOptions.subCategories || []);
 
   return (
-    <div className="item-master-container">
+    <div className="item-master-page-container">
+      {/* Hidden file input for Item Image upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImageFileChange}
+        accept="image/*"
+        style={{ display: 'none' }}
+      />
+
       {/* 1. Top Windows/App Blue Title Bar */}
       <header className="management-titlebar">
         <div className="titlebar-brand">
           <svg className="titlebar-car-icon" viewBox="0 0 24 24">
             <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
           </svg>
-          <span className="titlebar-heading">SOFAST MOTORS - Management System</span>
+          <span className="titlebar-heading">SOFAST MOTORS - Management System [Item Master File]</span>
         </div>
         <div className="titlebar-controls">
           <button type="button" className="control-btn" aria-label="Minimize">&#8212;</button>
@@ -693,20 +636,19 @@ function ItemMaster() {
         </div>
       </header>
 
-      {/* 2. Top Classic Menu Bar (Horizontal Flex) */}
+      {/* 2. Top Classic Menu Bar */}
       <nav className="management-menubar-container" ref={menuRef}>
         <ul className="management-menubar">
           {topMenuItems.map((item) => (
             <li key={item.id} className="menubar-item">
               <button
                 type="button"
-                className={`menubar-button ${
-                  (isDropdownOpen === item.id) || (item.id === 'master-files' && isDropdownOpen === 'master-files') ? 'active' : ''
-                }`}
+                className={`menubar-button ${activeDropdown === item.id ? 'active' : ''}`}
                 onClick={() => {
                   if (item.hasDropdown) {
-                    setIsDropdownOpen((prev) => (prev === item.id ? null : item.id));
+                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
                   } else if (item.path) {
+                    setActiveDropdown(null);
                     navigate(item.path);
                   }
                 }}
@@ -714,65 +656,56 @@ function ItemMaster() {
                 {item.label}
               </button>
 
-              {/* Master Files Dropdown */}
-              {item.id === 'master-files' && isDropdownOpen === 'master-files' && (
+              {item.id === 'master-files' && activeDropdown === 'master-files' && (
                 <ul className="masterfiles-dropdown">
-                  {masterFilesDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="dropdown-entry">
+                  {masterFilesDropdownItems.map((masterItem) => (
+                    <li key={masterItem.id} className="dropdown-entry">
                       <button
                         type="button"
-                        className={`dropdown-item-btn ${dropItem.id === 'item-master' ? 'selected' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsDropdownOpen(null);
-                          navigate(dropItem.path);
+                        className={`dropdown-item-btn ${masterItem.id === 'item-master' ? 'selected' : ''}`}
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(masterItem.path);
                         }}
                       >
-                        <span className="dropdown-item-icon">{dropItem.renderIcon()}</span>
-                        <span>{dropItem.label}</span>
+                        <span>{masterItem.label}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
               )}
 
-              {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && isDropdownOpen === 'stock-control' && (
+              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
                 <ul className="masterfiles-dropdown">
-                  {stockControlDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="dropdown-entry">
+                  {stockControlDropdownItems.map((scItem) => (
+                    <li key={scItem.id} className="dropdown-entry">
                       <button
                         type="button"
                         className="dropdown-item-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsDropdownOpen(null);
-                          navigate(dropItem.path);
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(scItem.path);
                         }}
                       >
-                        <span className="dropdown-item-icon">{dropItem.renderIcon()}</span>
-                        <span>{dropItem.label}</span>
+                        <span>{scItem.label}</span>
                       </button>
                     </li>
                   ))}
                 </ul>
               )}
 
-              {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && isDropdownOpen === 'sales-service' && (
+              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
                 <ul className="masterfiles-dropdown">
                   {salesServiceDropdownItems.map((dropItem) => (
                     <li key={dropItem.id} className="dropdown-entry">
                       <button
                         type="button"
                         className="dropdown-item-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsDropdownOpen(null);
+                        onClick={() => {
+                          setActiveDropdown(null);
                           navigate(dropItem.path);
                         }}
                       >
-                        <span className="dropdown-item-icon">{dropItem.renderIcon()}</span>
                         <span>{dropItem.label}</span>
                       </button>
                     </li>
@@ -784,536 +717,612 @@ function ItemMaster() {
         </ul>
       </nav>
 
-      {/* Notification Alert */}
-      {notification && (
-        <div className={`supplier-alert ${notification.type}`} style={{ margin: '4px 12px 0 12px' }}>
-          <span>{notification.message}</span>
-          <button
-            type="button"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
-            onClick={() => setNotification(null)}
-          >
-            &#x2715;
-          </button>
-        </div>
-      )}
-
-      {/* 3. Form Section: Item Master File */}
-      <div className="item-form-wrapper">
-        <div className="blue-section-header">
-          <span>Item Master File</span>
-        </div>
-
-        <div className="item-form-panel">
-          {/* Row 1: Item code | Type */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Item Code . . . . . .</span>
-            <input
-              ref={codeInputRef}
-              type="text"
-              name="code"
-              className="desktop-input"
-              style={{ width: '180px' }}
-              value={formData.code}
-              onChange={handleInputChange}
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '40px', width: '60px' }}>Type . . . .</span>
-            <select
-              name="type"
-              className="desktop-select"
-              style={{ width: '140px' }}
-              value={formData.type}
-              onChange={handleInputChange}
-            >
-              {lookupOptions.types.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+      {/* 3. Main Desktop Workspace centering the Data Entry for Master File window */}
+      <main className="item-master-workspace">
+        <div className="item-master-window">
+          {/* Dialog Title Bar */}
+          <div className="item-titlebar">
+            <div className="titlebar-left">
+              <img src={windowIcon} alt="" className="window-icon" />
+              <span className="window-title">Data Entry for Master File</span>
+            </div>
+            <div className="titlebar-right-controls">
+              <button
+                type="button"
+                className="titlebar-close-btn"
+                aria-label="Close"
+                onClick={() => navigate('/management')}
+                title="Close"
+              >
+                &#x2715;
+              </button>
+            </div>
           </div>
 
-          {/* Row 2: Description */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Description . . . . .</span>
-            <input
-              type="text"
-              name="description"
-              className="desktop-input"
-              style={{ flex: 1, maxWidth: '680px' }}
-              value={formData.description}
-              onChange={handleInputChange}
-            />
-          </div>
+          {/* Dialog Window Body */}
+          <div className="item-window-body">
+            {/* Notification Banner */}
+            {notification && (
+              <div className={`item-notification-banner ${notification.type}`}>
+                <span className="notification-text">{notification.message}</span>
+                <button
+                  type="button"
+                  className="notification-dismiss"
+                  onClick={() => setNotification(null)}
+                  aria-label="Dismiss notification"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
 
-          {/* Row 3: Category | Sub Category | Location */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Category . . . . . . .</span>
-            <input
-              type="text"
-              name="category"
-              className="desktop-input"
-              style={{ width: '150px' }}
-              value={formData.category}
-              onChange={handleInputChange}
-            />
-            <button
-              type="button"
-              className="btn-lookup"
-              onClick={() => openLookup('category', 'Select Category', lookupOptions.categories, formData.category)}
-            >
-              ...
-            </button>
+            {/* Form Section containing the 20 requested fields matching reference */}
+            <form className="item-master-form" onSubmit={handleSave} autoComplete="off">
+              {/* Row 1 & 2 Block: Item Code + Description on the Left; Item Image on the Right */}
+              {/* Row 1 & 2 Block: Item Code + Description on the Left; Item Image spanning rows 1 & 2 on the Right */}
+              <div className="form-top-block">
+                {/* Row 1 Left: Item Code */}
+                <label className="field-label top-label-code" htmlFor="item-code">
+                  Item Code . . . . . .
+                </label>
+                <input
+                  id="item-code"
+                  name="code"
+                  type="text"
+                  className="input-classic input-item-code top-input-code"
+                  value={formData.code}
+                  onChange={handleInputChange}
+                  ref={codeInputRef}
+                  autoComplete="off"
+                />
 
-            <span className="dotted-label" style={{ marginLeft: '15px', width: '95px' }}>Sub Category . . . .</span>
-            <input
-              type="text"
-              name="subCategory"
-              className="desktop-input"
-              style={{ width: '150px' }}
-              value={formData.subCategory}
-              onChange={handleInputChange}
-            />
-            <button
-              type="button"
-              className="btn-lookup"
-              onClick={() => openLookup('subCategory', 'Select Sub Category', lookupOptions.subCategories, formData.subCategory)}
-            >
-              ...
-            </button>
+                {/* Row 1 Right: Item Image Label */}
+                <span className="field-label top-label-image">
+                  Item Image . . . .
+                </span>
 
-            <span className="dotted-label" style={{ marginLeft: '15px', width: '70px' }}>Location . . .</span>
-            <select
-              name="location"
-              className="desktop-select"
-              style={{ width: '130px' }}
-              value={formData.location}
-              onChange={handleInputChange}
-            >
-              {lookupOptions.locations.map((loc) => (
-                <option key={loc} value={loc}>{loc}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn-lookup"
-              onClick={() => openLookup('location', 'Select Location', lookupOptions.locations, formData.location)}
-            >
-              ...
-            </button>
-          </div>
+                {/* Row 1 & 2 Right: Item Image Box (Rowspan 2) */}
+                <div
+                  className="item-image-box top-image-box"
+                  onClick={triggerFileInput}
+                  title="Click to select or change item image"
+                >
+                  {formData.image ? (
+                    <img src={formData.image} alt="Item Preview" className="item-image-preview" />
+                  ) : (
+                    <span className="image-empty-placeholder">[ActiveX]</span>
+                  )}
+                </div>
 
-          {/* Row 4: Re-Order Level | Re-Order Quantity | Max Stock Level | Bulk Item */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Re-Order Level . .</span>
-            <input
-              type="number"
-              name="reorderLevel"
-              className="desktop-input"
-              style={{ width: '90px' }}
-              value={formData.reorderLevel}
-              onChange={handleInputChange}
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '15px', width: '90px' }}>Re-Order Qty . .</span>
-            <input
-              type="number"
-              name="reorderQty"
-              className="desktop-input"
-              style={{ width: '90px' }}
-              value={formData.reorderQty}
-              onChange={handleInputChange}
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '15px', width: '100px' }}>Max Stock Level . .</span>
-            <input
-              type="number"
-              name="maxStockLevel"
-              className="desktop-input"
-              style={{ width: '90px' }}
-              value={formData.maxStockLevel}
-              onChange={handleInputChange}
-            />
-
-            <label className="checkbox-field" style={{ marginLeft: '20px' }}>
-              <span className="dotted-label">Bulk Item . . . . . . .</span>
-              <input
-                type="checkbox"
-                name="isBulkItem"
-                checked={formData.isBulkItem}
-                onChange={handleInputChange}
-              />
-            </label>
-          </div>
-
-          {/* Row 5: Selling Price | Supplier */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Selling Price . . . .</span>
-            <input
-              type="number"
-              name="sellingPrice"
-              className="desktop-input"
-              style={{ width: '130px', fontWeight: 'bold', color: '#000080' }}
-              value={formData.sellingPrice}
-              onChange={handleInputChange}
-              placeholder="0.00"
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '25px', width: '85px' }}>Supplier . . . . . . .</span>
-            <input
-              type="text"
-              name="suppCode"
-              list="supplier-code-datalist"
-              className="desktop-input"
-              style={{ width: '175px' }}
-              value={formData.suppCode}
-              onChange={handleInputChange}
-              placeholder="Supplier code / name..."
-            />
-            <button
-              type="button"
-              className="btn-lookup"
-              title="Select Supplier from Database"
-              onClick={() =>
-                openLookup(
-                  'suppCode',
-                  'Select Supplier',
-                  suppliersList.map((s) => `${s.code} - ${s.name}`),
-                  formData.suppCode
-                )
-              }
-            >
-              ...
-            </button>
-            <button
-              type="button"
-              className="btn-lookup"
-              style={{ width: '45px', marginLeft: '2px' }}
-              title="Link Supplier to Item"
-              onClick={handleLink}
-            >
-              Link
-            </button>
-            <datalist id="supplier-code-datalist">
-              {suppliersList.map((s) => (
-                <option key={s._id} value={s.code}>
-                  {s.name}
-                </option>
-              ))}
-            </datalist>
-          </div>
-
-          {/* Row 6: Round Off | Step | Discount % | Discount (Rs) | Cost Change */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Round Off . . . . . . .</span>
-            <select
-              name="roundOffOption"
-              className="desktop-select"
-              style={{ width: '115px' }}
-              value={formData.roundOffOption}
-              onChange={handleInputChange}
-            >
-              <option value="No Round Off">No Round Off</option>
-              <option value="Round Up">Round Up</option>
-              <option value="Round Down">Round Down</option>
-            </select>
-
-            <span className="dotted-label" style={{ marginLeft: '10px', width: '40px' }}>Step . .</span>
-            <input
-              type="number"
-              name="roundOffStep"
-              className="desktop-input"
-              style={{ width: '50px' }}
-              min="0.01"
-              step="1"
-              value={formData.roundOffStep}
-              onChange={handleInputChange}
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '15px', width: '75px' }}>Discount % . .</span>
-            <input
-              type="number"
-              name="discountPercentage"
-              className="desktop-input"
-              style={{ width: '75px' }}
-              value={formData.discountPercentage}
-              onChange={handleInputChange}
-              placeholder="0"
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '15px', width: '90px' }}>Discount (Rs) . .</span>
-            <input
-              type="number"
-              name="discountAmount"
-              className="desktop-input"
-              style={{ width: '95px' }}
-              value={formData.discountAmount}
-              onChange={handleInputChange}
-              placeholder="0.00"
-            />
-
-            <label className="checkbox-field" style={{ marginLeft: '15px' }}>
-              <span className="dotted-label">Cost Change . . .</span>
-              <input
-                type="checkbox"
-                name="costChange"
-                checked={formData.costChange}
-                onChange={handleInputChange}
-              />
-            </label>
-          </div>
-
-          {/* Row 7: Final Price | Last GRN Price | Last GRN Date */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px', color: '#006600' }}>Final Price . . . . .</span>
-            <input
-              type="text"
-              name="finalSellingPrice"
-              className="desktop-input"
-              style={{
-                width: '130px',
-                fontWeight: 'bold',
-                color: '#005bb7',
-                backgroundColor: '#f0fdf4',
-                borderColor: '#86efac',
-                textAlign: 'right',
-              }}
-              readOnly
-              value={
-                formData.finalSellingPrice !== '' && formData.finalSellingPrice !== undefined && formData.finalSellingPrice !== null
-                  ? `Rs. ${Number(formData.finalSellingPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : formData.sellingPrice
-                  ? `Rs. ${Number(formData.sellingPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : 'Rs. 0.00'
-              }
-              title="Final Selling Price after Discount & Round Off"
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '25px', width: '105px' }}>Last GRN Price . .</span>
-            <input
-              type="number"
-              name="lastGrnPrice"
-              className="desktop-input"
-              style={{ width: '110px' }}
-              value={formData.lastGrnPrice}
-              onChange={handleInputChange}
-              placeholder="0.00"
-            />
-
-            <span className="dotted-label" style={{ marginLeft: '25px', width: '105px' }}>Last GRN Date . . .</span>
-            <input
-              type="text"
-              name="lastGrn"
-              className="desktop-input"
-              style={{ width: '160px' }}
-              value={formData.lastGrn}
-              onChange={handleInputChange}
-              placeholder="YYYY-MM-DD / Ref..."
-            />
-          </div>
-
-          {/* Row 8: Remark */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Remark . . . . . . . .</span>
-            <input
-              type="text"
-              name="remark"
-              className="desktop-input"
-              style={{ flex: 1, maxWidth: '820px' }}
-              value={formData.remark}
-              onChange={handleInputChange}
-            />
-          </div>
-
-          {/* Row 9: Color */}
-          <div className="form-row">
-            <span className="dotted-label" style={{ width: '110px' }}>Color . . . . . . . .</span>
-            <input
-              type="text"
-              name="color"
-              className="desktop-input"
-              style={{ width: '150px' }}
-              placeholder="Color..."
-              value={formData.color}
-              onChange={handleInputChange}
-            />
-            <button
-              type="button"
-              className="btn-lookup"
-              style={{ marginLeft: '4px' }}
-              title="Open Color Palette"
-              onClick={() =>
-                openLookup(
-                  'color',
-                  'Select Color Palette',
-                  standardColorPalettes.map((c) => c.name),
-                  formData.color
-                )
-              }
-            >
-              ...
-            </button>
-            <div
-              className="color-plate-preview"
-              title={`Color plate: ${formData.color || 'White / None'}`}
-              style={{
-                backgroundColor: colorNameToHex(formData.color),
-                marginLeft: '4px',
-              }}
-              onClick={() =>
-                openLookup(
-                  'color',
-                  'Select Color Palette',
-                  standardColorPalettes.map((c) => c.name),
-                  formData.color
-                )
-              }
-            />
-            <input
-              type="color"
-              style={{ width: '24px', height: '20px', padding: 0, border: 'none', cursor: 'pointer', background: 'transparent', marginLeft: '4px' }}
-              title="Pick custom color"
-              value={colorNameToHex(formData.color)}
-              onChange={(e) => setFormData((prev) => ({ ...prev, color: e.target.value }))}
-            />
-          </div>
-
-          {/* Action Buttons: New | Delete | Save | Link | Excel */}
-          <div className="item-actions-row">
-            <button type="button" className="btn-action-classic" onClick={handleNew}>
-              New
-            </button>
-            <button
-              type="button"
-              className="btn-action-classic"
-              onClick={handleDelete}
-              disabled={!selectedId}
-            >
-              Delete
-            </button>
-            <button type="button" className="btn-action-classic" onClick={handleSave}>
-              Save
-            </button>
-            <button type="button" className="btn-action-classic" onClick={handleLink}>
-              Link
-            </button>
-            <button type="button" className="btn-action-classic" onClick={handleExportExcel}>
-              Excel
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Section: Item List Table */}
-      <div className="item-grid-section">
-        <div className="blue-section-header">
-          <span>Item List</span>
-        </div>
-
-        {/* Quick Search Bar */}
-        <div className="item-search-bar">
-          <span style={{ fontWeight: '600', color: '#000080' }}>Quick Search:</span>
-          <input
-            type="text"
-            className="desktop-input"
-            style={{ width: '280px' }}
-            placeholder="Filter by code, description, or category..."
-            value={searchTerm}
-            onChange={handleSearchChange}
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              className="btn-lookup"
-              style={{ width: '50px' }}
-              onClick={() => {
-                setSearchTerm('');
-                fetchItems('');
-              }}
-            >
-              Clear
-            </button>
-          )}
-          <span style={{ marginLeft: 'auto', color: '#666' }}>
-            Showing {items.length} of {totalItems} items
-          </span>
-        </div>
-
-        <div className="item-table-container">
-          <table className="item-table">
-            <thead>
-              <tr>
-                <th style={{ width: '100px' }}>Item Code</th>
-                <th style={{ width: '250px' }}>Description</th>
-                <th style={{ width: '110px' }}>Category</th>
-                <th style={{ width: '110px' }}>Sub Category</th>
-                <th style={{ width: '65px' }}>Type</th>
-                <th style={{ width: '80px' }}>Location</th>
-                <th style={{ width: '85px', textAlign: 'right' }}>Sell Price</th>
-                <th style={{ width: '90px', textAlign: 'right' }}>Final Price</th>
-                <th style={{ width: '75px', textAlign: 'center' }}>Stock Qty</th>
-                <th style={{ width: '75px', textAlign: 'center' }}>Re-Order</th>
-                <th style={{ width: '55px', textAlign: 'center' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="11" className="table-empty-message">
-                    Loading items from database...
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan="11" className="table-empty-message">
-                    No items found matching criteria. Click &quot;New&quot; to create a new item.
-                  </td>
-                </tr>
-              ) : (
-                items.map((item) => (
-                  <tr
-                    key={item._id}
-                    className={`item-row ${selectedId === item._id ? 'selected' : ''}`}
-                    onClick={() => handleRowClick(item)}
+                {/* Row 1 Right: Item Image Lookup Button */}
+                <div className="top-image-btn-col">
+                  <button
+                    type="button"
+                    className="btn-lookup"
+                    onClick={triggerFileInput}
+                    title="Select Image file from computer"
                   >
-                    <td style={{ fontWeight: '600' }}>{item.code}</td>
-                    <td>{item.description}</td>
-                    <td>{item.category || '-'}</td>
-                    <td>{item.subCategory || '-'}</td>
-                    <td>{item.type || 'Item'}</td>
-                    <td>{item.location || 'Main Store'}</td>
-                    <td style={{ textAlign: 'right', color: selectedId === item._id ? '#fff' : '#475569' }}>
-                      {item.sellingPrice !== undefined && item.sellingPrice !== null && item.sellingPrice !== ''
-                        ? Number(item.sellingPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : '0.00'}
-                    </td>
-                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: selectedId === item._id ? '#fff' : '#000080' }}>
-                      {item.finalSellingPrice !== undefined && item.finalSellingPrice !== null && item.finalSellingPrice !== '' && Number(item.finalSellingPrice) > 0
-                        ? Number(item.finalSellingPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : (item.sellingPrice ? Number(item.sellingPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00')}
-                    </td>
-                    <td style={{ textAlign: 'center', fontWeight: '600', color: selectedId === item._id ? '#fff' : '#16a34a' }}>
-                      {item.quantity !== undefined ? item.quantity : 0}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>{item.reorderLevel || 0}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <span className={item.status === 'Inactive' ? 'status-badge-inactive' : 'status-badge-active'}>
-                        {item.status === 'Inactive' ? 'Inactive' : 'A'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    ...
+                  </button>
+                  {formData.image && (
+                    <button
+                      type="button"
+                      className="btn-lookup-clear"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDirty(true);
+                        setFormData((prev) => ({ ...prev, image: '' }));
+                      }}
+                      title="Clear Image"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
 
-        {/* Total Items Footer Bar */}
-        <div className="item-table-footer-bar">
-          <span>Total Items : {totalItems || items.length}</span>
-        </div>
-      </div>
+                {/* Row 2 Left: Description Label */}
+                <label className="field-label top-label-desc" htmlFor="item-description">
+                  Description . . . .
+                </label>
 
-      {/* 5. Bottom Status Bar */}
+                {/* Row 2: Description Input spanning horizontally to the Image Box */}
+                <input
+                  id="item-description"
+                  name="description"
+                  type="text"
+                  className="input-classic top-input-desc"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Row 3: Category | Sub Category */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-category" style={{ width: '115px' }}>
+                  Category . . . . . .
+                </label>
+                <div className="field-control-group" style={{ width: '220px' }}>
+                  <select
+                    id="item-category"
+                    name="category"
+                    className="select-classic"
+                    value={formData.category}
+                    onChange={handleCategoryChange}
+                  >
+                    <option value="">-- Select Category --</option>
+                    {lookupOptions.categories.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn-lookup"
+                    onClick={() => openLookup('category', 'Select Category', lookupOptions.categories, formData.category)}
+                    title="Category Lookup"
+                  >
+                    ...
+                  </button>
+                </div>
+
+                <label className="field-label" htmlFor="item-sub-category" style={{ marginLeft: '24px', width: '115px' }}>
+                  Sub Category . . . .
+                </label>
+                <div className="field-control-group" style={{ width: '200px' }}>
+                  <select
+                    id="item-sub-category"
+                    name="subCategory"
+                    className="select-classic"
+                    value={formData.subCategory}
+                    onChange={handleInputChange}
+                  >
+                    <option value="">-- Select Sub Category --</option>
+                    {availableSubCategories.map((sc) => (
+                      <option key={sc} value={sc}>{sc}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn-lookup"
+                    onClick={() => openLookup('subCategory', 'Select Sub Category', availableSubCategories, formData.subCategory)}
+                    title="Sub Category Lookup"
+                  >
+                    ...
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 4: Location */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-location" style={{ width: '115px' }}>
+                  Location . . . . . .
+                </label>
+                <div className="field-control-group" style={{ width: '220px' }}>
+                  <select
+                    id="item-location"
+                    name="location"
+                    className="select-classic"
+                    value={formData.location}
+                    onChange={handleInputChange}
+                  >
+                    {lookupOptions.locations.map((loc) => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn-lookup"
+                    onClick={() => openLookup('location', 'Select Location', lookupOptions.locations, formData.location)}
+                    title="Location Lookup"
+                  >
+                    ...
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 5: Re-Order Level | Re-Order Qty | Max Stock Level | Bulk Item */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-reorder-level" style={{ width: '115px' }}>
+                  Re-Order Level .
+                </label>
+                <input
+                  id="item-reorder-level"
+                  name="reorderLevel"
+                  type="number"
+                  min="0"
+                  className="input-classic input-num-small"
+                  value={formData.reorderLevel}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+
+                <label className="field-label" htmlFor="item-reorder-qty" style={{ marginLeft: '14px', width: '95px' }}>
+                  Re-Order Qty . . .
+                </label>
+                <input
+                  id="item-reorder-qty"
+                  name="reorderQty"
+                  type="number"
+                  min="0"
+                  className="input-classic input-num-small"
+                  value={formData.reorderQty}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+
+                <label className="field-label" htmlFor="item-max-stock" style={{ marginLeft: '14px', width: '105px' }}>
+                  Max Stock Level . .
+                </label>
+                <input
+                  id="item-max-stock"
+                  name="maxStockLevel"
+                  type="number"
+                  min="0"
+                  className="input-classic input-num-small"
+                  value={formData.maxStockLevel}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+
+                <label className="checkbox-field" style={{ marginLeft: '22px' }}>
+                  <span className="field-label">Bulk Item . . . . .</span>
+                  <input
+                    type="checkbox"
+                    name="isBulkItem"
+                    checked={formData.isBulkItem}
+                    onChange={handleInputChange}
+                  />
+                </label>
+              </div>
+
+              {/* Row 6: Selling Price | Bar Code | Last GRN Price */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-selling-price" style={{ width: '115px' }}>
+                  Selling Price . . . .
+                </label>
+                <input
+                  id="item-selling-price"
+                  name="sellingPrice"
+                  type="number"
+                  step="any"
+                  min="0"
+                  className="input-classic input-selling-price"
+                  value={formData.sellingPrice}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  autoComplete="off"
+                />
+
+                <label className="field-label" htmlFor="item-barcode" style={{ marginLeft: '24px', width: '95px' }}>
+                  Bar Code . . . . . .
+                </label>
+                <input
+                  id="item-barcode"
+                  name="barcode"
+                  type="text"
+                  className="input-classic input-barcode"
+                  value={formData.barcode}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+
+                <label className="field-label" htmlFor="item-last-grn-price" style={{ marginLeft: '20px', width: '105px' }}>
+                  Last GRN Price .
+                </label>
+                <input
+                  id="item-last-grn-price"
+                  name="lastGrnPrice"
+                  type="number"
+                  step="any"
+                  className="input-classic input-num-small"
+                  value={formData.lastGrnPrice}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Row 7: Last GRN Date */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-last-grn-date" style={{ width: '115px' }}>
+                  Last GRN Date . .
+                </label>
+                <div className="field-control-group" style={{ width: '160px' }}>
+                  <input
+                    id="item-last-grn-date"
+                    name="lastGrnDate"
+                    type="text"
+                    className="input-classic"
+                    value={formData.lastGrnDate}
+                    onChange={handleInputChange}
+                    placeholder="YYYY-MM-DD"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="btn-lookup"
+                    onClick={() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      setIsDirty(true);
+                      setFormData((prev) => ({ ...prev, lastGrnDate: prev.lastGrnDate || today }));
+                    }}
+                    title="Set to Today / Lookup Date"
+                  >
+                    ...
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 8: Supplier | Supplier Code */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-supplier" style={{ width: '115px' }}>
+                  Supplier . . . . . . .
+                </label>
+                <div className="field-control-group" style={{ width: '220px' }}>
+                  <select
+                    id="item-supplier"
+                    name="supplier"
+                    className="select-classic"
+                    value={formData.supplier}
+                    onChange={handleSupplierChange}
+                  >
+                    <option value="">-- Select Supplier --</option>
+                    {suppliersList.map((s) => (
+                      <option key={s._id} value={s.name}>
+                        {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn-lookup"
+                    onClick={() =>
+                      openLookup(
+                        'supplier',
+                        'Select Supplier',
+                        suppliersList.map((s) => `${s.code} - ${s.name}`),
+                        formData.supplier
+                      )
+                    }
+                    title="Select Supplier Lookup"
+                  >
+                    ...
+                  </button>
+                </div>
+
+                <label className="field-label" htmlFor="item-supplier-code" style={{ marginLeft: '24px', width: '115px' }}>
+                  Supplier Code . . . .
+                </label>
+                <input
+                  id="item-supplier-code"
+                  name="supplierCode"
+                  type="text"
+                  className="input-classic input-readonly"
+                  style={{ width: '130px' }}
+                  value={formData.supplierCode}
+                  readOnly
+                  placeholder="Auto-populated"
+                  title="Supplier Code is automatically populated from selected Supplier"
+                />
+              </div>
+
+              {/* Row 9: Remark */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-remark" style={{ width: '115px' }}>
+                  Remark . . . . . . .
+                </label>
+                <input
+                  id="item-remark"
+                  name="remark"
+                  type="text"
+                  className="input-classic input-full-width"
+                  value={formData.remark}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Row 10: Color | Round Off (Up / Down) | Discount (%) */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-color" style={{ width: '115px' }}>
+                  Color . . . . . . . . .
+                </label>
+                <input
+                  id="item-color"
+                  name="color"
+                  type="text"
+                  className="input-classic input-color"
+                  value={formData.color}
+                  onChange={handleInputChange}
+                  autoComplete="off"
+                />
+
+                {/* Round Off Options: Up and Down using classic desktop radio buttons */}
+                <div className="round-off-group" style={{ marginLeft: '20px' }}>
+                  <span className="field-label">Round Off . . . . .</span>
+                  <label className="radio-label">
+                    <input
+                      type="radio"
+                      name="roundOffOption"
+                      value="Round Up"
+                      checked={formData.roundOffOption === 'Round Up' || formData.roundOffOption === 'Up'}
+                      onChange={() => handleRoundOffChange('Round Up')}
+                    />
+                    <span>Up</span>
+                  </label>
+                  <label className="radio-label">
+                    <input
+                      type="radio"
+                      name="roundOffOption"
+                      value="Round Down"
+                      checked={formData.roundOffOption === 'Round Down' || formData.roundOffOption === 'Down'}
+                      onChange={() => handleRoundOffChange('Round Down')}
+                    />
+                    <span>Down</span>
+                  </label>
+                </div>
+
+                {/* Discount (%) */}
+                <label className="field-label" htmlFor="item-discount" style={{ marginLeft: '24px', width: '95px' }}>
+                  Discount (%) . . . .
+                </label>
+                <input
+                  id="item-discount"
+                  name="discountPercentage"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="any"
+                  className="input-classic input-num-small"
+                  value={formData.discountPercentage}
+                  onChange={handleInputChange}
+                  placeholder="0"
+                  autoComplete="off"
+                />
+              </div>
+
+              {/* Row 11: Buttons in exact order and style: New, Delete, Save, Link, Excel */}
+              <div className="buttons-row">
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleNew}
+                >
+                  New
+                </button>
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleDelete}
+                  disabled={!selectedId}
+                >
+                  Delete
+                </button>
+                <button
+                  type="submit"
+                  className="btn-classic"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleLink}
+                >
+                  Link
+                </button>
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleExportExcel}
+                >
+                  Excel
+                </button>
+              </div>
+            </form>
+
+            {/* Lower Grid: Real saved items table */}
+            <div className="item-records-grid-container">
+              <div className="item-grid-table-wrapper">
+                <table className="item-records-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '100px' }}>Item Code</th>
+                      <th style={{ width: '220px' }}>Description</th>
+                      <th style={{ width: '110px' }}>Category</th>
+                      <th style={{ width: '110px' }}>Sub Category</th>
+                      <th style={{ width: '95px' }}>Location</th>
+                      <th style={{ width: '95px', textAlign: 'right' }}>Selling Price</th>
+                      <th style={{ width: '75px', textAlign: 'center' }}>Disc (%)</th>
+                      <th style={{ width: '80px', textAlign: 'center' }}>Re-Order</th>
+                      <th style={{ width: '130px' }}>Supplier</th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan="10" className="grid-empty-state">
+                          Loading item records...
+                        </td>
+                      </tr>
+                    ) : items.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" className="grid-empty-state">
+                          No item records found in database. Click &quot;New&quot; to add an item.
+                        </td>
+                      </tr>
+                    ) : (
+                      items.map((item) => (
+                        <tr
+                          key={item._id}
+                          className={`grid-data-row ${selectedId === item._id ? 'selected' : ''}`}
+                          onClick={() => handleRowClick(item)}
+                          title={`Select ${item.description}`}
+                        >
+                          <td className="col-code">{item.code}</td>
+                          <td className="col-desc">{item.description}</td>
+                          <td>{item.category || '-'}</td>
+                          <td>{item.subCategory || '-'}</td>
+                          <td>{item.location || 'Main Store'}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            {item.sellingPrice !== undefined && item.sellingPrice !== null && item.sellingPrice !== ''
+                              ? Number(item.sellingPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : '0.00'}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {item.discountPercentage ? `${item.discountPercentage}%` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>{item.reorderLevel || 0}</td>
+                          <td>{item.supplier || item.supplierCode || item.suppCode || '-'}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={item.status === 'I' || item.status === 'Inactive' ? 'badge-inactive' : 'badge-active'}>
+                              {item.status === 'I' || item.status === 'Inactive' ? 'Inactive' : 'Active'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table search filter bar */}
+              <div className="grid-footer-bar">
+                <span className="grid-footer-count">Total Items: {items.length}</span>
+                <div className="grid-search-control">
+                  <span style={{ fontSize: '11px', color: '#002D62', fontWeight: 'bold' }}>Quick Search:</span>
+                  <input
+                    type="text"
+                    className="input-classic input-table-search"
+                    placeholder="Filter by code, description, or category..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      fetchItems(e.target.value);
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      className="btn-lookup"
+                      onClick={() => {
+                        setSearchTerm('');
+                        fetchItems('');
+                      }}
+                      title="Clear search"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* 4. Bottom Desktop Status Bar */}
       <footer className="management-statusbar">
         <div className="statusbar-left">
           <div className="statusbar-item">
@@ -1341,85 +1350,49 @@ function ItemMaster() {
 
         <div className="statusbar-right">
           <span>Records: {totalItems}</span>
-          <span>|</span>
-          <span>SOFAST MOTORS | v1.0.0</span>
+          <span className="statusbar-divider">|</span>
+          <span>SOFAST MOTORS | Item Master File</span>
         </div>
       </footer>
 
-      {/* 6. Classic Lookup Modal */}
+      {/* 5. Classic Lookup Modal */}
       {lookupModal.isOpen && (
-        <div className="lookup-modal-backdrop" onClick={() => setLookupModal({ isOpen: false, type: null, title: '', options: [], selectedVal: '' })}>
-          <div className="lookup-modal-window" onClick={(e) => e.stopPropagation()}>
-            <div className="lookup-modal-header">
+        <div className="item-modal-backdrop" onClick={() => setLookupModal({ isOpen: false, type: null, title: '', options: [], selectedVal: '' })}>
+          <div className="item-modal-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="item-modal-header">
               <span>{lookupModal.title}</span>
               <button
                 type="button"
-                className="control-btn close"
-                style={{ width: '18px', height: '18px', fontSize: '11px', background: 'none', color: '#fff', border: 'none' }}
+                className="item-modal-close"
                 onClick={() => setLookupModal({ isOpen: false, type: null, title: '', options: [], selectedVal: '' })}
               >
                 &#x2715;
               </button>
             </div>
-            <div className="lookup-modal-body">
-              {lookupModal.type === 'color' ? (
-                <>
-                  <span style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold' }}>
-                    Click a Color Plate Swatch:
-                  </span>
-                  <div className="color-palette-grid">
-                    {standardColorPalettes.map((c, idx) => (
-                      <div
-                        key={idx}
-                        className="color-palette-tile"
-                        style={{
-                          backgroundColor: c.hex,
-                          border: lookupModal.selectedVal === c.name ? '2px solid #005bb7' : '1px solid #716f64',
-                        }}
-                        title={`${c.name} (${c.hex})`}
-                        onClick={() => applyLookup(c.name)}
-                      >
-                        <span
-                          style={{
-                            background: 'rgba(255,255,255,0.9)',
-                            padding: '1px 3px',
-                            borderRadius: '2px',
-                            fontWeight: '600',
-                            fontSize: '9px',
-                            color: '#000000',
-                          }}
-                        >
-                          {c.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <span style={{ fontSize: '11px', color: '#333' }}>Select an option from the list below:</span>
-                  <ul className="lookup-list">
-                    {lookupModal.options.length === 0 ? (
-                      <li style={{ padding: '8px', color: '#999', fontSize: '11px' }}>No options available</li>
-                    ) : (
-                      lookupModal.options.map((opt, idx) => (
-                        <li
-                          key={idx}
-                          className={`lookup-item ${lookupModal.selectedVal === opt ? 'selected' : ''}`}
-                          onClick={() => applyLookup(opt)}
-                        >
-                          {opt}
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                </>
-              )}
+            <div className="item-modal-body">
+              <span style={{ fontSize: '11px', color: '#002D62', fontWeight: 'bold' }}>
+                Select an option from the list:
+              </span>
+              <ul className="lookup-options-list">
+                {lookupModal.options.length === 0 ? (
+                  <li className="lookup-option-empty">No options available</li>
+                ) : (
+                  lookupModal.options.map((opt, idx) => (
+                    <li
+                      key={idx}
+                      className={`lookup-option-row ${lookupModal.selectedVal === opt ? 'selected' : ''}`}
+                      onClick={() => applyLookup(opt)}
+                    >
+                      {opt}
+                    </li>
+                  ))
+                )}
+              </ul>
             </div>
-            <div className="lookup-modal-footer">
+            <div className="item-modal-footer">
               <button
                 type="button"
-                className="btn-action-classic"
+                className="btn-classic"
                 onClick={() => setLookupModal({ isOpen: false, type: null, title: '', options: [], selectedVal: '' })}
               >
                 Cancel
@@ -1429,62 +1402,65 @@ function ItemMaster() {
         </div>
       )}
 
-      {/* 7. Supplier Item Link Modal */}
+      {/* 6. Link Supplier Modal */}
       {isLinkModalOpen && (
-        <div className="lookup-modal-backdrop" onClick={() => setIsLinkModalOpen(false)}>
-          <div className="lookup-modal-window" style={{ width: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="lookup-modal-header">
+        <div className="item-modal-backdrop" onClick={() => setIsLinkModalOpen(false)}>
+          <div className="item-modal-dialog" style={{ width: '480px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="item-modal-header">
               <span>Link Supplier to Item [{formData.code || 'New Item'}]</span>
               <button
                 type="button"
-                className="control-btn close"
-                style={{ width: '18px', height: '18px', fontSize: '11px', background: 'none', color: '#fff', border: 'none' }}
+                className="item-modal-close"
                 onClick={() => setIsLinkModalOpen(false)}
               >
                 &#x2715;
               </button>
             </div>
-            <div className="lookup-modal-body">
-              <div style={{ fontSize: '11px', marginBottom: '6px', padding: '6px', background: '#fff', border: '1px solid #c0c0c0' }}>
-                <div><strong>Item Code:</strong> {formData.code || '(Not specified)'}</div>
-                <div><strong>Description:</strong> {formData.description || '(No description)'}</div>
+            <div className="item-modal-body">
+              <div className="link-item-summary">
+                <div><strong>Item Code:</strong> {formData.code || '(None)'}</div>
+                <div><strong>Description:</strong> {formData.description || '(None)'}</div>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000080' }}>
-                Select Supplier to link from MongoDB Database ({suppliersList.length} suppliers):
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#002D62' }}>
+                Select Supplier from Database ({suppliersList.length} suppliers):
               </span>
-              <ul className="lookup-list" style={{ maxHeight: '180px' }}>
+              <ul className="lookup-options-list" style={{ maxHeight: '180px' }}>
                 {suppliersList.length === 0 ? (
-                  <li style={{ padding: '8px', color: '#999', fontSize: '11px' }}>No suppliers available</li>
+                  <li className="lookup-option-empty">No suppliers found</li>
                 ) : (
                   suppliersList.map((sup) => (
                     <li
                       key={sup._id}
-                      className={`lookup-item ${formData.suppCode === sup.code ? 'selected' : ''}`}
+                      className={`lookup-option-row ${formData.supplierCode === sup.code ? 'selected' : ''}`}
                       onClick={() => {
-                        setFormData((prev) => ({ ...prev, suppCode: sup.code }));
+                        setIsDirty(true);
+                        setFormData((prev) => ({
+                          ...prev,
+                          supplier: sup.name,
+                          supplierCode: sup.code,
+                        }));
                       }}
-                      style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '5px 8px' }}
                     >
-                      <div style={{ fontWeight: '600' }}>{sup.code} - {sup.name}</div>
-                      <div style={{ fontSize: '10px', color: formData.suppCode === sup.code ? '#e0f2fe' : '#666' }}>
-                        {sup.address ? `${sup.address} | ` : ''}Phone: {sup.telephone1 || sup.telephone || '-'}
+                      <div style={{ fontWeight: 'bold' }}>{sup.code} - {sup.name}</div>
+                      <div style={{ fontSize: '10px', color: '#555' }}>
+                        {sup.telephone1 || sup.telephone ? `Phone: ${sup.telephone1 || sup.telephone}` : ''}
                       </div>
                     </li>
                   ))
                 )}
               </ul>
-              {formData.suppCode && (
-                <div style={{ fontSize: '11px', color: '#005bb7', marginTop: '4px', fontWeight: 'bold' }}>
-                  ✓ Selected Supplier Code: {formData.suppCode}
+              {formData.supplierCode && (
+                <div style={{ fontSize: '11px', color: '#005bb7', marginTop: '6px', fontWeight: 'bold' }}>
+                  ✓ Selected Supplier: {formData.supplier} ({formData.supplierCode})
                 </div>
               )}
             </div>
-            <div className="lookup-modal-footer">
+            <div className="item-modal-footer">
               <button
                 type="button"
-                className="btn-action-classic"
+                className="btn-classic"
                 onClick={() => {
-                  showNotification(`Supplier [${formData.suppCode}] linked to Item [${formData.code}]. Click Save to persist.`, 'success');
+                  showNotification(`Linked supplier '${formData.supplier}' to item. Click Save to persist.`, 'success');
                   setIsLinkModalOpen(false);
                 }}
               >
@@ -1492,7 +1468,7 @@ function ItemMaster() {
               </button>
               <button
                 type="button"
-                className="btn-action-classic"
+                className="btn-classic"
                 onClick={() => setIsLinkModalOpen(false)}
               >
                 Cancel
