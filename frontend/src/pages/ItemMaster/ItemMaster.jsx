@@ -6,26 +6,50 @@ import './ItemMaster.css';
 // Window Icon (SVG data URI for classic window titlebar)
 const windowIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f59e0b' d='M12 2L2 7l10 5 10-5-10-5z'/%3E%3Cpath fill='%232563eb' d='M2 17l10 5V12L2 7v10z'/%3E%3Cpath fill='%231d4ed8' d='M22 17l-10 5V12l10-5v10z'/%3E%3C/svg%3E";
 
-// Visual Basic & Automotive Color Palette
-const standardColorPalettes = [
-  'Black', 'Silver', 'Gray', 'White', 'Red', 'Maroon', 'Orange', 'Gold',
-  'Yellow', 'Green', 'Teal', 'Blue', 'Navy', 'Purple', 'Pink', 'Brown'
+// Visual Basic & Automotive Color Palette Presets
+const PRESET_COLORS = [
+  { name: 'Black', hex: '#000000' },
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Silver', hex: '#C0C0C0' },
+  { name: 'Gray', hex: '#808080' },
+  { name: 'Red', hex: '#DC2626' },
+  { name: 'Maroon', hex: '#800000' },
+  { name: 'Orange', hex: '#EA580C' },
+  { name: 'Gold', hex: '#D4AF37' },
+  { name: 'Yellow', hex: '#EAB308' },
+  { name: 'Green', hex: '#16A34A' },
+  { name: 'Teal', hex: '#0D9488' },
+  { name: 'Blue', hex: '#2563EB' },
+  { name: 'Navy', hex: '#000080' },
+  { name: 'Purple', hex: '#9333EA' },
+  { name: 'Pink', hex: '#EC4899' },
+  { name: 'Brown', hex: '#8B4513' },
 ];
 
 /**
  * Calculate Pricing with Round Off & Discount
  */
-const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal = 5) => {
-  const sellingPrice = parseFloat(spVal) || 0;
+/**
+ * Calculate Pricing with Round Off & Discount (Multiples of Rs. 10)
+ */
+const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal = 10) => {
+  const sellingPrice = Math.max(0, parseFloat(spVal) || 0);
   const discountPercentage = Math.min(100, Math.max(0, parseFloat(discPctVal) || 0));
-  const discountAmount = (sellingPrice * discountPercentage) / 100;
-  const discountedPrice = Math.max(0, sellingPrice - discountAmount);
-  const step = Math.max(0.01, parseFloat(stepVal) || 5);
+  const discountAmount = Math.round(((sellingPrice * discountPercentage) / 100) * 100) / 100;
+  const discountedPrice = Math.max(0, Math.round((sellingPrice - discountAmount) * 100) / 100);
+  const step = Math.max(1, parseFloat(stepVal) || 10);
+
+  const remainder = Math.round((discountedPrice % step) * 100) / 100;
+  const isExactMultiple = remainder === 0 || Math.abs(remainder - step) < 0.001;
 
   let finalPrice = discountedPrice;
-  if (roundOption === 'Round Up' || roundOption === 'Up') {
+  const opt = (roundOption || 'No Round Off').trim();
+
+  if (isExactMultiple) {
+    finalPrice = discountedPrice;
+  } else if (opt === 'Round Up' || opt === 'Up') {
     finalPrice = Math.ceil(discountedPrice / step) * step;
-  } else if (roundOption === 'Round Down' || roundOption === 'Down') {
+  } else if (opt === 'Round Down' || opt === 'Down') {
     finalPrice = Math.floor(discountedPrice / step) * step;
   } else {
     finalPrice = discountedPrice;
@@ -36,7 +60,8 @@ const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal
     discountPercentage: discPctVal,
     discountAmount: Math.round(discountAmount * 100) / 100,
     discountedPrice: Math.round(discountedPrice * 100) / 100,
-    roundOffOption: roundOption,
+    roundOffOption: opt,
+    roundOffStep: step,
     finalSellingPrice: Math.round(finalPrice * 100) / 100,
   };
 };
@@ -87,9 +112,10 @@ function ItemMaster() {
     maxStockLevel: '',      // 9. Max Stock Level
     isBulkItem: false,      // 10. Bulk Item
     sellingPrice: '',       // 11. Selling Price
-    barcode: '',            // 12. Bar Code
+    barcode: '',            // 12. Bar Code (auto-generated)
     lastGrnPrice: '',       // 13. Last GRN Price
     lastGrnDate: '',        // 14. Last GRN Date
+    supplierId: '',         // Supplier Reference ID
     supplier: '',           // 15. Supplier
     supplierCode: '',       // 16. Supplier Code
     remark: '',             // 17. Remark
@@ -99,10 +125,13 @@ function ItemMaster() {
   });
 
   const [isDirty, setIsDirty] = useState(false);
+  const [showColorPalette, setShowColorPalette] = useState(false);
 
   const codeInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const menuRef = useRef(null);
+  const colorPaletteRef = useRef(null);
+  const nativeColorInputRef = useRef(null);
   const navigate = useNavigate();
 
   // Top Menu Items for standard management layout
@@ -196,17 +225,36 @@ function ItemMaster() {
     }
   };
 
+  // Fetch next unique barcode from backend (Code 128 format)
+  const fetchNextBarcode = async () => {
+    try {
+      const res = await api.get('/items/next-barcode');
+      if (res.data && res.data.success && res.data.nextBarcode) {
+        setFormData((prev) => ({
+          ...prev,
+          barcode: res.data.nextBarcode,
+        }));
+      }
+    } catch (e) {
+      // fallback
+    }
+  };
+
   useEffect(() => {
     fetchItems();
     fetchLookupData();
     fetchNextCode();
+    fetchNextBarcode();
   }, []);
 
-  // Close top menu on outside click
+  // Close top menu and color palette on outside click
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setActiveDropdown(null);
+      }
+      if (colorPaletteRef.current && !colorPaletteRef.current.contains(e.target)) {
+        setShowColorPalette(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -253,18 +301,20 @@ function ItemMaster() {
     });
   };
 
-  // Supplier dropdown change: automatically populates Supplier Code
+  // Supplier dropdown change: automatically populates Supplier Code and Supplier Reference
   const handleSupplierChange = (e) => {
     const selectedSupplierName = e.target.value;
     setIsDirty(true);
 
     const foundSupp = suppliersList.find((s) => s.name === selectedSupplierName);
     const suppCode = foundSupp ? foundSupp.code : '';
+    const suppId = foundSupp ? foundSupp._id : '';
 
     setFormData((prev) => ({
       ...prev,
       supplier: selectedSupplierName,
       supplierCode: suppCode,
+      supplierId: suppId,
     }));
   };
 
@@ -340,6 +390,7 @@ function ItemMaster() {
       barcode: '',
       lastGrnPrice: '',
       lastGrnDate: '',
+      supplierId: '',
       supplier: '',
       supplierCode: '',
       remark: '',
@@ -349,6 +400,7 @@ function ItemMaster() {
     });
 
     await fetchNextCode();
+    await fetchNextBarcode();
     if (codeInputRef.current) {
       codeInputRef.current.focus();
     }
@@ -386,6 +438,7 @@ function ItemMaster() {
       lastGrnPrice: formData.lastGrnPrice !== '' ? Number(formData.lastGrnPrice) || 0 : 0,
       lastGrnDate: formData.lastGrnDate ? formData.lastGrnDate.trim() : '',
       lastGrn: formData.lastGrnDate ? formData.lastGrnDate.trim() : '',
+      supplierId: formData.supplierId || null,
       supplier: formData.supplier ? formData.supplier.trim() : '',
       supplierCode: formData.supplierCode ? formData.supplierCode.trim() : '',
       suppCode: formData.supplierCode ? formData.supplierCode.trim() : '',
@@ -528,13 +581,23 @@ function ItemMaster() {
     setSelectedId(item._id);
     setIsDirty(false);
 
-    // Look up supplier name if missing but supplierCode exists
-    let suppName = item.supplier || '';
-    const suppCode = item.supplierCode || item.suppCode || '';
-    if (!suppName && suppCode) {
-      const matched = suppliersList.find((s) => s.code === suppCode);
-      if (matched) suppName = matched.name;
+    // Restore supplier, supplier code, and supplierId from Supplier Register
+    let matchedSupp = null;
+    if (item.supplierId) {
+      matchedSupp = suppliersList.find((s) => String(s._id) === String(item.supplierId));
     }
+    if (!matchedSupp && (item.supplierCode || item.suppCode)) {
+      const codeToMatch = (item.supplierCode || item.suppCode).trim().toLowerCase();
+      matchedSupp = suppliersList.find((s) => s.code?.toLowerCase() === codeToMatch);
+    }
+    if (!matchedSupp && item.supplier) {
+      const nameToMatch = item.supplier.trim().toLowerCase();
+      matchedSupp = suppliersList.find((s) => s.name?.toLowerCase() === nameToMatch);
+    }
+
+    const suppName = matchedSupp ? matchedSupp.name : (item.supplier || '');
+    const suppCode = matchedSupp ? matchedSupp.code : (item.supplierCode || item.suppCode || '');
+    const suppId = matchedSupp ? matchedSupp._id : (item.supplierId || '');
 
     setFormData({
       code: item.code || '',
@@ -548,9 +611,10 @@ function ItemMaster() {
       maxStockLevel: item.maxStockLevel !== undefined ? item.maxStockLevel : '',
       isBulkItem: Boolean(item.isBulkItem),
       sellingPrice: item.sellingPrice !== undefined ? item.sellingPrice : '',
-      barcode: item.barcode || item.barCode || '',
+      barcode: item.barcode || item.barCode || '', // preserve existing item barcode
       lastGrnPrice: item.lastGrnPrice !== undefined ? item.lastGrnPrice : '',
       lastGrnDate: item.lastGrnDate || item.lastGrn || '',
+      supplierId: suppId,
       supplier: suppName,
       supplierCode: suppCode,
       remark: item.remark || '',
@@ -575,11 +639,14 @@ function ItemMaster() {
   const applyLookup = (val) => {
     setIsDirty(true);
     if (lookupModal.type === 'supplier') {
-      const foundSupp = suppliersList.find((s) => s.name === val || `${s.code} - ${s.name}` === val);
+      const foundSupp = suppliersList.find(
+        (s) => s.name === val || `${s.code} - ${s.name}` === val || s.code === val
+      );
       setFormData((prev) => ({
         ...prev,
         supplier: foundSupp ? foundSupp.name : val,
         supplierCode: foundSupp ? foundSupp.code : '',
+        supplierId: foundSupp ? foundSupp._id : '',
       }));
     } else if (lookupModal.type === 'category') {
       const map = lookupOptions.categorySubCategoryMap || {};
@@ -839,7 +906,7 @@ function ItemMaster() {
 
               {/* Row 3: Category | Sub Category */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-category" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-category" style={{ width: '120px' }}>
                   Category . . . . . .
                 </label>
                 <div className="field-control-group" style={{ width: '220px' }}>
@@ -865,10 +932,10 @@ function ItemMaster() {
                   </button>
                 </div>
 
-                <label className="field-label" htmlFor="item-sub-category" style={{ marginLeft: '24px', width: '115px' }}>
+                <label className="field-label" htmlFor="item-sub-category" style={{ marginLeft: '36px', width: '120px' }}>
                   Sub Category . . . .
                 </label>
-                <div className="field-control-group" style={{ width: '200px' }}>
+                <div className="field-control-group" style={{ width: '220px' }}>
                   <select
                     id="item-sub-category"
                     name="subCategory"
@@ -894,7 +961,7 @@ function ItemMaster() {
 
               {/* Row 4: Location */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-location" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-location" style={{ width: '120px' }}>
                   Location . . . . . .
                 </label>
                 <div className="field-control-group" style={{ width: '220px' }}>
@@ -922,7 +989,7 @@ function ItemMaster() {
 
               {/* Row 5: Re-Order Level | Re-Order Qty | Max Stock Level | Bulk Item */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-reorder-level" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-reorder-level" style={{ width: '120px' }}>
                   Re-Order Level .
                 </label>
                 <input
@@ -936,7 +1003,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="field-label" htmlFor="item-reorder-qty" style={{ marginLeft: '14px', width: '95px' }}>
+                <label className="field-label" htmlFor="item-reorder-qty" style={{ marginLeft: '14px', width: '100px' }}>
                   Re-Order Qty . . .
                 </label>
                 <input
@@ -950,7 +1017,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="field-label" htmlFor="item-max-stock" style={{ marginLeft: '14px', width: '105px' }}>
+                <label className="field-label" htmlFor="item-max-stock" style={{ marginLeft: '14px', width: '110px' }}>
                   Max Stock Level . .
                 </label>
                 <input
@@ -964,7 +1031,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="checkbox-field" style={{ marginLeft: '22px' }}>
+                <label className="checkbox-field" style={{ marginLeft: '24px' }}>
                   <span className="field-label">Bulk Item . . . . .</span>
                   <input
                     type="checkbox"
@@ -977,7 +1044,7 @@ function ItemMaster() {
 
               {/* Row 6: Selling Price | Bar Code | Last GRN Price */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-selling-price" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-selling-price" style={{ width: '120px' }}>
                   Selling Price . . . .
                 </label>
                 <input
@@ -993,7 +1060,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="field-label" htmlFor="item-barcode" style={{ marginLeft: '24px', width: '95px' }}>
+                <label className="field-label" htmlFor="item-barcode" style={{ marginLeft: '24px', width: '100px' }}>
                   Bar Code . . . . . .
                 </label>
                 <input
@@ -1024,10 +1091,10 @@ function ItemMaster() {
 
               {/* Row 7: Last GRN Date */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-last-grn-date" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-last-grn-date" style={{ width: '120px' }}>
                   Last GRN Date . .
                 </label>
-                <div className="field-control-group" style={{ width: '160px' }}>
+                <div className="field-control-group" style={{ width: '170px' }}>
                   <input
                     id="item-last-grn-date"
                     name="lastGrnDate"
@@ -1053,12 +1120,12 @@ function ItemMaster() {
                 </div>
               </div>
 
-              {/* Row 8: Supplier | Supplier Code */}
+              {/* Row 8: Supplier & Supplier Code */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-supplier" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-supplier" style={{ width: '120px' }}>
                   Supplier . . . . . . .
                 </label>
-                <div className="field-control-group" style={{ width: '220px' }}>
+                <div className="field-control-group" style={{ width: '200px' }}>
                   <select
                     id="item-supplier"
                     name="supplier"
@@ -1090,7 +1157,7 @@ function ItemMaster() {
                   </button>
                 </div>
 
-                <label className="field-label" htmlFor="item-supplier-code" style={{ marginLeft: '24px', width: '115px' }}>
+                <label className="field-label" htmlFor="item-supplier-code" style={{ marginLeft: '12px', width: '115px' }}>
                   Supplier Code . . . .
                 </label>
                 <input
@@ -1108,7 +1175,7 @@ function ItemMaster() {
 
               {/* Row 9: Remark */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-remark" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-remark" style={{ width: '120px' }}>
                   Remark . . . . . . .
                 </label>
                 <input
@@ -1124,22 +1191,109 @@ function ItemMaster() {
 
               {/* Row 10: Color | Round Off (Up / Down) | Discount (%) */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-color" style={{ width: '115px' }}>
+                <label className="field-label" htmlFor="item-color" style={{ width: '120px' }}>
                   Color . . . . . . . . .
                 </label>
-                <input
-                  id="item-color"
-                  name="color"
-                  type="text"
-                  className="input-classic input-color"
-                  value={formData.color}
-                  onChange={handleInputChange}
-                  autoComplete="off"
-                />
+                <div className="field-control-group color-field-group" ref={colorPaletteRef} style={{ width: '170px', position: 'relative' }}>
+                  <input
+                    id="item-color"
+                    name="color"
+                    type="text"
+                    className="input-classic"
+                    style={{ flex: 1, minWidth: 0 }}
+                    value={formData.color}
+                    onChange={handleInputChange}
+                    placeholder="Color"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    className="btn-color-swatch-trigger"
+                    onClick={() => setShowColorPalette((prev) => !prev)}
+                    title="Open Color Palette"
+                    style={{
+                      backgroundColor: formData.color || '#ffffff',
+                    }}
+                  >
+                    <span className="swatch-palette-icon">🎨</span>
+                  </button>
+
+                  {/* Hidden native color picker for custom colors */}
+                  <input
+                    type="color"
+                    ref={nativeColorInputRef}
+                    style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+                    value={
+                      /^#([0-9A-F]{3}){1,2}$/i.test(formData.color)
+                        ? formData.color
+                        : '#000000'
+                    }
+                    onChange={(e) => {
+                      setIsDirty(true);
+                      setFormData((prev) => ({ ...prev, color: e.target.value }));
+                      setShowColorPalette(false);
+                    }}
+                  />
+
+                  {/* Popover Color Palette */}
+                  {showColorPalette && (
+                    <div className="color-palette-popover">
+                      <div className="palette-header">
+                        <span className="palette-title">Color Palette</span>
+                        <button
+                          type="button"
+                          className="palette-close-btn"
+                          onClick={() => setShowColorPalette(false)}
+                          title="Close"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                      <div className="palette-grid">
+                        {PRESET_COLORS.map((c) => (
+                          <button
+                            key={c.name}
+                            type="button"
+                            className="palette-color-btn"
+                            style={{ backgroundColor: c.hex }}
+                            onClick={() => {
+                              setIsDirty(true);
+                              setFormData((prev) => ({ ...prev, color: c.name }));
+                              setShowColorPalette(false);
+                            }}
+                            title={`${c.name} (${c.hex})`}
+                          />
+                        ))}
+                      </div>
+                      <div className="palette-footer">
+                        <button
+                          type="button"
+                          className="btn-classic palette-custom-btn"
+                          onClick={() => nativeColorInputRef.current?.click()}
+                          title="Choose custom color from system palette"
+                        >
+                          Custom...
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-classic palette-clear-btn"
+                          onClick={() => {
+                            setIsDirty(true);
+                            setFormData((prev) => ({ ...prev, color: '' }));
+                            setShowColorPalette(false);
+                          }}
+                          title="Clear Color"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Round Off Options: Up and Down using classic desktop radio buttons */}
-                <div className="round-off-group" style={{ marginLeft: '20px' }}>
-                  <span className="field-label">Round Off . . . . .</span>
+                <div className="round-off-group" style={{ marginLeft: '36px' }}>
+                  <span className="field-label" style={{ width: '120px' }}>Round Off . . . . .</span>
                   <label className="radio-label">
                     <input
                       type="radio"
@@ -1163,7 +1317,7 @@ function ItemMaster() {
                 </div>
 
                 {/* Discount (%) */}
-                <label className="field-label" htmlFor="item-discount" style={{ marginLeft: '24px', width: '95px' }}>
+                <label className="field-label" htmlFor="item-discount" style={{ marginLeft: '28px', width: '105px' }}>
                   Discount (%) . . . .
                 </label>
                 <input
@@ -1438,6 +1592,7 @@ function ItemMaster() {
                           ...prev,
                           supplier: sup.name,
                           supplierCode: sup.code,
+                          supplierId: sup._id,
                         }));
                       }}
                     >

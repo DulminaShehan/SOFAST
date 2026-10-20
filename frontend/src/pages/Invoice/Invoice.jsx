@@ -379,10 +379,9 @@ function Invoice() {
 
   // Select Item from Lookup Modal
   const handleSelectItemFromLookup = (item) => {
-    const sp = item.finalSellingPrice || item.sellingPrice || 0;
-    const discPct = item.discountPercentage || 0;
-    const discAmt = item.discountAmount || 0;
-    const comp = computeLinePricing(sp, 1, discPct, discAmt, 'percentage');
+    const customerPrice = item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0
+      ? Number(item.finalSellingPrice)
+      : (Number(item.sellingPrice) || 0);
 
     setItemEntry({
       code: item.code || '',
@@ -391,14 +390,14 @@ function Invoice() {
       quantity: '1',
       masterPack: item.masterPack || '1',
       rateType: 'Retail',
-      price: sp,
+      price: customerPrice,
       itemCost: item.lastGrnPrice || item.averageCost || 0,
       mpCost: item.averageCost || item.lastGrnPrice || 0,
-      discountPercentage: comp.discountPercentage,
-      discountAmount: comp.discountAmount,
-      value: comp.value,
+      discountPercentage: '',
+      discountAmount: '',
+      value: Number(customerPrice).toFixed(2),
       balance: item.quantity !== undefined ? item.quantity : (item.stockInHand || 0),
-      total: comp.total,
+      total: Number(customerPrice).toFixed(2),
     });
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
   };
@@ -408,26 +407,33 @@ function Invoice() {
     const { name, value } = e.target;
     let updated = { ...itemEntry, [name]: value };
 
-    // Auto-match Item by Code
+    // Auto-match Item by Code or Barcode
     if (name === 'code') {
       const trimmed = String(value || '').trim().toLowerCase();
-      const match = itemsList.find((i) => i.code?.toLowerCase() === trimmed);
+      const match = itemsList.find(
+        (i) =>
+          i.code?.toLowerCase() === trimmed ||
+          i.barcode?.toLowerCase() === trimmed ||
+          i.barCode?.toLowerCase() === trimmed
+      );
       if (match) {
-        const sp = match.finalSellingPrice || match.sellingPrice || 0;
-        const discPct = match.discountPercentage || 0;
-        const discAmt = match.discountAmount || 0;
-        const comp = computeLinePricing(sp, updated.quantity || 1, discPct, discAmt, 'percentage');
+        const customerPrice = match.finalSellingPrice !== undefined && Number(match.finalSellingPrice) > 0
+          ? Number(match.finalSellingPrice)
+          : (Number(match.sellingPrice) || 0);
+        const qtyVal = Math.max(0.01, parseFloat(updated.quantity) || 1);
+        const lineNet = Math.round(customerPrice * qtyVal * 100) / 100;
 
+        updated.code = match.code;
         updated.description = match.description || '';
         updated.location = match.location || 'Main Store';
         updated.masterPack = match.masterPack || '1';
-        updated.price = sp;
+        updated.price = customerPrice;
         updated.itemCost = match.lastGrnPrice || match.averageCost || 0;
         updated.mpCost = match.averageCost || match.lastGrnPrice || 0;
-        updated.discountPercentage = comp.discountPercentage;
-        updated.discountAmount = comp.discountAmount;
-        updated.value = comp.value;
-        updated.total = comp.total;
+        updated.discountPercentage = '';
+        updated.discountAmount = '';
+        updated.value = lineNet.toFixed(2);
+        updated.total = lineNet.toFixed(2);
         updated.balance = match.quantity !== undefined ? match.quantity : (match.stockInHand || 0);
       }
     }
@@ -870,7 +876,9 @@ function Invoice() {
     return (
       i.code?.toLowerCase().includes(q) ||
       i.description?.toLowerCase().includes(q) ||
-      i.category?.toLowerCase().includes(q)
+      i.category?.toLowerCase().includes(q) ||
+      i.barcode?.toLowerCase().includes(q) ||
+      i.barCode?.toLowerCase().includes(q)
     );
   });
 

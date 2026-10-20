@@ -7,6 +7,7 @@ import {
   deleteItem,
   getLookupOptions,
   getNextItemCode,
+  getNextBarcode,
 } from '../controllers/itemController.js';
 
 const router = Router();
@@ -16,6 +17,7 @@ const router = Router();
  */
 router.get('/lookup-options', getLookupOptions);
 router.get('/next-code', getNextItemCode);
+router.get('/next-barcode', getNextBarcode);
 router.get('/', getItems);
 router.get('/:id', getItemById);
 router.post('/', createItem);

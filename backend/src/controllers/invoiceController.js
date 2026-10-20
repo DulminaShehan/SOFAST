@@ -187,10 +187,24 @@ export const createInvoice = async (req, res, next) => {
 
     // Process line items and compute pricing
     let calculatedSubTotal = 0;
-    const processedLineItems = lineItems.map((item) => {
+    const processedLineItems = [];
+    for (const item of lineItems) {
       const code = (item.code || item.itemCode || '').trim();
       const qty = Math.max(0.01, parseFloat(item.quantity || item.qty) || 1);
-      const price = parseFloat(item.price || item.unitPrice) || 0;
+      let price = parseFloat(item.price || item.unitPrice) || 0;
+
+      // If price not explicitly supplied, lookup item's configured customer selling price
+      if (price <= 0 && code) {
+        const dbItem = await Item.findOne({
+          $or: [{ code }, { barcode: code }, { barCode: code }],
+        }).lean();
+        if (dbItem) {
+          price = dbItem.finalSellingPrice !== undefined && Number(dbItem.finalSellingPrice) > 0
+            ? Number(dbItem.finalSellingPrice)
+            : (Number(dbItem.sellingPrice) || 0);
+        }
+      }
+
       const rate = parseFloat(item.rate || price) || price;
       let discPct = parseFloat(item.discountPercentage) || 0;
       let discAmt = parseFloat(item.discountAmount) || 0;
@@ -205,7 +219,7 @@ export const createInvoice = async (req, res, next) => {
       const lineVal = Math.max(0, gross - discAmt);
       calculatedSubTotal += lineVal;
 
-      return {
+      processedLineItems.push({
         code,
         itemCode: code,
         description: item.description || '',
@@ -224,8 +238,8 @@ export const createInvoice = async (req, res, next) => {
         value: Math.round(lineVal * 100) / 100,
         total: Math.round(lineVal * 100) / 100,
         balance: parseFloat(item.balance) || 0,
-      };
-    });
+      });
+    }
 
     const specDisc = Math.max(0, parseFloat(specialDiscount) || 0);
     const amountToPay = Math.max(0, calculatedSubTotal - specDisc);
@@ -366,10 +380,24 @@ export const updateInvoice = async (req, res, next) => {
 
     // Process updated line items
     let calculatedSubTotal = 0;
-    const processedLineItems = lineItems.map((item) => {
+    const processedLineItems = [];
+    for (const item of lineItems) {
       const code = (item.code || item.itemCode || '').trim();
       const qty = Math.max(0.01, parseFloat(item.quantity || item.qty) || 1);
-      const price = parseFloat(item.price || item.unitPrice) || 0;
+      let price = parseFloat(item.price || item.unitPrice) || 0;
+
+      // If price not explicitly supplied, lookup item's configured customer selling price
+      if (price <= 0 && code) {
+        const dbItem = await Item.findOne({
+          $or: [{ code }, { barcode: code }, { barCode: code }],
+        }).lean();
+        if (dbItem) {
+          price = dbItem.finalSellingPrice !== undefined && Number(dbItem.finalSellingPrice) > 0
+            ? Number(dbItem.finalSellingPrice)
+            : (Number(dbItem.sellingPrice) || 0);
+        }
+      }
+
       const rate = parseFloat(item.rate || price) || price;
       let discPct = parseFloat(item.discountPercentage) || 0;
       let discAmt = parseFloat(item.discountAmount) || 0;
@@ -384,7 +412,7 @@ export const updateInvoice = async (req, res, next) => {
       const lineVal = Math.max(0, gross - discAmt);
       calculatedSubTotal += lineVal;
 
-      return {
+      processedLineItems.push({
         code,
         itemCode: code,
         description: item.description || '',
@@ -403,8 +431,8 @@ export const updateInvoice = async (req, res, next) => {
         value: Math.round(lineVal * 100) / 100,
         total: Math.round(lineVal * 100) / 100,
         balance: parseFloat(item.balance) || 0,
-      };
-    });
+      });
+    }
 
     const specDisc = Math.max(0, parseFloat(specialDiscount) || 0);
     const amountToPay = Math.max(0, calculatedSubTotal - specDisc);

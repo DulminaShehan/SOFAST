@@ -4,42 +4,63 @@ import Item from '../models/Item.js';
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
 /**
+ * Calculate decimal-safe item pricing with discount and round-off (multiples of Rs. 10)
+ */
+export const computeItemPricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal = 10) => {
+  const sellingPrice = Math.max(0, parseFloat(spVal) || 0);
+  const discountPercentage = Math.min(100, Math.max(0, parseFloat(discPctVal) || 0));
+  const discountAmount = Math.round(((sellingPrice * discountPercentage) / 100) * 100) / 100;
+  const discountedPrice = Math.max(0, Math.round((sellingPrice - discountAmount) * 100) / 100);
+  const step = Math.max(1, parseFloat(stepVal) || 10);
+
+  const remainder = Math.round((discountedPrice % step) * 100) / 100;
+  const isExactMultiple = remainder === 0 || Math.abs(remainder - step) < 0.001;
+
+  let finalPrice = discountedPrice;
+  const opt = (roundOption || 'No Round Off').trim();
+
+  if (isExactMultiple) {
+    finalPrice = discountedPrice;
+  } else if (opt === 'Round Up' || opt === 'Up') {
+    finalPrice = Math.ceil(discountedPrice / step) * step;
+  } else if (opt === 'Round Down' || opt === 'Down') {
+    finalPrice = Math.floor(discountedPrice / step) * step;
+  } else {
+    finalPrice = discountedPrice;
+  }
+
+  return {
+    sellingPrice,
+    discountPercentage,
+    discountAmount,
+    discountedPrice,
+    roundOffOption: opt,
+    roundOffStep: step,
+    finalSellingPrice: Math.round(finalPrice * 100) / 100,
+  };
+};
+
+/**
  * Format and normalize item document
  */
 const normalizeItem = (item) => {
   if (!item) return null;
   const stock = item.quantity !== undefined ? item.quantity : (item.stockInHand !== undefined ? item.stockInHand : 0);
-  const sp = item.sellingPrice !== undefined ? Number(item.sellingPrice) : 0;
-  const roundOffOption = item.roundOffOption || 'No Round Off';
-  const roundOffStep = item.roundOffStep !== undefined && Number(item.roundOffStep) > 0 ? Number(item.roundOffStep) : 5;
-  let discPct = item.discountPercentage !== undefined ? Number(item.discountPercentage) : 0;
-  let discAmt = item.discountAmount !== undefined ? Number(item.discountAmount) : 0;
+  const pricing = computeItemPricing(
+    item.sellingPrice,
+    item.discountPercentage,
+    item.roundOffOption,
+    item.roundOffStep || 10
+  );
 
-  if (discPct > 0 && (!discAmt || discAmt === 0)) {
-    discAmt = (sp * discPct) / 100;
-  } else if (discAmt > 0 && (!discPct || discPct === 0)) {
-    discPct = sp > 0 ? (discAmt / sp) * 100 : 0;
-  }
-
-  const discountedPrice = item.discountedPrice !== undefined && Number(item.discountedPrice) > 0
-    ? Number(item.discountedPrice)
-    : Math.max(0, sp - discAmt);
-
-  let finalSellingPrice = item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0 ? Number(item.finalSellingPrice) : 0;
-  if (!finalSellingPrice) {
-    if (roundOffOption === 'Round Up') {
-      finalSellingPrice = Math.ceil(discountedPrice / roundOffStep) * roundOffStep;
-    } else if (roundOffOption === 'Round Down') {
-      finalSellingPrice = Math.floor(discountedPrice / roundOffStep) * roundOffStep;
-    } else {
-      finalSellingPrice = discountedPrice > 0 ? discountedPrice : sp;
-    }
-  }
+  const finalSellingPrice = item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0
+    ? Number(item.finalSellingPrice)
+    : pricing.finalSellingPrice;
 
   return {
     _id: item._id,
     code: item.code || '',
-    suppCode: item.suppCode || '',
+    suppCode: item.suppCode || item.supplierCode || '',
     type: item.type || 'Item',
     description: item.description || '',
     category: item.category || '',
@@ -54,13 +75,15 @@ const normalizeItem = (item) => {
     stockInHand: stock,
     damagedStock: item.damagedStock !== undefined ? Number(item.damagedStock) : 0,
     roundOff: item.roundOff !== undefined ? Number(item.roundOff) : 0,
-    roundOffOption,
-    roundOffStep,
-    discountPercentage: discPct,
-    discountAmount: discAmt,
-    discountedPrice,
+    roundOffOption: pricing.roundOffOption,
+    roundOffStep: pricing.roundOffStep,
+    discountPercentage: pricing.discountPercentage,
+    discountAmount: pricing.discountAmount,
+    discountedPrice: pricing.discountedPrice,
     image: item.image || '',
     barcode: item.barcode || item.barCode || '',
+    barCode: item.barcode || item.barCode || '',
+    supplierId: item.supplierId || null,
     supplier: item.supplier || '',
     supplierCode: item.supplierCode || item.suppCode || '',
     lastGrnPrice: item.lastGrnPrice !== undefined ? Number(item.lastGrnPrice) : 0,
@@ -70,7 +93,7 @@ const normalizeItem = (item) => {
     color: item.color || '',
     status: item.status || 'A',
     averageCost: item.averageCost !== undefined ? Number(item.averageCost) : 0,
-    sellingPrice: sp,
+    sellingPrice: pricing.sellingPrice,
     finalSellingPrice,
     value: item.value !== undefined ? Number(item.value) : 0,
     createdAt: item.createdAt,
@@ -160,6 +183,59 @@ export const getNextItemCode = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       nextCode,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   GET /api/items/next-barcode
+ * @desc    Generate the next sequential unique barcode (Code 128 compliant)
+ */
+export const getNextBarcode = async (req, res, next) => {
+  try {
+    let nextBarcode = '200000000001';
+    if (isDbConnected()) {
+      const items = await Item.find(
+        {
+          $or: [
+            { barcode: { $regex: /^200\d{9}$/ } },
+            { barCode: { $regex: /^200\d{9}$/ } },
+          ],
+        },
+        { barcode: 1, barCode: 1 }
+      ).lean();
+
+      let maxNum = 0;
+      for (const itm of items) {
+        const bc = String(itm.barcode || itm.barCode || '').trim();
+        const match = bc.match(/^200(\d{9})$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+
+      let candidateSeq = maxNum + 1;
+      let isUnique = false;
+      while (!isUnique) {
+        const candidate = `200${String(candidateSeq).padStart(9, '0')}`;
+        const exists = await Item.findOne({
+          $or: [{ barcode: candidate }, { barCode: candidate }],
+        });
+        if (!exists) {
+          nextBarcode = candidate;
+          isUnique = true;
+        } else {
+          candidateSeq++;
+        }
+      }
+    }
+    return res.status(200).json({
+      success: true,
+      nextBarcode,
+      barcode: nextBarcode,
     });
   } catch (error) {
     next(error);
@@ -362,35 +438,64 @@ export const createItem = async (req, res, next) => {
     }
 
     const stockQty = Number(stockInHand) || Number(quantity) || 0;
-    const sp = Number(sellingPrice) || 0;
-    let discPct = Number(discountPercentage) || 0;
-    let discAmt = Number(discountAmount) || 0;
+    const pricing = computeItemPricing(
+      sellingPrice,
+      discountPercentage,
+      roundOffOption,
+      roundOffStep || 10
+    );
 
-    if (discPct > 0 && (!discAmt || discAmt === 0)) {
-      discAmt = (sp * discPct) / 100;
-    } else if (discAmt > 0 && (!discPct || discPct === 0)) {
-      discPct = sp > 0 ? (discAmt / sp) * 100 : 0;
-    }
+    let cleanBarcode = (barcode || barCode || '').trim();
+    if (cleanBarcode) {
+      const dupBarcode = await Item.findOne({
+        $or: [{ barcode: cleanBarcode }, { barCode: cleanBarcode }],
+      });
+      if (dupBarcode) {
+        return res.status(400).json({
+          success: false,
+          message: `Item with barcode '${cleanBarcode}' already exists (${dupBarcode.code} - ${dupBarcode.description})`,
+        });
+      }
+    } else {
+      // Auto-generate unique Code 128 compliant barcode if not provided
+      const items = await Item.find(
+        {
+          $or: [
+            { barcode: { $regex: /^200\d{9}$/ } },
+            { barCode: { $regex: /^200\d{9}$/ } },
+          ],
+        },
+        { barcode: 1, barCode: 1 }
+      ).lean();
 
-    const discPrice = discountedPrice !== undefined && Number(discountedPrice) > 0
-      ? Number(discountedPrice)
-      : Math.max(0, sp - discAmt);
-    const step = Number(roundOffStep) > 0 ? Number(roundOffStep) : 5;
+      let maxNum = 0;
+      for (const itm of items) {
+        const bc = String(itm.barcode || itm.barCode || '').trim();
+        const match = bc.match(/^200(\d{9})$/);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
 
-    let fsp = finalSellingPrice !== undefined && Number(finalSellingPrice) > 0 ? Number(finalSellingPrice) : 0;
-    if (!fsp) {
-      if (roundOffOption === 'Round Up' || roundOffOption === 'Up') {
-        fsp = Math.ceil(discPrice / step) * step;
-      } else if (roundOffOption === 'Round Down' || roundOffOption === 'Down') {
-        fsp = Math.floor(discPrice / step) * step;
-      } else {
-        fsp = discPrice > 0 ? discPrice : sp;
+      let candidateSeq = maxNum + 1;
+      let isUnique = false;
+      while (!isUnique) {
+        const candidate = `200${String(candidateSeq).padStart(9, '0')}`;
+        const exists = await Item.findOne({
+          $or: [{ barcode: candidate }, { barCode: candidate }],
+        });
+        if (!exists) {
+          cleanBarcode = candidate;
+          isUnique = true;
+        } else {
+          candidateSeq++;
+        }
       }
     }
 
     const cleanSuppCode = (supplierCode || suppCode || '').trim();
     const cleanSupplier = (supplier || '').trim();
-    const cleanBarcode = (barcode || barCode || '').trim();
     const cleanGrnDate = (lastGrnDate || lastGrn || '').trim();
 
     const newItem = await Item.create({
@@ -404,23 +509,24 @@ export const createItem = async (req, res, next) => {
       reorderQty: Math.max(0, Number(reorderQty) || 0),
       maxStockLevel: Math.max(0, Number(maxStockLevel) || 0),
       isBulkItem: Boolean(isBulkItem),
-      sellingPrice: sp,
+      sellingPrice: pricing.sellingPrice,
       barcode: cleanBarcode,
       barCode: cleanBarcode,
       lastGrnPrice: Number(lastGrnPrice) || 0,
       lastGrnDate: cleanGrnDate,
       lastGrn: cleanGrnDate,
+      supplierId: req.body.supplierId || null,
       supplier: cleanSupplier,
       supplierCode: cleanSuppCode,
       suppCode: cleanSuppCode,
       remark: (remark || '').trim(),
       color: (color || '').trim(),
-      roundOffOption: (roundOffOption || 'No Round Off').trim(),
-      roundOffStep: step,
-      discountPercentage: discPct,
-      discountAmount: discAmt,
-      discountedPrice: discPrice,
-      finalSellingPrice: fsp,
+      roundOffOption: pricing.roundOffOption,
+      roundOffStep: 10,
+      discountPercentage: pricing.discountPercentage,
+      discountAmount: pricing.discountAmount,
+      discountedPrice: pricing.discountedPrice,
+      finalSellingPrice: pricing.finalSellingPrice,
       type: (type || 'Item').trim(),
       masterPack: (masterPack || '').trim(),
       quantity: stockQty,
@@ -493,12 +599,24 @@ export const updateItem = async (req, res, next) => {
     if (updateData.reorderQty !== undefined) item.reorderQty = Math.max(0, Number(updateData.reorderQty) || 0);
     if (updateData.maxStockLevel !== undefined) item.maxStockLevel = Math.max(0, Number(updateData.maxStockLevel) || 0);
     if (updateData.isBulkItem !== undefined) item.isBulkItem = Boolean(updateData.isBulkItem);
-    if (updateData.sellingPrice !== undefined) item.sellingPrice = Number(updateData.sellingPrice) || 0;
 
     if (updateData.barcode !== undefined || updateData.barCode !== undefined) {
-      const bc = (updateData.barcode || updateData.barCode || '').trim();
-      item.barcode = bc;
-      item.barCode = bc;
+      const newBc = (updateData.barcode || updateData.barCode || '').trim();
+      const existingBc = (item.barcode || item.barCode || '').trim();
+      if (newBc && newBc.toLowerCase() !== existingBc.toLowerCase()) {
+        const dupBarcode = await Item.findOne({
+          _id: { $ne: item._id },
+          $or: [{ barcode: newBc }, { barCode: newBc }],
+        });
+        if (dupBarcode) {
+          return res.status(400).json({
+            success: false,
+            message: `Item with barcode '${newBc}' already exists (${dupBarcode.code} - ${dupBarcode.description})`,
+          });
+        }
+      }
+      item.barcode = newBc;
+      item.barCode = newBc;
     }
 
     if (updateData.lastGrnPrice !== undefined) item.lastGrnPrice = Number(updateData.lastGrnPrice) || 0;
@@ -508,6 +626,7 @@ export const updateItem = async (req, res, next) => {
       item.lastGrn = gd;
     }
 
+    if (updateData.supplierId !== undefined) item.supplierId = updateData.supplierId || null;
     if (updateData.supplier !== undefined) item.supplier = (updateData.supplier || '').trim();
     if (updateData.supplierCode !== undefined || updateData.suppCode !== undefined) {
       const sc = (updateData.supplierCode || updateData.suppCode || '').trim();
@@ -517,30 +636,21 @@ export const updateItem = async (req, res, next) => {
 
     if (updateData.remark !== undefined) item.remark = (updateData.remark || '').trim();
     if (updateData.color !== undefined) item.color = (updateData.color || '').trim();
-    if (updateData.roundOffOption !== undefined) item.roundOffOption = updateData.roundOffOption.trim();
     if (updateData.status !== undefined) item.status = updateData.status.trim();
 
-    // Discount & pricing calculation
-    const curSp = item.sellingPrice || 0;
-    let curDiscPct = updateData.discountPercentage !== undefined ? Number(updateData.discountPercentage) || 0 : (item.discountPercentage || 0);
-    let curDiscAmt = (curSp * curDiscPct) / 100;
-    const curDiscPrice = Math.max(0, curSp - curDiscAmt);
-    const curRoundOpt = item.roundOffOption || 'No Round Off';
-    const curStep = item.roundOffStep > 0 ? item.roundOffStep : 5;
+    // Discount & decimal-safe pricing calculation with multiples of Rs. 10 round-off
+    const curSp = updateData.sellingPrice !== undefined ? Number(updateData.sellingPrice) || 0 : (item.sellingPrice || 0);
+    const curDiscPct = updateData.discountPercentage !== undefined ? Number(updateData.discountPercentage) || 0 : (item.discountPercentage || 0);
+    const curRoundOpt = updateData.roundOffOption !== undefined ? updateData.roundOffOption : (item.roundOffOption || 'No Round Off');
+    const pricing = computeItemPricing(curSp, curDiscPct, curRoundOpt, 10);
 
-    let curFsp = curDiscPrice;
-    if (curRoundOpt === 'Round Up' || curRoundOpt === 'Up') {
-      curFsp = Math.ceil(curDiscPrice / curStep) * curStep;
-    } else if (curRoundOpt === 'Round Down' || curRoundOpt === 'Down') {
-      curFsp = Math.floor(curDiscPrice / curStep) * curStep;
-    } else {
-      curFsp = curDiscPrice > 0 ? curDiscPrice : curSp;
-    }
-
-    item.discountPercentage = curDiscPct;
-    item.discountAmount = curDiscAmt;
-    item.discountedPrice = curDiscPrice;
-    item.finalSellingPrice = curFsp;
+    item.sellingPrice = pricing.sellingPrice;
+    item.discountPercentage = pricing.discountPercentage;
+    item.discountAmount = pricing.discountAmount;
+    item.discountedPrice = pricing.discountedPrice;
+    item.roundOffOption = pricing.roundOffOption;
+    item.roundOffStep = 10;
+    item.finalSellingPrice = pricing.finalSellingPrice;
 
     await item.save();
 

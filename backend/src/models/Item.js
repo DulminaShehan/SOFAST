@@ -89,7 +89,7 @@ const itemSchema = new mongoose.Schema(
     },
     roundOffStep: {
       type: Number,
-      default: 5,
+      default: 10,
     },
     discountPercentage: {
       type: Number,
@@ -121,6 +121,10 @@ const itemSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    supplierId: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     supplier: {
       type: String,
       trim: true,
@@ -135,6 +139,7 @@ const itemSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: '',
+      index: true,
     },
     image: {
       type: String,
