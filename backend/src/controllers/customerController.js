@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.js';
+import Invoice from '../models/Invoice.js';
+import Settlement from '../models/Settlement.js';
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -207,6 +209,23 @@ export const getCustomerById = async (req, res, next) => {
         success: false,
         message: `Customer '${cleanId}' not found`,
       });
+    }
+
+    // Calculate real outstanding balance from unpaid invoices
+    const customerCode = customer.code || customer.customerCode;
+    const unpaidInvoices = await Invoice.find({
+      $or: [
+        { customerCode: customerCode },
+        { cuscode: customerCode },
+        { customerId: customer._id },
+      ],
+      dueAmount: { $gt: 0 },
+    }).lean();
+
+    if (unpaidInvoices && unpaidInvoices.length > 0) {
+      const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.dueAmount) || 0), 0);
+      customer.dueAmount = Math.round(totalUnpaid * 100) / 100;
+      customer.outstandingBalance = Math.round(totalUnpaid * 100) / 100;
     }
 
     return res.status(200).json({
@@ -423,18 +442,60 @@ export const deleteCustomer = async (req, res, next) => {
       ];
     }
 
-    const deleted = await Customer.findOneAndDelete(query);
-    if (!deleted) {
+    const customer = await Customer.findOne(query);
+    if (!customer) {
       return res.status(404).json({
         success: false,
         message: `Customer '${cleanId}' not found`,
       });
     }
 
+    const customerCode = customer.code || customer.customerCode;
+
+    // 1. Protect customer with outstanding due balance
+    const currentDue = customer.dueAmount !== undefined ? Number(customer.dueAmount) : Number(customer.outstandingBalance || 0);
+    if (currentDue > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete Customer '${customer.name}' (${customerCode}) because they have an outstanding due balance of Rs. ${currentDue.toFixed(2)}.`,
+      });
+    }
+
+    // 2. Protect customer referenced by sales invoices
+    const invoiceCount = await Invoice.countDocuments({
+      $or: [
+        { customerCode: customerCode },
+        { cuscode: customerCode },
+        { customerId: customer._id },
+      ],
+    });
+    if (invoiceCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete Customer '${customer.name}' (${customerCode}) because they are referenced by ${invoiceCount} sales invoice(s).`,
+      });
+    }
+
+    // 3. Protect customer referenced by settlement receipts
+    const settlementCount = await Settlement.countDocuments({
+      $or: [
+        { customerCode: customerCode },
+      ],
+    });
+    if (settlementCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete Customer '${customer.name}' (${customerCode}) because they are referenced by ${settlementCount} payment settlement(s).`,
+      });
+    }
+
+    // Safe to delete
+    await Customer.findByIdAndDelete(customer._id);
+
     return res.status(200).json({
       success: true,
-      message: `Customer '${deleted.name}' deleted successfully`,
-      data: { code: deleted.code || deleted.customerCode, name: deleted.name },
+      message: `Customer '${customer.name}' (${customerCode}) deleted successfully`,
+      data: { code: customerCode, name: customer.name },
     });
   } catch (error) {
     next(error);

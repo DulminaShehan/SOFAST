@@ -98,6 +98,17 @@ function CustomerMaster() {
   const defaultRoutes = ['Main Route', 'Colombo Route', 'Galle Route', 'Kandy Route', 'Route 1', 'Route 2', 'Direct'];
   const defaultCategories = ['Regular Customer', 'Retail Customer', 'Wholesale Customer', 'Credit Customer', 'Corporate', 'VIP'];
 
+  // Dynamically include any existing routes and categories from customer records
+  const dynamicRoutes = useMemo(() => {
+    const listRoutes = customersList.map((c) => c.route).filter(Boolean);
+    return Array.from(new Set([...defaultRoutes, ...listRoutes]));
+  }, [customersList]);
+
+  const dynamicCategories = useMemo(() => {
+    const listCats = customersList.map((c) => c.category).filter(Boolean);
+    return Array.from(new Set([...defaultCategories, ...listCats]));
+  }, [customersList]);
+
   const showNotification = (msg, type = 'success') => {
     setNotification({ message: msg, type });
     setTimeout(() => {
@@ -109,7 +120,7 @@ function CustomerMaster() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/customers?limit=1000');
+      const res = await api.get('/customers?limit=2000');
       if (res.data?.data) {
         setCustomersList(res.data.data);
       }
@@ -156,30 +167,59 @@ function CustomerMaster() {
 
   // Select Customer from Table or Search Modal
   const handleSelectCustomer = (customer) => {
+    const tel1 = customer.telephone1 || customer.telephone || '';
+    const tel2 = customer.telephone2 || (Array.isArray(customer.telephoneNumbers) && customer.telephoneNumbers[1]) || '';
+
+    const isGtn = customer.gtnAllowed === 'Yes' || customer.gtnAllowed === true || customer.cusGtn === 1;
+    const is2nd = customer.use2ndPrice === 'Yes' || customer.use2ndPrice === true || customer.use2Price === 1;
+
     setFormData({
       _id: customer._id || null,
       code: customer.code || customer.customerCode || '',
       name: customer.name || '',
       address: customer.address || '',
-      telephone1: customer.telephone1 || customer.telephone || '',
-      telephone2: customer.telephone2 || '',
+      telephone1: tel1,
+      telephone2: tel2,
       route: customer.route || '',
       category: customer.category || '',
       accNo: customer.accNo || '',
-      target: customer.target || customer.targetAmount || '',
+      target: customer.target !== undefined && customer.target !== '' ? String(customer.target) : '',
       notes: customer.notes || customer.remark || '',
-      gtnAllowed: customer.gtnAllowed || (customer.cusGtn === 1 ? 'Yes' : 'No') || 'Yes',
+      gtnAllowed: isGtn ? 'Yes' : 'No',
       discount: customer.discount !== undefined ? Number(customer.discount).toFixed(2) : '0.00',
       creditLimit: customer.creditLimit !== undefined ? Number(customer.creditLimit).toFixed(2) : '0.00',
       dueAmount: customer.dueAmount !== undefined ? Number(customer.dueAmount).toFixed(2) : '0.00',
       creditPeriod: String(customer.creditPeriod || '0'),
-      use2ndPrice: customer.use2ndPrice || (customer.use2Price === 1 ? 'Yes' : 'No') || 'No',
+      use2ndPrice: is2nd ? 'Yes' : 'No',
       vatNo: customer.vatNo || customer.vatNumber || '',
       status: customer.status || 'Active',
     });
 
     setSearchModal({ isOpen: false, search: '' });
-    showNotification(`Loaded Customer: ${customer.code} - ${customer.name}`, 'info');
+    showNotification(`Loaded Customer: ${customer.code || customer.customerCode} - ${customer.name}`, 'info');
+  };
+
+  // Handle Customer Code Blur / Enter (Auto-lookup existing customer)
+  const handleCodeBlur = async () => {
+    const trimmed = (formData.code || '').trim().toUpperCase();
+    if (!trimmed) return;
+
+    const found = customersList.find(
+      (c) => (c.code || c.customerCode || '').toUpperCase() === trimmed
+    );
+    if (found) {
+      handleSelectCustomer(found);
+      return;
+    }
+
+    try {
+      const res = await api.get(`/customers/${encodeURIComponent(trimmed)}`);
+      if (res.data?.data) {
+        handleSelectCustomer(res.data.data);
+      }
+    } catch (e) {
+      // Not found, treat as new code entry
+    }
   };
 
   // BUTTON: NEW
@@ -211,6 +251,14 @@ function CustomerMaster() {
 
   // BUTTON: CANCEL
   const handleCancel = () => {
+    if (formData._id) {
+      const original = customersList.find((c) => c._id === formData._id);
+      if (original) {
+        handleSelectCustomer(original);
+        showNotification('Cancelled changes. Restored saved customer record.', 'info');
+        return;
+      }
+    }
     handleNew();
   };
 
@@ -280,8 +328,9 @@ function CustomerMaster() {
       return;
     }
 
+    const customerName = formData.name || formData.code;
     const confirmDel = window.confirm(
-      `Are you sure you want to delete Customer '${formData.code} - ${formData.name}'?`
+      `Are you sure you want to delete Customer '${formData.code} - ${customerName}'?\n\nIMPORTANT: Customers with active sales invoices, payments, settlements, or outstanding balances cannot be deleted.`
     );
     if (!confirmDel) return;
 
@@ -289,7 +338,7 @@ function CustomerMaster() {
       const targetId = formData._id || formData.code;
       const res = await api.delete(`/customers/${encodeURIComponent(targetId)}`);
       if (res.data?.success) {
-        showNotification(`Customer '${formData.name}' deleted successfully`, 'success');
+        showNotification(`Customer '${customerName}' deleted successfully`, 'success');
         handleNew();
         fetchCustomers();
       }
@@ -478,42 +527,69 @@ function CustomerMaster() {
 
         {/* Outer Form Container */}
         <div className="cust-panel-container">
-          {/* Section Header: Customer Master */}
-          <div className="cust-section-header">
-            <span>Customer Master</span>
+          {/* Classic Window Title Bar matching reference screenshot */}
+          <div className="cust-window-titlebar">
+            <div className="cust-window-title-left">
+              <svg className="cust-window-logo-svg" viewBox="0 0 24 24" width="16" height="16">
+                <path d="M3 3h8v8H3z" fill="#f25022"/>
+                <path d="M13 3h8v8h-8z" fill="#7fba00"/>
+                <path d="M3 13h8v8H3z" fill="#00a4ef"/>
+                <path d="M13 13h8v8h-8z" fill="#ffb900"/>
+              </svg>
+              <span className="cust-window-title-text">Customer Details</span>
+            </div>
+            <div className="cust-window-controls">
+              <button
+                type="button"
+                className="cust-window-close-btn"
+                aria-label="Close"
+                onClick={() => navigate('/management')}
+              >
+                &#x2715;
+              </button>
+            </div>
           </div>
 
           {/* Form Two-Column Grid */}
           <div className="cust-form-grid">
             {/* ========================================================= */}
-            {/* LEFT COLUMN FIELDS                                        */}
+            {/* LEFT COLUMN FIELDS (9 fields)                             */}
             {/* ========================================================= */}
             <div className="cust-left-col">
-              {/* Code */}
+              {/* 1. Code */}
               <div className="cust-form-row">
                 <span className="dotted-label-blue">Code . . . . . . . . .</span>
-                <div className="input-with-lookup">
-                  <input
-                    type="text"
-                    name="code"
-                    className="cust-input"
-                    style={{ width: '150px', fontWeight: 'bold', color: '#000080' }}
-                    value={formData.code}
-                    onChange={handleChange}
-                    placeholder="Customer Code"
-                  />
-                  <button
-                    type="button"
-                    className="cust-btn-lookup"
-                    title="Search Customers"
-                    onClick={() => setSearchModal({ isOpen: true, search: '' })}
-                  >
-                    ...
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  name="code"
+                  list="customer-code-list"
+                  className="cust-input"
+                  style={{ width: '380px', fontWeight: 'bold', color: '#000080' }}
+                  value={formData.code}
+                  onChange={handleChange}
+                  onBlur={handleCodeBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleCodeBlur();
+                    } else if (e.key === 'F2') {
+                      setSearchModal({ isOpen: true, search: '' });
+                    }
+                  }}
+                  onDoubleClick={() => setSearchModal({ isOpen: true, search: '' })}
+                  title="Customer Code (Enter to search, double-click or F2 for lookup)"
+                  placeholder="Customer Code"
+                />
+                <datalist id="customer-code-list">
+                  {customersList.map((c) => (
+                    <option key={c._id || c.code} value={c.code || c.customerCode}>
+                      {c.name}
+                    </option>
+                  ))}
+                </datalist>
               </div>
 
-              {/* Name */}
+              {/* 2. Name */}
               <div className="cust-form-row">
                 <span className="dotted-label-blue">Name . . . . . . . . .</span>
                 <input
@@ -523,33 +599,33 @@ function CustomerMaster() {
                   style={{ width: '380px' }}
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="Customer Full Name"
+                  placeholder="Customer Name"
                 />
               </div>
 
-              {/* Address */}
+              {/* 3. Address */}
               <div className="cust-form-row" style={{ alignItems: 'flex-start' }}>
                 <span className="dotted-label-blue" style={{ paddingTop: '3px' }}>Address . . . . . . . .</span>
                 <textarea
                   name="address"
                   className="cust-textarea"
-                  style={{ width: '380px', height: '48px', resize: 'none' }}
+                  style={{ width: '380px', height: '56px', resize: 'none' }}
                   value={formData.address}
                   onChange={handleChange}
-                  placeholder="Customer Address"
-                  rows={2}
+                  placeholder="Address"
+                  rows={3}
                 />
               </div>
 
-              {/* Telephone No. */}
+              {/* 4. Telephone No. (preserve both telephone inputs) */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Telephone No . . . . .</span>
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <span className="dotted-label-blue">Telephone No . . . .</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     type="text"
                     name="telephone1"
                     className="cust-input"
-                    style={{ width: '187px' }}
+                    style={{ width: '186px' }}
                     value={formData.telephone1}
                     onChange={handleChange}
                     placeholder="Telephone 1"
@@ -558,7 +634,7 @@ function CustomerMaster() {
                     type="text"
                     name="telephone2"
                     className="cust-input"
-                    style={{ width: '187px' }}
+                    style={{ width: '186px' }}
                     value={formData.telephone2}
                     onChange={handleChange}
                     placeholder="Telephone 2"
@@ -566,26 +642,23 @@ function CustomerMaster() {
                 </div>
               </div>
 
-              {/* Route */}
+              {/* 5. Route */}
               <div className="cust-form-row">
                 <span className="dotted-label-blue">Route . . . . . . . . .</span>
                 <div className="input-with-lookup">
                   <select
                     name="route"
                     className="cust-select"
-                    style={{ width: '180px' }}
+                    style={{ width: '240px' }}
                     value={formData.route}
                     onChange={handleChange}
                   >
                     <option value="">-- Select Route --</option>
-                    {defaultRoutes.map((r) => (
+                    {dynamicRoutes.map((r) => (
                       <option key={r} value={r}>
                         {r}
                       </option>
                     ))}
-                    {formData.route && !defaultRoutes.includes(formData.route) && (
-                      <option value={formData.route}>{formData.route}</option>
-                    )}
                   </select>
                   <button
                     type="button"
@@ -601,26 +674,23 @@ function CustomerMaster() {
                 </div>
               </div>
 
-              {/* Category */}
+              {/* 6. Category */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Category . . . . . . . .</span>
+                <span className="dotted-label-blue">Category . . . . . . .</span>
                 <div className="input-with-lookup">
                   <select
                     name="category"
                     className="cust-select"
-                    style={{ width: '180px' }}
+                    style={{ width: '240px' }}
                     value={formData.category}
                     onChange={handleChange}
                   >
                     <option value="">-- Select Category --</option>
-                    {defaultCategories.map((c) => (
+                    {dynamicCategories.map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>
                     ))}
-                    {formData.category && !defaultCategories.includes(formData.category) && (
-                      <option value={formData.category}>{formData.category}</option>
-                    )}
                   </select>
                   <button
                     type="button"
@@ -636,158 +706,162 @@ function CustomerMaster() {
                 </div>
               </div>
 
-              {/* Acc No */}
+              {/* 7. Acc No */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Acc No . . . . . . . . .</span>
+                <span className="dotted-label-blue">Acc No . . . . . . . .</span>
                 <input
                   type="text"
                   name="accNo"
                   className="cust-input"
-                  style={{ width: '180px' }}
+                  style={{ width: '240px' }}
                   value={formData.accNo}
                   onChange={handleChange}
                   placeholder="Account Number"
                 />
               </div>
 
-              {/* Target */}
+              {/* 8. Target */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Target . . . . . . . . .</span>
+                <span className="dotted-label-blue">Target . . . . . . . .</span>
                 <input
                   type="text"
                   name="target"
                   className="cust-input"
-                  style={{ width: '180px' }}
+                  style={{ width: '240px' }}
                   value={formData.target}
                   onChange={handleChange}
                   placeholder="Target Amount"
                 />
               </div>
+
+              {/* 9. Notes (placed inside left section under Target) */}
+              <div className="cust-form-row" style={{ alignItems: 'flex-start' }}>
+                <span className="dotted-label-blue" style={{ paddingTop: '3px' }}>Notes . . . . . . . . .</span>
+                <textarea
+                  name="notes"
+                  className="cust-textarea"
+                  style={{ width: '380px', height: '56px', resize: 'none' }}
+                  value={formData.notes}
+                  onChange={handleChange}
+                  placeholder="Customer Notes / Remarks"
+                  rows={3}
+                />
+              </div>
             </div>
 
             {/* ========================================================= */}
-            {/* RIGHT COLUMN FIELDS                                       */}
+            {/* RIGHT COLUMN FIELDS (7 fields)                            */}
             {/* ========================================================= */}
             <div className="cust-right-col">
-              {/* G.T.N. Allowed */}
+              {/* 10. G.T.N. Allowed (Checkbox) */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">G.T.N. Allowed . . . . . . .</span>
-                <select
+                <span className="dotted-label-blue">G.T.N. Allowed . . . . .</span>
+                <input
+                  type="checkbox"
                   name="gtnAllowed"
-                  className="cust-select"
-                  style={{ width: '120px' }}
-                  value={formData.gtnAllowed}
+                  className="cust-checkbox"
+                  checked={formData.gtnAllowed === 'Yes'}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      gtnAllowed: e.target.checked ? 'Yes' : 'No',
+                    }))
+                  }
+                />
+              </div>
+
+              {/* 11. Discount */}
+              <div className="cust-form-row">
+                <span className="dotted-label-blue">Discount . . . . . . . . .</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="discount"
+                  className="cust-input"
+                  style={{ width: '115px', textAlign: 'right' }}
+                  value={formData.discount}
                   onChange={handleChange}
-                >
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                </select>
+                />
               </div>
 
-              {/* Discount */}
+              {/* 12. Credit Limit */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Discount . . . . . . . . . . .</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="discount"
-                    className="cust-input"
-                    style={{ width: '110px', textAlign: 'right' }}
-                    value={formData.discount}
-                    onChange={handleChange}
-                  />
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#000080' }}>%</span>
-                </div>
-              </div>
-
-              {/* Credit Limit */}
-              <div className="cust-form-row">
-                <span className="dotted-label-blue">Credit Limit . . . . . . . . .</span>
+                <span className="dotted-label-blue">Credit Limit . . . . . . .</span>
                 <input
                   type="number"
                   step="0.01"
                   name="creditLimit"
                   className="cust-input"
-                  style={{ width: '110px', textAlign: 'right' }}
+                  style={{ width: '115px', textAlign: 'right' }}
                   value={formData.creditLimit}
                   onChange={handleChange}
                 />
               </div>
 
-              {/* Due Amount */}
+              {/* 13. Due Amount (read-only real balance) */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Due Amount . . . . . . . . .</span>
+                <span className="dotted-label-blue">Due Amount . . . . . . .</span>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
                   name="dueAmount"
-                  className="cust-input"
-                  style={{ width: '110px', textAlign: 'right' }}
+                  readOnly
+                  className="cust-input read-only"
+                  style={{ width: '115px', textAlign: 'right' }}
                   value={formData.dueAmount}
-                  onChange={handleChange}
+                  title="Outstanding Due Balance (read-only)"
                 />
               </div>
 
-              {/* Credit Period */}
+              {/* 14. Credit Period */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Credit Period . . . . . . . .</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="dotted-label-blue">Credit Period . . . . . .</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type="number"
                     name="creditPeriod"
                     className="cust-input"
-                    style={{ width: '110px', textAlign: 'right' }}
+                    style={{ width: '65px', textAlign: 'right' }}
                     value={formData.creditPeriod}
                     onChange={handleChange}
                   />
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#000080' }}>Days</span>
+                  <span className="credit-period-days">Days</span>
                 </div>
               </div>
 
-              {/* Use 2nd Price */}
+              {/* Vertical Gap Spacer */}
+              <div className="cust-right-col-spacer" />
+
+              {/* 15. Use 2nd Price (Checkbox) */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">Use 2nd Price . . . . . . . .</span>
-                <select
+                <span className="dotted-label-blue">Use 2nd Price . . . . .</span>
+                <input
+                  type="checkbox"
                   name="use2ndPrice"
-                  className="cust-select"
-                  style={{ width: '120px' }}
-                  value={formData.use2ndPrice}
-                  onChange={handleChange}
-                >
-                  <option value="No">No</option>
-                  <option value="Yes">Yes</option>
-                </select>
+                  className="cust-checkbox"
+                  checked={formData.use2ndPrice === 'Yes'}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      use2ndPrice: e.target.checked ? 'Yes' : 'No',
+                    }))
+                  }
+                />
               </div>
 
-              {/* VAT No */}
+              {/* 16. VAT No */}
               <div className="cust-form-row">
-                <span className="dotted-label-blue">VAT No . . . . . . . . . . . .</span>
+                <span className="dotted-label-blue">VAT No . . . . . . . . . .</span>
                 <input
                   type="text"
                   name="vatNo"
                   className="cust-input"
-                  style={{ width: '210px' }}
+                  style={{ width: '115px' }}
                   value={formData.vatNo}
                   onChange={handleChange}
                   placeholder="VAT Number"
                 />
               </div>
             </div>
-          </div>
-
-          {/* Notes Full Width Row */}
-          <div className="cust-notes-row">
-            <span className="dotted-label-blue">Notes . . . . . . . . .</span>
-            <textarea
-              name="notes"
-              className="cust-textarea"
-              style={{ flex: 1, height: '42px', resize: 'none' }}
-              value={formData.notes}
-              onChange={handleChange}
-              placeholder="Customer Notes / Remarks"
-              rows={2}
-            />
           </div>
 
           {/* Action Buttons Bar */}
@@ -798,20 +872,20 @@ function CustomerMaster() {
               onClick={handleSave}
               disabled={isSaving}
             >
-              <u>S</u>ave
+              Save
             </button>
             <button type="button" className="cust-btn-classic" onClick={handleNew}>
-              <u>N</u>ew
+              New
             </button>
             <button
               type="button"
               className="cust-btn-classic delete"
               onClick={handleDelete}
             >
-              <u>D</u>elete
+              Delete
             </button>
             <button type="button" className="cust-btn-classic" onClick={handleCancel}>
-              <u>C</u>ancel
+              Cancel
             </button>
           </div>
 

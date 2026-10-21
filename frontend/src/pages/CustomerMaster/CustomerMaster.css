@@ -227,41 +227,102 @@
   border: 1px solid #3b82f6;
 }
 
-/* Outer Panel Container */
+/* Outer Panel Container matching reference screenshot */
 .cust-panel-container {
-  background-color: #f1ede1;
-  border: 1px solid #7f9db9;
-  box-shadow: inset 1px 1px 0px #ffffff, 1px 1px 2px rgba(0, 0, 0, 0.15);
+  background-color: #ece9d8;
+  border: 1px solid #716f64;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  width: 100%;
 }
 
-/* Section Header Bar: Customer Master */
-.cust-section-header {
-  background: #004b97;
-  color: #ffffff;
+/* Classic Dialog Window Title Bar */
+.cust-window-titlebar {
+  height: 28px;
+  background: #ece9d8;
+  border-bottom: 1px solid #aca899;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 8px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.cust-window-title-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cust-window-logo-svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.cust-window-title-text {
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 5px 10px;
-  border-bottom: 1px solid #003366;
-  letter-spacing: 0.2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
 }
 
-/* Two Column Grid */
+.cust-window-controls {
+  display: flex;
+  align-items: center;
+}
+
+.cust-window-close-btn {
+  width: 22px;
+  height: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 11px;
+  color: #333333;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 2px;
+}
+
+.cust-window-close-btn:hover {
+  background-color: #e81123;
+  color: #ffffff;
+  border-color: #b50012;
+}
+
+/* Form Two-Column Layout */
 .cust-form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  padding: 12px 14px 4px 14px;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 36px;
+  padding: 16px 18px 8px 18px;
 }
 
-.cust-left-col,
+.cust-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 530px;
+  flex-shrink: 0;
+}
+
 .cust-right-col {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
+  width: 320px;
+  flex-shrink: 0;
+}
+
+.cust-right-col-spacer {
+  height: 38px;
 }
 
 /* Form Row */
@@ -280,8 +341,26 @@
   color: #000080;
   white-space: nowrap;
   user-select: none;
-  width: 135px;
+  width: 140px;
   flex-shrink: 0;
+  letter-spacing: 0.1px;
+}
+
+.credit-period-days {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000080;
+  user-select: none;
+}
+
+/* Checkboxes */
+.cust-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #000080;
 }
 
 /* Inputs & Selects */
@@ -296,6 +375,12 @@
   padding: 2px 6px;
   box-sizing: border-box;
   outline: none;
+}
+
+.cust-input.read-only {
+  background-color: #f0f0f0;
+  color: #000080;
+  cursor: default;
 }
 
 .cust-input:focus,
@@ -344,26 +429,13 @@
   background-color: #dfdbca;
 }
 
-/* Notes Full Width Row */
-.cust-notes-row {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 2px 14px 10px 14px;
-}
-
-.cust-notes-row .dotted-label-blue {
-  padding-top: 4px;
-}
-
 /* Action Buttons Bar */
 .cust-btn-bar {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px 12px 14px;
+  gap: 16px;
+  padding: 12px 18px 14px 18px;
 }
 
 .cust-btn-classic {

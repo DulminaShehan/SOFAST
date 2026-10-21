@@ -134,15 +134,16 @@ export const getItems = async (req, res, next) => {
     }
 
     const total = await Item.countDocuments(query);
-    const limitNum = Math.min(Number(limit) || 1000, 5000);
+    const isUnlimited = limit === 'all' || limit === '0' || Number(limit) === 0 || Number(limit) >= 5000;
+    const limitNum = isUnlimited ? 0 : Math.min(Number(limit) || 1000, 50000);
     const pageNum = Math.max(Number(page) || 1, 1);
-    const skip = (pageNum - 1) * limitNum;
+    const skip = limitNum > 0 ? (pageNum - 1) * limitNum : 0;
 
-    const items = await Item.find(query)
-      .sort({ code: 1 })
-      .skip(skip)
-      .limit(limitNum)
-      .lean();
+    let queryBuilder = Item.find(query).sort({ code: 1 });
+    if (limitNum > 0) {
+      queryBuilder = queryBuilder.skip(skip).limit(limitNum);
+    }
+    const items = await queryBuilder.lean();
 
     const normalized = items.map(normalizeItem);
 
@@ -637,6 +638,21 @@ export const updateItem = async (req, res, next) => {
     if (updateData.remark !== undefined) item.remark = (updateData.remark || '').trim();
     if (updateData.color !== undefined) item.color = (updateData.color || '').trim();
     if (updateData.status !== undefined) item.status = updateData.status.trim();
+
+    // Synchronize stock in hand and quantity
+    if (updateData.quantity !== undefined || updateData.stockInHand !== undefined) {
+      const stockVal = updateData.stockInHand !== undefined
+        ? Number(updateData.stockInHand)
+        : Number(updateData.quantity);
+      if (!isNaN(stockVal)) {
+        item.quantity = stockVal;
+        item.stockInHand = stockVal;
+      }
+    }
+    if (updateData.damagedStock !== undefined) {
+      const dStock = Number(updateData.damagedStock);
+      if (!isNaN(dStock)) item.damagedStock = dStock;
+    }
 
     // Discount & decimal-safe pricing calculation with multiples of Rs. 10 round-off
     const curSp = updateData.sellingPrice !== undefined ? Number(updateData.sellingPrice) || 0 : (item.sellingPrice || 0);

@@ -28,12 +28,14 @@ function Invoice() {
     invoiceNumber: '',
     date: new Date().toISOString().split('T')[0],
     customerCode: '',
-    customerName: '',
-    customerAddress: '',
-    customerTelephone: '',
+    customerName: 'Walk In Customer',
+    customerAddress: 'No Address',
+    customerTelephone: '-',
     jd: 'Invoice',
     isHold: false,
     jobType: 'Material',
+    itemLookupMode: 'Item Code',
+    isManualInvoice: false,
     remark: '',
   });
 
@@ -41,19 +43,29 @@ function Invoice() {
   const [lineItems, setLineItems] = useState([]);
   const [selectedLineIndex, setSelectedLineIndex] = useState(-1);
 
+  // Alternative Products State
+  const [alternativeProducts, setAlternativeProducts] = useState([]);
+  const [loadingAlternatives, setLoadingAlternatives] = useState(false);
+
   // Current Item Entry Draft
   const [itemEntry, setItemEntry] = useState({
     code: '',
     description: '',
     location: 'Main Store',
+    availableQty: '',
     quantity: '1',
-    masterPack: '1',
-    rateType: 'Retail',
-    price: '',
-    itemCost: '',
-    mpCost: '',
     discountPercentage: '',
     discountAmount: '',
+    finalPrice: '',
+    itemCost: '',
+    lastGrn: '',
+    lastGrnDate: '',
+    price: '',
+    masterPack: '1',
+    rateType: 'Retail',
+    mpCost: '',
+    roundOffOption: 'No Round Off',
+    roundOffStep: 10,
     value: '0.00',
     balance: '',
     total: '0.00',
@@ -61,8 +73,9 @@ function Invoice() {
 
   // Payment Details State
   const [payment, setPayment] = useState({
-    specialDiscount: '0.00',
+    customerPaidAmount: '',
     amountReceived: '',
+    specialDiscount: '0.00',
     chequeNo: '',
     bank: '',
     dateRealized: '',
@@ -79,8 +92,10 @@ function Invoice() {
   // Receipt Preview Modal
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
-  // Ref for Code Input focus
+  // Input Refs
   const itemCodeInputRef = useRef(null);
+  const paidAmountInputRef = useRef(null);
+  const dateInputRef = useRef(null);
 
   // Menubar items
   const topMenuItems = [
@@ -234,15 +249,19 @@ function Invoice() {
       const [nextNumRes, custRes, itemsRes, invsRes] = await Promise.all([
         api.get('/invoices/next-number').catch(() => null),
         api.get('/customers').catch(() => null),
-        api.get('/items?limit=1000').catch(() => null),
+        api.get('/items?limit=all').catch(() => null),
         api.get('/invoices?limit=50').catch(() => null),
       ]);
 
       if (nextNumRes?.data?.data) {
+        const rawNum = nextNumRes.data.data.invoiceNumber || nextNumRes.data.data.no;
+        const formattedNum = String(rawNum).startsWith('INV-')
+          ? String(rawNum)
+          : `INV-${String(rawNum).padStart(6, '0')}`;
         setInvoiceHeader((prev) => ({
           ...prev,
           no: nextNumRes.data.data.no,
-          invoiceNumber: nextNumRes.data.data.invoiceNumber,
+          invoiceNumber: formattedNum,
         }));
       }
       if (custRes?.data?.data) {
@@ -283,14 +302,58 @@ function Invoice() {
     }, 4000);
   };
 
-  // Helper: compute line item pricing with discount
-  const computeLinePricing = (priceVal, qtyVal, discPctVal, discAmtVal, source = 'percentage') => {
+  // Fetch Alternative Products for an Item Code
+  const fetchAlternativeProducts = async (itemCode) => {
+    if (!itemCode || !String(itemCode).trim()) {
+      setAlternativeProducts([]);
+      return;
+    }
+    try {
+      setLoadingAlternatives(true);
+      const res = await api.get(`/alternative-products/${encodeURIComponent(String(itemCode).trim())}`);
+      if (res.data?.success && res.data?.data) {
+        const altItems = res.data.data.alternativeItems || [];
+        setAlternativeProducts(altItems);
+      } else {
+        setAlternativeProducts([]);
+      }
+    } catch (e) {
+      setAlternativeProducts([]);
+    } finally {
+      setLoadingAlternatives(false);
+    }
+  };
+
+  // Fetch GRN History for an Item Code to obtain last GRN and last GRN Date
+  const fetchItemGrnHistory = async (itemCode) => {
+    if (!itemCode || !String(itemCode).trim()) return null;
+    try {
+      const res = await api.get(`/grn/item-history/${encodeURIComponent(String(itemCode).trim())}`);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  };
+
+  // Helper: compute line item pricing with discount and round off
+  const computeLinePricing = (
+    priceVal,
+    qtyVal,
+    discPctVal,
+    discAmtVal,
+    source = 'percentage',
+    roundOption = 'No Round Off',
+    roundStep = 10
+  ) => {
     const price = parseFloat(priceVal) || 0;
-    const qty = Math.max(0.01, parseFloat(qtyVal) || 1);
+    const qty = Math.max(0.001, parseFloat(qtyVal) || 1);
     let discPct = parseFloat(discPctVal) || 0;
     let discAmt = parseFloat(discAmtVal) || 0;
 
-    const gross = price * qty;
+    const gross = Math.round(price * qty * 100) / 100;
 
     if (source === 'amount') {
       discPct = gross > 0 ? (discAmt / gross) * 100 : 0;
@@ -298,70 +361,99 @@ function Invoice() {
       discAmt = (gross * discPct) / 100;
     }
 
-    const netValue = Math.max(0, gross - discAmt);
+    let netValue = Math.max(0, gross - discAmt);
+
+    // Apply Round Off rule if configured
+    const step = Number(roundStep) || 10;
+    const opt = (roundOption || 'No Round Off').trim();
+    if (opt === 'Round Up' || opt === 'Up') {
+      netValue = Math.ceil(netValue / step) * step;
+    } else if (opt === 'Round Down' || opt === 'Down') {
+      netValue = Math.floor(netValue / step) * step;
+    }
 
     return {
       price: priceVal,
       quantity: qtyVal,
-      discountPercentage: discPct ? (source === 'amount' ? Math.round(discPct * 100) / 100 : discPctVal) : (discPctVal !== '' ? discPctVal : ''),
-      discountAmount: discAmt ? (source === 'percentage' ? Math.round(discAmt * 100) / 100 : discAmtVal) : (discAmtVal !== '' ? discAmtVal : ''),
+      discountPercentage: discPct
+        ? (source === 'amount' ? discPct.toFixed(2) : String(discPctVal))
+        : (discPctVal !== '' ? String(discPctVal) : ''),
+      discountAmount: discAmt
+        ? (source === 'percentage' ? discAmt.toFixed(2) : String(discAmtVal))
+        : (discAmtVal !== '' ? String(discAmtVal) : ''),
+      finalPrice: netValue.toFixed(2),
       value: netValue.toFixed(2),
       total: netValue.toFixed(2),
     };
   };
 
   // Grand Total of Invoice Items
-  const invoiceSubTotal = lineItems.reduce((acc, item) => acc + (parseFloat(item.value) || 0), 0);
+  const invoiceSubTotal = lineItems.reduce(
+    (acc, item) => acc + (parseFloat(item.finalPrice !== undefined ? item.finalPrice : item.value) || 0),
+    0
+  );
   const specialDiscVal = parseFloat(payment.specialDiscount) || 0;
-  const amountToPay = Math.max(0, invoiceSubTotal - specialDiscVal);
-  const amountReceivedVal = payment.amountReceived !== '' ? parseFloat(payment.amountReceived) || 0 : 0;
-  const dueAmount = Math.max(0, amountToPay - amountReceivedVal);
+  const totalAmount = Math.max(0, invoiceSubTotal - specialDiscVal);
+  const paidAmount =
+    payment.customerPaidAmount !== '' && !isNaN(parseFloat(payment.customerPaidAmount))
+      ? parseFloat(payment.customerPaidAmount)
+      : (payment.amountReceived !== '' && !isNaN(parseFloat(payment.amountReceived))
+          ? parseFloat(payment.amountReceived)
+          : 0);
 
-  // Handle Customer Selection / Changes
-  const handleCustomerChange = (e) => {
-    const { name, value } = e.target;
-    const trimmed = String(value || '').trim();
+  // Balance: Paid - Total (matches screenshot: Paid 5,000, Total 4,564.80 => Balance 435.20)
+  const balanceAmount =
+    payment.customerPaidAmount !== '' || payment.amountReceived !== ''
+      ? (paidAmount - totalAmount)
+      : 0;
 
-    if (name === 'customerCode') {
-      setInvoiceHeader((prev) => ({ ...prev, customerCode: value }));
-      if (!trimmed) {
-        setInvoiceHeader((prev) => ({ ...prev, customerCode: '', customerName: '', customerAddress: '', customerTelephone: '' }));
-        return;
-      }
-      // Match customer
-      let match = customersList.find(
-        (c) => c.code?.toLowerCase() === trimmed.toLowerCase() || c.customerCode?.toLowerCase() === trimmed.toLowerCase()
-      );
-      if (!match && trimmed.includes(' - ')) {
-        const codePart = trimmed.split(' - ')[0].trim();
-        match = customersList.find((c) => c.code?.toLowerCase() === codePart.toLowerCase());
-      }
-      if (!match) {
-        match = customersList.find((c) => c.name?.toLowerCase() === trimmed.toLowerCase());
-      }
-      if (match) {
-        setInvoiceHeader((prev) => ({
+  const amountToPay = totalAmount;
+  const amountReceivedVal = paidAmount;
+  const dueAmount = balanceAmount < 0 ? Math.abs(balanceAmount) : 0;
+
+  // Handle Customer Dropdown Selection
+  const handleCustomerDropdownChange = (e) => {
+    const val = e.target.value;
+    if (!val) {
+      setInvoiceHeader((prev) => ({
+        ...prev,
+        customerCode: '',
+        customerName: 'Walk In Customer',
+        customerAddress: 'No Address',
+        customerTelephone: '-',
+      }));
+      return;
+    }
+    const match = customersList.find((c) => (c.code || c.customerCode) === val);
+    if (match) {
+      setInvoiceHeader((prev) => ({
+        ...prev,
+        customerCode: match.code || match.customerCode || '',
+        customerName: match.name || '',
+        customerAddress: match.address || 'No Address',
+        customerTelephone: match.telephone1 || match.telephone || '-',
+      }));
+
+      // Apply customer discount if configured
+      if (match.discount && Number(match.discount) > 0 && !itemEntry.discountPercentage && itemEntry.price) {
+        const comp = computeLinePricing(
+          itemEntry.price,
+          itemEntry.quantity || '1',
+          Number(match.discount).toFixed(2),
+          '',
+          'percentage',
+          itemEntry.roundOffOption,
+          itemEntry.roundOffStep
+        );
+        setItemEntry((prev) => ({
           ...prev,
-          customerCode: match.code || match.customerCode || '',
-          customerName: match.name || '',
-          customerAddress: match.address || '',
-          customerTelephone: match.telephone1 || match.telephone || '',
+          discountPercentage: comp.discountPercentage,
+          discountAmount: comp.discountAmount,
+          finalPrice: comp.finalPrice,
+          value: comp.finalPrice,
+          total: comp.finalPrice,
         }));
       }
-    } else if (name === 'customerName') {
-      setInvoiceHeader((prev) => ({ ...prev, customerName: value }));
-      const match = customersList.find((c) => c.name?.toLowerCase() === trimmed.toLowerCase());
-      if (match) {
-        setInvoiceHeader((prev) => ({
-          ...prev,
-          customerCode: match.code || match.customerCode || '',
-          customerName: match.name || '',
-          customerAddress: match.address || '',
-          customerTelephone: match.telephone1 || match.telephone || '',
-        }));
-      }
-    } else {
-      setInvoiceHeader((prev) => ({ ...prev, [name]: value }));
     }
   };
 
@@ -371,35 +463,133 @@ function Invoice() {
       ...prev,
       customerCode: cust.code || cust.customerCode || '',
       customerName: cust.name || '',
-      customerAddress: cust.address || '',
-      customerTelephone: cust.telephone1 || cust.telephone || '',
+      customerAddress: cust.address || 'No Address',
+      customerTelephone: cust.telephone1 || cust.telephone || '-',
     }));
+
+    if (cust.discount && Number(cust.discount) > 0 && !itemEntry.discountPercentage && itemEntry.price) {
+      const comp = computeLinePricing(
+        itemEntry.price,
+        itemEntry.quantity || '1',
+        Number(cust.discount).toFixed(2),
+        '',
+        'percentage',
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
+      );
+      setItemEntry((prev) => ({
+        ...prev,
+        discountPercentage: comp.discountPercentage,
+        discountAmount: comp.discountAmount,
+        finalPrice: comp.finalPrice,
+        value: comp.finalPrice,
+        total: comp.finalPrice,
+      }));
+    }
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
   };
 
   // Select Item from Lookup Modal
-  const handleSelectItemFromLookup = (item) => {
-    const customerPrice = item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0
-      ? Number(item.finalSellingPrice)
-      : (Number(item.sellingPrice) || 0);
+  const handleSelectItemFromLookup = async (item) => {
+    const customerPrice =
+      item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0
+        ? Number(item.finalSellingPrice)
+        : (Number(item.sellingPrice) || 0);
+
+    const available =
+      item.quantity !== undefined
+        ? item.quantity
+        : (item.stockInHand !== undefined ? item.stockInHand : 0);
+
+    const cost = item.lastGrnPrice || item.averageCost || item.purchaseCost || 0;
+    const roundOpt = item.roundOffOption || 'No Round Off';
+    const roundStp = item.roundOffStep || 10;
+
+    let initDiscPct = itemEntry.discountPercentage || '';
+    if (!initDiscPct && invoiceHeader.customerCode) {
+      const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
+      if (cust && cust.discount && Number(cust.discount) > 0) {
+        initDiscPct = Number(cust.discount).toFixed(2);
+      }
+    }
+
+    const comp = computeLinePricing(
+      customerPrice,
+      itemEntry.quantity || '1',
+      initDiscPct,
+      '',
+      'percentage',
+      roundOpt,
+      roundStp
+    );
+
+    const grnHistory = await fetchItemGrnHistory(item.code);
+    const grnNum = grnHistory?.summary?.latestGrnNumber || item.lastGrn || '';
+    const grnDate = grnHistory?.summary?.latestGrnDate
+      ? new Date(grnHistory.summary.latestGrnDate).toISOString().split('T')[0]
+      : (item.lastGrnDate ? String(item.lastGrnDate).split('T')[0] : '');
 
     setItemEntry({
       code: item.code || '',
       description: item.description || '',
       location: item.location || 'Main Store',
-      quantity: '1',
+      availableQty: available,
+      quantity: itemEntry.quantity || '1',
+      price: customerPrice,
+      itemCost: Number(cost).toFixed(2),
+      lastGrn: grnNum,
+      lastGrnDate: grnDate,
+      roundOffOption: roundOpt,
+      roundOffStep: roundStp,
+      discountPercentage: comp.discountPercentage,
+      discountAmount: comp.discountAmount,
+      finalPrice: comp.finalPrice,
       masterPack: item.masterPack || '1',
       rateType: 'Retail',
-      price: customerPrice,
-      itemCost: item.lastGrnPrice || item.averageCost || 0,
-      mpCost: item.averageCost || item.lastGrnPrice || 0,
-      discountPercentage: '',
-      discountAmount: '',
-      value: Number(customerPrice).toFixed(2),
-      balance: item.quantity !== undefined ? item.quantity : (item.stockInHand || 0),
-      total: Number(customerPrice).toFixed(2),
+      mpCost: item.averageCost || cost || 0,
+      value: comp.finalPrice,
+      balance: available,
+      total: comp.finalPrice,
     });
+
+    fetchAlternativeProducts(item.code);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+  };
+
+  // Handle Enter key on Item Code input
+  const handleCodeKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const query = String(itemEntry.code || '').trim().toLowerCase();
+      if (!query) {
+        setLookupModal({
+          isOpen: true,
+          type: 'item',
+          title: 'Select Item from Item Master',
+          search: '',
+        });
+        return;
+      }
+
+      const match = itemsList.find(
+        (i) =>
+          i.code?.toLowerCase() === query ||
+          i.barcode?.toLowerCase() === query ||
+          i.barCode?.toLowerCase() === query ||
+          i.description?.toLowerCase() === query
+      );
+
+      if (match) {
+        handleSelectItemFromLookup(match);
+      } else {
+        setLookupModal({
+          isOpen: true,
+          type: 'item',
+          title: 'Select Item from Item Master',
+          search: itemEntry.code,
+        });
+      }
+    }
   };
 
   // Handle Item Entry Changes
@@ -416,25 +606,82 @@ function Invoice() {
           i.barcode?.toLowerCase() === trimmed ||
           i.barCode?.toLowerCase() === trimmed
       );
+
       if (match) {
-        const customerPrice = match.finalSellingPrice !== undefined && Number(match.finalSellingPrice) > 0
-          ? Number(match.finalSellingPrice)
-          : (Number(match.sellingPrice) || 0);
-        const qtyVal = Math.max(0.01, parseFloat(updated.quantity) || 1);
-        const lineNet = Math.round(customerPrice * qtyVal * 100) / 100;
+        const customerPrice =
+          match.finalSellingPrice !== undefined && Number(match.finalSellingPrice) > 0
+            ? Number(match.finalSellingPrice)
+            : (Number(match.sellingPrice) || 0);
+
+        const available =
+          match.quantity !== undefined
+            ? match.quantity
+            : (match.stockInHand !== undefined ? match.stockInHand : 0);
+
+        const cost = match.lastGrnPrice || match.averageCost || match.purchaseCost || 0;
+        const roundOpt = match.roundOffOption || 'No Round Off';
+        const roundStp = match.roundOffStep || 10;
+
+        let initDiscPct = itemEntry.discountPercentage || '';
+        if (!initDiscPct && invoiceHeader.customerCode) {
+          const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
+          if (cust && cust.discount && Number(cust.discount) > 0) {
+            initDiscPct = Number(cust.discount).toFixed(2);
+          }
+        }
+
+        const comp = computeLinePricing(
+          customerPrice,
+          updated.quantity || '1',
+          initDiscPct,
+          '',
+          'percentage',
+          roundOpt,
+          roundStp
+        );
 
         updated.code = match.code;
         updated.description = match.description || '';
         updated.location = match.location || 'Main Store';
-        updated.masterPack = match.masterPack || '1';
+        updated.availableQty = available;
         updated.price = customerPrice;
-        updated.itemCost = match.lastGrnPrice || match.averageCost || 0;
-        updated.mpCost = match.averageCost || match.lastGrnPrice || 0;
-        updated.discountPercentage = '';
-        updated.discountAmount = '';
-        updated.value = lineNet.toFixed(2);
-        updated.total = lineNet.toFixed(2);
-        updated.balance = match.quantity !== undefined ? match.quantity : (match.stockInHand || 0);
+        updated.itemCost = Number(cost).toFixed(2);
+        updated.lastGrn = match.lastGrn || '';
+        updated.lastGrnDate = match.lastGrnDate ? String(match.lastGrnDate).split('T')[0] : '';
+        updated.roundOffOption = roundOpt;
+        updated.roundOffStep = roundStp;
+        updated.discountPercentage = comp.discountPercentage;
+        updated.discountAmount = comp.discountAmount;
+        updated.finalPrice = comp.finalPrice;
+        updated.value = comp.finalPrice;
+        updated.balance = available;
+        updated.total = comp.finalPrice;
+
+        fetchItemGrnHistory(match.code).then((grnData) => {
+          if (grnData?.summary) {
+            setItemEntry((curr) => {
+              if (curr.code.toLowerCase() === match.code.toLowerCase()) {
+                const dateStr = grnData.summary.latestGrnDate
+                  ? new Date(grnData.summary.latestGrnDate).toISOString().split('T')[0]
+                  : curr.lastGrnDate;
+                return {
+                  ...curr,
+                  lastGrn: grnData.summary.latestGrnNumber || curr.lastGrn,
+                  lastGrnDate: dateStr,
+                  availableQty:
+                    grnData.summary.closingStock !== undefined
+                      ? grnData.summary.closingStock
+                      : curr.availableQty,
+                };
+              }
+              return curr;
+            });
+          }
+        });
+
+        fetchAlternativeProducts(match.code);
+      } else {
+        setAlternativeProducts([]);
       }
     }
 
@@ -444,31 +691,111 @@ function Invoice() {
         name === 'quantity' ? value : updated.quantity,
         name === 'discountPercentage' ? value : updated.discountPercentage,
         updated.discountAmount,
-        'percentage'
+        'percentage',
+        updated.roundOffOption,
+        updated.roundOffStep
       );
       updated.discountPercentage = comp.discountPercentage;
       updated.discountAmount = comp.discountAmount;
-      updated.value = comp.value;
-      updated.total = comp.total;
+      updated.finalPrice = comp.finalPrice;
+      updated.value = comp.finalPrice;
+      updated.total = comp.finalPrice;
     } else if (name === 'discountAmount') {
       const comp = computeLinePricing(
         updated.price,
         updated.quantity,
         updated.discountPercentage,
         value,
-        'amount'
+        'amount',
+        updated.roundOffOption,
+        updated.roundOffStep
       );
       updated.discountPercentage = comp.discountPercentage;
       updated.discountAmount = comp.discountAmount;
-      updated.value = comp.value;
-      updated.total = comp.total;
+      updated.finalPrice = comp.finalPrice;
+      updated.value = comp.finalPrice;
+      updated.total = comp.finalPrice;
     }
 
     setItemEntry(updated);
   };
 
+  // Select an Alternative Product to load into item entry
+  const handleSelectAlternativeProduct = async (alt) => {
+    if (!alt || !alt.code) return;
+
+    const stock = Number(
+      alt.stock !== undefined
+        ? alt.stock
+        : (alt.quantity !== undefined ? alt.quantity : (alt.availableQty || 0))
+    );
+
+    if (stock <= 0) {
+      showNotification(`Note: Alternative item '${alt.code}' currently has 0 available stock.`, 'info');
+    }
+
+    let match = itemsList.find((i) => i.code?.toLowerCase() === alt.code.toLowerCase());
+
+    const price = match
+      ? (match.finalSellingPrice || match.sellingPrice || alt.price || alt.sellingPrice || 0)
+      : (alt.price || alt.sellingPrice || 0);
+
+    const cost = match ? (match.lastGrnPrice || match.averageCost || match.purchaseCost || 0) : 0;
+    const roundOpt = match?.roundOffOption || 'No Round Off';
+    const roundStp = match?.roundOffStep || 10;
+
+    let initDiscPct = itemEntry.discountPercentage || '';
+    if (!initDiscPct && invoiceHeader.customerCode) {
+      const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
+      if (cust && cust.discount && Number(cust.discount) > 0) {
+        initDiscPct = Number(cust.discount).toFixed(2);
+      }
+    }
+
+    const comp = computeLinePricing(
+      price,
+      itemEntry.quantity || '1',
+      initDiscPct,
+      '',
+      'percentage',
+      roundOpt,
+      roundStp
+    );
+
+    const grnHistory = await fetchItemGrnHistory(alt.code);
+    const grnNum = grnHistory?.summary?.latestGrnNumber || match?.lastGrn || '';
+    const grnDate = grnHistory?.summary?.latestGrnDate
+      ? new Date(grnHistory.summary.latestGrnDate).toISOString().split('T')[0]
+      : (match?.lastGrnDate ? String(match.lastGrnDate).split('T')[0] : '');
+
+    setItemEntry({
+      code: alt.code,
+      description: alt.description || match?.description || '',
+      location: alt.location || match?.location || 'Main Store',
+      availableQty: stock,
+      quantity: itemEntry.quantity || '1',
+      price: price,
+      itemCost: Number(cost).toFixed(2),
+      lastGrn: grnNum,
+      lastGrnDate: grnDate,
+      roundOffOption: roundOpt,
+      roundOffStep: roundStp,
+      discountPercentage: comp.discountPercentage,
+      discountAmount: comp.discountAmount,
+      finalPrice: comp.finalPrice,
+      masterPack: match?.masterPack || '1',
+      rateType: 'Retail',
+      mpCost: match?.averageCost || cost || 0,
+      value: comp.finalPrice,
+      balance: stock,
+      total: comp.finalPrice,
+    });
+
+    fetchAlternativeProducts(alt.code);
+  };
+
   // Add or Update Line Item in Table
-  const handleSaveLineItem = () => {
+  const handleAddOrUpdateItem = () => {
     if (!itemEntry.code || itemEntry.code.trim() === '') {
       showNotification('Please enter or select an Item Code', 'error');
       itemCodeInputRef.current?.focus();
@@ -484,23 +811,27 @@ function Invoice() {
     const price = parseFloat(itemEntry.price) || 0;
     const discPct = parseFloat(itemEntry.discountPercentage) || 0;
     const discAmt = parseFloat(itemEntry.discountAmount) || 0;
-    const val = parseFloat(itemEntry.value) || 0;
+    const finalPrice = parseFloat(itemEntry.finalPrice) || Math.max(0, (price * qty) - discAmt);
 
     const newLineItem = {
       code: itemEntry.code.trim(),
       description: itemEntry.description || '',
       location: itemEntry.location || 'Main Store',
+      availableQty: parseFloat(itemEntry.availableQty) || 0,
       quantity: qty,
-      masterPack: itemEntry.masterPack || '1',
-      rateType: itemEntry.rateType || 'Retail',
-      price,
-      itemCost: parseFloat(itemEntry.itemCost) || 0,
-      mpCost: parseFloat(itemEntry.mpCost) || 0,
       discountPercentage: discPct,
       discountAmount: discAmt,
-      value: val,
-      balance: parseFloat(itemEntry.balance) || 0,
-      total: val,
+      finalPrice: finalPrice,
+      itemCost: parseFloat(itemEntry.itemCost) || 0,
+      lastGrn: itemEntry.lastGrn || '',
+      lastGrnDate: itemEntry.lastGrnDate || '',
+      price: price,
+      masterPack: itemEntry.masterPack || '1',
+      rateType: itemEntry.rateType || 'Retail',
+      mpCost: parseFloat(itemEntry.mpCost) || 0,
+      value: finalPrice,
+      balance: parseFloat(itemEntry.availableQty) || 0,
+      total: finalPrice,
     };
 
     if (selectedLineIndex >= 0) {
@@ -515,19 +846,23 @@ function Invoice() {
       );
       if (existingIdx >= 0) {
         const updated = [...lineItems];
-        updated[existingIdx].quantity += newLineItem.quantity;
+        const mergedQty = updated[existingIdx].quantity + newLineItem.quantity;
         const comp = computeLinePricing(
           updated[existingIdx].price,
-          updated[existingIdx].quantity,
+          mergedQty,
           updated[existingIdx].discountPercentage,
-          0,
-          'percentage'
+          '',
+          'percentage',
+          itemEntry.roundOffOption,
+          itemEntry.roundOffStep
         );
+        updated[existingIdx].quantity = mergedQty;
         updated[existingIdx].discountAmount = parseFloat(comp.discountAmount) || 0;
-        updated[existingIdx].value = parseFloat(comp.value) || 0;
-        updated[existingIdx].total = parseFloat(comp.total) || 0;
+        updated[existingIdx].finalPrice = parseFloat(comp.finalPrice) || 0;
+        updated[existingIdx].value = parseFloat(comp.finalPrice) || 0;
+        updated[existingIdx].total = parseFloat(comp.finalPrice) || 0;
         setLineItems(updated);
-        showNotification(`Incremented quantity for '${newLineItem.code}'`, 'info');
+        showNotification(`Incremented quantity for '${newLineItem.code}' to ${mergedQty}`, 'info');
       } else {
         setLineItems([...lineItems, newLineItem]);
       }
@@ -538,19 +873,25 @@ function Invoice() {
       code: '',
       description: '',
       location: 'Main Store',
+      availableQty: '',
       quantity: '1',
-      masterPack: '1',
-      rateType: 'Retail',
-      price: '',
-      itemCost: '',
-      mpCost: '',
       discountPercentage: '',
       discountAmount: '',
+      finalPrice: '',
+      itemCost: '',
+      lastGrn: '',
+      lastGrnDate: '',
+      price: '',
+      masterPack: '1',
+      rateType: 'Retail',
+      mpCost: '',
+      roundOffOption: 'No Round Off',
+      roundOffStep: 10,
       value: '0.00',
       balance: '',
       total: '0.00',
     });
-
+    setAlternativeProducts([]);
     itemCodeInputRef.current?.focus();
   };
 
@@ -563,18 +904,25 @@ function Invoice() {
         code: item.code,
         description: item.description,
         location: item.location || 'Main Store',
+        availableQty: item.availableQty !== undefined ? item.availableQty : (item.balance || ''),
         quantity: String(item.quantity),
+        discountPercentage: item.discountPercentage !== undefined && item.discountPercentage !== '' ? String(item.discountPercentage) : '',
+        discountAmount: item.discountAmount !== undefined && item.discountAmount !== '' ? String(item.discountAmount) : '',
+        finalPrice: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
+        itemCost: Number(item.itemCost || 0).toFixed(2),
+        lastGrn: item.lastGrn || '',
+        lastGrnDate: item.lastGrnDate || '',
+        price: item.price,
         masterPack: String(item.masterPack || '1'),
         rateType: item.rateType || 'Retail',
-        price: item.price,
-        itemCost: item.itemCost || '',
         mpCost: item.mpCost || '',
-        discountPercentage: item.discountPercentage || '',
-        discountAmount: item.discountAmount || '',
-        value: Number(item.value).toFixed(2),
+        roundOffOption: 'No Round Off',
+        roundOffStep: 10,
+        value: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
         balance: item.balance || '',
-        total: Number(item.total || item.value).toFixed(2),
+        total: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
       });
+      fetchAlternativeProducts(item.code);
     }
   };
 
@@ -588,30 +936,45 @@ function Invoice() {
     }
   };
 
-  // BUTTON: NEW
+  // BUTTON: BLANK INVOICE
   const handleNew = async () => {
+    if (lineItems.length > 0) {
+      const confirmClear = window.confirm(
+        'Invoice contains unsaved items. Clear the form for a Blank Invoice?'
+      );
+      if (!confirmClear) return;
+    }
+
     setActiveInvoiceId(null);
     setLineItems([]);
     setSelectedLineIndex(-1);
+    setAlternativeProducts([]);
     setItemEntry({
       code: '',
       description: '',
       location: 'Main Store',
+      availableQty: '',
       quantity: '1',
-      masterPack: '1',
-      rateType: 'Retail',
-      price: '',
-      itemCost: '',
-      mpCost: '',
       discountPercentage: '',
       discountAmount: '',
+      finalPrice: '',
+      itemCost: '',
+      lastGrn: '',
+      lastGrnDate: '',
+      price: '',
+      masterPack: '1',
+      rateType: 'Retail',
+      mpCost: '',
+      roundOffOption: 'No Round Off',
+      roundOffStep: 10,
       value: '0.00',
       balance: '',
       total: '0.00',
     });
     setPayment({
-      specialDiscount: '0.00',
+      customerPaidAmount: '',
       amountReceived: '',
+      specialDiscount: '0.00',
       chequeNo: '',
       bank: '',
       dateRealized: '',
@@ -620,41 +983,67 @@ function Invoice() {
     try {
       const nextNumRes = await api.get('/invoices/next-number');
       if (nextNumRes?.data?.data) {
+        const rawNum = nextNumRes.data.data.invoiceNumber || nextNumRes.data.data.no;
+        const formattedNum = String(rawNum).startsWith('INV-')
+          ? String(rawNum)
+          : `INV-${String(rawNum).padStart(6, '0')}`;
         setInvoiceHeader({
           no: nextNumRes.data.data.no,
-          invoiceNumber: nextNumRes.data.data.invoiceNumber,
+          invoiceNumber: formattedNum,
           date: new Date().toISOString().split('T')[0],
           customerCode: '',
-          customerName: '',
-          customerAddress: '',
-          customerTelephone: '',
+          customerName: 'Walk In Customer',
+          customerAddress: 'No Address',
+          customerTelephone: '-',
           jd: 'Invoice',
           isHold: false,
           jobType: 'Material',
+          itemLookupMode: 'Item Code',
+          isManualInvoice: false,
           remark: '',
         });
       }
     } catch (e) {
       setInvoiceHeader({
         no: '',
-        invoiceNumber: '2001',
+        invoiceNumber: 'INV-000123',
         date: new Date().toISOString().split('T')[0],
         customerCode: '',
-        customerName: '',
-        customerAddress: '',
-        customerTelephone: '',
+        customerName: 'Walk In Customer',
+        customerAddress: 'No Address',
+        customerTelephone: '-',
         jd: 'Invoice',
         isHold: false,
         jobType: 'Material',
+        itemLookupMode: 'Item Code',
+        isManualInvoice: false,
         remark: '',
       });
     }
 
-    showNotification('Initialized new Sales Invoice', 'info');
+    showNotification('Cleared form for Blank Invoice', 'info');
+  };
+
+  // BUTTON: MANUAL INVOICE
+  const handleManualInvoiceToggle = () => {
+    setInvoiceHeader((prev) => {
+      const nextManual = !prev.isManualInvoice;
+      showNotification(
+        nextManual
+          ? 'Manual Invoice mode activated. You can now edit the Invoice Number.'
+          : 'Automatic invoice numbering restored.',
+        'info'
+      );
+      return { ...prev, isManualInvoice: nextManual };
+    });
   };
 
   // BUTTON: CALCULATE DISCOUNT
   const handleCalculateDiscount = () => {
+    if (lineItems.length === 0) {
+      showNotification('No items in invoice to calculate discount', 'info');
+      return;
+    }
     const updated = lineItems.map((item) => {
       const comp = computeLinePricing(
         item.price,
@@ -665,14 +1054,15 @@ function Invoice() {
       );
       return {
         ...item,
-        discountPercentage: comp.discountPercentage,
-        discountAmount: comp.discountAmount,
-        value: parseFloat(comp.value) || 0,
-        total: parseFloat(comp.total) || 0,
+        discountPercentage: parseFloat(comp.discountPercentage) || 0,
+        discountAmount: parseFloat(comp.discountAmount) || 0,
+        finalPrice: parseFloat(comp.finalPrice) || 0,
+        value: parseFloat(comp.finalPrice) || 0,
+        total: parseFloat(comp.finalPrice) || 0,
       };
     });
     setLineItems(updated);
-    showNotification('Discounts and totals recalculated', 'success');
+    showNotification('Discounts and final prices calculated', 'success');
   };
 
   // BUTTON: HOLD INVOICE
@@ -722,18 +1112,21 @@ function Invoice() {
         mpCost: li.mpCost,
         discountPercentage: li.discountPercentage,
         discountAmount: li.discountAmount,
+        finalPrice: li.finalPrice !== undefined ? li.finalPrice : li.value,
+        availableQty: li.availableQty !== undefined ? li.availableQty : li.balance,
+        lastGrn: li.lastGrn || '',
+        lastGrnDate: li.lastGrnDate || '',
         value: li.value,
         total: li.total || li.value,
         balance: li.balance,
       })),
       subTotal: invoiceSubTotal,
       specialDiscount: specialDiscVal,
-      amountToPay: amountToPay,
-      amountReceived: payment.amountReceived !== '' ? parseFloat(payment.amountReceived) || 0 : 0,
-      chequeNo: payment.chequeNo,
-      bank: payment.bank,
-      dateRealized: payment.dateRealized,
-      dueAmount: dueAmount,
+      amountToPay: totalAmount,
+      amountReceived: paidAmount,
+      customerPaidAmount: paidAmount,
+      balance: balanceAmount,
+      dueAmount: balanceAmount < 0 ? Math.abs(balanceAmount) : 0,
     };
 
     try {
@@ -855,6 +1248,50 @@ function Invoice() {
       }, 50);
     });
   };
+
+  // Keyboard Shortcuts (F1, F2, F3, F4, F5, F7, F11)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'F1') {
+        e.preventDefault();
+        paidAmountInputRef.current?.focus();
+        paidAmountInputRef.current?.select();
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        handleCreateInvoiceButtonClick();
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        setInvoiceHeader((prev) => ({
+          ...prev,
+          jobType: prev.jobType === 'Material' ? 'Labour' : 'Material',
+        }));
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        setLookupModal({
+          isOpen: true,
+          type: 'item',
+          title: 'Select Item from Item Master',
+          search: '',
+        });
+      } else if (e.key === 'F5') {
+        e.preventDefault();
+        itemCodeInputRef.current?.focus();
+        itemCodeInputRef.current?.select();
+      } else if (e.key === 'F7') {
+        e.preventDefault();
+        handleCalculateDiscount();
+      } else if (e.key === 'F11') {
+        e.preventDefault();
+        setInvoiceHeader((prev) => ({
+          ...prev,
+          itemLookupMode: prev.itemLookupMode === 'Item Code' ? 'Bar Code' : 'Item Code',
+        }));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lineItems, invoiceHeader, activeInvoiceId, payment]);
 
   // Filtered customers / items for lookup modal
   const filteredCustomers = customersList.filter((c) => {
@@ -1147,26 +1584,25 @@ function Invoice() {
               &#x2715;
             </button>
           </div>
-        )}
-
-        <div className="invoice-panel-container">
-          {/* 1. Top Customer & Invoice Information Section */}
-          <div className="invoice-customer-section">
-            {/* Customer block (Left) */}
-            <div className="customer-left-box">
-              <div className="customer-code-name-row">
+        )}        <div className="invoice-panel-container">
+          {/* 1. TOP CUSTOMER, DATE/INV NO, AND ACTION BUTTONS */}
+          <div className="invoice-top-bar">
+            {/* Left: Customer Dropdown & Details Box */}
+            <div className="invoice-top-customer">
+              <div className="customer-field-row">
                 <span className="dotted-label-blue">Customer . . . .</span>
-                <input
-                  type="text"
-                  name="customerCode"
-                  list="invoice-customer-code-datalist"
-                  className="invoice-input"
-                  style={{ width: '110px' }}
-                  placeholder="Code..."
+                <select
+                  className="invoice-select customer-dropdown"
                   value={invoiceHeader.customerCode}
-                  onChange={handleCustomerChange}
-                  autoComplete="off"
-                />
+                  onChange={handleCustomerDropdownChange}
+                >
+                  <option value="">-- Select Customer --</option>
+                  {customersList.map((c) => (
+                    <option key={c._id || c.code} value={c.code || c.customerCode}>
+                      {c.code || c.customerCode} - {c.name}
+                    </option>
+                  ))}
+                </select>
                 <button
                   type="button"
                   className="invoice-btn-lookup"
@@ -1182,148 +1618,193 @@ function Invoice() {
                 >
                   ...
                 </button>
-                <input
-                  type="text"
-                  name="customerName"
-                  list="invoice-customer-name-datalist"
-                  className="invoice-input"
-                  style={{ flex: 1, minWidth: '220px' }}
-                  placeholder="Customer Name"
-                  value={invoiceHeader.customerName}
-                  onChange={handleCustomerChange}
-                  autoComplete="off"
-                />
-                <datalist id="invoice-customer-code-datalist">
-                  {customersList.map((c) => (
-                    <option key={c._id || c.code} value={c.code || c.customerCode}>
-                      {c.name}
-                    </option>
-                  ))}
-                </datalist>
-                <datalist id="invoice-customer-name-datalist">
-                  {customersList.map((c) => (
-                    <option key={c._id || c.code} value={c.name}>
-                      {c.code || c.customerCode}
-                    </option>
-                  ))}
-                </datalist>
               </div>
 
-              {/* Address & Telephone Line (Aligned with Code input) */}
-              <div className="customer-address-row">
-                <input
-                  type="text"
-                  name="customerAddress"
-                  className="invoice-input"
-                  style={{ flex: 1, minWidth: '150px' }}
-                  placeholder="Customer Address"
-                  value={invoiceHeader.customerAddress}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, customerAddress: e.target.value })}
-                />
-                <span className="dotted-label-blue" style={{ width: 'auto', margin: '0 6px 0 10px' }}>Tel . .</span>
-                <input
-                  type="text"
-                  name="customerTelephone"
-                  className="invoice-input"
-                  style={{ width: '135px' }}
-                  placeholder="Telephone No."
-                  value={invoiceHeader.customerTelephone}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, customerTelephone: e.target.value })}
-                />
+              {/* Customer Details Box below combobox */}
+              <div className="customer-details-card">
+                <div className="customer-card-name">
+                  {invoiceHeader.customerName || 'Walk In Customer'}
+                </div>
+                <div className="customer-card-line">
+                  {invoiceHeader.customerAddress || 'No Address'}
+                </div>
+                <div className="customer-card-line">
+                  Tel: {invoiceHeader.customerTelephone || '-'}
+                </div>
               </div>
             </div>
 
-            {/* Header Right grid (Date, J/D, Invoice No, Hold) */}
-            <div className="customer-right-box">
-              <span className="dotted-label-blue">Date . . . . . .</span>
-              <input
-                type="date"
-                name="date"
-                className="invoice-input"
-                style={{ width: '135px' }}
-                value={invoiceHeader.date}
-                onChange={(e) => setInvoiceHeader({ ...invoiceHeader, date: e.target.value })}
-              />
+            {/* Middle: Date & Invoice Number */}
+            <div className="invoice-top-middle">
+              <div className="middle-field-row">
+                <span className="dotted-label-blue">Date . . . . . .</span>
+                <input
+                  ref={dateInputRef}
+                  type="date"
+                  name="date"
+                  className="invoice-input date-input"
+                  value={invoiceHeader.date}
+                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, date: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="invoice-btn-lookup"
+                  title="Pick Date"
+                  onClick={() =>
+                    dateInputRef.current?.showPicker
+                      ? dateInputRef.current.showPicker()
+                      : dateInputRef.current?.focus()
+                  }
+                >
+                  ...
+                </button>
+              </div>
 
-              <span className="dotted-label-blue" style={{ marginLeft: '4px' }}>J/D . .</span>
-              <select
-                name="jd"
-                className="invoice-select"
-                style={{ width: '95px' }}
-                value={invoiceHeader.jd}
-                onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jd: e.target.value })}
+              <div className="middle-field-row">
+                <span className="dotted-label-blue">Invoice No . .</span>
+                <input
+                  type="text"
+                  name="invoiceNumber"
+                  className={`invoice-input invoice-num-input ${invoiceHeader.isManualInvoice ? '' : 'readonly'}`}
+                  readOnly={!invoiceHeader.isManualInvoice}
+                  value={invoiceHeader.invoiceNumber || 'INV-000123'}
+                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, invoiceNumber: e.target.value })}
+                  title={
+                    invoiceHeader.isManualInvoice
+                      ? 'Manual invoice number entry enabled'
+                      : 'Auto-generated invoice number'
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Right: 5 Action Buttons */}
+            <div className="invoice-top-actions">
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleCreateInvoiceButtonClick}
+                title="Create Invoice / Open Settlement Invoice (F2)"
               >
-                <option value="Invoice">Invoice</option>
-                <option value="Job Order">Job Order</option>
-                <option value="Draft">Draft</option>
-              </select>
-
-              <span className="dotted-label-blue">Invoice No .</span>
-              <input
-                type="text"
-                className="invoice-input readonly"
-                style={{ width: '135px', fontWeight: 'bold', color: '#000080' }}
-                readOnly
-                value={invoiceHeader.invoiceNumber || 'Auto'}
-                title="Auto-generated sequential invoice number"
-              />
-
-              <span className="dotted-label-blue" style={{ marginLeft: '4px' }}>Hold . .</span>
-              <select
-                name="isHold"
-                className="invoice-select"
-                style={{ width: '95px' }}
-                value={invoiceHeader.isHold ? 'Yes' : 'No'}
-                onChange={(e) => setInvoiceHeader({ ...invoiceHeader, isHold: e.target.value === 'Yes' })}
+                Create<br />Invoice
+              </button>
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleHoldInvoice}
+                title="Hold Invoice"
               >
-                <option value="No">No</option>
-                <option value="Yes">Yes</option>
-              </select>
+                Hold<br />Invoice
+              </button>
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleCalculateDiscount}
+                title="Calculate Discount (F7)"
+              >
+                Calculate<br />Discount
+              </button>
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleNew}
+                title="Blank Invoice"
+              >
+                Blank<br />Invoice
+              </button>
+              <button
+                type="button"
+                className={`invoice-btn-classic ${invoiceHeader.isManualInvoice ? 'active-manual' : ''}`}
+                onClick={handleManualInvoiceToggle}
+                title="Toggle Manual Invoice Number Entry"
+              >
+                Manual<br />Invoice
+              </button>
             </div>
           </div>
 
-          {/* 2. Type of Job Section (Full Width Row) */}
-          <div className="invoice-job-type">
-            <span className="job-type-label">Type of Job:</span>
-            <div className="job-type-radios">
-              {['Material', 'Labour', 'Item Code', 'Bar Code'].map((t) => (
-                <label key={t} className="job-radio-option">
-                  <input
-                    type="radio"
-                    name="jobType"
-                    value={t}
-                    checked={invoiceHeader.jobType === t}
-                    onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
-                  />
-                  <span>{t}</span>
-                </label>
-              ))}
+          {/* 2. SUB-HEADER: TYPE OF JOB & ITEM LOOKUP */}
+          <div className="invoice-job-lookup-bar">
+            <div className="job-type-group">
+              <span className="bar-label-blue">Type of Job:</span>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="jobType"
+                  value="Material"
+                  checked={invoiceHeader.jobType === 'Material'}
+                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                />
+                <span>Material</span>
+              </label>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="jobType"
+                  value="Labour"
+                  checked={invoiceHeader.jobType === 'Labour'}
+                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                />
+                <span>Labour</span>
+              </label>
+            </div>
+
+            <div className="item-lookup-group">
+              <span className="bar-label-blue">Item Lookup:</span>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="itemLookupMode"
+                  value="Item Code"
+                  checked={invoiceHeader.itemLookupMode === 'Item Code'}
+                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, itemLookupMode: e.target.value })}
+                />
+                <span>Item Code</span>
+              </label>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="itemLookupMode"
+                  value="Bar Code"
+                  checked={invoiceHeader.itemLookupMode === 'Bar Code'}
+                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, itemLookupMode: e.target.value })}
+                />
+                <span>Bar Code</span>
+              </label>
             </div>
           </div>
 
-          {/* 3. Main Split Section (Item Entry Left | Payment Section Right) */}
-          <div className="invoice-main">
+          {/* 3. MIDDLE SPLIT: ITEM ENTRY (Left) | ALTERNATIVES & TOTALS (Right) */}
+          <div className="invoice-middle-split">
             {/* Left: Item Entry Panel */}
-            <div className="invoice-item-entry">
-              {/* Code & Location */}
-              <div className="item-code-location-row">
+            <div className="invoice-item-entry-panel">
+              {/* Row 1: Code & Location */}
+              <div className="entry-row">
                 <span className="dotted-label-blue">Code . . . . . .</span>
                 <input
                   ref={itemCodeInputRef}
                   type="text"
                   name="code"
                   list="invoice-item-code-datalist"
-                  className="invoice-input"
-                  style={{ width: '140px' }}
-                  placeholder="Code..."
+                  className="invoice-input item-code-input"
+                  placeholder="Enter or select item code..."
                   value={itemEntry.code}
                   onChange={handleItemEntryChange}
+                  onKeyDown={handleCodeKeyDown}
                   autoComplete="off"
+                  title="Type item code or select from item list"
                 />
+                <datalist id="invoice-item-code-datalist">
+                  {itemsList.map((i) => (
+                    <option key={i._id || i.code} value={i.code}>
+                      {i.code} - {i.description}
+                    </option>
+                  ))}
+                </datalist>
                 <button
                   type="button"
                   className="invoice-btn-lookup"
-                  title="Search Items"
+                  title="Search Items (F4)"
                   onClick={() =>
                     setLookupModal({
                       isOpen: true,
@@ -1335,12 +1816,10 @@ function Invoice() {
                 >
                   ...
                 </button>
-
-                <span className="dotted-label-blue" style={{ marginLeft: '12px' }}>Location .</span>
+                <span className="dotted-label-blue loc-label">Location . .</span>
                 <select
                   name="location"
-                  className="invoice-select"
-                  style={{ flex: 1, minWidth: '130px' }}
+                  className="invoice-select item-loc-select"
                   value={itemEntry.location}
                   onChange={handleItemEntryChange}
                 >
@@ -1348,344 +1827,299 @@ function Invoice() {
                   <option value="Store 2">Store 2</option>
                   <option value="Workshop">Workshop</option>
                 </select>
-
-                <datalist id="invoice-item-code-datalist">
-                  {itemsList.map((i) => (
-                    <option key={i._id || i.code} value={i.code}>
-                      {i.description}
-                    </option>
-                  ))}
-                </datalist>
               </div>
 
-              {/* Description */}
-              <div className="item-desc-row">
+              {/* Row 2: Description */}
+              <div className="entry-row">
                 <span className="dotted-label-blue">Description . . .</span>
                 <input
                   type="text"
                   name="description"
-                  className="invoice-input"
-                  style={{ flex: 1 }}
+                  className="invoice-input item-desc-input"
                   placeholder="Item Description"
                   value={itemEntry.description}
                   onChange={handleItemEntryChange}
                 />
               </div>
 
-              {/* Two Column Entry Fields */}
-              <div className="item-entry-grid-2col">
-                {/* Column 1 */}
-                <div className="item-entry-subcol">
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Quantity . . . . .</span>
-                    <input
-                      type="number"
-                      name="quantity"
-                      className="invoice-input"
-                      style={{ textAlign: 'center', fontWeight: 'bold' }}
-                      value={itemEntry.quantity}
-                      onChange={handleItemEntryChange}
-                    />
-                  </div>
+              {/* Row 3: Available Qty */}
+              <div className="entry-row">
+                <span className="dotted-label-blue">Available Qty . .</span>
+                <input
+                  type="text"
+                  name="availableQty"
+                  className="invoice-input readonly qty-cost-input"
+                  readOnly
+                  value={itemEntry.availableQty !== '' ? itemEntry.availableQty : '-'}
+                />
+              </div>
 
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Rate . . . . . . .</span>
-                    <select
-                      name="rateType"
-                      className="invoice-select"
-                      value={itemEntry.rateType}
-                      onChange={handleItemEntryChange}
-                    >
-                      <option value="Retail">Retail</option>
-                      <option value="Wholesale">Wholesale</option>
-                    </select>
-                  </div>
-
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Discount % . . . .</span>
-                    <input
-                      type="number"
-                      name="discountPercentage"
-                      className="invoice-input"
-                      style={{ textAlign: 'right' }}
-                      placeholder="0"
-                      value={itemEntry.discountPercentage}
-                      onChange={handleItemEntryChange}
-                    />
-                  </div>
-
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Discount (Rs) . . .</span>
-                    <input
-                      type="number"
-                      name="discountAmount"
-                      className="invoice-input"
-                      style={{ textAlign: 'right' }}
-                      placeholder="0.00"
-                      value={itemEntry.discountAmount}
-                      onChange={handleItemEntryChange}
-                    />
-                  </div>
-
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Value . . . . . . .</span>
-                    <input
-                      type="text"
-                      name="value"
-                      className="invoice-input readonly"
-                      style={{ textAlign: 'right', fontWeight: 'bold', color: '#000080' }}
-                      readOnly
-                      value={itemEntry.value}
-                    />
-                  </div>
+              {/* Row 4: Quantity & Discount % */}
+              <div className="two-col-entry">
+                <div className="col-field">
+                  <span className="dotted-label-blue">Quantity . . . . .</span>
+                  <input
+                    type="number"
+                    name="quantity"
+                    className="invoice-input qty-cost-input"
+                    style={{ textAlign: 'center', fontWeight: 'bold' }}
+                    value={itemEntry.quantity}
+                    onChange={handleItemEntryChange}
+                  />
                 </div>
-
-                {/* Column 2 */}
-                <div className="item-entry-subcol">
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Mas. Pack . . . .</span>
-                    <input
-                      type="text"
-                      name="masterPack"
-                      className="invoice-input"
-                      style={{ textAlign: 'center' }}
-                      value={itemEntry.masterPack}
-                      onChange={handleItemEntryChange}
-                    />
-                  </div>
-
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Price . . . . . . .</span>
-                    <input
-                      type="number"
-                      name="price"
-                      className="invoice-input"
-                      style={{ textAlign: 'right', fontWeight: 'bold' }}
-                      value={itemEntry.price}
-                      onChange={handleItemEntryChange}
-                    />
-                  </div>
-
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Item Cost . . . .</span>
-                    <input
-                      type="number"
-                      name="itemCost"
-                      className="invoice-input readonly"
-                      style={{ textAlign: 'right' }}
-                      readOnly
-                      value={itemEntry.itemCost}
-                    />
-                  </div>
-
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">M/P Cost . . . . .</span>
-                    <input
-                      type="number"
-                      name="mpCost"
-                      className="invoice-input readonly"
-                      style={{ textAlign: 'right' }}
-                      readOnly
-                      value={itemEntry.mpCost}
-                    />
-                  </div>
-
-                  <div className="form-field-row">
-                    <span className="dotted-label-blue">Balance . . . . .</span>
-                    <input
-                      type="text"
-                      name="balance"
-                      className="invoice-input readonly"
-                      style={{ textAlign: 'center', fontWeight: 'bold', color: '#065f46', backgroundColor: '#f0fdf4' }}
-                      readOnly
-                      value={itemEntry.balance !== '' ? itemEntry.balance : '-'}
-                      title="Available stock in inventory"
-                    />
-                  </div>
+                <div className="col-field">
+                  <span className="dotted-label-blue">Discount % . . .</span>
+                  <input
+                    type="number"
+                    name="discountPercentage"
+                    className="invoice-input qty-cost-input"
+                    placeholder="0"
+                    value={itemEntry.discountPercentage}
+                    onChange={handleItemEntryChange}
+                  />
                 </div>
               </div>
 
-              {/* Save Button for Line Item */}
-              <div className="item-save-btn-container">
+              {/* Row 5: Discount (Rs) & Final Price */}
+              <div className="two-col-entry">
+                <div className="col-field">
+                  <span className="dotted-label-blue">Discount (Rs) . .</span>
+                  <input
+                    type="number"
+                    name="discountAmount"
+                    className="invoice-input qty-cost-input"
+                    placeholder="0.00"
+                    value={itemEntry.discountAmount}
+                    onChange={handleItemEntryChange}
+                  />
+                </div>
+                <div className="col-field">
+                  <span className="dotted-label-blue">Final Price . . .</span>
+                  <input
+                    type="text"
+                    name="finalPrice"
+                    className="invoice-input readonly qty-cost-input"
+                    style={{ fontWeight: 'bold', color: '#000080' }}
+                    readOnly
+                    value={itemEntry.finalPrice || '0.00'}
+                  />
+                </div>
+              </div>
+
+              {/* Row 6: Item Cost & Last GRN */}
+              <div className="two-col-entry">
+                <div className="col-field">
+                  <span className="dotted-label-blue">Item Cost . . . .</span>
+                  <input
+                    type="text"
+                    name="itemCost"
+                    className="invoice-input readonly qty-cost-input"
+                    readOnly
+                    value={itemEntry.itemCost || '0.00'}
+                  />
+                </div>
+                <div className="col-field">
+                  <span className="dotted-label-blue">Last GRN . . . .</span>
+                  <input
+                    type="text"
+                    name="lastGrn"
+                    className="invoice-input readonly grn-input"
+                    readOnly
+                    value={itemEntry.lastGrn || '-'}
+                  />
+                </div>
+              </div>
+
+              {/* Row 7: Last GRN Date */}
+              <div className="entry-row">
+                <span className="dotted-label-blue">Last GRN Date . .</span>
+                <input
+                  type="text"
+                  name="lastGrnDate"
+                  className="invoice-input readonly"
+                  style={{ width: '135px' }}
+                  readOnly
+                  value={itemEntry.lastGrnDate || '-'}
+                />
+              </div>
+
+              {/* Row 8: Action Buttons */}
+              <div className="entry-action-row">
                 <button
                   type="button"
-                  className="invoice-btn-classic"
-                  style={{ width: '120px', height: '26px', fontWeight: 'bold' }}
-                  onClick={handleSaveLineItem}
+                  className="invoice-btn-classic btn-add-item"
+                  onClick={handleAddOrUpdateItem}
                 >
-                  {selectedLineIndex >= 0 ? 'Update Item' : 'Save'}
+                  {selectedLineIndex >= 0 ? 'Update Item' : 'Add Item'}
                 </button>
+                {selectedLineIndex >= 0 && (
+                  <button
+                    type="button"
+                    className="invoice-btn-classic"
+                    onClick={() => {
+                      setSelectedLineIndex(-1);
+                      setItemEntry({
+                        code: '',
+                        description: '',
+                        location: 'Main Store',
+                        availableQty: '',
+                        quantity: '1',
+                        discountPercentage: '',
+                        discountAmount: '',
+                        finalPrice: '',
+                        itemCost: '',
+                        lastGrn: '',
+                        lastGrnDate: '',
+                        price: '',
+                        masterPack: '1',
+                        rateType: 'Retail',
+                        mpCost: '',
+                        roundOffOption: 'No Round Off',
+                        roundOffStep: 10,
+                        value: '0.00',
+                        balance: '',
+                        total: '0.00',
+                      });
+                      setAlternativeProducts([]);
+                    }}
+                  >
+                    Cancel Edit
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Right: Actions & Payment Section */}
-            <div className="invoice-payment">
-              {/* 4 Action Buttons Grid */}
-              <div className="payment-top-actions">
-                <button
-                  type="button"
-                  className="invoice-btn-classic"
-                  onClick={handleCreateInvoiceButtonClick}
-                  title="Create Invoice / Open Settlement Invoice"
-                >
-                  Create<br />Invoice
-                </button>
-                <button
-                  type="button"
-                  className="invoice-btn-classic"
-                  onClick={handleHoldInvoice}
-                >
-                  Hold<br />Invoice
-                </button>
-                <button
-                  type="button"
-                  className="invoice-btn-classic"
-                  onClick={handleCalculateDiscount}
-                >
-                  Calculate<br />Discount
-                </button>
-                <button
-                  type="button"
-                  className="invoice-btn-classic"
-                  onClick={handleNew}
-                >
-                  Blank<br />Invoice
-                </button>
+            {/* Right: Alternative Products & Payment Totals */}
+            <div className="invoice-right-panel">
+              {/* Alternative Products Box */}
+              <div className="alt-products-box">
+                <div className="alt-box-title">Alternative Products</div>
+                <div className="alt-table-container">
+                  <table className="alt-products-table">
+                    <thead>
+                      <tr>
+                        <th>Item Code</th>
+                        <th>Description</th>
+                        <th>Location</th>
+                        <th style={{ textAlign: 'center' }}>Available Qty</th>
+                        <th style={{ textAlign: 'right' }}>Selling Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingAlternatives ? (
+                        <tr>
+                          <td colSpan="5" className="alt-empty-cell">
+                            Loading alternatives...
+                          </td>
+                        </tr>
+                      ) : alternativeProducts.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="alt-empty-cell">
+                            {itemEntry.code
+                              ? 'No alternative products found for this item'
+                              : 'Select an item to view alternatives'}
+                          </td>
+                        </tr>
+                      ) : (
+                        alternativeProducts.map((alt, idx) => (
+                          <tr
+                            key={alt._id || alt.code || idx}
+                            className="alt-row"
+                            onClick={() => handleSelectAlternativeProduct(alt)}
+                            title="Click to load this alternative into item entry"
+                          >
+                            <td style={{ fontWeight: 'bold', color: '#000080' }}>{alt.code}</td>
+                            <td>{alt.description || '-'}</td>
+                            <td>{alt.location || 'Main Store'}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                              {alt.stock !== undefined
+                                ? alt.stock
+                                : (alt.quantity !== undefined
+                                    ? alt.quantity
+                                    : (alt.availableQty || 0))}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                              {Number(alt.price || alt.sellingPrice || 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              {/* Payment Fields List */}
-              <div className="payment-fields-card">
-                <div className="payment-field-row">
-                  <span className="dotted-label-blue">Special Discount . . . . . . . .</span>
+              {/* Payment Totals Box */}
+              <div className="payment-totals-box">
+                <div className="totals-field-row">
+                  <span className="dotted-label-blue">Customer Paid Amount . . . . . .</span>
                   <input
+                    ref={paidAmountInputRef}
                     type="number"
-                    name="specialDiscount"
-                    className="invoice-input"
-                    style={{ textAlign: 'right' }}
-                    value={payment.specialDiscount}
-                    onChange={(e) => setPayment({ ...payment, specialDiscount: e.target.value })}
+                    name="customerPaidAmount"
+                    className="invoice-input total-input-blue"
+                    placeholder="0.00"
+                    value={payment.customerPaidAmount}
+                    onChange={(e) => setPayment({ ...payment, customerPaidAmount: e.target.value })}
                   />
                 </div>
-
-                <div className="payment-field-row">
-                  <span className="dotted-label-blue">Amount To Pay . . . . . . . . .</span>
+                <div className="totals-field-row">
+                  <span className="dotted-label-blue">Balance . . . . . . . . . . . . . . . .</span>
                   <input
                     type="text"
-                    className="invoice-input readonly"
-                    style={{ textAlign: 'right', fontWeight: 'bold', color: '#000080' }}
-                    readOnly
-                    value={amountToPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  />
-                </div>
-
-                <div className="payment-field-row">
-                  <span className="dotted-label-blue">Amount Received . . . . . . . .</span>
-                  <input
-                    type="number"
-                    name="amountReceived"
-                    className="invoice-input"
-                    style={{ textAlign: 'right', fontWeight: 'bold' }}
-                    placeholder={amountToPay.toFixed(2)}
-                    value={payment.amountReceived}
-                    onChange={(e) => setPayment({ ...payment, amountReceived: e.target.value })}
-                  />
-                </div>
-
-                <div className="payment-field-row">
-                  <span className="dotted-label-blue">Cheque No . . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    name="chequeNo"
-                    className="invoice-input"
-                    placeholder=""
-                    value={payment.chequeNo}
-                    onChange={(e) => setPayment({ ...payment, chequeNo: e.target.value })}
-                  />
-                </div>
-
-                <div className="payment-field-row">
-                  <span className="dotted-label-blue">Bank . . . . . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    name="bank"
-                    className="invoice-input"
-                    style={{ textAlign: 'center' }}
-                    placeholder="[ActiveX]"
-                    value={payment.bank}
-                    onChange={(e) => setPayment({ ...payment, bank: e.target.value })}
-                  />
-                </div>
-
-                <div className="payment-field-row">
-                  <span className="dotted-label-blue">Date Realized . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    name="dateRealized"
-                    className="invoice-input"
-                    style={{ textAlign: 'center' }}
-                    placeholder="[ActiveX]"
-                    value={payment.dateRealized}
-                    onChange={(e) => setPayment({ ...payment, dateRealized: e.target.value })}
-                  />
-                </div>
-
-                <div className="payment-field-row">
-                  <span className="dotted-label-blue">Due Amount . . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="invoice-input readonly"
+                    className="invoice-input readonly balance-input"
                     style={{
-                      textAlign: 'right',
                       fontWeight: 'bold',
-                      color: dueAmount > 0 ? '#991b1b' : '#065f46',
-                      backgroundColor: dueAmount > 0 ? '#fee2e2' : '#f0fdf4',
+                      color: balanceAmount >= 0 ? '#065f46' : '#991b1b',
+                      backgroundColor: balanceAmount < 0 ? '#fee2e2' : '#ffffff',
                     }}
                     readOnly
-                    value={dueAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    value={balanceAmount.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  />
+                </div>
+                <div className="totals-field-row">
+                  <span className="dotted-label-blue">Total . . . . . . . . . . . . . . . . . .</span>
+                  <input
+                    type="text"
+                    className="invoice-input readonly total-input-bold"
+                    readOnly
+                    value={totalAmount.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 4. Remark Section (Full Width Below Item Entry + Payment) */}
-          <div className="invoice-remark">
-            <span className="dotted-label-blue">Remark . . . . . .</span>
-            <input
-              type="text"
-              name="remark"
-              className="invoice-input"
-              placeholder="Invoice remarks..."
-              value={invoiceHeader.remark}
-              onChange={(e) => setInvoiceHeader({ ...invoiceHeader, remark: e.target.value })}
-            />
-          </div>
-
-          {/* 5. Main Multiple Items Table */}
+          {/* 4. MAIN INVOICE ITEMS TABLE (11 COLUMNS MATCHING SCREENSHOT) */}
           <div className="invoice-items-table-wrapper">
             <table className="invoice-items-table">
               <thead>
                 <tr>
-                  <th style={{ width: '35px', textAlign: 'center' }}>#</th>
-                  <th style={{ width: '100px' }}>Code</th>
+                  <th style={{ width: '90px' }}>Code</th>
                   <th>Description</th>
-                  <th style={{ width: '110px' }}>Location</th>
-                  <th style={{ width: '60px', textAlign: 'center' }}>Qty</th>
-                  <th style={{ width: '75px', textAlign: 'center' }}>Mas. Pack</th>
-                  <th style={{ width: '80px' }}>Rate</th>
-                  <th style={{ width: '95px', textAlign: 'right' }}>Price</th>
-                  <th style={{ width: '70px', textAlign: 'right' }}>Disc. %</th>
-                  <th style={{ width: '90px', textAlign: 'right' }}>Disc. (Rs)</th>
-                  <th style={{ width: '100px', textAlign: 'right' }}>Value</th>
-                  <th style={{ width: '75px', textAlign: 'center' }}>Balance</th>
-                  <th style={{ width: '55px', textAlign: 'center' }}>Delete</th>
+                  <th style={{ width: '90px' }}>Location</th>
+                  <th style={{ width: '85px', textAlign: 'center' }}>Available Qty</th>
+                  <th style={{ width: '65px', textAlign: 'center' }}>Quantity</th>
+                  <th style={{ width: '75px', textAlign: 'right' }}>Discount %</th>
+                  <th style={{ width: '85px', textAlign: 'right' }}>Discount Value</th>
+                  <th style={{ width: '90px', textAlign: 'right' }}>Final Price</th>
+                  <th style={{ width: '80px', textAlign: 'right' }}>Item Cost</th>
+                  <th style={{ width: '90px' }}>Last GRN</th>
+                  <th style={{ width: '95px' }}>Last GRN Date</th>
+                  <th style={{ width: '40px', textAlign: 'center' }}>Del</th>
                 </tr>
               </thead>
               <tbody>
                 {lineItems.length === 0 ? (
                   <tr>
-                    <td colSpan="13" style={{ textAlign: 'center', padding: '30px', color: '#888' }}>
-                      No items added to current invoice. Select an item above and click Save.
+                    <td colSpan="12" style={{ textAlign: 'center', padding: '24px', color: '#888' }}>
+                      No items added to invoice. Select an item above and click Add Item.
                     </td>
                   </tr>
                 ) : (
@@ -1694,25 +2128,36 @@ function Invoice() {
                       key={`${item.code}-${index}`}
                       className={selectedLineIndex === index ? 'selected' : ''}
                       onClick={() => handleRowClick(index)}
+                      title="Click row to edit item"
                     >
-                      <td style={{ textAlign: 'center', color: '#666' }}>{index + 1}</td>
                       <td style={{ fontWeight: 'bold' }}>{item.code}</td>
                       <td>{item.description}</td>
                       <td>{item.location || 'Main Store'}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{item.quantity}</td>
-                      <td style={{ textAlign: 'center' }}>{item.masterPack || 1}</td>
-                      <td>{item.rateType || 'Retail'}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {item.availableQty !== undefined ? item.availableQty : (item.balance || '-')}
                       </td>
+                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{item.quantity}</td>
                       <td style={{ textAlign: 'right' }}>{item.discountPercentage || 0}</td>
                       <td style={{ textAlign: 'right' }}>
-                        {Number(item.discountAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {Number(item.discountAmount || 0).toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                        {Number(item.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
+                        {Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toLocaleString(
+                          'en-US',
+                          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                        )}
                       </td>
-                      <td style={{ textAlign: 'center' }}>{item.balance || '-'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {Number(item.itemCost || 0).toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td>{item.lastGrn || '-'}</td>
+                      <td>{item.lastGrnDate || '-'}</td>
                       <td style={{ textAlign: 'center' }}>
                         <button
                           type="button"
@@ -1721,24 +2166,41 @@ function Invoice() {
                             border: 'none',
                             color: '#e81123',
                             cursor: 'pointer',
-                            fontSize: '14px',
+                            fontSize: '13px',
+                            fontWeight: 'bold',
                           }}
                           title="Delete item"
                           onClick={(e) => handleRemoveLineItem(index, e)}
                         >
-                          🗑
+                          ✕
                         </button>
                       </td>
                     </tr>
                   ))
                 )}
+                {/* Visual grid filler rows if fewer than 6 items */}
+                {Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
+                  <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
 
-          {/* 6. Bottom Action Bar */}
+          {/* 5. BOTTOM ACTION BAR */}
           <div className="invoice-footer">
-            {/* Left buttons: New | Delete | Save | Print | Preview | Clear */}
             <div className="invoice-footer-left">
               <button type="button" className="invoice-btn-classic" onClick={handleNew}>
                 New
@@ -1769,16 +2231,23 @@ function Invoice() {
               </button>
             </div>
 
-            {/* Right: Grand Total */}
             <div className="invoice-footer-right">
               <span className="dotted-label-blue" style={{ fontSize: '13px' }}>Total</span>
               <input
                 type="text"
-                className="invoice-input invoice-total-display"
+                className="invoice-input invoice-total-display total-input-bold"
                 readOnly
-                value={invoiceSubTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                value={totalAmount.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               />
             </div>
+          </div>
+
+          {/* 6. STATUS BAR */}
+          <div className="invoice-status-bar">
+            F1-Received Amount, F2-Create Invoice, F3-Entry Type, F4-Catalog, F5-Filter, F7-Cal Discount, F11-Bar code mode
           </div>
         </div>
       </main>
@@ -1803,11 +2272,21 @@ function Invoice() {
                 type="text"
                 className="invoice-input"
                 style={{ width: '100%', padding: '4px 8px' }}
-                placeholder="Type to filter..."
+                placeholder={
+                  lookupModal.type === 'item'
+                    ? "Type to search by code, description, category, barcode..."
+                    : "Type to filter..."
+                }
                 autoFocus
                 value={lookupModal.search}
                 onChange={(e) => setLookupModal({ ...lookupModal, search: e.target.value })}
               />
+
+              <div style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', margin: '4px 2px' }}>
+                {lookupModal.type === 'item'
+                  ? `Showing ${filteredItems.length} items (Total: ${itemsList.length} items in Item Master)`
+                  : `Showing ${filteredCustomers.length} customers (Total: ${customersList.length} customers)`}
+              </div>
 
               <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
                 {lookupModal.type === 'customer' ? (
@@ -1826,7 +2305,7 @@ function Invoice() {
                       {filteredCustomers.length === 0 ? (
                         <tr>
                           <td colSpan="6" style={{ textAlign: 'center', padding: '12px', color: '#666' }}>
-                            No customers found
+                            No customers found matching "{lookupModal.search}"
                           </td>
                         </tr>
                       ) : (
@@ -1860,42 +2339,52 @@ function Invoice() {
                     <thead>
                       <tr>
                         <th style={{ width: '40px', textAlign: 'center' }}>#</th>
-                        <th style={{ width: '90px' }}>Code</th>
+                        <th style={{ width: '100px' }}>Code</th>
                         <th>Description</th>
-                        <th style={{ width: '80px', textAlign: 'right' }}>Price</th>
-                        <th style={{ width: '80px', textAlign: 'right' }}>Cost</th>
-                        <th style={{ width: '60px', textAlign: 'center' }}>Stock</th>
+                        <th style={{ width: '95px' }}>Category</th>
+                        <th style={{ width: '85px', textAlign: 'right' }}>Price</th>
+                        <th style={{ width: '85px', textAlign: 'right' }}>Cost</th>
+                        <th style={{ width: '65px', textAlign: 'center' }}>Stock</th>
                         <th style={{ width: '60px', textAlign: 'center' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredItems.slice(0, 100).map((i, idx) => (
-                        <tr key={i._id} onClick={() => handleSelectItemFromLookup(i)}>
-                          <td style={{ textAlign: 'center', color: '#666' }}>{idx + 1}</td>
-                          <td style={{ fontWeight: 'bold', color: '#000080' }}>{i.code}</td>
-                          <td>{i.description}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            {Number(i.finalSellingPrice || i.sellingPrice || 0).toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            {Number(i.lastGrnPrice || i.averageCost || 0).toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{i.quantity || 0}</td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              className="invoice-btn-classic"
-                              style={{ height: '20px', minWidth: '45px', padding: '0 4px', fontSize: '11px' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSelectItemFromLookup(i);
-                              }}
-                            >
-                              Select
-                            </button>
+                      {filteredItems.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
+                            No items found matching "{lookupModal.search}"
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        filteredItems.map((i, idx) => (
+                          <tr key={i._id || i.code} onClick={() => handleSelectItemFromLookup(i)}>
+                            <td style={{ textAlign: 'center', color: '#666' }}>{idx + 1}</td>
+                            <td style={{ fontWeight: 'bold', color: '#000080' }}>{i.code}</td>
+                            <td>{i.description}</td>
+                            <td>{i.category || '-'}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              {Number(i.finalSellingPrice || i.sellingPrice || 0).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              {Number(i.lastGrnPrice || i.averageCost || 0).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{i.quantity || 0}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="invoice-btn-classic"
+                                style={{ height: '20px', minWidth: '45px', padding: '0 4px', fontSize: '11px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectItemFromLookup(i);
+                                }}
+                              >
+                                Select
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 )}

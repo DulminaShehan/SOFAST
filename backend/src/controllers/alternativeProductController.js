@@ -68,7 +68,7 @@ export const getAlternativeProducts = async (req, res, next) => {
       });
     }
 
-    const { search, limit = 200 } = req.query;
+    const { search, limit = 1000 } = req.query;
     let query = {};
 
     if (search && search.trim()) {
@@ -79,10 +79,14 @@ export const getAlternativeProducts = async (req, res, next) => {
       ];
     }
 
-    const relationships = await AlternativeProduct.find(query)
-      .sort({ updatedAt: -1 })
-      .limit(Number(limit))
-      .lean();
+    const isUnlimited = limit === 'all' || limit === '0' || Number(limit) === 0;
+    const limitNum = isUnlimited ? 0 : Number(limit) || 1000;
+
+    let queryBuilder = AlternativeProduct.find(query).sort({ updatedAt: -1 });
+    if (limitNum > 0) {
+      queryBuilder = queryBuilder.limit(limitNum);
+    }
+    const relationships = await queryBuilder.lean();
 
     // Collect all main item codes & alternative item codes
     const allCodesToFetch = new Set();
@@ -191,6 +195,50 @@ export const getAlternativeProductByCode = async (req, res, next) => {
     }
 
     if (!rel) {
+      // Check if this item is listed as an alternative in another product's mapping
+      const reverseRel = await AlternativeProduct.findOne({
+        alternativeItemCodes: { $regex: new RegExp(`^${rawCode}$`, 'i') },
+      }).lean();
+
+      if (reverseRel) {
+        // Collect linked alternative codes: the main item plus any peer alternatives
+        const peerCodes = [
+          reverseRel.mainItemCode,
+          ...(reverseRel.alternativeItemCodes || []).filter(
+            (c) => String(c).trim().toLowerCase() !== rawCode.toLowerCase()
+          ),
+        ];
+        const altItems = await getItemsDetailsByCodes(peerCodes);
+        const thisItem = await Item.findOne({
+          code: { $regex: new RegExp(`^${rawCode}$`, 'i') },
+        }).lean();
+
+        const stock =
+          thisItem?.quantity !== undefined
+            ? thisItem.quantity
+            : thisItem?.stockInHand !== undefined
+            ? thisItem.stockInHand
+            : 0;
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            _id: reverseRel._id,
+            mainItemCode: thisItem?.code || rawCode,
+            mainItemId: thisItem?._id,
+            description: thisItem?.description || '',
+            mainItemDescription: thisItem?.description || '',
+            mainItemStock: stock,
+            alternativeCount: altItems.length,
+            alternativeItemCodes: peerCodes,
+            alternativeItems: altItems,
+            status: reverseRel.status || 'Active',
+            remark: reverseRel.remark || '',
+            updatedAt: reverseRel.updatedAt,
+          },
+        });
+      }
+
       // Check if item exists in Item Master to at least return item info
       const item = await Item.findOne({
         code: { $regex: new RegExp(`^${rawCode}$`, 'i') },

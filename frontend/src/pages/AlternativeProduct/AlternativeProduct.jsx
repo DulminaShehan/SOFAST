@@ -99,11 +99,11 @@ function AlternativeProduct() {
     }, 4000);
   };
 
-  // 1. Fetch Item Master Items
+  // 1. Fetch Item Master Items (All items from database)
   const fetchItems = async () => {
     try {
       setLoadingItems(true);
-      const res = await api.get('/items?limit=1000');
+      const res = await api.get('/items?limit=all');
       if (res.data?.data) {
         setItemsList(res.data.data);
       }
@@ -117,7 +117,7 @@ function AlternativeProduct() {
   // 2. Fetch All Saved Alternative Relationships
   const fetchRelationships = async () => {
     try {
-      const res = await api.get('/alternative-products');
+      const res = await api.get('/alternative-products?limit=all');
       if (res.data?.data) {
         setSavedRelationships(res.data.data);
       }
@@ -154,9 +154,12 @@ function AlternativeProduct() {
       return;
     }
 
-    // Look up in item list
+    // Look up in item list (match code, barcode, or suppCode)
     const matchedItem = itemsList.find(
-      (item) => item.code?.toUpperCase() === trimmed
+      (item) =>
+        item.code?.toUpperCase() === trimmed ||
+        (item.barcode && String(item.barcode).toUpperCase() === trimmed) ||
+        (item.suppCode && String(item.suppCode).toUpperCase() === trimmed)
     );
 
     if (matchedItem) {
@@ -175,6 +178,89 @@ function AlternativeProduct() {
       });
 
       // Load existing alternative mapping if already saved
+      loadExistingMappingForCode(matchedItem.code);
+    } else if (trimmed.length >= 2) {
+      // Fallback live search from backend to ensure every item in DB is reachable
+      api.get(`/items?search=${encodeURIComponent(trimmed)}&limit=10`)
+        .then((res) => {
+          if (res.data?.data?.length > 0) {
+            const exact =
+              res.data.data.find(
+                (i) =>
+                  i.code?.toUpperCase() === trimmed ||
+                  (i.barcode && String(i.barcode).toUpperCase() === trimmed)
+              ) || res.data.data[0];
+
+            if (exact) {
+              setFormData((prev) => {
+                if (prev.itemCode.trim().toUpperCase() === trimmed) {
+                  const stock =
+                    exact.quantity !== undefined
+                      ? exact.quantity
+                      : exact.stockInHand !== undefined
+                      ? exact.stockInHand
+                      : 0;
+                  return {
+                    ...prev,
+                    itemCode: exact.code,
+                    description: exact.description || '',
+                    status: 'Active',
+                    stock: Number(stock),
+                  };
+                }
+                return prev;
+              });
+              loadExistingMappingForCode(exact.code);
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
+  // Blur / Enter handler for Item Code input
+  const handleItemCodeBlur = async () => {
+    const trimmed = formData.itemCode.trim().toUpperCase();
+    if (!trimmed) return;
+
+    let matchedItem = itemsList.find(
+      (item) =>
+        item.code?.toUpperCase() === trimmed ||
+        (item.barcode && String(item.barcode).toUpperCase() === trimmed) ||
+        (item.suppCode && String(item.suppCode).toUpperCase() === trimmed)
+    );
+
+    if (!matchedItem) {
+      try {
+        const res = await api.get(`/items?search=${encodeURIComponent(trimmed)}&limit=10`);
+        if (res.data?.data?.length > 0) {
+          matchedItem =
+            res.data.data.find(
+              (i) =>
+                i.code?.toUpperCase() === trimmed ||
+                (i.barcode && String(i.barcode).toUpperCase() === trimmed)
+            ) || res.data.data[0];
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (matchedItem) {
+      const stock =
+        matchedItem.quantity !== undefined
+          ? matchedItem.quantity
+          : matchedItem.stockInHand !== undefined
+          ? matchedItem.stockInHand
+          : 0;
+
+      setFormData((prev) => ({
+        ...prev,
+        itemCode: matchedItem.code,
+        description: matchedItem.description || '',
+        status: 'Active',
+        stock: Number(stock),
+      }));
       loadExistingMappingForCode(matchedItem.code);
     }
   };
@@ -313,9 +399,20 @@ function AlternativeProduct() {
     const trimmedCode = formData.itemCode.trim().toUpperCase();
 
     // Verify main item exists
-    const mainItemObj = itemsList.find(
+    let mainItemObj = itemsList.find(
       (i) => i.code?.toUpperCase() === trimmedCode
     );
+
+    if (!mainItemObj) {
+      try {
+        const checkRes = await api.get(`/items?search=${encodeURIComponent(trimmedCode)}&limit=10`);
+        mainItemObj = checkRes.data?.data?.find(
+          (i) => i.code?.toUpperCase() === trimmedCode
+        );
+      } catch (err) {
+        // ignore
+      }
+    }
 
     if (!mainItemObj && itemsList.length > 0) {
       showNotification(`Item '${trimmedCode}' does not exist in Item Master. Please create it in Item Master first.`, 'error');
@@ -375,34 +472,33 @@ function AlternativeProduct() {
     }
   };
 
-  // Filter for Main Item Search Modal
+  // Filter for Main Item Search Modal (displays every item in Item Master)
   const filteredMainItems = useMemo(() => {
     const q = mainItemModal.search.toLowerCase().trim();
-    if (!q) return itemsList.slice(0, 100);
+    if (!q) return itemsList;
     return itemsList.filter(
       (i) =>
         i.code?.toLowerCase().includes(q) ||
         i.description?.toLowerCase().includes(q) ||
-        i.category?.toLowerCase().includes(q)
+        i.category?.toLowerCase().includes(q) ||
+        (i.barcode && String(i.barcode).toLowerCase().includes(q))
     );
   }, [itemsList, mainItemModal.search]);
 
-  // Filter for Add Alternative Item Search Modal
+  // Filter for Add Alternative Item Search Modal (displays every item in Item Master)
   const filteredAltCandidateItems = useMemo(() => {
     const q = addAltModal.search.toLowerCase().trim();
-    const mainCode = formData.itemCode?.toLowerCase().trim();
 
     return itemsList.filter((i) => {
+      if (!q) return true;
       const c = i.code?.toLowerCase() || '';
       const d = i.description?.toLowerCase() || '';
       const cat = i.category?.toLowerCase() || '';
+      const b = i.barcode ? String(i.barcode).toLowerCase() : '';
 
-      if (q && !c.includes(q) && !d.includes(q) && !cat.includes(q)) {
-        return false;
-      }
-      return true;
+      return c.includes(q) || d.includes(q) || cat.includes(q) || b.includes(q);
     });
-  }, [itemsList, addAltModal.search, formData.itemCode]);
+  }, [itemsList, addAltModal.search]);
 
   // Filter for Lower Records List
   const filteredRecords = useMemo(() => {
@@ -580,7 +676,15 @@ function AlternativeProduct() {
                   style={{ width: '175px', fontWeight: '700', color: '#000080' }}
                   value={formData.itemCode}
                   onChange={handleItemCodeInputChange}
-                  placeholder="Enter Item Code..."
+                  onBlur={handleItemCodeBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleItemCodeBlur();
+                    }
+                  }}
+                  placeholder={loadingItems ? 'Loading all items...' : 'Enter Item Code...'}
+                  title={loadingItems ? 'Loading all items from Item Master...' : 'Enter or select Item Code'}
                   autoComplete="off"
                 />
                 <button
@@ -596,7 +700,7 @@ function AlternativeProduct() {
               <datalist id="alt-item-code-datalist">
                 {itemsList.map((item) => (
                   <option key={item._id || item.code} value={item.code}>
-                    {item.description}
+                    {item.description ? `${item.description}` : item.code}
                   </option>
                 ))}
               </datalist>
@@ -836,17 +940,22 @@ function AlternativeProduct() {
               </button>
             </div>
             <div className="alt-prod-modal-body">
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span className="dotted-label-blue" style={{ width: 'auto' }}>Search Item:</span>
-                <input
-                  type="text"
-                  className="alt-prod-input"
-                  style={{ flex: 1, padding: '4px 8px' }}
-                  placeholder="Search by Item Code, Description, or Category..."
-                  autoFocus
-                  value={mainItemModal.search}
-                  onChange={(e) => setMainItemModal({ ...mainItemModal, search: e.target.value })}
-                />
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
+                  <span className="dotted-label-blue" style={{ width: 'auto' }}>Search Item:</span>
+                  <input
+                    type="text"
+                    className="alt-prod-input"
+                    style={{ flex: 1, padding: '4px 8px' }}
+                    placeholder="Search by Item Code, Description, or Category..."
+                    autoFocus
+                    value={mainItemModal.search}
+                    onChange={(e) => setMainItemModal({ ...mainItemModal, search: e.target.value })}
+                  />
+                </div>
+                <span style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                  {loadingItems ? 'Loading items...' : `Showing ${filteredMainItems.length} of ${itemsList.length} items`}
+                </span>
               </div>
 
               <div className="modal-table-viewport">
@@ -931,17 +1040,22 @@ function AlternativeProduct() {
               </button>
             </div>
             <div className="alt-prod-modal-body">
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span className="dotted-label-blue" style={{ width: 'auto' }}>Search Item:</span>
-                <input
-                  type="text"
-                  className="alt-prod-input"
-                  style={{ flex: 1, padding: '4px 8px' }}
-                  placeholder="Type code or description to find replacement/alternative product..."
-                  autoFocus
-                  value={addAltModal.search}
-                  onChange={(e) => setAddAltModal({ ...addAltModal, search: e.target.value })}
-                />
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1 }}>
+                  <span className="dotted-label-blue" style={{ width: 'auto' }}>Search Item:</span>
+                  <input
+                    type="text"
+                    className="alt-prod-input"
+                    style={{ flex: 1, padding: '4px 8px' }}
+                    placeholder="Type code or description to find replacement/alternative product..."
+                    autoFocus
+                    value={addAltModal.search}
+                    onChange={(e) => setAddAltModal({ ...addAltModal, search: e.target.value })}
+                  />
+                </div>
+                <span style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                  {loadingItems ? 'Loading items...' : `Showing ${filteredAltCandidateItems.length} of ${itemsList.length} items`}
+                </span>
               </div>
 
               <div className="modal-table-viewport">

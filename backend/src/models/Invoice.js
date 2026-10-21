@@ -81,6 +81,24 @@ const invoiceLineItemSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  availableQty: {
+    type: Number,
+    default: 0,
+  },
+  finalPrice: {
+    type: Number,
+    default: 0,
+  },
+  lastGrn: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  lastGrnDate: {
+    type: String,
+    trim: true,
+    default: '',
+  },
 });
 
 /**

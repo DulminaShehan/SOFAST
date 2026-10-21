@@ -142,6 +142,11 @@ const grnSchema = new mongoose.Schema(
       trim: true,
       default: 'pending',
     },
+    status: {
+      type: String,
+      trim: true,
+      default: 'active',
+    },
     date: {
       type: Date,
       default: Date.now,

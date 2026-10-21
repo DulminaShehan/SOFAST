@@ -6,6 +6,7 @@ import {
   getRemainingBalances,
   createInvoice,
   updateInvoice,
+  cancelInvoice,
   deleteInvoice,
 } from '../controllers/invoiceController.js';
 
@@ -17,6 +18,7 @@ router.get('/', getInvoices);
 router.get('/:id', getInvoiceById);
 router.post('/', createInvoice);
 router.put('/:id', updateInvoice);
+router.post('/:id/cancel', cancelInvoice);
 router.delete('/:id', deleteInvoice);
 
 export default router;

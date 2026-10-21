@@ -120,9 +120,28 @@ export const getInvoiceById = async (req, res, next) => {
 };
 
 /**
- * Create and Save a new Invoice, updating stock if completed
+ * Helper to aggregate line items by item code to ensure unique quantities per item
+ */
+export const aggregateItemsByCode = (lines) => {
+  const map = new Map();
+  if (!Array.isArray(lines)) return map;
+  for (const line of lines) {
+    const code = (line.code || line.itemCode || '').trim();
+    if (!code) continue;
+    const qty = parseFloat(line.quantity !== undefined ? line.quantity : line.qty) || 0;
+    if (qty <= 0) continue;
+    const existing = map.get(code) || { code, quantity: 0, line };
+    existing.quantity += qty;
+    map.set(code, existing);
+  }
+  return map;
+};
+
+/**
+ * Create and Save a new Invoice, updating stock atomically if completed
  */
 export const createInvoice = async (req, res, next) => {
+  let appliedDeductions = [];
   try {
     const db = mongoose.connection.db;
     const {
@@ -238,6 +257,14 @@ export const createInvoice = async (req, res, next) => {
         value: Math.round(lineVal * 100) / 100,
         total: Math.round(lineVal * 100) / 100,
         balance: parseFloat(item.balance) || 0,
+        availableQty: parseFloat(item.availableQty) !== undefined && !isNaN(parseFloat(item.availableQty))
+          ? parseFloat(item.availableQty)
+          : parseFloat(item.balance) || 0,
+        finalPrice: parseFloat(item.finalPrice) !== undefined && !isNaN(parseFloat(item.finalPrice))
+          ? parseFloat(item.finalPrice)
+          : Math.round(lineVal * 100) / 100,
+        lastGrn: item.lastGrn ? String(item.lastGrn).trim() : '',
+        lastGrnDate: item.lastGrnDate ? String(item.lastGrnDate).trim() : '',
       });
     }
 
@@ -250,6 +277,51 @@ export const createInvoice = async (req, res, next) => {
     const invStatus = holdStatus ? 'hold' : (reqStatus || 'completed');
     const isCompleted = !holdStatus;
     const isStockUpdated = isCompleted;
+
+    // Stock validation & atomic deduction ONLY if invoice is completed (not on hold)
+    if (isStockUpdated) {
+      const itemsMap = aggregateItemsByCode(processedLineItems);
+
+      // Pre-validation: Verify sufficient stock for all items
+      for (const [code, { quantity: requiredQty }] of itemsMap.entries()) {
+        const item = await Item.findOne({ code });
+        if (!item) {
+          return res.status(400).json({
+            success: false,
+            message: `Item code '${code}' does not exist in Item Master`,
+          });
+        }
+        const available = Number(item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)) || 0;
+        if (available < requiredQty) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for item '${code}' (${item.description || ''}). Available: ${available}, Required: ${requiredQty}`,
+          });
+        }
+      }
+
+      // Atomic deduction with rollback on failure
+      for (const [code, { quantity: qtyToDeduct }] of itemsMap.entries()) {
+        const updateRes = await Item.updateOne(
+          { code, quantity: { $gte: qtyToDeduct } },
+          { $inc: { quantity: -qtyToDeduct, stockInHand: -qtyToDeduct } }
+        );
+        if (updateRes.matchedCount === 0 || updateRes.modifiedCount === 0) {
+          for (const rolled of appliedDeductions) {
+            await Item.updateOne(
+              { code: rolled.code },
+              { $inc: { quantity: rolled.qty, stockInHand: rolled.qty } }
+            );
+          }
+          appliedDeductions = [];
+          return res.status(400).json({
+            success: false,
+            message: `Concurrent stock change detected for item '${code}'. Insufficient stock to complete sale.`,
+          });
+        }
+        appliedDeductions.push({ code, qty: qtyToDeduct });
+      }
+    }
 
     const newInvoice = new Invoice({
       no: Number(finalNo),
@@ -283,7 +355,18 @@ export const createInvoice = async (req, res, next) => {
       isCompleted,
     });
 
-    await newInvoice.save();
+    try {
+      await newInvoice.save();
+    } catch (saveError) {
+      // Rollback applied stock deductions if database save fails
+      for (const rolled of appliedDeductions) {
+        await Item.updateOne(
+          { code: rolled.code },
+          { $inc: { quantity: rolled.qty, stockInHand: rolled.qty } }
+        );
+      }
+      throw saveError;
+    }
 
     // Update docnumbers sequence
     await db.collection('docnumbers').updateOne(
@@ -291,21 +374,6 @@ export const createInvoice = async (req, res, next) => {
       { $set: { currentNumber: Number(finalNo) } },
       { upsert: true }
     );
-
-    // Stock deduction ONLY if invoice is completed (not on hold)
-    if (isStockUpdated) {
-      for (const line of processedLineItems) {
-        if (!line.code) continue;
-        const item = await Item.findOne({ code: line.code.trim() });
-        if (item) {
-          const curQty = Number(item.quantity || item.stockInHand || 0);
-          const newQty = Math.max(0, curQty - line.quantity);
-          item.quantity = newQty;
-          item.stockInHand = newQty;
-          await item.save();
-        }
-      }
-    }
 
     return res.status(201).json({
       success: true,
@@ -324,7 +392,7 @@ export const createInvoice = async (req, res, next) => {
 };
 
 /**
- * Update an existing Invoice and manage stock differences safely
+ * Update an existing Invoice and manage stock differences safely and idempotently
  */
 export const updateInvoice = async (req, res, next) => {
   try {
@@ -362,21 +430,6 @@ export const updateInvoice = async (req, res, next) => {
       bank,
       dateRealized,
     } = req.body;
-
-    // If previous invoice was completed and had deducted stock, revert previous stock deductions
-    if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
-      for (const oldLine of invoice.lineItems) {
-        if (!oldLine.code) continue;
-        const item = await Item.findOne({ code: oldLine.code.trim() });
-        if (item) {
-          const curQty = Number(item.quantity || item.stockInHand || 0);
-          const restoredQty = curQty + (oldLine.quantity || 0);
-          item.quantity = restoredQty;
-          item.stockInHand = restoredQty;
-          await item.save();
-        }
-      }
-    }
 
     // Process updated line items
     let calculatedSubTotal = 0;
@@ -431,6 +484,14 @@ export const updateInvoice = async (req, res, next) => {
         value: Math.round(lineVal * 100) / 100,
         total: Math.round(lineVal * 100) / 100,
         balance: parseFloat(item.balance) || 0,
+        availableQty: parseFloat(item.availableQty) !== undefined && !isNaN(parseFloat(item.availableQty))
+          ? parseFloat(item.availableQty)
+          : parseFloat(item.balance) || 0,
+        finalPrice: parseFloat(item.finalPrice) !== undefined && !isNaN(parseFloat(item.finalPrice))
+          ? parseFloat(item.finalPrice)
+          : Math.round(lineVal * 100) / 100,
+        lastGrn: item.lastGrn ? String(item.lastGrn).trim() : '',
+        lastGrnDate: item.lastGrnDate ? String(item.lastGrnDate).trim() : '',
       });
     }
 
@@ -440,9 +501,89 @@ export const updateInvoice = async (req, res, next) => {
     const dueAmount = Math.max(0, amountToPay - amtReceived);
 
     const holdStatus = isHold !== undefined ? Boolean(isHold) : invoice.isHold;
-    const invStatus = holdStatus ? 'hold' : (reqStatus || 'completed');
-    const isCompleted = !holdStatus;
-    const isStockUpdated = isCompleted;
+    const invStatus = holdStatus ? 'hold' : (reqStatus || invoice.status || 'completed');
+    const wasStockUpdated = Boolean(invoice.isStockUpdated && !invoice.isHold && invoice.status !== 'hold' && invoice.status !== 'cancelled');
+    const targetStockUpdated = Boolean(!holdStatus && invStatus !== 'cancelled');
+
+    // Safe Stock Reconciliation Workflow
+    if (!wasStockUpdated && targetStockUpdated) {
+      // Case A: Transition from Draft/Hold to Completed -> Deduct stock
+      const newMap = aggregateItemsByCode(processedLineItems);
+
+      // Pre-validation
+      for (const [code, { quantity: requiredQty }] of newMap.entries()) {
+        const item = await Item.findOne({ code });
+        if (!item) {
+          return res.status(400).json({
+            success: false,
+            message: `Item code '${code}' not found in Item Master`,
+          });
+        }
+        const available = Number(item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)) || 0;
+        if (available < requiredQty) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for item '${code}'. Available: ${available}, Required: ${requiredQty}`,
+          });
+        }
+      }
+
+      for (const [code, { quantity: requiredQty }] of newMap.entries()) {
+        await Item.updateOne(
+          { code },
+          { $inc: { quantity: -requiredQty, stockInHand: -requiredQty } }
+        );
+      }
+      invoice.isStockUpdated = true;
+    } else if (wasStockUpdated && !targetStockUpdated) {
+      // Case B: Transition from Completed to Draft/Hold/Cancelled -> Revert stock
+      const oldMap = aggregateItemsByCode(invoice.lineItems);
+      for (const [code, { quantity: oldQty }] of oldMap.entries()) {
+        await Item.updateOne(
+          { code },
+          { $inc: { quantity: oldQty, stockInHand: oldQty } }
+        );
+      }
+      invoice.isStockUpdated = false;
+    } else if (wasStockUpdated && targetStockUpdated) {
+      // Case C: Already posted invoice being modified -> Apply only the difference (delta = new - old)
+      const oldMap = aggregateItemsByCode(invoice.lineItems);
+      const newMap = aggregateItemsByCode(processedLineItems);
+      const allCodes = new Set([...oldMap.keys(), ...newMap.keys()]);
+
+      // Pre-validate any items where delta > 0 (requiring additional stock)
+      for (const code of allCodes) {
+        const oldQty = oldMap.get(code)?.quantity || 0;
+        const newQty = newMap.get(code)?.quantity || 0;
+        const delta = newQty - oldQty;
+        if (delta > 0) {
+          const item = await Item.findOne({ code });
+          const available = Number(item ? (item.quantity !== undefined ? item.quantity : item.stockInHand) : 0) || 0;
+          if (available < delta) {
+            return res.status(400).json({
+              success: false,
+              message: `Insufficient stock to increase quantity of item '${code}'. Available: ${available}, Additional required: ${delta}`,
+            });
+          }
+        }
+      }
+
+      // Apply atomic delta adjustments
+      for (const code of allCodes) {
+        const oldQty = oldMap.get(code)?.quantity || 0;
+        const newQty = newMap.get(code)?.quantity || 0;
+        const delta = newQty - oldQty;
+        if (delta !== 0) {
+          // If delta > 0: reduce stock by delta (-delta)
+          // If delta < 0: return stock by |delta| (+(-delta))
+          await Item.updateOne(
+            { code },
+            { $inc: { quantity: -delta, stockInHand: -delta } }
+          );
+        }
+      }
+      invoice.isStockUpdated = true;
+    }
 
     if (date) invoice.date = new Date(date);
     if (customerCode !== undefined) {
@@ -476,29 +617,70 @@ export const updateInvoice = async (req, res, next) => {
     if (bank !== undefined) invoice.bank = bank;
     if (dateRealized !== undefined) invoice.dateRealized = dateRealized;
     invoice.dueAmount = Math.round(dueAmount * 100) / 100;
-    invoice.isStockUpdated = isStockUpdated;
-    invoice.isCompleted = isCompleted;
+    invoice.isStockUpdated = targetStockUpdated;
+    invoice.isCompleted = targetStockUpdated;
 
     await invoice.save();
-
-    // Apply new stock deductions if completed
-    if (isStockUpdated) {
-      for (const line of processedLineItems) {
-        if (!line.code) continue;
-        const item = await Item.findOne({ code: line.code.trim() });
-        if (item) {
-          const curQty = Number(item.quantity || item.stockInHand || 0);
-          const newQty = Math.max(0, curQty - line.quantity);
-          item.quantity = newQty;
-          item.stockInHand = newQty;
-          await item.save();
-        }
-      }
-    }
 
     return res.status(200).json({
       success: true,
       message: `Invoice '${invoice.invoiceNumber}' updated successfully`,
+      data: invoice,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Cancel an invoice and safely restore stock exactly once
+ */
+export const cancelInvoice = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    let invoice = null;
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      invoice = await Invoice.findById(id);
+    }
+    if (!invoice) {
+      invoice = await Invoice.findOne({ invoiceNumber: id.trim() });
+    }
+
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: `Invoice '${id}' not found`,
+      });
+    }
+
+    // Idempotency: Prevent duplicate cancellations / reversals
+    if (invoice.status === 'cancelled') {
+      return res.status(200).json({
+        success: true,
+        message: `Invoice '${invoice.invoiceNumber}' is already cancelled. Stock was not modified.`,
+        data: invoice,
+      });
+    }
+
+    // Revert stock deductions if they were applied
+    if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
+      const itemsMap = aggregateItemsByCode(invoice.lineItems);
+      for (const [code, { quantity: oldQty }] of itemsMap.entries()) {
+        await Item.updateOne(
+          { code },
+          { $inc: { quantity: oldQty, stockInHand: oldQty } }
+        );
+      }
+      invoice.isStockUpdated = false;
+    }
+
+    invoice.status = 'cancelled';
+    await invoice.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Invoice '${invoice.invoiceNumber}' cancelled and stock restored successfully`,
       data: invoice,
     });
   } catch (error) {
@@ -530,17 +712,14 @@ export const deleteInvoice = async (req, res, next) => {
 
     // Revert stock deductions if they were applied
     if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
-      for (const line of invoice.lineItems) {
-        if (!line.code) continue;
-        const item = await Item.findOne({ code: line.code.trim() });
-        if (item) {
-          const curQty = Number(item.quantity || item.stockInHand || 0);
-          const restoredQty = curQty + (line.quantity || 0);
-          item.quantity = restoredQty;
-          item.stockInHand = restoredQty;
-          await item.save();
-        }
+      const itemsMap = aggregateItemsByCode(invoice.lineItems);
+      for (const [code, { quantity: oldQty }] of itemsMap.entries()) {
+        await Item.updateOne(
+          { code },
+          { $inc: { quantity: oldQty, stockInHand: oldQty } }
+        );
       }
+      invoice.isStockUpdated = false;
     }
 
     await Invoice.findByIdAndDelete(invoice._id);
