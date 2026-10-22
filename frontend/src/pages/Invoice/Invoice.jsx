@@ -1950,15 +1950,15 @@ function Invoice() {
             </button>
           </div>
         )}        <div className="sofast-window-container">
-          {/* TOP SECTION: Left (Customer + Vehicle Info + 3 Buttons) and Right (2 Stacked Tables) */}
+          {/* TOP SECTION: Left (Customer + Vehicle Info + Action Buttons) and Right (Tall Catalog Table) */}
           <div className="sofast-top-middle-grid">
-            {/* Left Side: Header Panel (Customer Col + Vehicle Col + 3 Buttons) + Item Entry Frame */}
+            {/* Left Side: Header Panel + Item Entry Frame */}
             <div className="sofast-left-side">
-              {/* Header Panel */}
+              {/* Header Panel (Customer Col + Vehicle Col + 4 Buttons + Settlement Invoice button) */}
               <div className="sofast-header-panel">
                 {/* 1. Customer Column (Left) */}
                 <div className="sofast-customer-col">
-                  <div className="sofast-field-header-label">Customer</div>
+                  <div className="sofast-navy-label sofast-field-header-label">Customer</div>
                   <div className="sofast-combo-box">
                     <input
                       type="text"
@@ -2005,12 +2005,13 @@ function Invoice() {
 
                   {/* Invoice No under listbox */}
                   <div className="sofast-inv-no-row">
-                    <span className="sofast-label">Invoice No .</span>
+                    <span className="sofast-navy-label" style={{ minWidth: '65px' }}>Invoice No .</span>
                     <div className="sofast-combo-box" style={{ flex: 1 }}>
                       <input
                         type="text"
                         className="sofast-input"
                         value={invoiceHeader.invoiceNumber || ''}
+                        readOnly={!invoiceHeader.isManualInvoice}
                         onChange={(e) =>
                           setInvoiceHeader({ ...invoiceHeader, invoiceNumber: e.target.value })
                         }
@@ -2035,74 +2036,73 @@ function Invoice() {
 
                 {/* 2. Vehicle & Job Info (Middle) */}
                 <div className="sofast-vehicle-col">
-                  {/* Row 1: Brand & Pucha. On */}
+                  {/* Row 1: Brand & Pucha. On: */}
                   <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Brand</span>
+                    <span className="sofast-navy-label" style={{ width: '45px' }}>Brand</span>
                     <input
                       type="text"
                       className="sofast-input"
-                      style={{ flex: 1, marginRight: '8px' }}
+                      style={{ width: '105px', marginRight: '6px' }}
                       value={invoiceHeader.brand || ''}
                       onChange={(e) => setInvoiceHeader({ ...invoiceHeader, brand: e.target.value })}
                     />
-                    <span className="sofast-label" style={{ width: '75px' }}>Pucha. On:</span>
-                    <input
-                      type="text"
-                      className="sofast-input"
-                      style={{ width: '130px' }}
-                      value={invoiceHeader.puchaOn || invoiceHeader.date}
-                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, puchaOn: e.target.value })}
-                    />
+                    <span className="sofast-navy-label" style={{ width: '65px' }}>Pucha. On:</span>
+                    <div className="sofast-combo-box" style={{ width: '125px' }}>
+                      <input
+                        type="text"
+                        className="sofast-input"
+                        value={invoiceHeader.puchaOn || invoiceHeader.date}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, puchaOn: e.target.value })}
+                      />
+                      <button type="button" className="sofast-combo-btn">&#x25BC;</button>
+                    </div>
                   </div>
 
-                  {/* Row 2: Model & Engine No */}
+                  {/* Row 2: Model & Payment Method . . . */}
                   <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Model</span>
+                    <span className="sofast-navy-label" style={{ width: '45px' }}>Model</span>
                     <input
                       type="text"
                       className="sofast-input"
-                      style={{ flex: 1, marginRight: '8px' }}
+                      style={{ width: '105px', marginRight: '6px' }}
                       value={invoiceHeader.model || ''}
                       onChange={(e) => setInvoiceHeader({ ...invoiceHeader, model: e.target.value })}
                     />
-                    <span className="sofast-label" style={{ width: '75px' }}>Engine No:</span>
-                    <input
-                      type="text"
-                      className="sofast-input"
-                      style={{ width: '130px' }}
-                      value={invoiceHeader.engineNo || ''}
-                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, engineNo: e.target.value })}
-                    />
+                    <span className="sofast-navy-label" style={{ width: '110px' }}>Payment Method . . .</span>
+                    <div className="sofast-combo-box" style={{ width: '80px' }}>
+                      <select
+                        className="sofast-select"
+                        value={invoiceHeader.paymentMethod || invoiceHeader.type || 'Cash'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInvoiceHeader({ ...invoiceHeader, paymentMethod: val, type: val });
+                          setPayment({ ...payment, paymentMethod: val });
+                        }}
+                      >
+                        <option value="Cash">Cash</option>
+                        <option value="Credit">Credit</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Card">Card</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                      </select>
+                    </div>
                   </div>
 
-                  {/* Row 3: Chessis No */}
-                  <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Chessis No</span>
-                    <input
-                      type="text"
-                      className="sofast-input"
-                      style={{ flex: 1 }}
-                      value={invoiceHeader.chassisNo || ''}
-                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, chassisNo: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Row 4: Address */}
-                  <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Address</span>
-                    <input
-                      type="text"
-                      className="sofast-input"
-                      style={{ flex: 1 }}
-                      value={invoiceHeader.customerAddress || ''}
+                  {/* Row 3: Address (multi-row box) */}
+                  <div className="sofast-row" style={{ height: '36px', alignItems: 'flex-start' }}>
+                    <span className="sofast-navy-label" style={{ width: '45px', marginTop: '2px' }}>Address</span>
+                    <textarea
+                      className="sofast-input sofast-address-textarea"
+                      style={{ flex: 1, height: '34px', resize: 'none' }}
+                      value={invoiceHeader.customerAddress || 'YATADOLA'}
                       onChange={(e) => setInvoiceHeader({ ...invoiceHeader, customerAddress: e.target.value })}
                     />
                   </div>
 
-                  {/* Row 5: Job Done by .. */}
+                  {/* Row 4: Job Done by .. */}
                   <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Job Done by ..</span>
-                    <div className="sofast-combo-box" style={{ flex: 1.2, marginRight: '4px' }}>
+                    <span className="sofast-navy-label" style={{ width: '80px' }}>Job Done by ..</span>
+                    <div className="sofast-combo-box" style={{ width: '145px' }}>
                       <input
                         type="text"
                         className="sofast-input"
@@ -2111,49 +2111,28 @@ function Invoice() {
                       />
                       <button type="button" className="sofast-combo-btn">&#x25BC;</button>
                     </div>
-                    <div className="sofast-combo-box" style={{ flex: 0.8 }}>
+                  </div>
+
+                  {/* Row 5: Date . . . . . . . */}
+                  <div className="sofast-row">
+                    <span className="sofast-navy-label" style={{ width: '80px' }}>Date . . . . . . .</span>
+                    <div className="sofast-combo-box" style={{ width: '145px' }}>
                       <input
                         type="text"
                         className="sofast-input"
-                        value={invoiceHeader.jobDoneBy2 || ''}
-                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobDoneBy2: e.target.value })}
-                      />
-                      <button type="button" className="sofast-combo-btn">&#x25BC;</button>
-                    </div>
-                  </div>
-
-                  {/* Row 6: Meter Reading */}
-                  <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Meter Reading</span>
-                    <input
-                      type="text"
-                      className="sofast-input"
-                      style={{ flex: 1 }}
-                      value={invoiceHeader.meterReading || ''}
-                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, meterReading: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Row 7: Date . . . . . . . . */}
-                  <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Date . . . . . . . .</span>
-                    <div className="sofast-combo-box" style={{ flex: 1 }}>
-                      <input
-                        type="text"
-                        className="sofast-input"
-                        value={invoiceHeader.date || ''}
+                        value={invoiceHeader.date || '10/ 6/ 2026'}
                         onChange={(e) => setInvoiceHeader({ ...invoiceHeader, date: e.target.value })}
                       />
                       <button type="button" className="sofast-combo-btn">&#x25BC;</button>
                     </div>
                   </div>
 
-                  {/* Row 8: Type . . . . . . . . */}
+                  {/* Row 6: Type . . . . . . . */}
                   <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Type . . . . . . . .</span>
-                    <div className="sofast-combo-box" style={{ flex: 1 }}>
+                    <span className="sofast-navy-label" style={{ width: '80px' }}>Type . . . . . . .</span>
+                    <div className="sofast-combo-box" style={{ width: '145px' }}>
                       <select
-                        className="sofast-input sofast-select"
+                        className="sofast-select"
                         value={invoiceHeader.type || invoiceHeader.paymentMethod || 'Cash'}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -2170,29 +2149,16 @@ function Invoice() {
                     </div>
                   </div>
 
-                  {/* Row 9: Cus. P.O . . . . */}
-                  <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '85px' }}>Cus. P.O . . . .</span>
-                    <input
-                      type="text"
-                      className="sofast-input"
-                      style={{ flex: 1 }}
-                      value={invoiceHeader.cusPo || ''}
-                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, cusPo: e.target.value })}
-                    />
-                  </div>
-
-                  {/* Row 10: Job Sheet / Master P.O . . . */}
-                  <div className="sofast-row">
-                    <span className="sofast-label" style={{ width: '150px' }}>Job Sheet / Master P.O . . .</span>
-                    <input
-                      type="text"
-                      className="sofast-input"
-                      style={{ flex: 1, marginRight: '4px' }}
-                      value={invoiceHeader.jobSheetMasterPo || ''}
-                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobSheetMasterPo: e.target.value })}
-                    />
-                    <button type="button" className="sofast-btn-dots">...</button>
+                  {/* Bottom: Create New Invoice / Settlement Invoice button */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <button
+                      type="button"
+                      className="sofast-classic-btn"
+                      style={{ padding: '2px 14px', height: '22px' }}
+                      onClick={handleCreateInvoiceButtonClick}
+                    >
+                      Create New Invoice / Settlement Invoice
+                    </button>
                   </div>
                 </div>
 
@@ -2219,15 +2185,22 @@ function Invoice() {
                   >
                     Rem. Discount
                   </button>
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    onClick={handleManualInvoiceToggle}
+                  >
+                    Manual Invoice
+                  </button>
                 </div>
               </div>
 
               {/* Item Entry Box */}
               <div className="sofast-item-entry-frame">
-                {/* Header row: Type of Job & Create New Invoice / Save */}
+                {/* Header row: Type of Job */}
                 <div className="sofast-entry-header-row">
                   <div className="sofast-job-type-box">
-                    <span className="sofast-label" style={{ marginRight: '6px' }}>Type of Job . . . .</span>
+                    <span className="sofast-navy-label" style={{ marginRight: '6px' }}>Type of Job . . . .</span>
                     <label className="sofast-radio-label">
                       <input
                         type="radio"
@@ -2292,60 +2265,53 @@ function Invoice() {
                       Bar Code
                     </label>
                   </div>
-
-                  <div className="sofast-entry-buttons">
-                    <button
-                      type="button"
-                      className="sofast-classic-btn"
-                      onClick={handleNew}
-                    >
-                      Create New Invoice
-                    </button>
-                    <button
-                      type="button"
-                      className="sofast-classic-btn sofast-save-btn"
-                      onClick={handleAddOrUpdateItem}
-                    >
-                      Save
-                    </button>
-                  </div>
                 </div>
 
                 {/* Form Row 1: Code - Material & GRN */}
                 <div className="sofast-form-row">
-                  <span className="sofast-label" style={{ width: '105px' }}>Code - Material</span>
+                  <span className="sofast-navy-label" style={{ width: '95px' }}>Code - Material</span>
                   <input
                     ref={itemCodeInputRef}
                     type="text"
                     name="code"
                     className="sofast-input code-olive-input"
-                    style={{ width: '220px', marginRight: '16px' }}
+                    style={{ width: '210px', marginRight: '8px' }}
                     value={itemEntry.code}
                     onChange={handleItemEntryChange}
-                    onKeyDown={handleCodeKeyDown}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleAddOrUpdateItem();
+                      } else {
+                        handleCodeKeyDown(e);
+                      }
+                    }}
                     placeholder="Item Code"
                   />
-                  <span className="sofast-label" style={{ width: '55px' }}>GRN . .</span>
+                  <span className="sofast-navy-label" style={{ width: '45px' }}>GRN . .</span>
                   <input
                     type="text"
                     className="sofast-input"
                     style={{ flex: 1 }}
                     readOnly
-                    value={itemEntry.lastGrnFormatted || itemEntry.lastGrn || '2566 on 06/10/26 - 5'}
+                    value={itemEntry.lastGrnFormatted || itemEntry.lastGrn || '2556 on 06/10/26 - 5'}
                   />
                 </div>
 
                 {/* Form Row 2: Coupon No & INV */}
                 <div className="sofast-form-row">
-                  <span className="sofast-label" style={{ width: '105px' }}>Coupon No . . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '95px' }}>Coupon No . . . .</span>
                   <input
                     type="text"
                     className="sofast-input coupon-green-input"
-                    style={{ width: '220px', marginRight: '16px' }}
-                    value="All Product Available"
+                    style={{ width: '210px', marginRight: '8px' }}
+                    value={
+                      alternativeProducts.length > 0
+                        ? `${alternativeProducts.length} Alternative(s) Available`
+                        : 'No Product Available'
+                    }
                     readOnly
                   />
-                  <span className="sofast-label" style={{ width: '55px' }}>INV . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '45px' }}>INV . . .</span>
                   <input
                     type="text"
                     className="sofast-input"
@@ -2355,57 +2321,49 @@ function Invoice() {
                   />
                 </div>
 
-                {/* Form Row 3: Description & Secondary Desc */}
+                {/* Form Row 3: Description */}
                 <div className="sofast-form-row">
-                  <span className="sofast-label" style={{ width: '105px' }}>Description . . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '95px' }}>Description . . . .</span>
                   <input
                     type="text"
                     name="description"
                     className="sofast-input"
-                    style={{ width: '300px', marginRight: '8px' }}
-                    value={itemEntry.description}
-                    onChange={handleItemEntryChange}
-                  />
-                  <input
-                    type="text"
-                    name="secondDesc"
-                    className="sofast-input"
                     style={{ flex: 1 }}
-                    value={itemEntry.secondDesc || ''}
+                    value={itemEntry.description}
                     onChange={handleItemEntryChange}
                   />
                 </div>
 
-                {/* Form Row 4: Quantity, Rate, Standard Rate, Add a Note */}
+                {/* Form Row 4: Quantity, Rate, Add a Note */}
                 <div className="sofast-form-row">
-                  <span className="sofast-label" style={{ width: '105px' }}>Quantity . . . . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '95px' }}>Quantity . . . . . .</span>
                   <input
                     type="number"
                     name="quantity"
                     className="sofast-input"
-                    style={{ width: '110px', marginRight: '16px' }}
+                    style={{ width: '115px', marginRight: '10px' }}
                     value={itemEntry.quantity}
                     onChange={handleItemEntryChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                    }}
                   />
-                  <span className="sofast-label" style={{ width: '90px' }}>Rate . . . . . . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '75px' }}>Rate . . . . . . . .</span>
                   <input
                     type="text"
                     name="rate"
                     className="sofast-input"
-                    style={{ width: '100px', marginRight: '8px' }}
+                    style={{ width: '120px', marginRight: 'auto' }}
                     value={itemEntry.rate}
                     onChange={handleItemEntryChange}
-                  />
-                  <input
-                    type="text"
-                    className="sofast-input"
-                    style={{ width: '80px', marginRight: '12px' }}
-                    value={itemEntry.standardRate || '1200'}
-                    readOnly
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                    }}
                   />
                   <button
                     type="button"
                     className="sofast-classic-btn"
+                    style={{ width: '95px' }}
                     onClick={() => {
                       const noteText = prompt('Add a Note for this line item:', itemEntry.note || '');
                       if (noteText !== null) {
@@ -2419,96 +2377,70 @@ function Invoice() {
 
                 {/* Form Row 5: Selling Price, Discount, Cost */}
                 <div className="sofast-form-row">
-                  <span className="sofast-label" style={{ width: '105px' }}>Selling Price . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '95px' }}>Selling Price . . .</span>
                   <input
                     type="number"
                     name="price"
                     className="sofast-input"
-                    style={{ width: '110px', marginRight: '16px' }}
+                    style={{ width: '115px', marginRight: '10px' }}
                     value={itemEntry.price}
                     onChange={handleItemEntryChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                    }}
                   />
-                  <span className="sofast-label" style={{ width: '90px' }}>Discount . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '75px' }}>Discount . . .</span>
                   <input
                     type="text"
                     name="discountPercentage"
                     className="sofast-input discount-lavender-input"
-                    style={{ width: '140px', marginRight: '8px' }}
+                    style={{ width: '120px', marginRight: '10px' }}
                     value={itemEntry.discountPercentage}
                     onChange={handleItemEntryChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                    }}
                   />
-                  <span className="sofast-label" style={{ width: '50px' }}>Cost . .</span>
+                  <span className="sofast-navy-label" style={{ width: '45px' }}>Cost . . .</span>
                   <input
                     type="text"
                     className="sofast-input"
-                    style={{ width: '100px' }}
+                    style={{ width: '95px' }}
                     readOnly
                     value={itemEntry.itemCost || '740'}
                   />
                 </div>
 
-                {/* Form Row 6: Value, Rack/BIN, Due */}
+                {/* Form Row 6: Value, Location */}
                 <div className="sofast-form-row">
-                  <span className="sofast-label" style={{ width: '105px' }}>Value . . . . . . . .</span>
+                  <span className="sofast-navy-label" style={{ width: '95px' }}>Value . . . . . . . .</span>
                   <input
                     type="text"
                     className="sofast-input"
-                    style={{ width: '110px', marginRight: '16px' }}
+                    style={{ width: '115px', marginRight: '10px' }}
                     readOnly
                     value={itemEntry.value || itemEntry.finalPrice || ''}
                   />
-                  <span className="sofast-label" style={{ width: '90px' }}>Rack/BIN . . .</span>
-                  <input
-                    type="text"
-                    className="sofast-input"
-                    style={{ width: '140px', marginRight: '8px' }}
-                    value={itemEntry.rackBin || 'R14-F-1'}
-                    onChange={(e) => setItemEntry({ ...itemEntry, rackBin: e.target.value })}
-                  />
-                  <span className="sofast-label" style={{ width: '50px' }}>Due . . . .</span>
-                  <input
-                    type="text"
-                    className="sofast-input"
-                    style={{ width: '100px' }}
-                    readOnly
-                    value={itemEntry.due || '0'}
-                  />
-                </div>
-
-                {/* Form Row 7: Balance, Total, Disc */}
-                <div className="sofast-form-row">
-                  <span className="sofast-label" style={{ width: '105px' }}>Balance . . . . . .</span>
-                  <input
-                    type="text"
-                    className="sofast-input"
-                    style={{ width: '110px', marginRight: '16px' }}
-                    readOnly
-                    value={itemEntry.balance !== undefined && itemEntry.balance !== '' ? itemEntry.balance : itemEntry.availableQty}
-                  />
-                  <span className="sofast-label" style={{ width: '90px' }}>Total . . . . . .</span>
-                  <input
-                    type="text"
-                    className="sofast-input"
-                    style={{ width: '140px', marginRight: '8px' }}
-                    readOnly
-                    value={itemEntry.total || ''}
-                  />
-                  <span className="sofast-label" style={{ width: '50px' }}>Disc. . . .</span>
-                  <input
-                    type="text"
-                    className="sofast-input"
-                    style={{ width: '100px' }}
-                    readOnly
-                    value={itemEntry.discountAmount || ''}
-                  />
+                  <span className="sofast-navy-label" style={{ width: '75px' }}>Location . . . .</span>
+                  <div className="sofast-combo-box" style={{ width: '140px' }}>
+                    <select
+                      className="sofast-select"
+                      value={itemEntry.location || 'Main Store'}
+                      onChange={(e) => setItemEntry({ ...itemEntry, location: e.target.value })}
+                    >
+                      <option value="Main Store">Main Store</option>
+                      <option value="Front Shop">Front Shop</option>
+                      <option value="Rack B">Rack B</option>
+                      <option value="Warehouse">Warehouse</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Side: Stacked Product Tables (Catalog Items on Top, Alternative Products on Bottom) */}
+            {/* Right Side: Single Tall Catalog Items Table */}
             <div className="sofast-right-tables-col">
-              {/* Upper Table: Catalog Items */}
-              <div className="sofast-table-panel">
+              <div className="sofast-table-panel sofast-tall-table-panel">
                 <div className="sofast-table-scroll-container">
                   <table className="sofast-classic-table">
                     <thead>
@@ -2535,46 +2467,6 @@ function Invoice() {
                   </table>
                 </div>
               </div>
-
-              {/* Lower Table: Alternative Products */}
-              <div className="sofast-table-panel">
-                <div className="sofast-table-scroll-container">
-                  <table className="sofast-classic-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '110px' }}>Code</th>
-                        <th>Description</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loadingAlternatives ? (
-                        <tr>
-                          <td colSpan="2" style={{ padding: '8px', color: '#666', fontStyle: 'italic' }}>
-                            Loading alternatives...
-                          </td>
-                        </tr>
-                      ) : alternativeProducts.length === 0 ? (
-                        Array.from({ length: 8 }).map((_, idx) => (
-                          <tr key={`empty-alt-${idx}`}>
-                            <td>&nbsp;</td>
-                            <td>&nbsp;</td>
-                          </tr>
-                        ))
-                      ) : (
-                        alternativeProducts.map((alt, idx) => (
-                          <tr
-                            key={alt._id || alt.code || idx}
-                            onClick={() => handleSelectAlternativeProduct(alt)}
-                          >
-                            <td className="sofast-cell-code">{alt.code}</td>
-                            <td className="sofast-cell-desc">{alt.description}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -2583,20 +2475,18 @@ function Invoice() {
             <table className="sofast-grid-table">
               <thead>
                 <tr>
-                  <th style={{ width: '135px' }}>Code</th>
-                  <th style={{ minWidth: '350px' }}>Description</th>
-                  <th style={{ width: '100px' }}>Selling Price</th>
-                  <th style={{ width: '100px' }}>Quantity</th>
-                  <th style={{ width: '80px' }}>Discount</th>
-                  <th style={{ width: '100px' }}>Value</th>
-                  <th style={{ width: '40px', textAlign: 'center' }}></th>
+                  <th style={{ width: '130px' }}>Code</th>
+                  <th style={{ minWidth: '400px' }}>Description</th>
+                  <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
+                  <th style={{ width: '70px', textAlign: 'center' }}>Quantity</th>
+                  <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
+                  <th style={{ width: '95px', textAlign: 'right' }}>Value</th>
                 </tr>
               </thead>
               <tbody>
                 {lineItems.length === 0 ? (
-                  Array.from({ length: 8 }).map((_, emptyIdx) => (
+                  Array.from({ length: 12 }).map((_, emptyIdx) => (
                     <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
-                      <td>&nbsp;</td>
                       <td>&nbsp;</td>
                       <td>&nbsp;</td>
                       <td>&nbsp;</td>
@@ -2611,6 +2501,8 @@ function Invoice() {
                       key={index}
                       className={selectedLineIndex === index ? 'selected-row' : ''}
                       onClick={() => handleRowClick(index)}
+                      title="Click to edit, Double click to remove"
+                      onDoubleClick={(e) => handleRemoveLineItem(index, e)}
                     >
                       <td className="sofast-cell-code">{item.code}</td>
                       <td>{item.description}</td>
@@ -2624,23 +2516,12 @@ function Invoice() {
                       <td style={{ textAlign: 'right' }}>
                         {Number(item.finalPrice || item.value || 0).toFixed(2)}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className="sofast-grid-del-btn"
-                          title="Remove item"
-                          onClick={(e) => handleRemoveLineItem(index, e)}
-                        >
-                          ✕
-                        </button>
-                      </td>
                     </tr>
                   ))
                 )}
-                {/* Visual grid filler rows if fewer than 8 items */}
-                {lineItems.length > 0 && Array.from({ length: Math.max(0, 8 - lineItems.length) }).map((_, emptyIdx) => (
+                {/* Visual grid filler rows */}
+                {lineItems.length > 0 && Array.from({ length: Math.max(0, 10 - lineItems.length) }).map((_, emptyIdx) => (
                   <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
-                    <td>&nbsp;</td>
                     <td>&nbsp;</td>
                     <td>&nbsp;</td>
                     <td>&nbsp;</td>
@@ -2651,57 +2532,6 @@ function Invoice() {
                 ))}
               </tbody>
             </table>
-          </div>
-
-          {/* BOTTOM ACTION BAR */}
-          <div className="invoice-footer">
-            <div className="invoice-footer-left">
-              <button type="button" className="invoice-btn-classic" onClick={handleNew}>
-                New
-              </button>
-              <button type="button" className="invoice-btn-classic" onClick={handleDeleteInvoice}>
-                Delete
-              </button>
-              <button
-                type="button"
-                className="invoice-btn-classic"
-                onClick={() => handleSaveInvoice(false)}
-                disabled={loading}
-              >
-                {loading ? 'Saving...' : 'Save'}
-              </button>
-              <button type="button" className="invoice-btn-classic" onClick={handlePrint}>
-                Print
-              </button>
-              <button
-                type="button"
-                className="invoice-btn-classic"
-                onClick={() => setPreviewModalOpen(true)}
-              >
-                Preview
-              </button>
-              <button type="button" className="invoice-btn-classic" onClick={handleNew}>
-                Clear
-              </button>
-            </div>
-
-            <div className="invoice-footer-right">
-              <span className="dotted-label-blue" style={{ fontSize: '13px' }}>Total</span>
-              <input
-                type="text"
-                className="invoice-input invoice-total-display total-input-bold"
-                readOnly
-                value={totalAmount.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              />
-            </div>
-          </div>
-
-          {/* STATUS BAR */}
-          <div className="invoice-status-bar">
-            F1-Received Amount, F2-Create Invoice, F3-Entry Type, F4-Catalog, F5-Filter, F7-Cal Discount, F11-Bar code mode
           </div>
         </div>
       </main>
