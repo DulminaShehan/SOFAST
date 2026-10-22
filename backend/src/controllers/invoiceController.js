@@ -159,7 +159,11 @@ export const createInvoice = async (req, res, next) => {
       remark = '',
       lineItems = [],
       specialDiscount = 0,
-      amountReceived = 0,
+      paymentMethod = 'Cash',
+      paidBy = 'Cash',
+      customerPaidAmount,
+      amountReceived,
+      paidAmount,
       chequeNo = '',
       bank = '',
       dateRealized = '',
@@ -268,10 +272,23 @@ export const createInvoice = async (req, res, next) => {
       });
     }
 
+    const resolvedPaymentMethod = paymentMethod || paidBy || 'Cash';
     const specDisc = Math.max(0, parseFloat(specialDiscount) || 0);
     const amountToPay = Math.max(0, calculatedSubTotal - specDisc);
-    const amtReceived = parseFloat(amountReceived) || 0;
-    const dueAmount = Math.max(0, amountToPay - amtReceived);
+
+    // Customer Paid amount (can exceed amountToPay, e.g. Customer gives 5000 for 4500 bill)
+    const rawCustomerPaid = customerPaidAmount !== undefined && customerPaidAmount !== ''
+      ? parseFloat(customerPaidAmount)
+      : (amountReceived !== undefined && amountReceived !== ''
+          ? parseFloat(amountReceived)
+          : (paidAmount !== undefined ? parseFloat(paidAmount) : 0));
+    const customerPaid = Math.max(0, isNaN(rawCustomerPaid) ? 0 : rawCustomerPaid);
+
+    // Amount actually received towards the invoice (strictly capped at amountToPay; change is NOT additional revenue!)
+    const actualReceived = Math.min(customerPaid, amountToPay);
+    const changeGiven = Math.max(0, customerPaid - amountToPay);
+    const calculatedDueAmount = Math.max(0, amountToPay - actualReceived);
+    const paymentStatus = calculatedDueAmount === 0 ? 'paid' : (actualReceived > 0 ? 'partial' : 'unpaid');
 
     const holdStatus = Boolean(isHold);
     const invStatus = holdStatus ? 'hold' : (reqStatus || 'completed');
@@ -345,12 +362,19 @@ export const createInvoice = async (req, res, next) => {
       amountToPay: Math.round(amountToPay * 100) / 100,
       netTotal: Math.round(amountToPay * 100) / 100,
       value: Math.round(amountToPay * 100) / 100,
-      amountReceived: amtReceived,
-      cashReceived: amtReceived,
+      paymentMethod: resolvedPaymentMethod,
+      paidBy: resolvedPaymentMethod,
+      customerPaidAmount: customerPaid,
+      amountReceived: actualReceived,
+      cashReceived: resolvedPaymentMethod === 'Cash' ? actualReceived : 0,
+      paidAmount: actualReceived,
+      balance: changeGiven,
       chequeNo,
       bank,
       dateRealized,
-      dueAmount: Math.round(dueAmount * 100) / 100,
+      dueAmount: Math.round(calculatedDueAmount * 100) / 100,
+      paymentStatus,
+      isSettled: calculatedDueAmount === 0,
       isStockUpdated,
       isCompleted,
     });
@@ -374,6 +398,25 @@ export const createInvoice = async (req, res, next) => {
       { $set: { currentNumber: Number(finalNo) } },
       { upsert: true }
     );
+
+    // Sync customer outstanding balance for credit / partial payments
+    if (customerCode && customerCode.trim()) {
+      const trimmedCus = customerCode.trim();
+      const unpaidInvoices = await Invoice.find({
+        $or: [{ customerCode: trimmedCus }, { cuscode: trimmedCus }],
+        dueAmount: { $gt: 0 },
+      }).lean();
+      const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.dueAmount) || 0), 0);
+      await Customer.updateOne(
+        { $or: [{ code: trimmedCus }, { customerCode: trimmedCus }] },
+        {
+          $set: {
+            dueAmount: Math.round(totalUnpaid * 100) / 100,
+            outstandingBalance: Math.round(totalUnpaid * 100) / 100,
+          },
+        }
+      );
+    }
 
     return res.status(201).json({
       success: true,
@@ -424,8 +467,12 @@ export const updateInvoice = async (req, res, next) => {
       status: reqStatus,
       remark,
       lineItems = [],
-      specialDiscount = 0,
-      amountReceived = 0,
+      specialDiscount,
+      paymentMethod,
+      paidBy,
+      customerPaidAmount,
+      amountReceived,
+      paidAmount,
       chequeNo,
       bank,
       dateRealized,
@@ -495,10 +542,29 @@ export const updateInvoice = async (req, res, next) => {
       });
     }
 
-    const specDisc = Math.max(0, parseFloat(specialDiscount) || 0);
+    const resolvedPaymentMethod =
+      paymentMethod || paidBy || invoice.paymentMethod || invoice.paidBy || 'Cash';
+    const specDisc = specialDiscount !== undefined
+      ? Math.max(0, parseFloat(specialDiscount) || 0)
+      : (invoice.specialDiscount || 0);
     const amountToPay = Math.max(0, calculatedSubTotal - specDisc);
-    const amtReceived = parseFloat(amountReceived) || 0;
-    const dueAmount = Math.max(0, amountToPay - amtReceived);
+
+    const rawCustomerPaid = customerPaidAmount !== undefined && customerPaidAmount !== ''
+      ? parseFloat(customerPaidAmount)
+      : (amountReceived !== undefined && amountReceived !== ''
+          ? parseFloat(amountReceived)
+          : (paidAmount !== undefined
+              ? parseFloat(paidAmount)
+              : (invoice.customerPaidAmount !== undefined
+                  ? invoice.customerPaidAmount
+                  : invoice.amountReceived)));
+    const customerPaid = Math.max(0, isNaN(rawCustomerPaid) ? 0 : rawCustomerPaid);
+
+    // Amount actually received towards the invoice (strictly capped at amountToPay; change is NOT additional revenue!)
+    const actualReceived = Math.min(customerPaid, amountToPay);
+    const changeGiven = Math.max(0, customerPaid - amountToPay);
+    const calculatedDueAmount = Math.max(0, amountToPay - actualReceived);
+    const paymentStatus = calculatedDueAmount === 0 ? 'paid' : (actualReceived > 0 ? 'partial' : 'unpaid');
 
     const holdStatus = isHold !== undefined ? Boolean(isHold) : invoice.isHold;
     const invStatus = holdStatus ? 'hold' : (reqStatus || invoice.status || 'completed');
@@ -611,16 +677,43 @@ export const updateInvoice = async (req, res, next) => {
     invoice.amountToPay = Math.round(amountToPay * 100) / 100;
     invoice.netTotal = Math.round(amountToPay * 100) / 100;
     invoice.value = Math.round(amountToPay * 100) / 100;
-    invoice.amountReceived = amtReceived;
-    invoice.cashReceived = amtReceived;
+    invoice.paymentMethod = resolvedPaymentMethod;
+    invoice.paidBy = resolvedPaymentMethod;
+    invoice.customerPaidAmount = customerPaid;
+    invoice.amountReceived = actualReceived;
+    invoice.cashReceived = resolvedPaymentMethod === 'Cash' ? actualReceived : 0;
+    invoice.paidAmount = actualReceived;
+    invoice.balance = changeGiven;
     if (chequeNo !== undefined) invoice.chequeNo = chequeNo;
     if (bank !== undefined) invoice.bank = bank;
     if (dateRealized !== undefined) invoice.dateRealized = dateRealized;
-    invoice.dueAmount = Math.round(dueAmount * 100) / 100;
+    invoice.dueAmount = Math.round(calculatedDueAmount * 100) / 100;
+    invoice.paymentStatus = paymentStatus;
+    invoice.isSettled = calculatedDueAmount === 0;
     invoice.isStockUpdated = targetStockUpdated;
     invoice.isCompleted = targetStockUpdated;
 
     await invoice.save();
+
+    // Sync customer outstanding balance for credit / partial payments
+    const custCodeToSync = invoice.customerCode || customerCode;
+    if (custCodeToSync && String(custCodeToSync).trim()) {
+      const trimmedCus = String(custCodeToSync).trim();
+      const unpaidInvoices = await Invoice.find({
+        $or: [{ customerCode: trimmedCus }, { cuscode: trimmedCus }],
+        dueAmount: { $gt: 0 },
+      }).lean();
+      const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.dueAmount) || 0), 0);
+      await Customer.updateOne(
+        { $or: [{ code: trimmedCus }, { customerCode: trimmedCus }] },
+        {
+          $set: {
+            dueAmount: Math.round(totalUnpaid * 100) / 100,
+            outstandingBalance: Math.round(totalUnpaid * 100) / 100,
+          },
+        }
+      );
+    }
 
     return res.status(200).json({
       success: true,

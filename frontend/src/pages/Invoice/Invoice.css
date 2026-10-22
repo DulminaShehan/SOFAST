@@ -546,8 +546,173 @@
   flex-shrink: 0;
 }
 
+.item-code-field-group {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
 .item-code-input {
-  width: 160px;
+  width: 140px;
+}
+
+.invoice-btn-dropdown-toggle {
+  height: 24px;
+  width: 20px;
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  color: #000000;
+  font-size: 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  padding: 0;
+  user-select: none;
+}
+
+.invoice-btn-dropdown-toggle:hover {
+  background-color: #dfdbca;
+}
+
+.invoice-item-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 480px;
+  max-width: 85vw;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  margin-top: 1px;
+}
+
+.invoice-item-dropdown-header {
+  display: flex;
+  flex-direction: row;
+  background: linear-gradient(180deg, #f0ede0 0%, #ece9d8 100%);
+  border-bottom: 1px solid #c2beb4;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #000080;
+  user-select: none;
+}
+
+.invoice-item-dropdown-list {
+  max-height: 220px;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.invoice-item-dropdown-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  color: #000000;
+  transition: background-color 0.1s ease;
+}
+
+.invoice-item-dropdown-row:hover,
+.invoice-item-dropdown-row.highlighted {
+  background-color: #316ac5;
+  color: #ffffff !important;
+}
+
+.invoice-item-dropdown-row:hover .dropdown-col-code,
+.invoice-item-dropdown-row.highlighted .dropdown-col-code,
+.invoice-item-dropdown-row:hover .dropdown-col-desc,
+.invoice-item-dropdown-row.highlighted .dropdown-col-desc,
+.invoice-item-dropdown-row:hover .dropdown-col-price,
+.invoice-item-dropdown-row.highlighted .dropdown-col-price,
+.invoice-item-dropdown-row:hover .dropdown-col-stock,
+.invoice-item-dropdown-row.highlighted .dropdown-col-stock {
+  color: #ffffff !important;
+}
+
+.dropdown-col-code {
+  width: 95px;
+  font-weight: bold;
+  color: #000080;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-col-desc {
+  flex: 1;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-col-price {
+  width: 85px;
+  text-align: right;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.dropdown-col-stock {
+  width: 55px;
+  text-align: center;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.dropdown-col-stock.in-stock {
+  color: #15803d;
+}
+
+.dropdown-col-stock.out-stock {
+  color: #b91c1c;
+}
+
+.invoice-item-dropdown-empty {
+  padding: 12px;
+  text-align: center;
+  color: #777777;
+  font-style: italic;
+  font-size: 11px;
+}
+
+.invoice-item-dropdown-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: #ece9d8;
+  border-top: 1px solid #c2beb4;
+  font-size: 10px;
+  color: #444444;
+}
+
+.dropdown-open-modal-link {
+  background: none;
+  border: none;
+  color: #000080;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.dropdown-open-modal-link:hover {
+  color: #2563eb;
 }
 
 .loc-label {

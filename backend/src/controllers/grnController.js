@@ -38,28 +38,29 @@ export const aggregateGrnItemsByCode = (lines) => {
  */
 export const getNextGrnNumber = async (req, res, next) => {
   try {
-    // Fetch all existing GRN records to check used numbers
     const existingGrns = await Grn.find({}, { no: 1, grnNumber: 1 }).lean();
 
-    const usedNos = new Set();
     const usedGrnNumbers = new Set();
+    const numericList = [];
 
     existingGrns.forEach((g) => {
-      if (g.no !== undefined && g.no !== null && !isNaN(Number(g.no))) {
-        usedNos.add(Number(g.no));
-      }
       if (g.grnNumber !== undefined && g.grnNumber !== null) {
-        usedGrnNumbers.add(String(g.grnNumber).trim());
-        const parsed = Number(g.grnNumber);
-        if (!isNaN(parsed)) {
-          usedNos.add(parsed);
+        const str = String(g.grnNumber).trim();
+        usedGrnNumbers.add(str);
+        if (/^\d+$/.test(str)) {
+          numericList.push(parseInt(str, 10));
         }
       }
     });
 
-    // Start looking for the lowest unused integer >= 0
+    // Start at 0 if no numeric GRN exists, else max + 1
     let candidate = 0;
-    while (usedNos.has(candidate) || usedGrnNumbers.has(String(candidate))) {
+    if (numericList.length > 0) {
+      candidate = Math.max(...numericList) + 1;
+    }
+
+    // Safety check to avoid any accidental collision
+    while (usedGrnNumbers.has(String(candidate))) {
       candidate++;
     }
 
@@ -155,41 +156,43 @@ export const getGrnById = async (req, res, next) => {
  */
 const resolveNextGrnSequence = async (requestedNo, requestedGrnNumber) => {
   const existingGrns = await Grn.find({}, { no: 1, grnNumber: 1 }).lean();
-  const usedNos = new Set();
   const usedGrnNumbers = new Set();
+  const numericList = [];
 
   existingGrns.forEach((g) => {
-    if (g.no !== undefined && g.no !== null && !isNaN(Number(g.no))) {
-      usedNos.add(Number(g.no));
-    }
     if (g.grnNumber !== undefined && g.grnNumber !== null) {
-      usedGrnNumbers.add(String(g.grnNumber).trim());
-      const parsed = Number(g.grnNumber);
-      if (!isNaN(parsed)) {
-        usedNos.add(parsed);
+      const str = String(g.grnNumber).trim();
+      usedGrnNumbers.add(str);
+      if (/^\d+$/.test(str)) {
+        numericList.push(parseInt(str, 10));
       }
     }
   });
 
   // Check if requested numbers are valid and not already used
   if (
-    requestedNo !== undefined &&
-    requestedNo !== null &&
-    requestedNo !== '' &&
     requestedGrnNumber !== undefined &&
     requestedGrnNumber !== null &&
-    requestedGrnNumber !== ''
+    String(requestedGrnNumber).trim() !== ''
   ) {
-    const numNo = Number(requestedNo);
     const strGrn = String(requestedGrnNumber).trim();
-    if (!usedNos.has(numNo) && !usedGrnNumbers.has(strGrn)) {
+    if (!usedGrnNumbers.has(strGrn)) {
+      const numNo =
+        requestedNo !== undefined && requestedNo !== null && !isNaN(Number(requestedNo))
+          ? Number(requestedNo)
+          : (/^\d+$/.test(strGrn) ? parseInt(strGrn, 10) : 0);
       return { no: numNo, grnNumber: strGrn };
     }
   }
 
-  // Find lowest unused integer >= 0
+  // Start at 0 if no numeric GRN exists, else max + 1
   let candidate = 0;
-  while (usedNos.has(candidate) || usedGrnNumbers.has(String(candidate))) {
+  if (numericList.length > 0) {
+    candidate = Math.max(...numericList) + 1;
+  }
+
+  // Safety check to avoid any accidental collision
+  while (usedGrnNumbers.has(String(candidate))) {
     candidate++;
   }
 

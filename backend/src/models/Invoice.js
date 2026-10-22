@@ -205,6 +205,20 @@ const invoiceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    paymentMethod: {
+      type: String,
+      trim: true,
+      default: 'Cash',
+    },
+    paidBy: {
+      type: String,
+      trim: true,
+      default: 'Cash',
+    },
+    customerPaidAmount: {
+      type: Number,
+      default: 0,
+    },
     amountReceived: {
       type: Number,
       default: 0,
@@ -227,6 +241,10 @@ const invoiceSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: '',
+    },
+    balance: {
+      type: Number,
+      default: 0,
     },
     dueAmount: {
       type: Number,

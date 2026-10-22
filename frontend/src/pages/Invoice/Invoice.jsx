@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import './Invoice.css';
 
@@ -9,6 +9,7 @@ import './Invoice.css';
  */
 function Invoice() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -73,6 +74,7 @@ function Invoice() {
 
   // Payment Details State
   const [payment, setPayment] = useState({
+    paymentMethod: 'Cash',
     customerPaidAmount: '',
     amountReceived: '',
     specialDiscount: '0.00',
@@ -88,6 +90,13 @@ function Invoice() {
     title: '',
     search: '',
   });
+  const [lookupPage, setLookupPage] = useState(1);
+  const ITEMS_PER_PAGE = 100;
+
+  // Item Dropdown List State (Quick item selection right on Code input)
+  const [itemDropdownOpen, setItemDropdownOpen] = useState(false);
+  const [highlightedItemIndex, setHighlightedItemIndex] = useState(-1);
+  const itemDropdownRef = useRef(null);
 
   // Receipt Preview Modal
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -284,11 +293,14 @@ function Invoice() {
     fetchInitialData();
   }, []);
 
-  // Close menubar dropdowns on outside click
+  // Close menubar and item dropdowns on outside click
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setActiveDropdown(null);
+      }
+      if (itemDropdownRef.current && !itemDropdownRef.current.contains(e.target)) {
+        setItemDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -323,6 +335,98 @@ function Invoice() {
       setLoadingAlternatives(false);
     }
   };
+
+  // Automatically fetch alternative products whenever itemEntry.code changes (search/select/typing)
+  useEffect(() => {
+    const code = String(itemEntry.code || '').trim();
+    if (!code) {
+      setAlternativeProducts([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      fetchAlternativeProducts(code);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [itemEntry.code]);
+
+  // Load an existing invoice into the form (restoring all details, line items, and payment method)
+  const loadInvoiceData = (inv) => {
+    if (!inv) return;
+    setActiveInvoiceId(inv._id);
+    setInvoiceHeader({
+      no: inv.no !== undefined ? inv.no : '',
+      invoiceNumber: inv.invoiceNumber || '',
+      date: inv.date ? new Date(inv.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      customerCode: inv.customerCode || inv.cuscode || '',
+      customerName: inv.customerName || inv.cusname || 'Walk In Customer',
+      customerAddress: inv.customerAddress || 'No Address',
+      customerTelephone: inv.customerTelephone || inv.telephone || '-',
+      jd: inv.jd || 'Invoice',
+      isHold: Boolean(inv.isHold),
+      jobType: inv.jobType || 'Material',
+      itemLookupMode: 'Item Code',
+      isManualInvoice: false,
+      remark: inv.remark || '',
+    });
+
+    const lines = (inv.lineItems || []).map((li) => ({
+      code: li.code || li.itemCode || '',
+      description: li.description || '',
+      location: li.location || 'Main Store',
+      quantity: Number(li.quantity || li.qty || 1),
+      price: Number(li.price || li.unitPrice || 0),
+      discountPercentage: li.discountPercentage !== undefined ? Number(li.discountPercentage) : 0,
+      discountAmount: li.discountAmount !== undefined ? Number(li.discountAmount) : 0,
+      finalPrice: Number(li.finalPrice !== undefined ? li.finalPrice : (li.value || 0)),
+      itemCost: Number(li.itemCost || 0),
+      lastGrn: li.lastGrn || '',
+      lastGrnDate: li.lastGrnDate || '',
+      masterPack: String(li.masterPack || '1'),
+      rateType: li.rateType || 'Retail',
+      mpCost: Number(li.mpCost || 0),
+      value: Number(li.value || li.finalPrice || 0),
+      total: Number(li.total || li.finalPrice || 0),
+      balance: li.balance !== undefined ? li.balance : (li.availableQty || 0),
+      availableQty: li.availableQty !== undefined ? li.availableQty : (li.balance || 0),
+    }));
+    setLineItems(lines);
+
+    const loadedMethod = inv.paymentMethod || inv.paidBy || 'Cash';
+    const loadedPaid =
+      inv.customerPaidAmount !== undefined && inv.customerPaidAmount !== null
+        ? String(inv.customerPaidAmount)
+        : (inv.amountReceived !== undefined && inv.amountReceived !== null
+            ? String(inv.amountReceived)
+            : (inv.paidAmount !== undefined ? String(inv.paidAmount) : ''));
+
+    setPayment({
+      paymentMethod: loadedMethod,
+      customerPaidAmount: loadedPaid,
+      amountReceived: String(inv.amountReceived !== undefined ? inv.amountReceived : ''),
+      specialDiscount: inv.specialDiscount !== undefined ? String(inv.specialDiscount) : '0.00',
+      chequeNo: inv.chequeNo || '',
+      bank: inv.bank || '',
+      dateRealized: inv.dateRealized || '',
+    });
+
+    showNotification(`Loaded Invoice '${inv.invoiceNumber}' (${loadedMethod})`, 'info');
+  };
+
+  // Auto-load invoice if navigated from Settlement or Invoices list
+  useEffect(() => {
+    if (location.state?.invoiceNumber || location.state?.invoiceId) {
+      const target = location.state.invoiceNumber || location.state.invoiceId;
+      api.get(`/invoices/${encodeURIComponent(target)}`)
+        .then((res) => {
+          if (res.data?.success && res.data?.data) {
+            loadInvoiceData(res.data.data);
+          }
+        })
+        .catch(() => null);
+    }
+  }, [location.state]);
 
   // Fetch GRN History for an Item Code to obtain last GRN and last GRN Date
   const fetchItemGrnHistory = async (itemCode) => {
@@ -489,6 +593,12 @@ function Invoice() {
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
   };
 
+  // Select Invoice from Lookup Modal
+  const handleSelectInvoiceFromLookup = (inv) => {
+    loadInvoiceData(inv);
+    setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+  };
+
   // Select Item from Lookup Modal
   const handleSelectItemFromLookup = async (item) => {
     const customerPrice =
@@ -553,21 +663,54 @@ function Invoice() {
     });
 
     fetchAlternativeProducts(item.code);
+    setItemDropdownOpen(false);
+    setHighlightedItemIndex(-1);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
   };
 
-  // Handle Enter key on Item Code input
+  // Handle Keyboard navigation on Item Code input
   const handleCodeKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
+      if (!itemDropdownOpen) {
+        setItemDropdownOpen(true);
+        setHighlightedItemIndex(0);
+      } else {
+        setHighlightedItemIndex((prev) =>
+          prev < Math.min(filteredDropdownItems.length, 150) - 1 ? prev + 1 : prev
+        );
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (itemDropdownOpen) {
+        setHighlightedItemIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      }
+    } else if (e.key === 'Escape') {
+      setItemDropdownOpen(false);
+      setHighlightedItemIndex(-1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (
+        itemDropdownOpen &&
+        highlightedItemIndex >= 0 &&
+        filteredDropdownItems[highlightedItemIndex]
+      ) {
+        handleSelectItemFromLookup(filteredDropdownItems[highlightedItemIndex]);
+        setItemDropdownOpen(false);
+        setHighlightedItemIndex(-1);
+        return;
+      }
+
       const query = String(itemEntry.code || '').trim().toLowerCase();
       if (!query) {
+        setItemDropdownOpen(false);
         setLookupModal({
           isOpen: true,
           type: 'item',
           title: 'Select Item from Item Master',
           search: '',
         });
+        setLookupPage(1);
         return;
       }
 
@@ -581,13 +724,17 @@ function Invoice() {
 
       if (match) {
         handleSelectItemFromLookup(match);
+        setItemDropdownOpen(false);
+        setHighlightedItemIndex(-1);
       } else {
+        setItemDropdownOpen(false);
         setLookupModal({
           isOpen: true,
           type: 'item',
           title: 'Select Item from Item Master',
           search: itemEntry.code,
         });
+        setLookupPage(1);
       }
     }
   };
@@ -972,6 +1119,7 @@ function Invoice() {
       total: '0.00',
     });
     setPayment({
+      paymentMethod: 'Cash',
       customerPaidAmount: '',
       amountReceived: '',
       specialDiscount: '0.00',
@@ -1123,9 +1271,12 @@ function Invoice() {
       subTotal: invoiceSubTotal,
       specialDiscount: specialDiscVal,
       amountToPay: totalAmount,
-      amountReceived: paidAmount,
+      paymentMethod: payment.paymentMethod || 'Cash',
+      paidBy: payment.paymentMethod || 'Cash',
       customerPaidAmount: paidAmount,
-      balance: balanceAmount,
+      amountReceived: Math.min(paidAmount, totalAmount),
+      paidAmount: Math.min(paidAmount, totalAmount),
+      balance: balanceAmount >= 0 ? balanceAmount : 0,
       dueAmount: balanceAmount < 0 ? Math.abs(balanceAmount) : 0,
     };
 
@@ -1167,8 +1318,10 @@ function Invoice() {
             remark: '',
           });
           setPayment({
-            specialDiscount: '0.00',
+            paymentMethod: 'Cash',
+            customerPaidAmount: '',
             amountReceived: '',
+            specialDiscount: '0.00',
             chequeNo: '',
             bank: '',
             dateRealized: '',
@@ -1293,31 +1446,66 @@ function Invoice() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lineItems, invoiceHeader, activeInvoiceId, payment]);
 
-  // Filtered customers / items for lookup modal
-  const filteredCustomers = customersList.filter((c) => {
-    const q = lookupModal.search.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      c.code?.toLowerCase().includes(q) ||
-      c.customerCode?.toLowerCase().includes(q) ||
-      c.name?.toLowerCase().includes(q) ||
-      c.telephone?.toLowerCase().includes(q) ||
-      c.address?.toLowerCase().includes(q) ||
-      c.vehicleNo?.toLowerCase().includes(q)
+  // Filtered items for quick dropdown list (Code field)
+  const filteredDropdownItems = useMemo(() => {
+    const q = String(itemEntry.code || '').trim().toLowerCase();
+    if (!q) return itemsList;
+    return itemsList.filter(
+      (i) =>
+        i.code?.toLowerCase().includes(q) ||
+        i.description?.toLowerCase().includes(q) ||
+        i.category?.toLowerCase().includes(q) ||
+        (i.barcode && String(i.barcode).toLowerCase().includes(q)) ||
+        (i.barCode && String(i.barCode).toLowerCase().includes(q))
     );
-  });
+  }, [itemsList, itemEntry.code]);
 
-  const filteredItems = itemsList.filter((i) => {
+  // Filtered customers / items for lookup modal
+  const filteredCustomers = useMemo(() => {
     const q = lookupModal.search.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      i.code?.toLowerCase().includes(q) ||
-      i.description?.toLowerCase().includes(q) ||
-      i.category?.toLowerCase().includes(q) ||
-      i.barcode?.toLowerCase().includes(q) ||
-      i.barCode?.toLowerCase().includes(q)
+    if (!q) return customersList;
+    return customersList.filter(
+      (c) =>
+        c.code?.toLowerCase().includes(q) ||
+        c.customerCode?.toLowerCase().includes(q) ||
+        c.name?.toLowerCase().includes(q) ||
+        c.telephone?.toLowerCase().includes(q) ||
+        c.address?.toLowerCase().includes(q) ||
+        c.vehicleNo?.toLowerCase().includes(q)
     );
-  });
+  }, [customersList, lookupModal.search]);
+
+  const filteredInvoices = useMemo(() => {
+    const q = lookupModal.search.toLowerCase().trim();
+    if (!q) return invoicesList;
+    return invoicesList.filter(
+      (inv) =>
+        inv.invoiceNumber?.toLowerCase().includes(q) ||
+        String(inv.no || '').toLowerCase().includes(q) ||
+        inv.customerName?.toLowerCase().includes(q) ||
+        inv.customerCode?.toLowerCase().includes(q) ||
+        (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(q))
+    );
+  }, [invoicesList, lookupModal.search]);
+
+  const filteredItems = useMemo(() => {
+    const q = lookupModal.search.toLowerCase().trim();
+    if (!q) return itemsList;
+    return itemsList.filter(
+      (i) =>
+        i.code?.toLowerCase().includes(q) ||
+        i.description?.toLowerCase().includes(q) ||
+        i.category?.toLowerCase().includes(q) ||
+        (i.barcode && String(i.barcode).toLowerCase().includes(q)) ||
+        (i.barCode && String(i.barCode).toLowerCase().includes(q))
+    );
+  }, [itemsList, lookupModal.search]);
+
+  const totalLookupPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE) || 1;
+  const pagedItems = useMemo(() => {
+    const start = (lookupPage - 1) * ITEMS_PER_PAGE;
+    return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredItems, lookupPage]);
 
   // Reusable Compact Thermal Receipt component for both Print and Preview
   const renderThermalReceiptContent = () => {
@@ -1669,12 +1857,63 @@ function Invoice() {
                   readOnly={!invoiceHeader.isManualInvoice}
                   value={invoiceHeader.invoiceNumber || 'INV-000123'}
                   onChange={(e) => setInvoiceHeader({ ...invoiceHeader, invoiceNumber: e.target.value })}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      const val = String(e.target.value || '').trim();
+                      if (val) {
+                        try {
+                          const res = await api.get(`/invoices/${encodeURIComponent(val)}`);
+                          if (res.data?.success && res.data?.data) {
+                            loadInvoiceData(res.data.data);
+                          } else {
+                            setLookupModal({
+                              isOpen: true,
+                              type: 'invoice',
+                              title: 'Select Existing Invoice',
+                              search: val,
+                            });
+                          }
+                        } catch {
+                          setLookupModal({
+                            isOpen: true,
+                            type: 'invoice',
+                            title: 'Select Existing Invoice',
+                            search: val,
+                          });
+                        }
+                      }
+                    }
+                  }}
                   title={
                     invoiceHeader.isManualInvoice
                       ? 'Manual invoice number entry enabled'
-                      : 'Auto-generated invoice number'
+                      : 'Invoice number (Press Enter or click ... to find/open existing invoice)'
                   }
                 />
+                <button
+                  type="button"
+                  className="invoice-btn-lookup"
+                  title="Lookup Existing Invoice"
+                  onClick={async () => {
+                    setLookupModal({
+                      isOpen: true,
+                      type: 'invoice',
+                      title: 'Select Existing Invoice',
+                      search: '',
+                    });
+                    setLookupPage(1);
+                    try {
+                      const res = await api.get('/invoices?limit=200');
+                      if (res.data?.success && res.data?.data) {
+                        setInvoicesList(res.data.data);
+                      }
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                >
+                  ...
+                </button>
               </div>
             </div>
 
@@ -1778,44 +2017,123 @@ function Invoice() {
           <div className="invoice-middle-split">
             {/* Left: Item Entry Panel */}
             <div className="invoice-item-entry-panel">
-              {/* Row 1: Code & Location */}
+              {/* Row 1: Item Code & Location */}
               <div className="entry-row">
-                <span className="dotted-label-blue">Code . . . . . .</span>
-                <input
-                  ref={itemCodeInputRef}
-                  type="text"
-                  name="code"
-                  list="invoice-item-code-datalist"
-                  className="invoice-input item-code-input"
-                  placeholder="Enter or select item code..."
-                  value={itemEntry.code}
-                  onChange={handleItemEntryChange}
-                  onKeyDown={handleCodeKeyDown}
-                  autoComplete="off"
-                  title="Type item code or select from item list"
-                />
-                <datalist id="invoice-item-code-datalist">
-                  {itemsList.map((i) => (
-                    <option key={i._id || i.code} value={i.code}>
-                      {i.code} - {i.description}
-                    </option>
-                  ))}
-                </datalist>
-                <button
-                  type="button"
-                  className="invoice-btn-lookup"
-                  title="Search Items (F4)"
-                  onClick={() =>
-                    setLookupModal({
-                      isOpen: true,
-                      type: 'item',
-                      title: 'Select Item from Item Master',
-                      search: '',
-                    })
-                  }
-                >
-                  ...
-                </button>
+                <span className="dotted-label-blue" title="Item Code (Code is Item)">Item Code . . . .</span>
+                <div className="item-code-field-group" ref={itemDropdownRef}>
+                  <input
+                    ref={itemCodeInputRef}
+                    type="text"
+                    name="code"
+                    className="invoice-input item-code-input"
+                    placeholder="Enter Item Code..."
+                    value={itemEntry.code}
+                    onChange={handleItemEntryChange}
+                    onFocus={() => setItemDropdownOpen(true)}
+                    onClick={() => setItemDropdownOpen(true)}
+                    onKeyDown={handleCodeKeyDown}
+                    autoComplete="off"
+                    title="Type code or click to view item list (F4 for full catalog)"
+                  />
+                  <button
+                    type="button"
+                    className="invoice-btn-dropdown-toggle"
+                    title="Click to show item list"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setItemDropdownOpen((prev) => !prev);
+                    }}
+                  >
+                    ▼
+                  </button>
+                  <button
+                    type="button"
+                    className="invoice-btn-lookup"
+                    title="Search Items Master (F4)"
+                    onClick={() => {
+                      setItemDropdownOpen(false);
+                      setLookupModal({
+                        isOpen: true,
+                        type: 'item',
+                        title: 'Select Item from Item Master',
+                        search: itemEntry.code || '',
+                      });
+                      setLookupPage(1);
+                    }}
+                  >
+                    ...
+                  </button>
+
+                  {/* Interactive Item List Dropdown Popup */}
+                  {itemDropdownOpen && (
+                    <div className="invoice-item-dropdown-menu">
+                      <div className="invoice-item-dropdown-header">
+                        <span style={{ width: '95px' }}>Item Code</span>
+                        <span style={{ flex: 1 }}>Description</span>
+                        <span style={{ width: '85px', textAlign: 'right' }}>Price (Rs.)</span>
+                        <span style={{ width: '55px', textAlign: 'center' }}>Stock</span>
+                      </div>
+                      <div className="invoice-item-dropdown-list">
+                        {filteredDropdownItems.length === 0 ? (
+                          <div className="invoice-item-dropdown-empty">
+                            No items matching "{itemEntry.code}"
+                          </div>
+                        ) : (
+                          filteredDropdownItems.slice(0, 150).map((item, idx) => (
+                            <div
+                              key={item._id || item.code}
+                              className={`invoice-item-dropdown-row ${highlightedItemIndex === idx ? 'highlighted' : ''}`}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectItemFromLookup(item);
+                                setItemDropdownOpen(false);
+                              }}
+                              onMouseEnter={() => setHighlightedItemIndex(idx)}
+                            >
+                              <span className="dropdown-col-code">{item.code}</span>
+                              <span className="dropdown-col-desc">{item.description}</span>
+                              <span className="dropdown-col-price">
+                                {Number(item.finalSellingPrice || item.sellingPrice || 0).toFixed(2)}
+                              </span>
+                              <span
+                                className={`dropdown-col-stock ${
+                                  Number(item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)) > 0
+                                    ? 'in-stock'
+                                    : 'out-stock'
+                                }`}
+                              >
+                                {item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      <div className="invoice-item-dropdown-footer">
+                        <span>
+                          Showing {Math.min(filteredDropdownItems.length, 150)} of {itemsList.length} items
+                        </span>
+                        <button
+                          type="button"
+                          className="dropdown-open-modal-link"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setItemDropdownOpen(false);
+                            setLookupModal({
+                              isOpen: true,
+                              type: 'item',
+                              title: 'Select Item from Item Master',
+                              search: itemEntry.code || '',
+                            });
+                            setLookupPage(1);
+                          }}
+                        >
+                          View All {itemsList.length} Items (F4) ↗
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <span className="dotted-label-blue loc-label">Location . .</span>
                 <select
                   name="location"
@@ -1839,6 +2157,28 @@ function Invoice() {
                   placeholder="Item Description"
                   value={itemEntry.description}
                   onChange={handleItemEntryChange}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const query = String(itemEntry.description || '').trim().toLowerCase();
+                      if (query) {
+                        const match = itemsList.find(
+                          (i) => i.description?.toLowerCase() === query
+                        );
+                        if (match) {
+                          handleSelectItemFromLookup(match);
+                        } else {
+                          setLookupModal({
+                            isOpen: true,
+                            type: 'item',
+                            title: 'Select Item from Item Master',
+                            search: itemEntry.description,
+                          });
+                          setLookupPage(1);
+                        }
+                      }
+                    }
+                  }}
                 />
               </div>
 
@@ -2016,7 +2356,7 @@ function Invoice() {
                         <tr>
                           <td colSpan="5" className="alt-empty-cell">
                             {itemEntry.code
-                              ? 'No alternative products found for this item'
+                              ? `No alternative products found for '${itemEntry.code}'`
                               : 'Select an item to view alternatives'}
                           </td>
                         </tr>
@@ -2051,6 +2391,21 @@ function Invoice() {
 
               {/* Payment Totals Box */}
               <div className="payment-totals-box">
+                <div className="totals-field-row">
+                  <span className="dotted-label-blue">Payment Method . . . . . . . . .</span>
+                  <select
+                    name="paymentMethod"
+                    className="invoice-input total-input-blue"
+                    style={{ height: '22px', fontSize: '11px', fontWeight: 'bold' }}
+                    value={payment.paymentMethod || 'Cash'}
+                    onChange={(e) => setPayment({ ...payment, paymentMethod: e.target.value })}
+                  >
+                    <option value="Cash">Cash</option>
+                    <option value="Card">Card</option>
+                    <option value="Credit">Credit</option>
+                    <option value="Online Transfer">Online Transfer</option>
+                  </select>
+                </div>
                 <div className="totals-field-row">
                   <span className="dotted-label-blue">Customer Paid Amount . . . . . .</span>
                   <input
@@ -2275,17 +2630,31 @@ function Invoice() {
                 placeholder={
                   lookupModal.type === 'item'
                     ? "Type to search by code, description, category, barcode..."
+                    : lookupModal.type === 'invoice'
+                    ? "Type to search by invoice number, customer name, date..."
                     : "Type to filter..."
                 }
                 autoFocus
                 value={lookupModal.search}
-                onChange={(e) => setLookupModal({ ...lookupModal, search: e.target.value })}
+                onChange={(e) => {
+                  setLookupModal({ ...lookupModal, search: e.target.value });
+                  setLookupPage(1);
+                }}
               />
 
-              <div style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', margin: '4px 2px' }}>
-                {lookupModal.type === 'item'
-                  ? `Showing ${filteredItems.length} items (Total: ${itemsList.length} items in Item Master)`
-                  : `Showing ${filteredCustomers.length} customers (Total: ${customersList.length} customers)`}
+              <div style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', margin: '4px 2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>
+                  {lookupModal.type === 'item'
+                    ? `Showing ${pagedItems.length} of ${filteredItems.length} matching items (Total: ${itemsList.length} items in Item Master)`
+                    : lookupModal.type === 'invoice'
+                    ? `Showing ${filteredInvoices.length} invoices (Total: ${invoicesList.length} invoices)`
+                    : `Showing ${filteredCustomers.length} customers (Total: ${customersList.length} customers)`}
+                </span>
+                {lookupModal.type === 'item' && totalLookupPages > 1 && (
+                  <span style={{ fontSize: '11px', color: '#555' }}>
+                    Page {lookupPage} of {totalLookupPages}
+                  </span>
+                )}
               </div>
 
               <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
@@ -2334,6 +2703,70 @@ function Invoice() {
                       )}
                     </tbody>
                   </table>
+                ) : lookupModal.type === 'invoice' ? (
+                  <table className="invoice-lookup-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                        <th style={{ width: '110px' }}>Invoice No</th>
+                        <th style={{ width: '90px' }}>Date</th>
+                        <th>Customer</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Method</th>
+                        <th style={{ width: '85px', textAlign: 'right' }}>Total</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>Due</th>
+                        <th style={{ width: '55px', textAlign: 'center' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
+                            No invoices found matching "{lookupModal.search}"
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredInvoices.map((inv, idx) => (
+                          <tr key={inv._id || inv.invoiceNumber} onClick={() => handleSelectInvoiceFromLookup(inv)}>
+                            <td style={{ textAlign: 'center', color: '#666' }}>{idx + 1}</td>
+                            <td style={{ fontWeight: 'bold', color: '#000080' }}>{inv.invoiceNumber || inv.no}</td>
+                            <td>{inv.date ? new Date(inv.date).toISOString().split('T')[0] : '-'}</td>
+                            <td style={{ fontWeight: '600' }}>{inv.customerName || 'Walk In Customer'}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{
+                                padding: '1px 6px',
+                                borderRadius: '3px',
+                                fontSize: '10px',
+                                fontWeight: 'bold',
+                                background: inv.paymentMethod === 'Credit' ? '#fef3c7' : '#e0f2fe',
+                                color: inv.paymentMethod === 'Credit' ? '#92400e' : '#0369a1'
+                              }}>
+                                {inv.paymentMethod || inv.paidBy || 'Cash'}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                              {Number(inv.totalAmount || inv.total || 0).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'right', color: Number(inv.dueAmount || 0) > 0 ? '#b91c1c' : '#15803d', fontWeight: 'bold' }}>
+                              {Number(inv.dueAmount || 0).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="invoice-btn-classic"
+                                style={{ height: '20px', minWidth: '45px', padding: '0 4px', fontSize: '11px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectInvoiceFromLookup(inv);
+                                }}
+                              >
+                                Select
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 ) : (
                   <table className="invoice-lookup-table">
                     <thead>
@@ -2356,9 +2789,11 @@ function Invoice() {
                           </td>
                         </tr>
                       ) : (
-                        filteredItems.map((i, idx) => (
+                        pagedItems.map((i, idx) => (
                           <tr key={i._id || i.code} onClick={() => handleSelectItemFromLookup(i)}>
-                            <td style={{ textAlign: 'center', color: '#666' }}>{idx + 1}</td>
+                            <td style={{ textAlign: 'center', color: '#666' }}>
+                              {(lookupPage - 1) * ITEMS_PER_PAGE + idx + 1}
+                            </td>
                             <td style={{ fontWeight: 'bold', color: '#000080' }}>{i.code}</td>
                             <td>{i.description}</td>
                             <td>{i.category || '-'}</td>
@@ -2390,7 +2825,34 @@ function Invoice() {
                 )}
               </div>
             </div>
-            <div className="invoice-modal-footer">
+            <div className="invoice-modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                {lookupModal.type === 'item' && totalLookupPages > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      className="invoice-btn-classic"
+                      disabled={lookupPage <= 1}
+                      onClick={() => setLookupPage((p) => Math.max(1, p - 1))}
+                      style={{ padding: '2px 8px', fontSize: '11px' }}
+                    >
+                      ◀ Previous
+                    </button>
+                    <span style={{ fontSize: '11px', color: '#333' }}>
+                      Page <strong>{lookupPage}</strong> of <strong>{totalLookupPages}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      className="invoice-btn-classic"
+                      disabled={lookupPage >= totalLookupPages}
+                      onClick={() => setLookupPage((p) => Math.min(totalLookupPages, p + 1))}
+                      style={{ padding: '2px 8px', fontSize: '11px' }}
+                    >
+                      Next ▶
+                    </button>
+                  </>
+                )}
+              </div>
               <button
                 type="button"
                 className="invoice-btn-classic"
