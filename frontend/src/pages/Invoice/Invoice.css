@@ -558,6 +558,22 @@
   width: 140px;
 }
 
+.code-material-input {
+  background-color: #8f8a4a !important;
+  color: #ffffff !important;
+  font-weight: bold;
+}
+
+.code-material-input::placeholder {
+  color: #e2e0c8;
+}
+
+.discount-purple-input {
+  background-color: #c8c8ff !important;
+  color: #000000 !important;
+  font-weight: bold;
+}
+
 .invoice-btn-dropdown-toggle {
   height: 24px;
   width: 20px;
@@ -1474,3 +1490,445 @@
   }
 }
 
+/* ==========================================================================
+   SOFAST CLASSIC WINDOWS 98 / 2000 / XP INVOICE UI (MATCHING SCREENSHOT)
+   ========================================================================== */
+
+.sofast-window-container {
+  background-color: #ece9d8;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-size: 11px;
+  color: #000;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+  min-width: 980px;
+}
+
+.sofast-top-middle-grid {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+
+.sofast-left-side {
+  flex: 1 1 65%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sofast-header-panel {
+  display: flex;
+  border: 1px solid #7f9db9;
+  background: #ece9d8;
+  padding: 4px;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+/* Left Customer Column */
+.sofast-customer-col {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.sofast-field-header-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: #000;
+  padding-left: 1px;
+}
+
+.sofast-combo-box {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #7f9db9;
+  height: 20px;
+  box-sizing: border-box;
+}
+
+.sofast-combo-box .sofast-input {
+  border: none !important;
+  height: 100% !important;
+  padding: 1px 4px !important;
+  flex: 1;
+  font-size: 11px !important;
+  outline: none;
+}
+
+.sofast-combo-btn {
+  background: #ece9d8;
+  border: none;
+  border-left: 1px solid #7f9db9;
+  width: 16px;
+  height: 100%;
+  font-size: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+}
+
+.sofast-customer-listbox {
+  background: #fff;
+  border: 1px solid #7f9db9;
+  height: 180px;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 10.5px;
+  color: #000;
+  box-sizing: border-box;
+}
+
+.sofast-listbox-item {
+  padding: 1px 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  line-height: 15px;
+  color: #000;
+}
+
+.sofast-listbox-item:hover {
+  background-color: #eaf1fa;
+}
+
+.sofast-listbox-item.selected {
+  background-color: #0055ea;
+  color: #ffffff;
+}
+
+.sofast-inv-no-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Vehicle & Job Middle Column */
+.sofast-vehicle-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sofast-row {
+  display: flex;
+  align-items: center;
+  height: 19px;
+}
+
+.sofast-label {
+  font-size: 11px;
+  color: #000;
+  white-space: nowrap;
+}
+
+.sofast-input {
+  background: #fff;
+  border: 1px solid #7f9db9;
+  height: 18px;
+  padding: 1px 4px;
+  font-size: 11px;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.sofast-select {
+  border: none;
+  background: transparent;
+  height: 100%;
+  width: 100%;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.sofast-btn-dots {
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 3 Action Buttons */
+.sofast-actions-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding-left: 6px;
+  min-width: 95px;
+  flex-shrink: 0;
+}
+
+.sofast-classic-btn {
+  background: #ece9d8;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  box-shadow: inset 1px 1px 0px #fff, inset -1px -1px 0px #808080;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #000;
+  height: 23px;
+  white-space: nowrap;
+  user-select: none;
+  outline: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sofast-classic-btn:active {
+  border-top: 1px solid #707070;
+  border-left: 1px solid #707070;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  box-shadow: inset 1px 1px 0px #808080, inset -1px -1px 0px #fff;
+}
+
+/* Item Entry Box */
+.sofast-item-entry-frame {
+  border: 1px solid #7f9db9;
+  background: #ece9d8;
+  padding: 4px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+}
+
+.sofast-entry-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.sofast-job-type-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #a0a0a0;
+  padding: 1px 6px;
+  background: #f4f2ea;
+  box-sizing: border-box;
+}
+
+.sofast-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sofast-radio-divider {
+  margin: 0 4px;
+  color: #888;
+}
+
+.sofast-entry-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sofast-save-btn {
+  border: 1px dotted #000 !important;
+}
+
+.sofast-form-row {
+  display: flex;
+  align-items: center;
+  height: 20px;
+}
+
+/* Distinct Input Colors */
+.code-olive-input {
+  background-color: #8f8a4a !important;
+  color: #ffffff !important;
+  font-weight: bold;
+}
+
+.coupon-green-input {
+  background-color: #00d000 !important;
+  color: #003300 !important;
+  font-weight: bold;
+}
+
+.discount-lavender-input {
+  background-color: #c8c8ff !important;
+  font-weight: bold;
+}
+
+/* Right Side Stacked Tables */
+.sofast-right-tables-col {
+  flex: 1 1 35%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 320px;
+}
+
+.sofast-table-panel {
+  border: 1px solid #7f9db9;
+  background: #fff;
+  height: 195px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.sofast-table-scroll-container {
+  flex: 1;
+  overflow: scroll;
+  background: #fff;
+}
+
+.sofast-classic-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 10.5px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.sofast-classic-table th {
+  background: #ece9d8;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  padding: 2px 4px;
+  text-align: left;
+  font-weight: normal;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: #000;
+}
+
+.sofast-classic-table td {
+  border-right: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  height: 17px;
+  color: #000;
+}
+
+.sofast-classic-table tr:hover {
+  background-color: #eaf1fa;
+  cursor: pointer;
+}
+
+.sofast-classic-table tr.selected-row {
+  background-color: #0055ea !important;
+  color: #ffffff !important;
+}
+
+.sofast-classic-table tr.selected-row td {
+  color: #ffffff !important;
+}
+
+.sofast-cell-code {
+  font-weight: normal;
+  font-family: monospace, Tahoma, sans-serif;
+}
+
+.sofast-cell-desc {
+  font-weight: normal;
+}
+
+/* Bottom Grid Table */
+.sofast-bottom-grid-container {
+  border: 1px solid #7f9db9;
+  background: #fff;
+  min-height: 160px;
+  max-height: 240px;
+  overflow: scroll;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sofast-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.sofast-grid-table th {
+  background: #ece9d8;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  padding: 2px 4px;
+  text-align: left;
+  font-weight: normal;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  color: #000;
+}
+
+.sofast-grid-table td {
+  border-right: 1px solid #d0d0d0;
+  border-bottom: 1px solid #d0d0d0;
+  padding: 2px 4px;
+  height: 18px;
+  color: #000;
+}
+
+.sofast-grid-table tr:hover {
+  background-color: #f0f7ff;
+}
+
+.sofast-grid-table tr.selected-row {
+  background-color: #0055ea !important;
+  color: #ffffff !important;
+}
+
+.sofast-grid-table tr.selected-row td {
+  color: #ffffff !important;
+}
+
+.sofast-grid-del-btn {
+  background: none;
+  border: none;
+  color: #cc0000;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 0 4px;
+}
+
+.sofast-grid-del-btn:hover {
+  color: #ff0000;
+}

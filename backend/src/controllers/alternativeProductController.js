@@ -35,6 +35,14 @@ const getItemsDetailsByCodes = async (codes) => {
       price: Number(item.finalSellingPrice || item.sellingPrice || 0),
       sellingPrice: Number(item.sellingPrice || 0),
       finalSellingPrice: Number(item.finalSellingPrice || item.sellingPrice || 0),
+      lastGrnPrice: item.lastGrnPrice || 0,
+      averageCost: item.averageCost || 0,
+      lastGrn: item.lastGrn || '',
+      lastGrnDate: item.lastGrnDate || '',
+      roundOffOption: item.roundOffOption || 'No Round Off',
+      roundOffStep: item.roundOffStep || 10,
+      discountPercentage: item.discountPercentage || 0,
+      discountAmount: item.discountAmount || 0,
       status: item.status || 'Active',
     });
   });

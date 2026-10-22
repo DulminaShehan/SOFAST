@@ -27,11 +27,23 @@ function Invoice() {
   const [invoiceHeader, setInvoiceHeader] = useState({
     no: '',
     invoiceNumber: '',
-    date: new Date().toISOString().split('T')[0],
-    customerCode: '',
-    customerName: 'Walk In Customer',
-    customerAddress: 'No Address',
+    date: '10/ 6 /2026',
+    customerCode: 'DS100',
+    customerName: 'CHAMINDA MOTORS',
+    customerAddress: 'YATADOLA',
     customerTelephone: '-',
+    brand: '',
+    puchaOn: '10/6/2026',
+    model: '',
+    engineNo: '0771625420',
+    chassisNo: '',
+    jobDoneBy: '',
+    jobDoneBy2: '',
+    meterReading: '',
+    paymentMethod: 'Cash',
+    type: 'Cash',
+    cusPo: '',
+    jobSheetMasterPo: '',
     jd: 'Invoice',
     isHold: false,
     jobType: 'Material',
@@ -52,15 +64,20 @@ function Invoice() {
   const [itemEntry, setItemEntry] = useState({
     code: '',
     description: '',
+    secondDesc: '',
     location: 'Main Store',
+    rackBin: 'R14-F-1',
     availableQty: '',
-    quantity: '1',
+    quantity: '5',
+    rate: '0',
+    standardRate: '1200',
     discountPercentage: '',
     discountAmount: '',
     finalPrice: '',
     itemCost: '',
     lastGrn: '',
     lastGrnDate: '',
+    lastGrnFormatted: '',
     price: '',
     masterPack: '1',
     rateType: 'Retail',
@@ -68,8 +85,11 @@ function Invoice() {
     roundOffOption: 'No Round Off',
     roundOffStep: 10,
     value: '0.00',
+    due: '0',
     balance: '',
-    total: '0.00',
+    total: '',
+    disc: '',
+    note: '',
   });
 
   // Payment Details State
@@ -453,7 +473,7 @@ function Invoice() {
     roundStep = 10
   ) => {
     const price = parseFloat(priceVal) || 0;
-    const qty = Math.max(0.001, parseFloat(qtyVal) || 1);
+    const qty = Math.max(0, parseFloat(qtyVal) || 0);
     let discPct = parseFloat(discPctVal) || 0;
     let discAmt = parseFloat(discAmtVal) || 0;
 
@@ -593,6 +613,73 @@ function Invoice() {
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
   };
 
+  // Select Customer from Left Listbox
+  const handleSelectCustomerFromListbox = (cust) => {
+    if (!cust) return;
+    const code = cust.code || cust.customerCode || '';
+    setInvoiceHeader((prev) => ({
+      ...prev,
+      customerCode: code,
+      customerName: cust.name || '',
+      customerAddress: cust.address || 'No Address',
+      customerTelephone: cust.telephone1 || cust.telephone || '-',
+    }));
+
+    if (cust.discount && Number(cust.discount) > 0 && itemEntry.price) {
+      const comp = computeLinePricing(
+        itemEntry.price,
+        itemEntry.quantity || '1',
+        Number(cust.discount).toFixed(2),
+        '',
+        'percentage',
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
+      );
+      setItemEntry((prev) => ({
+        ...prev,
+        discountPercentage: comp.discountPercentage,
+        discountAmount: comp.discountAmount,
+        finalPrice: comp.finalPrice,
+        value: comp.finalPrice,
+        total: comp.finalPrice,
+      }));
+    }
+  };
+
+  // Button: Rem. Discount (Remove Discount)
+  const handleRemoveDiscount = () => {
+    setItemEntry((prev) => {
+      const comp = computeLinePricing(
+        prev.price,
+        prev.quantity || '1',
+        '0',
+        '0',
+        'percentage',
+        prev.roundOffOption,
+        prev.roundOffStep
+      );
+      return {
+        ...prev,
+        discountPercentage: '0',
+        discountAmount: '0',
+        finalPrice: comp.finalPrice,
+        value: comp.finalPrice,
+        total: comp.finalPrice,
+      };
+    });
+    setLineItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        discountPercentage: 0,
+        discountAmount: 0,
+        discount: '0',
+        value: Math.round(Number(item.sellingPrice || item.price) * Number(item.quantity) * 100) / 100,
+        finalPrice: Math.round(Number(item.sellingPrice || item.price) * Number(item.quantity) * 100) / 100,
+      }))
+    );
+    showNotification('Discounts removed');
+  };
+
   // Select Invoice from Lookup Modal
   const handleSelectInvoiceFromLookup = (inv) => {
     loadInvoiceData(inv);
@@ -601,31 +688,38 @@ function Invoice() {
 
   // Select Item from Lookup Modal
   const handleSelectItemFromLookup = async (item) => {
-    const customerPrice =
-      item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0
-        ? Number(item.finalSellingPrice)
-        : (Number(item.sellingPrice) || 0);
+    if (!item) return;
+
+    const sellingPrice =
+      item.sellingPrice !== undefined && Number(item.sellingPrice) >= 0
+        ? Number(item.sellingPrice)
+        : (item.finalSellingPrice !== undefined ? Number(item.finalSellingPrice) : 0);
 
     const available =
       item.quantity !== undefined
         ? item.quantity
         : (item.stockInHand !== undefined ? item.stockInHand : 0);
 
-    const cost = item.lastGrnPrice || item.averageCost || item.purchaseCost || 0;
     const roundOpt = item.roundOffOption || 'No Round Off';
     const roundStp = item.roundOffStep || 10;
 
-    let initDiscPct = itemEntry.discountPercentage || '';
-    if (!initDiscPct && invoiceHeader.customerCode) {
+    let initDiscPct = '';
+    if (invoiceHeader.customerCode) {
       const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
       if (cust && cust.discount && Number(cust.discount) > 0) {
-        initDiscPct = Number(cust.discount).toFixed(2);
+        initDiscPct = String(cust.discount);
       }
     }
+    if (!initDiscPct && item.discountPercentage && Number(item.discountPercentage) > 0) {
+      initDiscPct = String(item.discountPercentage);
+    }
+
+    // Requirement 3: Quantity field displays actual available stock quantity initially
+    const initQty = available !== undefined && available !== null ? String(available) : '0';
 
     const comp = computeLinePricing(
-      customerPrice,
-      itemEntry.quantity || '1',
+      sellingPrice,
+      initQty,
       initDiscPct,
       '',
       'percentage',
@@ -634,6 +728,14 @@ function Invoice() {
     );
 
     const grnHistory = await fetchItemGrnHistory(item.code);
+    const hasHistory = Boolean(grnHistory?.summary?.hasGrnHistory);
+    const latestCost = grnHistory?.summary?.latestGrnCost;
+    const costDisplay =
+      hasHistory && latestCost !== null && latestCost !== undefined
+        ? Number(latestCost).toFixed(2)
+        : '-';
+
+    const lastGrnFormatted = grnHistory?.summary?.lastGrnFormatted || item.lastGrn || '-';
     const grnNum = grnHistory?.summary?.latestGrnNumber || item.lastGrn || '';
     const grnDate = grnHistory?.summary?.latestGrnDate
       ? new Date(grnHistory.summary.latestGrnDate).toISOString().split('T')[0]
@@ -644,11 +746,13 @@ function Invoice() {
       description: item.description || '',
       location: item.location || 'Main Store',
       availableQty: available,
-      quantity: itemEntry.quantity || '1',
-      price: customerPrice,
-      itemCost: Number(cost).toFixed(2),
+      quantity: initQty,
+      price: sellingPrice,
+      rate: '0',
+      itemCost: costDisplay,
       lastGrn: grnNum,
       lastGrnDate: grnDate,
+      lastGrnFormatted: lastGrnFormatted,
       roundOffOption: roundOpt,
       roundOffStep: roundStp,
       discountPercentage: comp.discountPercentage,
@@ -656,10 +760,11 @@ function Invoice() {
       finalPrice: comp.finalPrice,
       masterPack: item.masterPack || '1',
       rateType: 'Retail',
-      mpCost: item.averageCost || cost || 0,
+      mpCost: item.averageCost || 0,
       value: comp.finalPrice,
       balance: available,
       total: comp.finalPrice,
+      note: '',
     });
 
     fetchAlternativeProducts(item.code);
@@ -755,31 +860,36 @@ function Invoice() {
       );
 
       if (match) {
-        const customerPrice =
-          match.finalSellingPrice !== undefined && Number(match.finalSellingPrice) > 0
-            ? Number(match.finalSellingPrice)
-            : (Number(match.sellingPrice) || 0);
+        const sellingPrice =
+          match.sellingPrice !== undefined && Number(match.sellingPrice) >= 0
+            ? Number(match.sellingPrice)
+            : (match.finalSellingPrice !== undefined ? Number(match.finalSellingPrice) : 0);
 
         const available =
           match.quantity !== undefined
             ? match.quantity
             : (match.stockInHand !== undefined ? match.stockInHand : 0);
 
-        const cost = match.lastGrnPrice || match.averageCost || match.purchaseCost || 0;
         const roundOpt = match.roundOffOption || 'No Round Off';
         const roundStp = match.roundOffStep || 10;
 
-        let initDiscPct = itemEntry.discountPercentage || '';
-        if (!initDiscPct && invoiceHeader.customerCode) {
+        let initDiscPct = '';
+        if (invoiceHeader.customerCode) {
           const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
           if (cust && cust.discount && Number(cust.discount) > 0) {
-            initDiscPct = Number(cust.discount).toFixed(2);
+            initDiscPct = String(cust.discount);
           }
         }
+        if (!initDiscPct && match.discountPercentage && Number(match.discountPercentage) > 0) {
+          initDiscPct = String(match.discountPercentage);
+        }
+
+        // Requirement 3: Quantity field displays actual available quantity initially
+        const initQty = available !== undefined && available !== null ? String(available) : '0';
 
         const comp = computeLinePricing(
-          customerPrice,
-          updated.quantity || '1',
+          sellingPrice,
+          initQty,
           initDiscPct,
           '',
           'percentage',
@@ -791,10 +901,13 @@ function Invoice() {
         updated.description = match.description || '';
         updated.location = match.location || 'Main Store';
         updated.availableQty = available;
-        updated.price = customerPrice;
-        updated.itemCost = Number(cost).toFixed(2);
+        updated.quantity = initQty;
+        updated.price = sellingPrice;
+        updated.rate = '0';
+        updated.itemCost = '-';
         updated.lastGrn = match.lastGrn || '';
         updated.lastGrnDate = match.lastGrnDate ? String(match.lastGrnDate).split('T')[0] : '';
+        updated.lastGrnFormatted = match.lastGrn || '-';
         updated.roundOffOption = roundOpt;
         updated.roundOffStep = roundStp;
         updated.discountPercentage = comp.discountPercentage;
@@ -811,10 +924,18 @@ function Invoice() {
                 const dateStr = grnData.summary.latestGrnDate
                   ? new Date(grnData.summary.latestGrnDate).toISOString().split('T')[0]
                   : curr.lastGrnDate;
+                const costDisp =
+                  grnData.summary.hasGrnHistory &&
+                  grnData.summary.latestGrnCost !== null &&
+                  grnData.summary.latestGrnCost !== undefined
+                    ? Number(grnData.summary.latestGrnCost).toFixed(2)
+                    : '-';
                 return {
                   ...curr,
+                  itemCost: costDisp,
                   lastGrn: grnData.summary.latestGrnNumber || curr.lastGrn,
                   lastGrnDate: dateStr,
+                  lastGrnFormatted: grnData.summary.lastGrnFormatted || curr.lastGrnFormatted,
                   availableQty:
                     grnData.summary.closingStock !== undefined
                       ? grnData.summary.closingStock
@@ -832,11 +953,52 @@ function Invoice() {
       }
     }
 
-    if (name === 'price' || name === 'quantity' || name === 'discountPercentage') {
+    // Quantity change: validate against available stock and recalculate Value
+    if (name === 'quantity') {
+      let qtyVal = value;
+      const numQty = parseFloat(qtyVal);
+      const avail = parseFloat(updated.availableQty);
+
+      if (!isNaN(numQty) && !isNaN(avail) && avail > 0 && numQty > avail) {
+        showNotification(`Sale quantity cannot exceed available stock (${avail})`, 'error');
+        qtyVal = String(avail);
+        updated.quantity = qtyVal;
+      }
+
       const comp = computeLinePricing(
-        name === 'price' ? value : updated.price,
-        name === 'quantity' ? value : updated.quantity,
-        name === 'discountPercentage' ? value : updated.discountPercentage,
+        updated.price,
+        qtyVal,
+        updated.discountPercentage,
+        updated.discountAmount,
+        'percentage',
+        updated.roundOffOption,
+        updated.roundOffStep
+      );
+      updated.discountPercentage = comp.discountPercentage;
+      updated.discountAmount = comp.discountAmount;
+      updated.finalPrice = comp.finalPrice;
+      updated.value = comp.finalPrice;
+      updated.total = comp.finalPrice;
+    } else if (name === 'price') {
+      const comp = computeLinePricing(
+        value,
+        updated.quantity,
+        updated.discountPercentage,
+        updated.discountAmount,
+        'percentage',
+        updated.roundOffOption,
+        updated.roundOffStep
+      );
+      updated.discountPercentage = comp.discountPercentage;
+      updated.discountAmount = comp.discountAmount;
+      updated.finalPrice = comp.finalPrice;
+      updated.value = comp.finalPrice;
+      updated.total = comp.finalPrice;
+    } else if (name === 'discountPercentage') {
+      const comp = computeLinePricing(
+        updated.price,
+        updated.quantity,
+        value,
         updated.discountAmount,
         'percentage',
         updated.roundOffOption,
@@ -871,37 +1033,48 @@ function Invoice() {
   const handleSelectAlternativeProduct = async (alt) => {
     if (!alt || !alt.code) return;
 
+    let match = itemsList.find((i) => i.code?.toLowerCase() === alt.code.toLowerCase());
+
     const stock = Number(
-      alt.stock !== undefined
-        ? alt.stock
-        : (alt.quantity !== undefined ? alt.quantity : (alt.availableQty || 0))
+      match
+        ? (match.quantity !== undefined
+            ? match.quantity
+            : (match.stockInHand !== undefined ? match.stockInHand : 0))
+        : (alt.stock !== undefined
+            ? alt.stock
+            : (alt.quantity !== undefined ? alt.quantity : (alt.availableQty || 0)))
     );
 
     if (stock <= 0) {
       showNotification(`Note: Alternative item '${alt.code}' currently has 0 available stock.`, 'info');
     }
 
-    let match = itemsList.find((i) => i.code?.toLowerCase() === alt.code.toLowerCase());
+    const sellingPrice = match
+      ? (match.sellingPrice !== undefined ? Number(match.sellingPrice) : (match.finalSellingPrice || alt.sellingPrice || alt.price || 0))
+      : (alt.sellingPrice || alt.price || 0);
 
-    const price = match
-      ? (match.finalSellingPrice || match.sellingPrice || alt.price || alt.sellingPrice || 0)
-      : (alt.price || alt.sellingPrice || 0);
+    const roundOpt = match?.roundOffOption || alt.roundOffOption || 'No Round Off';
+    const roundStp = match?.roundOffStep || alt.roundOffStep || 10;
 
-    const cost = match ? (match.lastGrnPrice || match.averageCost || match.purchaseCost || 0) : 0;
-    const roundOpt = match?.roundOffOption || 'No Round Off';
-    const roundStp = match?.roundOffStep || 10;
-
-    let initDiscPct = itemEntry.discountPercentage || '';
-    if (!initDiscPct && invoiceHeader.customerCode) {
+    let initDiscPct = '';
+    if (invoiceHeader.customerCode) {
       const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
       if (cust && cust.discount && Number(cust.discount) > 0) {
-        initDiscPct = Number(cust.discount).toFixed(2);
+        initDiscPct = String(cust.discount);
+      }
+    }
+    if (!initDiscPct) {
+      const disc = match?.discountPercentage || alt.discountPercentage;
+      if (disc && Number(disc) > 0) {
+        initDiscPct = String(disc);
       }
     }
 
+    const initQty = String(stock);
+
     const comp = computeLinePricing(
-      price,
-      itemEntry.quantity || '1',
+      sellingPrice,
+      initQty,
       initDiscPct,
       '',
       'percentage',
@@ -910,21 +1083,32 @@ function Invoice() {
     );
 
     const grnHistory = await fetchItemGrnHistory(alt.code);
-    const grnNum = grnHistory?.summary?.latestGrnNumber || match?.lastGrn || '';
+    const hasHistory = Boolean(grnHistory?.summary?.hasGrnHistory);
+    const latestCost = grnHistory?.summary?.latestGrnCost;
+    const costDisplay =
+      hasHistory && latestCost !== null && latestCost !== undefined
+        ? Number(latestCost).toFixed(2)
+        : '-';
+
+    const lastGrnFormatted = grnHistory?.summary?.lastGrnFormatted || match?.lastGrn || alt.lastGrn || '-';
+    const grnNum = grnHistory?.summary?.latestGrnNumber || match?.lastGrn || alt.lastGrn || '';
     const grnDate = grnHistory?.summary?.latestGrnDate
       ? new Date(grnHistory.summary.latestGrnDate).toISOString().split('T')[0]
       : (match?.lastGrnDate ? String(match.lastGrnDate).split('T')[0] : '');
 
+    // Requirement 4: Load the selected alternative's own code, description, available qty, price, discount, location, GRN cost
     setItemEntry({
       code: alt.code,
       description: alt.description || match?.description || '',
       location: alt.location || match?.location || 'Main Store',
       availableQty: stock,
-      quantity: itemEntry.quantity || '1',
-      price: price,
-      itemCost: Number(cost).toFixed(2),
+      quantity: initQty,
+      price: sellingPrice,
+      rate: '0',
+      itemCost: costDisplay,
       lastGrn: grnNum,
       lastGrnDate: grnDate,
+      lastGrnFormatted: lastGrnFormatted,
       roundOffOption: roundOpt,
       roundOffStep: roundStp,
       discountPercentage: comp.discountPercentage,
@@ -932,10 +1116,11 @@ function Invoice() {
       finalPrice: comp.finalPrice,
       masterPack: match?.masterPack || '1',
       rateType: 'Retail',
-      mpCost: match?.averageCost || cost || 0,
+      mpCost: match?.averageCost || 0,
       value: comp.finalPrice,
       balance: stock,
       total: comp.finalPrice,
+      note: '',
     });
 
     fetchAlternativeProducts(alt.code);
@@ -949,36 +1134,42 @@ function Invoice() {
       return;
     }
 
-    const qty = parseFloat(itemEntry.quantity);
-    if (isNaN(qty) || qty <= 0) {
+    const saleQty = parseFloat(itemEntry.quantity);
+    if (isNaN(saleQty) || saleQty <= 0) {
       showNotification('Please enter a valid Quantity (> 0)', 'error');
+      return;
+    }
+
+    const avail = parseFloat(itemEntry.availableQty);
+    if (!isNaN(avail) && avail > 0 && saleQty > avail) {
+      showNotification(`Sale quantity cannot exceed available stock (${avail})`, 'error');
       return;
     }
 
     const price = parseFloat(itemEntry.price) || 0;
     const discPct = parseFloat(itemEntry.discountPercentage) || 0;
     const discAmt = parseFloat(itemEntry.discountAmount) || 0;
-    const finalPrice = parseFloat(itemEntry.finalPrice) || Math.max(0, (price * qty) - discAmt);
+    const finalPrice = parseFloat(itemEntry.value !== undefined ? itemEntry.value : itemEntry.finalPrice) || Math.max(0, (price * saleQty) - discAmt);
 
+    // Requirement 5: Bottom Invoice Grid uses actual selected item and the user's sale quantity
     const newLineItem = {
-      code: itemEntry.code.trim(),
+      code: itemEntry.code.trim().toUpperCase(),
       description: itemEntry.description || '',
       location: itemEntry.location || 'Main Store',
-      availableQty: parseFloat(itemEntry.availableQty) || 0,
-      quantity: qty,
+      availableQty: itemEntry.availableQty !== '' ? itemEntry.availableQty : avail,
+      quantity: saleQty, // user's sale quantity!
+      sellingPrice: price,
+      price: price,
+      rate: itemEntry.rate || '0',
       discountPercentage: discPct,
       discountAmount: discAmt,
+      discount: discPct > 0 ? `${discPct}%` : (discAmt > 0 ? discAmt.toFixed(2) : '0'),
+      value: finalPrice,
       finalPrice: finalPrice,
-      itemCost: parseFloat(itemEntry.itemCost) || 0,
+      itemCost: itemEntry.itemCost || '-',
       lastGrn: itemEntry.lastGrn || '',
       lastGrnDate: itemEntry.lastGrnDate || '',
-      price: price,
-      masterPack: itemEntry.masterPack || '1',
-      rateType: itemEntry.rateType || 'Retail',
-      mpCost: parseFloat(itemEntry.mpCost) || 0,
-      value: finalPrice,
-      balance: parseFloat(itemEntry.availableQty) || 0,
-      total: finalPrice,
+      note: itemEntry.note || '',
     };
 
     if (selectedLineIndex >= 0) {
@@ -986,33 +1177,10 @@ function Invoice() {
       updated[selectedLineIndex] = newLineItem;
       setLineItems(updated);
       setSelectedLineIndex(-1);
-      showNotification('Updated item in invoice table', 'info');
+      showNotification(`Updated item ${newLineItem.code}`);
     } else {
-      const existingIdx = lineItems.findIndex(
-        (li) => li.code.toLowerCase() === newLineItem.code.toLowerCase()
-      );
-      if (existingIdx >= 0) {
-        const updated = [...lineItems];
-        const mergedQty = updated[existingIdx].quantity + newLineItem.quantity;
-        const comp = computeLinePricing(
-          updated[existingIdx].price,
-          mergedQty,
-          updated[existingIdx].discountPercentage,
-          '',
-          'percentage',
-          itemEntry.roundOffOption,
-          itemEntry.roundOffStep
-        );
-        updated[existingIdx].quantity = mergedQty;
-        updated[existingIdx].discountAmount = parseFloat(comp.discountAmount) || 0;
-        updated[existingIdx].finalPrice = parseFloat(comp.finalPrice) || 0;
-        updated[existingIdx].value = parseFloat(comp.finalPrice) || 0;
-        updated[existingIdx].total = parseFloat(comp.finalPrice) || 0;
-        setLineItems(updated);
-        showNotification(`Incremented quantity for '${newLineItem.code}' to ${mergedQty}`, 'info');
-      } else {
-        setLineItems([...lineItems, newLineItem]);
-      }
+      setLineItems([...lineItems, newLineItem]);
+      showNotification(`Added item ${newLineItem.code} to invoice`);
     }
 
     // Reset item entry row
@@ -1022,12 +1190,14 @@ function Invoice() {
       location: 'Main Store',
       availableQty: '',
       quantity: '1',
+      rate: '0',
       discountPercentage: '',
       discountAmount: '',
       finalPrice: '',
       itemCost: '',
       lastGrn: '',
       lastGrnDate: '',
+      lastGrnFormatted: '',
       price: '',
       masterPack: '1',
       rateType: 'Retail',
@@ -1037,6 +1207,7 @@ function Invoice() {
       value: '0.00',
       balance: '',
       total: '0.00',
+      note: '',
     });
     setAlternativeProducts([]);
     itemCodeInputRef.current?.focus();
@@ -1051,23 +1222,26 @@ function Invoice() {
         code: item.code,
         description: item.description,
         location: item.location || 'Main Store',
-        availableQty: item.availableQty !== undefined ? item.availableQty : (item.balance || ''),
+        availableQty: item.availableQty !== undefined ? item.availableQty : '',
         quantity: String(item.quantity),
+        rate: item.rate || '0',
         discountPercentage: item.discountPercentage !== undefined && item.discountPercentage !== '' ? String(item.discountPercentage) : '',
         discountAmount: item.discountAmount !== undefined && item.discountAmount !== '' ? String(item.discountAmount) : '',
         finalPrice: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
-        itemCost: Number(item.itemCost || 0).toFixed(2),
+        itemCost: item.itemCost || '-',
         lastGrn: item.lastGrn || '',
         lastGrnDate: item.lastGrnDate || '',
-        price: item.price,
-        masterPack: String(item.masterPack || '1'),
+        lastGrnFormatted: item.lastGrn || '',
+        price: item.sellingPrice !== undefined ? item.sellingPrice : (item.price || 0),
+        masterPack: '1',
         rateType: item.rateType || 'Retail',
-        mpCost: item.mpCost || '',
+        mpCost: '',
         roundOffOption: 'No Round Off',
         roundOffStep: 10,
-        value: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
-        balance: item.balance || '',
-        total: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
+        value: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
+        balance: item.availableQty || '',
+        total: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
+        note: item.note || '',
       });
       fetchAlternativeProducts(item.code);
     }
@@ -1102,12 +1276,14 @@ function Invoice() {
       location: 'Main Store',
       availableQty: '',
       quantity: '1',
+      rate: '0',
       discountPercentage: '',
       discountAmount: '',
       finalPrice: '',
       itemCost: '',
       lastGrn: '',
       lastGrnDate: '',
+      lastGrnFormatted: '',
       price: '',
       masterPack: '1',
       rateType: 'Retail',
@@ -1117,6 +1293,7 @@ function Invoice() {
       value: '0.00',
       balance: '',
       total: '0.00',
+      note: '',
     });
     setPayment({
       paymentMethod: 'Cash',
@@ -1772,615 +1949,625 @@ function Invoice() {
               &#x2715;
             </button>
           </div>
-        )}        <div className="invoice-panel-container">
-          {/* 1. TOP CUSTOMER, DATE/INV NO, AND ACTION BUTTONS */}
-          <div className="invoice-top-bar">
-            {/* Left: Customer Dropdown & Details Box */}
-            <div className="invoice-top-customer">
-              <div className="customer-field-row">
-                <span className="dotted-label-blue">Customer . . . .</span>
-                <select
-                  className="invoice-select customer-dropdown"
-                  value={invoiceHeader.customerCode}
-                  onChange={handleCustomerDropdownChange}
-                >
-                  <option value="">-- Select Customer --</option>
-                  {customersList.map((c) => (
-                    <option key={c._id || c.code} value={c.code || c.customerCode}>
-                      {c.code || c.customerCode} - {c.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="invoice-btn-lookup"
-                  title="Search Customers"
-                  onClick={() =>
-                    setLookupModal({
-                      isOpen: true,
-                      type: 'customer',
-                      title: 'Select Customer from Database',
-                      search: '',
-                    })
-                  }
-                >
-                  ...
-                </button>
-              </div>
+        )}        <div className="sofast-window-container">
+          {/* TOP SECTION: Left (Customer + Vehicle Info + 3 Buttons) and Right (2 Stacked Tables) */}
+          <div className="sofast-top-middle-grid">
+            {/* Left Side: Header Panel (Customer Col + Vehicle Col + 3 Buttons) + Item Entry Frame */}
+            <div className="sofast-left-side">
+              {/* Header Panel */}
+              <div className="sofast-header-panel">
+                {/* 1. Customer Column (Left) */}
+                <div className="sofast-customer-col">
+                  <div className="sofast-field-header-label">Customer</div>
+                  <div className="sofast-combo-box">
+                    <input
+                      type="text"
+                      className="sofast-input sofast-customer-input"
+                      value={invoiceHeader.customerCode}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setInvoiceHeader({ ...invoiceHeader, customerCode: val });
+                      }}
+                      placeholder="Customer Code"
+                    />
+                    <button
+                      type="button"
+                      className="sofast-combo-btn"
+                      onClick={() =>
+                        setLookupModal({
+                          isOpen: true,
+                          type: 'customer',
+                          title: 'Select Customer from Database',
+                          search: '',
+                        })
+                      }
+                    >
+                      &#x25BC;
+                    </button>
+                  </div>
 
-              {/* Customer Details Box below combobox */}
-              <div className="customer-details-card">
-                <div className="customer-card-name">
-                  {invoiceHeader.customerName || 'Walk In Customer'}
-                </div>
-                <div className="customer-card-line">
-                  {invoiceHeader.customerAddress || 'No Address'}
-                </div>
-                <div className="customer-card-line">
-                  Tel: {invoiceHeader.customerTelephone || '-'}
-                </div>
-              </div>
-            </div>
+                  {/* Scrollable Customer Listbox */}
+                  <div className="sofast-customer-listbox">
+                    {customersList.map((c) => {
+                      const cCode = c.code || c.customerCode || '';
+                      const isSelected = invoiceHeader.customerCode === cCode;
+                      return (
+                        <div
+                          key={c._id || cCode}
+                          className={`sofast-listbox-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleSelectCustomerFromListbox(c)}
+                        >
+                          {cCode} - {c.name}
+                        </div>
+                      );
+                    })}
+                  </div>
 
-            {/* Middle: Date & Invoice Number */}
-            <div className="invoice-top-middle">
-              <div className="middle-field-row">
-                <span className="dotted-label-blue">Date . . . . . .</span>
-                <input
-                  ref={dateInputRef}
-                  type="date"
-                  name="date"
-                  className="invoice-input date-input"
-                  value={invoiceHeader.date}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, date: e.target.value })}
-                />
-                <button
-                  type="button"
-                  className="invoice-btn-lookup"
-                  title="Pick Date"
-                  onClick={() =>
-                    dateInputRef.current?.showPicker
-                      ? dateInputRef.current.showPicker()
-                      : dateInputRef.current?.focus()
-                  }
-                >
-                  ...
-                </button>
-              </div>
-
-              <div className="middle-field-row">
-                <span className="dotted-label-blue">Invoice No . .</span>
-                <input
-                  type="text"
-                  name="invoiceNumber"
-                  className={`invoice-input invoice-num-input ${invoiceHeader.isManualInvoice ? '' : 'readonly'}`}
-                  readOnly={!invoiceHeader.isManualInvoice}
-                  value={invoiceHeader.invoiceNumber || 'INV-000123'}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, invoiceNumber: e.target.value })}
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter') {
-                      const val = String(e.target.value || '').trim();
-                      if (val) {
-                        try {
-                          const res = await api.get(`/invoices/${encodeURIComponent(val)}`);
-                          if (res.data?.success && res.data?.data) {
-                            loadInvoiceData(res.data.data);
-                          } else {
-                            setLookupModal({
-                              isOpen: true,
-                              type: 'invoice',
-                              title: 'Select Existing Invoice',
-                              search: val,
-                            });
-                          }
-                        } catch {
+                  {/* Invoice No under listbox */}
+                  <div className="sofast-inv-no-row">
+                    <span className="sofast-label">Invoice No .</span>
+                    <div className="sofast-combo-box" style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        className="sofast-input"
+                        value={invoiceHeader.invoiceNumber || ''}
+                        onChange={(e) =>
+                          setInvoiceHeader({ ...invoiceHeader, invoiceNumber: e.target.value })
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="sofast-combo-btn"
+                        onClick={() =>
                           setLookupModal({
                             isOpen: true,
                             type: 'invoice',
                             title: 'Select Existing Invoice',
-                            search: val,
-                          });
+                            search: '',
+                          })
                         }
-                      }
-                    }
-                  }}
-                  title={
-                    invoiceHeader.isManualInvoice
-                      ? 'Manual invoice number entry enabled'
-                      : 'Invoice number (Press Enter or click ... to find/open existing invoice)'
-                  }
-                />
-                <button
-                  type="button"
-                  className="invoice-btn-lookup"
-                  title="Lookup Existing Invoice"
-                  onClick={async () => {
-                    setLookupModal({
-                      isOpen: true,
-                      type: 'invoice',
-                      title: 'Select Existing Invoice',
-                      search: '',
-                    });
-                    setLookupPage(1);
-                    try {
-                      const res = await api.get('/invoices?limit=200');
-                      if (res.data?.success && res.data?.data) {
-                        setInvoicesList(res.data.data);
-                      }
-                    } catch {
-                      // ignore
-                    }
-                  }}
-                >
-                  ...
-                </button>
+                      >
+                        &#x25BC;
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Vehicle & Job Info (Middle) */}
+                <div className="sofast-vehicle-col">
+                  {/* Row 1: Brand & Pucha. On */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Brand</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ flex: 1, marginRight: '8px' }}
+                      value={invoiceHeader.brand || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, brand: e.target.value })}
+                    />
+                    <span className="sofast-label" style={{ width: '75px' }}>Pucha. On:</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ width: '130px' }}
+                      value={invoiceHeader.puchaOn || invoiceHeader.date}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, puchaOn: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Row 2: Model & Engine No */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Model</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ flex: 1, marginRight: '8px' }}
+                      value={invoiceHeader.model || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, model: e.target.value })}
+                    />
+                    <span className="sofast-label" style={{ width: '75px' }}>Engine No:</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ width: '130px' }}
+                      value={invoiceHeader.engineNo || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, engineNo: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Row 3: Chessis No */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Chessis No</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ flex: 1 }}
+                      value={invoiceHeader.chassisNo || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, chassisNo: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Row 4: Address */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Address</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ flex: 1 }}
+                      value={invoiceHeader.customerAddress || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, customerAddress: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Row 5: Job Done by .. */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Job Done by ..</span>
+                    <div className="sofast-combo-box" style={{ flex: 1.2, marginRight: '4px' }}>
+                      <input
+                        type="text"
+                        className="sofast-input"
+                        value={invoiceHeader.jobDoneBy || ''}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobDoneBy: e.target.value })}
+                      />
+                      <button type="button" className="sofast-combo-btn">&#x25BC;</button>
+                    </div>
+                    <div className="sofast-combo-box" style={{ flex: 0.8 }}>
+                      <input
+                        type="text"
+                        className="sofast-input"
+                        value={invoiceHeader.jobDoneBy2 || ''}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobDoneBy2: e.target.value })}
+                      />
+                      <button type="button" className="sofast-combo-btn">&#x25BC;</button>
+                    </div>
+                  </div>
+
+                  {/* Row 6: Meter Reading */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Meter Reading</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ flex: 1 }}
+                      value={invoiceHeader.meterReading || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, meterReading: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Row 7: Date . . . . . . . . */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Date . . . . . . . .</span>
+                    <div className="sofast-combo-box" style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        className="sofast-input"
+                        value={invoiceHeader.date || ''}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, date: e.target.value })}
+                      />
+                      <button type="button" className="sofast-combo-btn">&#x25BC;</button>
+                    </div>
+                  </div>
+
+                  {/* Row 8: Type . . . . . . . . */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Type . . . . . . . .</span>
+                    <div className="sofast-combo-box" style={{ flex: 1 }}>
+                      <select
+                        className="sofast-input sofast-select"
+                        value={invoiceHeader.type || invoiceHeader.paymentMethod || 'Cash'}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInvoiceHeader({ ...invoiceHeader, type: val, paymentMethod: val });
+                          setPayment({ ...payment, paymentMethod: val });
+                        }}
+                      >
+                        <option value="Cash">Cash</option>
+                        <option value="Credit">Credit</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Card">Card</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Row 9: Cus. P.O . . . . */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '85px' }}>Cus. P.O . . . .</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ flex: 1 }}
+                      value={invoiceHeader.cusPo || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, cusPo: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Row 10: Job Sheet / Master P.O . . . */}
+                  <div className="sofast-row">
+                    <span className="sofast-label" style={{ width: '150px' }}>Job Sheet / Master P.O . . .</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{ flex: 1, marginRight: '4px' }}
+                      value={invoiceHeader.jobSheetMasterPo || ''}
+                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobSheetMasterPo: e.target.value })}
+                    />
+                    <button type="button" className="sofast-btn-dots">...</button>
+                  </div>
+                </div>
+
+                {/* 3. Action Buttons (Right of Middle Column) */}
+                <div className="sofast-actions-col">
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    onClick={handleNew}
+                  >
+                    Blank Invoice
+                  </button>
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    onClick={handleCalculateDiscount}
+                  >
+                    Cal. Discount
+                  </button>
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    onClick={handleRemoveDiscount}
+                  >
+                    Rem. Discount
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Right: 5 Action Buttons */}
-            <div className="invoice-top-actions">
-              <button
-                type="button"
-                className="invoice-btn-classic"
-                onClick={handleCreateInvoiceButtonClick}
-                title="Create Invoice / Open Settlement Invoice (F2)"
-              >
-                Create<br />Invoice
-              </button>
-              <button
-                type="button"
-                className="invoice-btn-classic"
-                onClick={handleHoldInvoice}
-                title="Hold Invoice"
-              >
-                Hold<br />Invoice
-              </button>
-              <button
-                type="button"
-                className="invoice-btn-classic"
-                onClick={handleCalculateDiscount}
-                title="Calculate Discount (F7)"
-              >
-                Calculate<br />Discount
-              </button>
-              <button
-                type="button"
-                className="invoice-btn-classic"
-                onClick={handleNew}
-                title="Blank Invoice"
-              >
-                Blank<br />Invoice
-              </button>
-              <button
-                type="button"
-                className={`invoice-btn-classic ${invoiceHeader.isManualInvoice ? 'active-manual' : ''}`}
-                onClick={handleManualInvoiceToggle}
-                title="Toggle Manual Invoice Number Entry"
-              >
-                Manual<br />Invoice
-              </button>
-            </div>
-          </div>
+              {/* Item Entry Box */}
+              <div className="sofast-item-entry-frame">
+                {/* Header row: Type of Job & Create New Invoice / Save */}
+                <div className="sofast-entry-header-row">
+                  <div className="sofast-job-type-box">
+                    <span className="sofast-label" style={{ marginRight: '6px' }}>Type of Job . . . .</span>
+                    <label className="sofast-radio-label">
+                      <input
+                        type="radio"
+                        name="jobType"
+                        value="Material"
+                        checked={invoiceHeader.jobType === 'Material'}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                      />
+                      Material
+                    </label>
+                    <label className="sofast-radio-label">
+                      <input
+                        type="radio"
+                        name="jobType"
+                        value="Labour"
+                        checked={invoiceHeader.jobType === 'Labour'}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                      />
+                      Labour
+                    </label>
+                    <label className="sofast-radio-label">
+                      <input
+                        type="radio"
+                        name="jobType"
+                        value="Group"
+                        checked={invoiceHeader.jobType === 'Group'}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                      />
+                      Group
+                    </label>
+                    <label className="sofast-radio-label">
+                      <input
+                        type="radio"
+                        name="jobType"
+                        value="J.G."
+                        checked={invoiceHeader.jobType === 'J.G.'}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                      />
+                      J.G.
+                    </label>
 
-          {/* 2. SUB-HEADER: TYPE OF JOB & ITEM LOOKUP */}
-          <div className="invoice-job-lookup-bar">
-            <div className="job-type-group">
-              <span className="bar-label-blue">Type of Job:</span>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="jobType"
-                  value="Material"
-                  checked={invoiceHeader.jobType === 'Material'}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
-                />
-                <span>Material</span>
-              </label>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="jobType"
-                  value="Labour"
-                  checked={invoiceHeader.jobType === 'Labour'}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
-                />
-                <span>Labour</span>
-              </label>
-            </div>
+                    <span className="sofast-radio-divider">|</span>
 
-            <div className="item-lookup-group">
-              <span className="bar-label-blue">Item Lookup:</span>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="itemLookupMode"
-                  value="Item Code"
-                  checked={invoiceHeader.itemLookupMode === 'Item Code'}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, itemLookupMode: e.target.value })}
-                />
-                <span>Item Code</span>
-              </label>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name="itemLookupMode"
-                  value="Bar Code"
-                  checked={invoiceHeader.itemLookupMode === 'Bar Code'}
-                  onChange={(e) => setInvoiceHeader({ ...invoiceHeader, itemLookupMode: e.target.value })}
-                />
-                <span>Bar Code</span>
-              </label>
-            </div>
-          </div>
+                    <label className="sofast-radio-label">
+                      <input
+                        type="radio"
+                        name="itemLookupMode"
+                        value="Item Code"
+                        checked={invoiceHeader.itemLookupMode === 'Item Code'}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, itemLookupMode: e.target.value })}
+                      />
+                      Item Code
+                    </label>
+                    <label className="sofast-radio-label">
+                      <input
+                        type="radio"
+                        name="itemLookupMode"
+                        value="Bar Code"
+                        checked={invoiceHeader.itemLookupMode === 'Bar Code'}
+                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, itemLookupMode: e.target.value })}
+                      />
+                      Bar Code
+                    </label>
+                  </div>
 
-          {/* 3. MIDDLE SPLIT: ITEM ENTRY (Left) | ALTERNATIVES & TOTALS (Right) */}
-          <div className="invoice-middle-split">
-            {/* Left: Item Entry Panel */}
-            <div className="invoice-item-entry-panel">
-              {/* Row 1: Item Code & Location */}
-              <div className="entry-row">
-                <span className="dotted-label-blue" title="Item Code (Code is Item)">Item Code . . . .</span>
-                <div className="item-code-field-group" ref={itemDropdownRef}>
+                  <div className="sofast-entry-buttons">
+                    <button
+                      type="button"
+                      className="sofast-classic-btn"
+                      onClick={handleNew}
+                    >
+                      Create New Invoice
+                    </button>
+                    <button
+                      type="button"
+                      className="sofast-classic-btn sofast-save-btn"
+                      onClick={handleAddOrUpdateItem}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                {/* Form Row 1: Code - Material & GRN */}
+                <div className="sofast-form-row">
+                  <span className="sofast-label" style={{ width: '105px' }}>Code - Material</span>
                   <input
                     ref={itemCodeInputRef}
                     type="text"
                     name="code"
-                    className="invoice-input item-code-input"
-                    placeholder="Enter Item Code..."
+                    className="sofast-input code-olive-input"
+                    style={{ width: '220px', marginRight: '16px' }}
                     value={itemEntry.code}
                     onChange={handleItemEntryChange}
-                    onFocus={() => setItemDropdownOpen(true)}
-                    onClick={() => setItemDropdownOpen(true)}
                     onKeyDown={handleCodeKeyDown}
-                    autoComplete="off"
-                    title="Type code or click to view item list (F4 for full catalog)"
+                    placeholder="Item Code"
                   />
-                  <button
-                    type="button"
-                    className="invoice-btn-dropdown-toggle"
-                    title="Click to show item list"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setItemDropdownOpen((prev) => !prev);
-                    }}
-                  >
-                    ▼
-                  </button>
-                  <button
-                    type="button"
-                    className="invoice-btn-lookup"
-                    title="Search Items Master (F4)"
-                    onClick={() => {
-                      setItemDropdownOpen(false);
-                      setLookupModal({
-                        isOpen: true,
-                        type: 'item',
-                        title: 'Select Item from Item Master',
-                        search: itemEntry.code || '',
-                      });
-                      setLookupPage(1);
-                    }}
-                  >
-                    ...
-                  </button>
-
-                  {/* Interactive Item List Dropdown Popup */}
-                  {itemDropdownOpen && (
-                    <div className="invoice-item-dropdown-menu">
-                      <div className="invoice-item-dropdown-header">
-                        <span style={{ width: '95px' }}>Item Code</span>
-                        <span style={{ flex: 1 }}>Description</span>
-                        <span style={{ width: '85px', textAlign: 'right' }}>Price (Rs.)</span>
-                        <span style={{ width: '55px', textAlign: 'center' }}>Stock</span>
-                      </div>
-                      <div className="invoice-item-dropdown-list">
-                        {filteredDropdownItems.length === 0 ? (
-                          <div className="invoice-item-dropdown-empty">
-                            No items matching "{itemEntry.code}"
-                          </div>
-                        ) : (
-                          filteredDropdownItems.slice(0, 150).map((item, idx) => (
-                            <div
-                              key={item._id || item.code}
-                              className={`invoice-item-dropdown-row ${highlightedItemIndex === idx ? 'highlighted' : ''}`}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleSelectItemFromLookup(item);
-                                setItemDropdownOpen(false);
-                              }}
-                              onMouseEnter={() => setHighlightedItemIndex(idx)}
-                            >
-                              <span className="dropdown-col-code">{item.code}</span>
-                              <span className="dropdown-col-desc">{item.description}</span>
-                              <span className="dropdown-col-price">
-                                {Number(item.finalSellingPrice || item.sellingPrice || 0).toFixed(2)}
-                              </span>
-                              <span
-                                className={`dropdown-col-stock ${
-                                  Number(item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)) > 0
-                                    ? 'in-stock'
-                                    : 'out-stock'
-                                }`}
-                              >
-                                {item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                      <div className="invoice-item-dropdown-footer">
-                        <span>
-                          Showing {Math.min(filteredDropdownItems.length, 150)} of {itemsList.length} items
-                        </span>
-                        <button
-                          type="button"
-                          className="dropdown-open-modal-link"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setItemDropdownOpen(false);
-                            setLookupModal({
-                              isOpen: true,
-                              type: 'item',
-                              title: 'Select Item from Item Master',
-                              search: itemEntry.code || '',
-                            });
-                            setLookupPage(1);
-                          }}
-                        >
-                          View All {itemsList.length} Items (F4) ↗
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  <span className="sofast-label" style={{ width: '55px' }}>GRN . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ flex: 1 }}
+                    readOnly
+                    value={itemEntry.lastGrnFormatted || itemEntry.lastGrn || '2566 on 06/10/26 - 5'}
+                  />
                 </div>
 
-                <span className="dotted-label-blue loc-label">Location . .</span>
-                <select
-                  name="location"
-                  className="invoice-select item-loc-select"
-                  value={itemEntry.location}
-                  onChange={handleItemEntryChange}
-                >
-                  <option value="Main Store">Main Store</option>
-                  <option value="Store 2">Store 2</option>
-                  <option value="Workshop">Workshop</option>
-                </select>
-              </div>
+                {/* Form Row 2: Coupon No & INV */}
+                <div className="sofast-form-row">
+                  <span className="sofast-label" style={{ width: '105px' }}>Coupon No . . . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input coupon-green-input"
+                    style={{ width: '220px', marginRight: '16px' }}
+                    value="All Product Available"
+                    readOnly
+                  />
+                  <span className="sofast-label" style={{ width: '55px' }}>INV . . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ flex: 1 }}
+                    readOnly
+                    value="0 on 01/01/00 - 0"
+                  />
+                </div>
 
-              {/* Row 2: Description */}
-              <div className="entry-row">
-                <span className="dotted-label-blue">Description . . .</span>
-                <input
-                  type="text"
-                  name="description"
-                  className="invoice-input item-desc-input"
-                  placeholder="Item Description"
-                  value={itemEntry.description}
-                  onChange={handleItemEntryChange}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const query = String(itemEntry.description || '').trim().toLowerCase();
-                      if (query) {
-                        const match = itemsList.find(
-                          (i) => i.description?.toLowerCase() === query
-                        );
-                        if (match) {
-                          handleSelectItemFromLookup(match);
-                        } else {
-                          setLookupModal({
-                            isOpen: true,
-                            type: 'item',
-                            title: 'Select Item from Item Master',
-                            search: itemEntry.description,
-                          });
-                          setLookupPage(1);
-                        }
-                      }
-                    }
-                  }}
-                />
-              </div>
+                {/* Form Row 3: Description & Secondary Desc */}
+                <div className="sofast-form-row">
+                  <span className="sofast-label" style={{ width: '105px' }}>Description . . . .</span>
+                  <input
+                    type="text"
+                    name="description"
+                    className="sofast-input"
+                    style={{ width: '300px', marginRight: '8px' }}
+                    value={itemEntry.description}
+                    onChange={handleItemEntryChange}
+                  />
+                  <input
+                    type="text"
+                    name="secondDesc"
+                    className="sofast-input"
+                    style={{ flex: 1 }}
+                    value={itemEntry.secondDesc || ''}
+                    onChange={handleItemEntryChange}
+                  />
+                </div>
 
-              {/* Row 3: Available Qty */}
-              <div className="entry-row">
-                <span className="dotted-label-blue">Available Qty . .</span>
-                <input
-                  type="text"
-                  name="availableQty"
-                  className="invoice-input readonly qty-cost-input"
-                  readOnly
-                  value={itemEntry.availableQty !== '' ? itemEntry.availableQty : '-'}
-                />
-              </div>
-
-              {/* Row 4: Quantity & Discount % */}
-              <div className="two-col-entry">
-                <div className="col-field">
-                  <span className="dotted-label-blue">Quantity . . . . .</span>
+                {/* Form Row 4: Quantity, Rate, Standard Rate, Add a Note */}
+                <div className="sofast-form-row">
+                  <span className="sofast-label" style={{ width: '105px' }}>Quantity . . . . . .</span>
                   <input
                     type="number"
                     name="quantity"
-                    className="invoice-input qty-cost-input"
-                    style={{ textAlign: 'center', fontWeight: 'bold' }}
+                    className="sofast-input"
+                    style={{ width: '110px', marginRight: '16px' }}
                     value={itemEntry.quantity}
                     onChange={handleItemEntryChange}
                   />
+                  <span className="sofast-label" style={{ width: '90px' }}>Rate . . . . . . . .</span>
+                  <input
+                    type="text"
+                    name="rate"
+                    className="sofast-input"
+                    style={{ width: '100px', marginRight: '8px' }}
+                    value={itemEntry.rate}
+                    onChange={handleItemEntryChange}
+                  />
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ width: '80px', marginRight: '12px' }}
+                    value={itemEntry.standardRate || '1200'}
+                    readOnly
+                  />
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    onClick={() => {
+                      const noteText = prompt('Add a Note for this line item:', itemEntry.note || '');
+                      if (noteText !== null) {
+                        setItemEntry((prev) => ({ ...prev, note: noteText }));
+                      }
+                    }}
+                  >
+                    Add a Note
+                  </button>
                 </div>
-                <div className="col-field">
-                  <span className="dotted-label-blue">Discount % . . .</span>
+
+                {/* Form Row 5: Selling Price, Discount, Cost */}
+                <div className="sofast-form-row">
+                  <span className="sofast-label" style={{ width: '105px' }}>Selling Price . . .</span>
                   <input
                     type="number"
+                    name="price"
+                    className="sofast-input"
+                    style={{ width: '110px', marginRight: '16px' }}
+                    value={itemEntry.price}
+                    onChange={handleItemEntryChange}
+                  />
+                  <span className="sofast-label" style={{ width: '90px' }}>Discount . . .</span>
+                  <input
+                    type="text"
                     name="discountPercentage"
-                    className="invoice-input qty-cost-input"
-                    placeholder="0"
+                    className="sofast-input discount-lavender-input"
+                    style={{ width: '140px', marginRight: '8px' }}
                     value={itemEntry.discountPercentage}
                     onChange={handleItemEntryChange}
                   />
-                </div>
-              </div>
-
-              {/* Row 5: Discount (Rs) & Final Price */}
-              <div className="two-col-entry">
-                <div className="col-field">
-                  <span className="dotted-label-blue">Discount (Rs) . .</span>
-                  <input
-                    type="number"
-                    name="discountAmount"
-                    className="invoice-input qty-cost-input"
-                    placeholder="0.00"
-                    value={itemEntry.discountAmount}
-                    onChange={handleItemEntryChange}
-                  />
-                </div>
-                <div className="col-field">
-                  <span className="dotted-label-blue">Final Price . . .</span>
+                  <span className="sofast-label" style={{ width: '50px' }}>Cost . .</span>
                   <input
                     type="text"
-                    name="finalPrice"
-                    className="invoice-input readonly qty-cost-input"
-                    style={{ fontWeight: 'bold', color: '#000080' }}
+                    className="sofast-input"
+                    style={{ width: '100px' }}
                     readOnly
-                    value={itemEntry.finalPrice || '0.00'}
+                    value={itemEntry.itemCost || '740'}
                   />
                 </div>
-              </div>
 
-              {/* Row 6: Item Cost & Last GRN */}
-              <div className="two-col-entry">
-                <div className="col-field">
-                  <span className="dotted-label-blue">Item Cost . . . .</span>
+                {/* Form Row 6: Value, Rack/BIN, Due */}
+                <div className="sofast-form-row">
+                  <span className="sofast-label" style={{ width: '105px' }}>Value . . . . . . . .</span>
                   <input
                     type="text"
-                    name="itemCost"
-                    className="invoice-input readonly qty-cost-input"
+                    className="sofast-input"
+                    style={{ width: '110px', marginRight: '16px' }}
                     readOnly
-                    value={itemEntry.itemCost || '0.00'}
+                    value={itemEntry.value || itemEntry.finalPrice || ''}
                   />
-                </div>
-                <div className="col-field">
-                  <span className="dotted-label-blue">Last GRN . . . .</span>
+                  <span className="sofast-label" style={{ width: '90px' }}>Rack/BIN . . .</span>
                   <input
                     type="text"
-                    name="lastGrn"
-                    className="invoice-input readonly grn-input"
+                    className="sofast-input"
+                    style={{ width: '140px', marginRight: '8px' }}
+                    value={itemEntry.rackBin || 'R14-F-1'}
+                    onChange={(e) => setItemEntry({ ...itemEntry, rackBin: e.target.value })}
+                  />
+                  <span className="sofast-label" style={{ width: '50px' }}>Due . . . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ width: '100px' }}
                     readOnly
-                    value={itemEntry.lastGrn || '-'}
+                    value={itemEntry.due || '0'}
                   />
                 </div>
-              </div>
 
-              {/* Row 7: Last GRN Date */}
-              <div className="entry-row">
-                <span className="dotted-label-blue">Last GRN Date . .</span>
-                <input
-                  type="text"
-                  name="lastGrnDate"
-                  className="invoice-input readonly"
-                  style={{ width: '135px' }}
-                  readOnly
-                  value={itemEntry.lastGrnDate || '-'}
-                />
-              </div>
-
-              {/* Row 8: Action Buttons */}
-              <div className="entry-action-row">
-                <button
-                  type="button"
-                  className="invoice-btn-classic btn-add-item"
-                  onClick={handleAddOrUpdateItem}
-                >
-                  {selectedLineIndex >= 0 ? 'Update Item' : 'Add Item'}
-                </button>
-                {selectedLineIndex >= 0 && (
-                  <button
-                    type="button"
-                    className="invoice-btn-classic"
-                    onClick={() => {
-                      setSelectedLineIndex(-1);
-                      setItemEntry({
-                        code: '',
-                        description: '',
-                        location: 'Main Store',
-                        availableQty: '',
-                        quantity: '1',
-                        discountPercentage: '',
-                        discountAmount: '',
-                        finalPrice: '',
-                        itemCost: '',
-                        lastGrn: '',
-                        lastGrnDate: '',
-                        price: '',
-                        masterPack: '1',
-                        rateType: 'Retail',
-                        mpCost: '',
-                        roundOffOption: 'No Round Off',
-                        roundOffStep: 10,
-                        value: '0.00',
-                        balance: '',
-                        total: '0.00',
-                      });
-                      setAlternativeProducts([]);
-                    }}
-                  >
-                    Cancel Edit
-                  </button>
-                )}
+                {/* Form Row 7: Balance, Total, Disc */}
+                <div className="sofast-form-row">
+                  <span className="sofast-label" style={{ width: '105px' }}>Balance . . . . . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ width: '110px', marginRight: '16px' }}
+                    readOnly
+                    value={itemEntry.balance !== undefined && itemEntry.balance !== '' ? itemEntry.balance : itemEntry.availableQty}
+                  />
+                  <span className="sofast-label" style={{ width: '90px' }}>Total . . . . . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ width: '140px', marginRight: '8px' }}
+                    readOnly
+                    value={itemEntry.total || ''}
+                  />
+                  <span className="sofast-label" style={{ width: '50px' }}>Disc. . . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ width: '100px' }}
+                    readOnly
+                    value={itemEntry.discountAmount || ''}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Right: Alternative Products & Payment Totals */}
-            <div className="invoice-right-panel">
-              {/* Alternative Products Box */}
-              <div className="alt-products-box">
-                <div className="alt-box-title">Alternative Products</div>
-                <div className="alt-table-container">
-                  <table className="alt-products-table">
+            {/* Right Side: Stacked Product Tables (Catalog Items on Top, Alternative Products on Bottom) */}
+            <div className="sofast-right-tables-col">
+              {/* Upper Table: Catalog Items */}
+              <div className="sofast-table-panel">
+                <div className="sofast-table-scroll-container">
+                  <table className="sofast-classic-table">
                     <thead>
                       <tr>
-                        <th>Item Code</th>
+                        <th style={{ width: '110px' }}>Code</th>
                         <th>Description</th>
-                        <th>Location</th>
-                        <th style={{ textAlign: 'center' }}>Available Qty</th>
-                        <th style={{ textAlign: 'right' }}>Selling Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itemsList.map((item) => {
+                        const isSelected = itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase();
+                        return (
+                          <tr
+                            key={item._id || item.code}
+                            className={isSelected ? 'selected-row' : ''}
+                            onClick={() => handleSelectItemFromLookup(item)}
+                          >
+                            <td className="sofast-cell-code">{item.code}</td>
+                            <td className="sofast-cell-desc">{item.description}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Lower Table: Alternative Products */}
+              <div className="sofast-table-panel">
+                <div className="sofast-table-scroll-container">
+                  <table className="sofast-classic-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '110px' }}>Code</th>
+                        <th>Description</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loadingAlternatives ? (
                         <tr>
-                          <td colSpan="5" className="alt-empty-cell">
+                          <td colSpan="2" style={{ padding: '8px', color: '#666', fontStyle: 'italic' }}>
                             Loading alternatives...
                           </td>
                         </tr>
                       ) : alternativeProducts.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="alt-empty-cell">
-                            {itemEntry.code
-                              ? `No alternative products found for '${itemEntry.code}'`
-                              : 'Select an item to view alternatives'}
-                          </td>
-                        </tr>
+                        Array.from({ length: 8 }).map((_, idx) => (
+                          <tr key={`empty-alt-${idx}`}>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                          </tr>
+                        ))
                       ) : (
                         alternativeProducts.map((alt, idx) => (
                           <tr
                             key={alt._id || alt.code || idx}
-                            className="alt-row"
                             onClick={() => handleSelectAlternativeProduct(alt)}
-                            title="Click to load this alternative into item entry"
                           >
-                            <td style={{ fontWeight: 'bold', color: '#000080' }}>{alt.code}</td>
-                            <td>{alt.description || '-'}</td>
-                            <td>{alt.location || 'Main Store'}</td>
-                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                              {alt.stock !== undefined
-                                ? alt.stock
-                                : (alt.quantity !== undefined
-                                    ? alt.quantity
-                                    : (alt.availableQty || 0))}
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                              {Number(alt.price || alt.sellingPrice || 0).toFixed(2)}
-                            </td>
+                            <td className="sofast-cell-code">{alt.code}</td>
+                            <td className="sofast-cell-desc">{alt.description}</td>
                           </tr>
                         ))
                       )}
@@ -2388,143 +2575,60 @@ function Invoice() {
                   </table>
                 </div>
               </div>
-
-              {/* Payment Totals Box */}
-              <div className="payment-totals-box">
-                <div className="totals-field-row">
-                  <span className="dotted-label-blue">Payment Method . . . . . . . . .</span>
-                  <select
-                    name="paymentMethod"
-                    className="invoice-input total-input-blue"
-                    style={{ height: '22px', fontSize: '11px', fontWeight: 'bold' }}
-                    value={payment.paymentMethod || 'Cash'}
-                    onChange={(e) => setPayment({ ...payment, paymentMethod: e.target.value })}
-                  >
-                    <option value="Cash">Cash</option>
-                    <option value="Card">Card</option>
-                    <option value="Credit">Credit</option>
-                    <option value="Online Transfer">Online Transfer</option>
-                  </select>
-                </div>
-                <div className="totals-field-row">
-                  <span className="dotted-label-blue">Customer Paid Amount . . . . . .</span>
-                  <input
-                    ref={paidAmountInputRef}
-                    type="number"
-                    name="customerPaidAmount"
-                    className="invoice-input total-input-blue"
-                    placeholder="0.00"
-                    value={payment.customerPaidAmount}
-                    onChange={(e) => setPayment({ ...payment, customerPaidAmount: e.target.value })}
-                  />
-                </div>
-                <div className="totals-field-row">
-                  <span className="dotted-label-blue">Balance . . . . . . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="invoice-input readonly balance-input"
-                    style={{
-                      fontWeight: 'bold',
-                      color: balanceAmount >= 0 ? '#065f46' : '#991b1b',
-                      backgroundColor: balanceAmount < 0 ? '#fee2e2' : '#ffffff',
-                    }}
-                    readOnly
-                    value={balanceAmount.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  />
-                </div>
-                <div className="totals-field-row">
-                  <span className="dotted-label-blue">Total . . . . . . . . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="invoice-input readonly total-input-bold"
-                    readOnly
-                    value={totalAmount.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
-          {/* 4. MAIN INVOICE ITEMS TABLE (11 COLUMNS MATCHING SCREENSHOT) */}
-          <div className="invoice-items-table-wrapper">
-            <table className="invoice-items-table">
+          {/* BOTTOM FULL-WIDTH MAIN INVOICE GRID */}
+          <div className="sofast-bottom-grid-container">
+            <table className="sofast-grid-table">
               <thead>
                 <tr>
-                  <th style={{ width: '90px' }}>Code</th>
-                  <th>Description</th>
-                  <th style={{ width: '90px' }}>Location</th>
-                  <th style={{ width: '85px', textAlign: 'center' }}>Available Qty</th>
-                  <th style={{ width: '65px', textAlign: 'center' }}>Quantity</th>
-                  <th style={{ width: '75px', textAlign: 'right' }}>Discount %</th>
-                  <th style={{ width: '85px', textAlign: 'right' }}>Discount Value</th>
-                  <th style={{ width: '90px', textAlign: 'right' }}>Final Price</th>
-                  <th style={{ width: '80px', textAlign: 'right' }}>Item Cost</th>
-                  <th style={{ width: '90px' }}>Last GRN</th>
-                  <th style={{ width: '95px' }}>Last GRN Date</th>
-                  <th style={{ width: '40px', textAlign: 'center' }}>Del</th>
+                  <th style={{ width: '135px' }}>Code</th>
+                  <th style={{ minWidth: '350px' }}>Description</th>
+                  <th style={{ width: '100px' }}>Selling Price</th>
+                  <th style={{ width: '100px' }}>Quantity</th>
+                  <th style={{ width: '80px' }}>Discount</th>
+                  <th style={{ width: '100px' }}>Value</th>
+                  <th style={{ width: '40px', textAlign: 'center' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {lineItems.length === 0 ? (
-                  <tr>
-                    <td colSpan="12" style={{ textAlign: 'center', padding: '24px', color: '#888' }}>
-                      No items added to invoice. Select an item above and click Add Item.
-                    </td>
-                  </tr>
+                  Array.from({ length: 8 }).map((_, emptyIdx) => (
+                    <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                    </tr>
+                  ))
                 ) : (
                   lineItems.map((item, index) => (
                     <tr
-                      key={`${item.code}-${index}`}
-                      className={selectedLineIndex === index ? 'selected' : ''}
+                      key={index}
+                      className={selectedLineIndex === index ? 'selected-row' : ''}
                       onClick={() => handleRowClick(index)}
-                      title="Click row to edit item"
                     >
-                      <td style={{ fontWeight: 'bold' }}>{item.code}</td>
+                      <td className="sofast-cell-code">{item.code}</td>
                       <td>{item.description}</td>
-                      <td>{item.location || 'Main Store'}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                        {item.availableQty !== undefined ? item.availableQty : (item.balance || '-')}
-                      </td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{item.quantity}</td>
-                      <td style={{ textAlign: 'right' }}>{item.discountPercentage || 0}</td>
                       <td style={{ textAlign: 'right' }}>
-                        {Number(item.discountAmount || 0).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        {Number(item.sellingPrice || item.price || 0).toFixed(2)}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#000080' }}>
-                        {Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toLocaleString(
-                          'en-US',
-                          { minimumFractionDigits: 2, maximumFractionDigits: 2 }
-                        )}
+                      <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        {item.discountPercentage ? `${item.discountPercentage}%` : '0%'}
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        {Number(item.itemCost || 0).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        {Number(item.finalPrice || item.value || 0).toFixed(2)}
                       </td>
-                      <td>{item.lastGrn || '-'}</td>
-                      <td>{item.lastGrnDate || '-'}</td>
                       <td style={{ textAlign: 'center' }}>
                         <button
                           type="button"
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#e81123',
-                            cursor: 'pointer',
-                            fontSize: '13px',
-                            fontWeight: 'bold',
-                          }}
-                          title="Delete item"
+                          className="sofast-grid-del-btn"
+                          title="Remove item"
                           onClick={(e) => handleRemoveLineItem(index, e)}
                         >
                           ✕
@@ -2533,14 +2637,9 @@ function Invoice() {
                     </tr>
                   ))
                 )}
-                {/* Visual grid filler rows if fewer than 6 items */}
-                {Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
-                  <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
+                {/* Visual grid filler rows if fewer than 8 items */}
+                {lineItems.length > 0 && Array.from({ length: Math.max(0, 8 - lineItems.length) }).map((_, emptyIdx) => (
+                  <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
                     <td>&nbsp;</td>
                     <td>&nbsp;</td>
                     <td>&nbsp;</td>
@@ -2554,7 +2653,7 @@ function Invoice() {
             </table>
           </div>
 
-          {/* 5. BOTTOM ACTION BAR */}
+          {/* BOTTOM ACTION BAR */}
           <div className="invoice-footer">
             <div className="invoice-footer-left">
               <button type="button" className="invoice-btn-classic" onClick={handleNew}>
@@ -2600,7 +2699,7 @@ function Invoice() {
             </div>
           </div>
 
-          {/* 6. STATUS BAR */}
+          {/* STATUS BAR */}
           <div className="invoice-status-bar">
             F1-Received Amount, F2-Create Invoice, F3-Entry Type, F4-Catalog, F5-Filter, F7-Cal Discount, F11-Bar code mode
           </div>

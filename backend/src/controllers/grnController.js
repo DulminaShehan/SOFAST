@@ -886,12 +886,22 @@ export const getItemGrnHistory = async (req, res, next) => {
       ? (itemDoc.quantity !== undefined ? itemDoc.quantity : (itemDoc.stockInHand || 0))
       : 0;
     const currentLocation = itemDoc?.location || 'Main Store';
-    const lpc = latestRecord
-      ? latestRecord.price
-      : (itemDoc ? (itemDoc.lastGrnPrice || itemDoc.averageCost || 0) : 0);
+    const latestCost = latestRecord
+      ? (latestRecord.purchasePrice !== undefined ? Number(latestRecord.purchasePrice) : Number(latestRecord.price))
+      : null;
+    const lpc = latestCost !== null
+      ? Number(latestCost).toFixed(2)
+      : (itemDoc?.lastGrnPrice ? Number(itemDoc.lastGrnPrice).toFixed(2) : '0.00');
     const lastGrnInfo = latestRecord
       ? `${latestRecord.grnNumber}${latestRecord.date ? ' (' + new Date(latestRecord.date).toISOString().split('T')[0] + ')' : ''}`
       : (itemDoc?.lastGrn || itemDoc?.lastGrnDate || '-');
+
+    const formattedDate = latestRecord?.date
+      ? new Date(latestRecord.date).toLocaleDateString('en-GB')
+      : '';
+    const lastGrnFormatted = latestRecord
+      ? `${latestRecord.grnNumber}${formattedDate ? ' on ' + formattedDate : ''}${latestRecord.quantity !== undefined ? ' - ' + latestRecord.quantity : ''}`
+      : (itemDoc?.lastGrn || '-');
 
     return res.status(200).json({
       success: true,
@@ -903,7 +913,10 @@ export const getItemGrnHistory = async (req, res, next) => {
           closingStock: currentStock,
           location: currentLocation,
           lastGrn: lastGrnInfo,
-          lpc: Number(lpc).toFixed(2),
+          lastGrnFormatted,
+          lpc,
+          hasGrnHistory: Boolean(latestRecord),
+          latestGrnCost: latestCost,
           latestGrnNumber: latestRecord ? latestRecord.grnNumber : '',
           latestGrnDate: latestRecord ? latestRecord.date : null,
           isPosted: latestRecord ? latestRecord.isPosted : false,
