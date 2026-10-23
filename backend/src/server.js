@@ -1,10 +1,21 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import dns from 'dns';
 import { connectDatabase } from './config/database.js';
 import routes from './routes/index.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 import { errorHandler } from './middleware/errorHandler.js';
+
+// Resolve MongoDB SRV records reliably using Google & Cloudflare DNS (fixes querySrv ETIMEOUT on Windows)
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+  if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+  }
+} catch (e) {
+  // fallback to system default if custom DNS cannot be set
+}
 
 // Load environment variables
 dotenv.config();
@@ -61,9 +72,21 @@ if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   const startServer = async () => {
     await connectDatabase();
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`🚀 SOFAST Backend Server running on port ${PORT}`);
       console.log(`🔗 Health Check URL: http://localhost:${PORT}/api/health`);
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n❌ Error: Port ${PORT} is already in use by another process.`);
+        console.error(`💡 To free port ${PORT} on Windows:`);
+        console.error(`   Run in PowerShell: Stop-Process -Id (Get-NetTCPConnection -LocalPort ${PORT}).OwningProcess -Force`);
+        console.error(`   Or in CMD: netstat -ano | findstr :${PORT}  then  taskkill /PID <PID> /F\n`);
+        process.exit(1);
+      } else {
+        console.error('Server error:', err);
+      }
     });
   };
 

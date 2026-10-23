@@ -87,10 +87,12 @@ function Invoice() {
     value: '',
     due: '',
     balance: '',
-    total: '',
     disc: '',
     note: '',
   });
+
+  // Customer Outstanding Due Balance
+  const [customerDue, setCustomerDue] = useState('0.00');
 
   // Payment Details State
   const [payment, setPayment] = useState({
@@ -370,6 +372,47 @@ function Invoice() {
 
     return () => clearTimeout(timer);
   }, [itemEntry.code]);
+
+  // Fetch real outstanding due balance whenever selected customer changes
+  useEffect(() => {
+    let isCancelled = false;
+    const code = String(invoiceHeader.customerCode || '').trim();
+    if (!code) {
+      setCustomerDue('0.00');
+      return;
+    }
+
+    const fetchCustomerBalance = async () => {
+      try {
+        const res = await api.get(`/customers/${encodeURIComponent(code)}`);
+        if (!isCancelled && res.data?.success && res.data.data) {
+          const due = res.data.data.dueAmount !== undefined
+            ? res.data.data.dueAmount
+            : (res.data.data.outstandingBalance || 0);
+          setCustomerDue(Number(due).toFixed(2));
+          return;
+        }
+      } catch (err) {
+        // fallback to customersList if API error
+      }
+      if (!isCancelled) {
+        const local = customersList.find(
+          (c) => (c.code || c.customerCode || '').toLowerCase() === code.toLowerCase()
+        );
+        if (local) {
+          const due = local.dueAmount !== undefined ? local.dueAmount : (local.outstandingBalance || 0);
+          setCustomerDue(Number(due).toFixed(2));
+        } else {
+          setCustomerDue('0.00');
+        }
+      }
+    };
+
+    fetchCustomerBalance();
+    return () => {
+      isCancelled = true;
+    };
+  }, [invoiceHeader.customerCode, customersList]);
 
   // Load an existing invoice into the form (restoring all details, line items, and payment method)
   const loadInvoiceData = (inv) => {
@@ -714,8 +757,8 @@ function Invoice() {
       initDiscPct = String(item.discountPercentage);
     }
 
-    // Requirement 3: Quantity field displays actual available stock quantity initially
-    const initQty = available !== undefined && available !== null ? String(available) : '0';
+    // Requirement 2: Quantity field represents customer purchase quantity, default 1 (never available stock)
+    const initQty = '1';
 
     const comp = computeLinePricing(
       sellingPrice,
@@ -831,6 +874,10 @@ function Invoice() {
         handleSelectItemFromLookup(match);
         setItemDropdownOpen(false);
         setHighlightedItemIndex(-1);
+      } else if (filteredDropdownItems.length > 0) {
+        handleSelectItemFromLookup(filteredDropdownItems[0]);
+        setItemDropdownOpen(false);
+        setHighlightedItemIndex(-1);
       } else {
         setItemDropdownOpen(false);
         setLookupModal({
@@ -884,8 +931,8 @@ function Invoice() {
           initDiscPct = String(match.discountPercentage);
         }
 
-        // Requirement 3: Quantity field displays actual available quantity initially
-        const initQty = available !== undefined && available !== null ? String(available) : '0';
+        // Requirement 2: Quantity field represents customer purchase quantity, default 1 (never available stock)
+        const initQty = '1';
 
         const comp = computeLinePricing(
           sellingPrice,
@@ -953,16 +1000,16 @@ function Invoice() {
       }
     }
 
-    // Quantity change: validate against available stock and recalculate Value
+    // Quantity change: validate customer purchase quantity against available stock and recalculate Value
     if (name === 'quantity') {
       let qtyVal = value;
       const numQty = parseFloat(qtyVal);
       const avail = parseFloat(updated.availableQty);
 
       if (!isNaN(numQty) && !isNaN(avail) && avail > 0 && numQty > avail) {
-        showNotification(`Sale quantity cannot exceed available stock (${avail})`, 'error');
-        qtyVal = String(avail);
-        updated.quantity = qtyVal;
+        showNotification(`Requested purchase quantity (${numQty}) cannot exceed available stock (${avail})`, 'error');
+      } else if (!isNaN(numQty) && numQty <= 0) {
+        showNotification('Purchase quantity must be greater than 0', 'error');
       }
 
       const comp = computeLinePricing(
@@ -1070,7 +1117,8 @@ function Invoice() {
       }
     }
 
-    const initQty = String(stock);
+    // Requirement 2: Quantity field represents customer purchase quantity, default 1 (never available stock)
+    const initQty = '1';
 
     const comp = computeLinePricing(
       sellingPrice,
@@ -1136,13 +1184,13 @@ function Invoice() {
 
     const saleQty = parseFloat(itemEntry.quantity);
     if (isNaN(saleQty) || saleQty <= 0) {
-      showNotification('Please enter a valid Quantity (> 0)', 'error');
+      showNotification('Please enter a valid purchase quantity greater than 0', 'error');
       return;
     }
 
     const avail = parseFloat(itemEntry.availableQty);
     if (!isNaN(avail) && avail > 0 && saleQty > avail) {
-      showNotification(`Sale quantity cannot exceed available stock (${avail})`, 'error');
+      showNotification(`Requested purchase quantity (${saleQty}) cannot exceed available stock (${avail})`, 'error');
       return;
     }
 
@@ -1257,11 +1305,11 @@ function Invoice() {
     }
   };
 
-  // BUTTON: BLANK INVOICE
-  const handleNew = async () => {
-    if (lineItems.length > 0) {
+  // BUTTON: NEW INVOICE
+  const handleNew = async (force = false) => {
+    if (!force && lineItems.length > 0 && !activeInvoiceId) {
       const confirmClear = window.confirm(
-        'Invoice contains unsaved items. Clear the form for a Blank Invoice?'
+        'Invoice contains unsaved items. Would you like to discard them and create a New invoice?'
       );
       if (!confirmClear) return;
     }
@@ -1270,6 +1318,7 @@ function Invoice() {
     setLineItems([]);
     setSelectedLineIndex(-1);
     setAlternativeProducts([]);
+    setCustomerDue('0.00');
     setItemEntry({
       code: '',
       description: '',
@@ -1318,8 +1367,8 @@ function Invoice() {
           date: new Date().toISOString().split('T')[0],
           customerCode: '',
           customerName: 'Walk In Customer',
-          customerAddress: 'No Address',
-          customerTelephone: '-',
+          customerAddress: '',
+          customerTelephone: '',
           jd: 'Invoice',
           isHold: false,
           jobType: 'Material',
@@ -1335,8 +1384,8 @@ function Invoice() {
         date: new Date().toISOString().split('T')[0],
         customerCode: '',
         customerName: 'Walk In Customer',
-        customerAddress: 'No Address',
-        customerTelephone: '-',
+        customerAddress: '',
+        customerTelephone: '',
         jd: 'Invoice',
         isHold: false,
         jobType: 'Material',
@@ -1346,7 +1395,7 @@ function Invoice() {
       });
     }
 
-    showNotification('Cleared form for Blank Invoice', 'info');
+    showNotification('Prepared New Invoice', 'info');
   };
 
   // BUTTON: MANUAL INVOICE
@@ -1537,38 +1586,81 @@ function Invoice() {
 
   // BUTTON: DELETE INVOICE
   const handleDeleteInvoice = async () => {
-    if (!activeInvoiceId) {
-      if (selectedLineIndex >= 0) {
-        handleRemoveLineItem(selectedLineIndex);
-        showNotification('Removed selected item from invoice', 'info');
-      } else {
-        showNotification('No saved invoice or line item selected to delete', 'info');
+    // 1. If an active saved invoice is loaded
+    if (activeInvoiceId) {
+      const confirmDel = window.confirm(
+        `Are you sure you want to delete / cancel Invoice '${invoiceHeader.invoiceNumber}'? This will restore any deducted stock and update customer outstanding balance!`
+      );
+      if (!confirmDel) return;
+
+      try {
+        setLoading(true);
+        const res = await api.delete(`/invoices/${activeInvoiceId}`);
+        if (res.data && res.data.success) {
+          showNotification(res.data.message || `Invoice '${invoiceHeader.invoiceNumber}' cancelled and stock restored`, 'success');
+          await handleNew(true);
+        }
+      } catch (err) {
+        const errMsg = err.response?.data?.message || 'Failed to delete invoice';
+        showNotification(errMsg, 'error');
+      } finally {
+        setLoading(false);
       }
       return;
     }
 
-    const confirmDel = window.confirm(
-      `Are you sure you want to delete Invoice '${invoiceHeader.invoiceNumber}'? This will restore any deducted stock!`
-    );
-    if (!confirmDel) return;
-
-    try {
-      setLoading(true);
-      const res = await api.delete(`/invoices/${activeInvoiceId}`);
-      if (res.data && res.data.success) {
-        showNotification(`Invoice '${invoiceHeader.invoiceNumber}' deleted and stock restored`, 'success');
-        handleNew();
+    // 2. If a line item is selected in the bottom table
+    if (selectedLineIndex >= 0) {
+      const itemToDelete = lineItems[selectedLineIndex];
+      const confirmItem = window.confirm(
+        `Remove item '${itemToDelete?.code || 'selected'}' from the invoice?`
+      );
+      if (confirmItem) {
+        handleRemoveLineItem(selectedLineIndex);
+        showNotification(`Removed item '${itemToDelete?.code || ''}' from invoice`, 'info');
       }
-    } catch (err) {
-      showNotification('Failed to delete invoice', 'error');
-    } finally {
-      setLoading(false);
+      return;
     }
+
+    // 3. If there are unsaved line items in the table
+    if (lineItems.length > 0) {
+      const confirmLines = window.confirm('Clear all unsaved line items from the invoice?');
+      if (confirmLines) {
+        setLineItems([]);
+        showNotification('Cleared unsaved invoice lines', 'info');
+      }
+      return;
+    }
+
+    showNotification('No saved invoice or line item selected to delete', 'info');
+  };
+
+  // BUTTON: BILL PRINT
+  const handleBillPrint = async () => {
+    if (activeInvoiceId) {
+      handlePrint();
+      return;
+    }
+
+    if (lineItems.length > 0) {
+      const confirmSave = window.confirm(
+        'Invoice contains unsaved items. Invoices must be saved before printing a finalized bill. Would you like to save now?'
+      );
+      if (confirmSave) {
+        const saved = await handleSaveInvoice(false);
+        if (saved) {
+          handlePrint();
+        }
+      }
+      return;
+    }
+
+    showNotification('Please select or create an invoice before printing', 'error');
   };
 
   // Print Invoice (Thermal Receipt)
   const handlePrint = () => {
-    if (!invoiceHeader.invoiceNumber && lineItems.length === 0) {
+    if (lineItems.length === 0) {
       showNotification('Please add items or select an invoice first before printing', 'error');
       return;
     }
@@ -2032,6 +2124,27 @@ function Invoice() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Customer Due field */}
+                  <div className="sofast-inv-no-row" style={{ marginTop: '2px' }}>
+                    <span className="sofast-navy-label" style={{ minWidth: '65px' }}>Due . . . . .</span>
+                    <input
+                      type="text"
+                      className="sofast-input"
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#f4f4f4',
+                        fontWeight: 'bold',
+                        color: Number(customerDue) > 0 ? '#b91c1c' : '#000080',
+                        textAlign: 'right',
+                        paddingRight: '6px',
+                      }}
+                      readOnly
+                      value={invoiceHeader.customerCode ? Number(customerDue || 0).toFixed(2) : '0.00'}
+                      title="Customer Outstanding Due Balance"
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
 
                 {/* 2. Vehicle & Job Info (Middle) */}
@@ -2051,7 +2164,7 @@ function Invoice() {
                       <input
                         type="text"
                         className="sofast-input"
-                        value={invoiceHeader.puchaOn || invoiceHeader.date}
+                        value={invoiceHeader.puchaOn || ''}
                         onChange={(e) => setInvoiceHeader({ ...invoiceHeader, puchaOn: e.target.value })}
                       />
                       <button type="button" className="sofast-combo-btn">&#x25BC;</button>
@@ -2062,7 +2175,7 @@ function Invoice() {
                   <div className="sofast-row">
                     <span className="sofast-navy-label" style={{ width: '45px' }}>Model</span>
                     <input
-                      type="text"
+                        type="text"
                       className="sofast-input"
                       style={{ width: '105px', marginRight: '6px' }}
                       value={invoiceHeader.model || ''}
@@ -2094,7 +2207,7 @@ function Invoice() {
                     <textarea
                       className="sofast-input sofast-address-textarea"
                       style={{ flex: 1, height: '34px', resize: 'none' }}
-                      value={invoiceHeader.customerAddress || 'YATADOLA'}
+                      value={invoiceHeader.customerAddress || ''}
                       onChange={(e) => setInvoiceHeader({ ...invoiceHeader, customerAddress: e.target.value })}
                     />
                   </div>
@@ -2120,7 +2233,7 @@ function Invoice() {
                       <input
                         type="text"
                         className="sofast-input"
-                        value={invoiceHeader.date || '10/ 6/ 2026'}
+                        value={invoiceHeader.date || ''}
                         onChange={(e) => setInvoiceHeader({ ...invoiceHeader, date: e.target.value })}
                       />
                       <button type="button" className="sofast-combo-btn">&#x25BC;</button>
@@ -2167,9 +2280,26 @@ function Invoice() {
                   <button
                     type="button"
                     className="sofast-classic-btn"
-                    onClick={handleNew}
+                    onClick={() => handleNew()}
+                    title="Prepare form for New Invoice"
                   >
-                    Blank Invoice
+                    New
+                  </button>
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    onClick={handleBillPrint}
+                    title="Print Bill for Current Invoice"
+                  >
+                    Bill Print
+                  </button>
+                  <button
+                    type="button"
+                    className="sofast-classic-btn delete"
+                    onClick={handleDeleteInvoice}
+                    title="Delete or Cancel Invoice"
+                  >
+                    Delete
                   </button>
                   <button
                     type="button"
@@ -2190,7 +2320,7 @@ function Invoice() {
                     className="sofast-classic-btn"
                     onClick={handleManualInvoiceToggle}
                   >
-                    Manual Invoice
+                    {invoiceHeader.isManualInvoice ? 'Auto Invoice' : 'Manual Invoice'}
                   </button>
                 </div>
               </div>
@@ -2278,14 +2408,8 @@ function Invoice() {
                     style={{ width: '210px', marginRight: '8px' }}
                     value={itemEntry.code}
                     onChange={handleItemEntryChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleAddOrUpdateItem();
-                      } else {
-                        handleCodeKeyDown(e);
-                      }
-                    }}
-                    placeholder="Item Code"
+                    onKeyDown={handleCodeKeyDown}
+                    placeholder="Search by Item Code / Name"
                   />
                   <span className="sofast-navy-label" style={{ width: '45px' }}>GRN . .</span>
                   <input
@@ -2293,7 +2417,7 @@ function Invoice() {
                     className="sofast-input"
                     style={{ flex: 1 }}
                     readOnly
-                    value={itemEntry.lastGrnFormatted || itemEntry.lastGrn || '2556 on 06/10/26 - 5'}
+                    value={itemEntry.lastGrnFormatted || itemEntry.lastGrn || ''}
                   />
                 </div>
 
@@ -2305,9 +2429,11 @@ function Invoice() {
                     className="sofast-input coupon-green-input"
                     style={{ width: '210px', marginRight: '8px' }}
                     value={
-                      alternativeProducts.length > 0
-                        ? `${alternativeProducts.length} Alternative(s) Available`
-                        : 'No Product Available'
+                      itemEntry.code
+                        ? (alternativeProducts.length > 0
+                            ? `${alternativeProducts.length} Alternative(s) Available`
+                            : 'No Product Available')
+                        : ''
                     }
                     readOnly
                   />
@@ -2317,7 +2443,7 @@ function Invoice() {
                     className="sofast-input"
                     style={{ flex: 1 }}
                     readOnly
-                    value="0 on 01/01/00 - 0"
+                    value={itemEntry.lastInv || ''}
                   />
                 </div>
 
@@ -2407,11 +2533,11 @@ function Invoice() {
                     className="sofast-input"
                     style={{ width: '95px' }}
                     readOnly
-                    value={itemEntry.itemCost || '740'}
+                    value={itemEntry.itemCost !== undefined && itemEntry.itemCost !== null ? itemEntry.itemCost : ''}
                   />
                 </div>
 
-                {/* Form Row 6: Value, Location */}
+                {/* Form Row 6: Value, Location, Available Stock */}
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Value . . . . . . . .</span>
                   <input
@@ -2422,7 +2548,7 @@ function Invoice() {
                     value={itemEntry.value || itemEntry.finalPrice || ''}
                   />
                   <span className="sofast-navy-label" style={{ width: '75px' }}>Location . . . .</span>
-                  <div className="sofast-combo-box" style={{ width: '140px' }}>
+                  <div className="sofast-combo-box" style={{ width: '120px', marginRight: '10px' }}>
                     <select
                       className="sofast-select"
                       value={itemEntry.location || 'Main Store'}
@@ -2434,6 +2560,15 @@ function Invoice() {
                       <option value="Warehouse">Warehouse</option>
                     </select>
                   </div>
+                  <span className="sofast-navy-label" style={{ width: '45px' }}>Stock . .</span>
+                  <input
+                    type="text"
+                    className="sofast-input"
+                    style={{ width: '95px', backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'center' }}
+                    readOnly
+                    value={itemEntry.availableQty !== '' && itemEntry.availableQty !== undefined && itemEntry.availableQty !== null ? itemEntry.availableQty : ''}
+                    title="Available Stock in Inventory"
+                  />
                 </div>
               </div>
             </div>
@@ -2446,23 +2581,39 @@ function Invoice() {
                     <thead>
                       <tr>
                         <th style={{ width: '110px' }}>Code</th>
-                        <th>Description</th>
+                        <th>
+                          Description
+                          {itemEntry.code && (
+                            <span style={{ fontSize: '10px', color: '#000080', marginLeft: '6px', fontWeight: 'normal' }}>
+                              ({filteredDropdownItems.length} found)
+                            </span>
+                          )}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {itemsList.map((item) => {
-                        const isSelected = itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase();
-                        return (
-                          <tr
-                            key={item._id || item.code}
-                            className={isSelected ? 'selected-row' : ''}
-                            onClick={() => handleSelectItemFromLookup(item)}
-                          >
-                            <td className="sofast-cell-code">{item.code}</td>
-                            <td className="sofast-cell-desc">{item.description}</td>
-                          </tr>
-                        );
-                      })}
+                      {filteredDropdownItems.length === 0 ? (
+                        <tr>
+                          <td colSpan="2" style={{ padding: '8px', color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
+                            No items matching "{itemEntry.code}"
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredDropdownItems.map((item) => {
+                          const isSelected = itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase();
+                          return (
+                            <tr
+                              key={item._id || item.code}
+                              className={isSelected ? 'selected-row' : ''}
+                              onClick={() => handleSelectItemFromLookup(item)}
+                              title="Click to select this product"
+                            >
+                              <td className="sofast-cell-code">{item.code}</td>
+                              <td className="sofast-cell-desc">{item.description}</td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>

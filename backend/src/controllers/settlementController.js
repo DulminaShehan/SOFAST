@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Settlement from '../models/Settlement.js';
 import Invoice from '../models/Invoice.js';
+import { syncCustomerOutstandingBalance } from './customerController.js';
 
 /**
  * Get next receipt number for settlement
@@ -356,6 +357,10 @@ export const createSettlement = async (req, res, next) => {
     }
     await invoice.save();
 
+    if (invoice.customerCode) {
+      await syncCustomerOutstandingBalance(invoice.customerCode);
+    }
+
     return res.status(201).json({
       success: true,
       message: `Settlement '${settlement.receiptNo}' of Rs. ${settlement.amount.toFixed(2)} recorded successfully for Invoice '${invoice.invoiceNumber}'`,
@@ -439,6 +444,10 @@ export const deleteSettlement = async (req, res, next) => {
       invoice.isSettled = restoredBalance <= 0 && invoiceTotal > 0;
       invoice.paymentStatus = restoredBalance <= 0 ? 'paid' : (remainingPaid > 0 ? 'partial' : 'unpaid');
       await invoice.save();
+
+      if (invoice.customerCode) {
+        await syncCustomerOutstandingBalance(invoice.customerCode);
+      }
     }
 
     return res.status(200).json({

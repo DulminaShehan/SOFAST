@@ -1581,7 +1581,7 @@
 .sofast-customer-listbox {
   background: #fff;
   border: 1px solid #7f9db9;
-  height: 180px;
+  height: 155px;
   overflow-y: scroll;
   overflow-x: hidden;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -1674,10 +1674,15 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   padding-left: 6px;
   min-width: 95px;
   flex-shrink: 0;
+}
+
+.sofast-classic-btn.delete {
+  color: #8b0000;
+  font-weight: 600;
 }
 
 .sofast-classic-btn {

@@ -3,6 +3,7 @@ import Invoice from '../models/Invoice.js';
 import Item from '../models/Item.js';
 import Customer from '../models/Customer.js';
 import Settlement from '../models/Settlement.js';
+import { syncCustomerOutstandingBalance } from './customerController.js';
 
 /**
  * Get next sequential invoice number from MongoDB docnumbers and invoices
@@ -401,21 +402,7 @@ export const createInvoice = async (req, res, next) => {
 
     // Sync customer outstanding balance for credit / partial payments
     if (customerCode && customerCode.trim()) {
-      const trimmedCus = customerCode.trim();
-      const unpaidInvoices = await Invoice.find({
-        $or: [{ customerCode: trimmedCus }, { cuscode: trimmedCus }],
-        dueAmount: { $gt: 0 },
-      }).lean();
-      const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.dueAmount) || 0), 0);
-      await Customer.updateOne(
-        { $or: [{ code: trimmedCus }, { customerCode: trimmedCus }] },
-        {
-          $set: {
-            dueAmount: Math.round(totalUnpaid * 100) / 100,
-            outstandingBalance: Math.round(totalUnpaid * 100) / 100,
-          },
-        }
-      );
+      await syncCustomerOutstandingBalance(customerCode);
     }
 
     return res.status(201).json({
@@ -698,21 +685,7 @@ export const updateInvoice = async (req, res, next) => {
     // Sync customer outstanding balance for credit / partial payments
     const custCodeToSync = invoice.customerCode || customerCode;
     if (custCodeToSync && String(custCodeToSync).trim()) {
-      const trimmedCus = String(custCodeToSync).trim();
-      const unpaidInvoices = await Invoice.find({
-        $or: [{ customerCode: trimmedCus }, { cuscode: trimmedCus }],
-        dueAmount: { $gt: 0 },
-      }).lean();
-      const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.dueAmount) || 0), 0);
-      await Customer.updateOne(
-        { $or: [{ code: trimmedCus }, { customerCode: trimmedCus }] },
-        {
-          $set: {
-            dueAmount: Math.round(totalUnpaid * 100) / 100,
-            outstandingBalance: Math.round(totalUnpaid * 100) / 100,
-          },
-        }
-      );
+      await syncCustomerOutstandingBalance(custCodeToSync);
     }
 
     return res.status(200).json({
@@ -756,6 +729,22 @@ export const cancelInvoice = async (req, res, next) => {
       });
     }
 
+    // Prevent cancelling an invoice that has linked settlement payments
+    const linkedSettlements = await Settlement.find({
+      $or: [
+        { invoiceNumber: invoice.invoiceNumber },
+        { invoiceNo: invoice.invoiceNumber },
+        { invoiceId: invoice._id },
+      ],
+    }).lean();
+
+    if (linkedSettlements && linkedSettlements.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel Invoice '${invoice.invoiceNumber}' because it is linked to ${linkedSettlements.length} settlement payment record(s). Reverse or remove settlements first.`,
+      });
+    }
+
     // Revert stock deductions if they were applied
     if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
       const itemsMap = aggregateItemsByCode(invoice.lineItems);
@@ -769,7 +758,13 @@ export const cancelInvoice = async (req, res, next) => {
     }
 
     invoice.status = 'cancelled';
+    invoice.dueAmount = 0;
     await invoice.save();
+
+    const customerCode = invoice.customerCode || invoice.cuscode;
+    if (customerCode) {
+      await syncCustomerOutstandingBalance(customerCode);
+    }
 
     return res.status(200).json({
       success: true,
@@ -803,6 +798,22 @@ export const deleteInvoice = async (req, res, next) => {
       });
     }
 
+    // Prevent deleting an invoice that has linked settlement payments
+    const linkedSettlements = await Settlement.find({
+      $or: [
+        { invoiceNumber: invoice.invoiceNumber },
+        { invoiceNo: invoice.invoiceNumber },
+        { invoiceId: invoice._id },
+      ],
+    }).lean();
+
+    if (linkedSettlements && linkedSettlements.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete Invoice '${invoice.invoiceNumber}' because it is linked to ${linkedSettlements.length} settlement payment record(s). Reverse or remove settlements first.`,
+      });
+    }
+
     // Revert stock deductions if they were applied
     if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
       const itemsMap = aggregateItemsByCode(invoice.lineItems);
@@ -815,11 +826,24 @@ export const deleteInvoice = async (req, res, next) => {
       invoice.isStockUpdated = false;
     }
 
-    await Invoice.findByIdAndDelete(invoice._id);
+    const customerCode = invoice.customerCode || invoice.cuscode;
+
+    // For finalized/completed invoices, cancel and preserve audit history
+    if (invoice.status === 'completed' || invoice.status === 'partial' || invoice.status === 'paid' || invoice.isCompleted) {
+      invoice.status = 'cancelled';
+      invoice.dueAmount = 0;
+      await invoice.save();
+    } else {
+      await Invoice.findByIdAndDelete(invoice._id);
+    }
+
+    if (customerCode) {
+      await syncCustomerOutstandingBalance(customerCode);
+    }
 
     return res.status(200).json({
       success: true,
-      message: `Invoice '${invoice.invoiceNumber}' deleted and stock restored successfully`,
+      message: `Invoice '${invoice.invoiceNumber}' ${invoice.status === 'cancelled' ? 'cancelled' : 'deleted'} and stock restored successfully`,
     });
   } catch (error) {
     next(error);

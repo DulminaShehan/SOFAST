@@ -6,6 +6,34 @@ import Settlement from '../models/Settlement.js';
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
 /**
+ * Synchronize and return a customer's real outstanding due balance from valid unpaid invoices
+ */
+export const syncCustomerOutstandingBalance = async (customerCode) => {
+  if (!customerCode || !String(customerCode).trim()) return 0;
+  try {
+    const trimmed = String(customerCode).trim();
+    const regex = new RegExp(`^${trimmed}$`, 'i');
+    const unpaidInvoices = await Invoice.find({
+      $or: [{ customerCode: regex }, { cuscode: regex }],
+      dueAmount: { $gt: 0 },
+      status: { $ne: 'cancelled' },
+      isHold: { $ne: true },
+    }).lean();
+
+    const totalUnpaid = (unpaidInvoices || []).reduce((sum, inv) => sum + (Number(inv.dueAmount) || 0), 0);
+    const rounded = Math.round(totalUnpaid * 100) / 100;
+
+    await Customer.updateOne(
+      { $or: [{ code: regex }, { customerCode: regex }] },
+      { $set: { dueAmount: rounded, outstandingBalance: rounded } }
+    );
+    return rounded;
+  } catch (err) {
+    return 0;
+  }
+};
+
+/**
  * Normalize Customer document for frontend compatibility
  */
 const normalizeCustomer = (c) => {
@@ -213,20 +241,9 @@ export const getCustomerById = async (req, res, next) => {
 
     // Calculate real outstanding balance from unpaid invoices
     const customerCode = customer.code || customer.customerCode;
-    const unpaidInvoices = await Invoice.find({
-      $or: [
-        { customerCode: customerCode },
-        { cuscode: customerCode },
-        { customerId: customer._id },
-      ],
-      dueAmount: { $gt: 0 },
-    }).lean();
-
-    if (unpaidInvoices && unpaidInvoices.length > 0) {
-      const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.dueAmount) || 0), 0);
-      customer.dueAmount = Math.round(totalUnpaid * 100) / 100;
-      customer.outstandingBalance = Math.round(totalUnpaid * 100) / 100;
-    }
+    const currentDue = await syncCustomerOutstandingBalance(customerCode);
+    customer.dueAmount = currentDue;
+    customer.outstandingBalance = currentDue;
 
     return res.status(200).json({
       success: true,
