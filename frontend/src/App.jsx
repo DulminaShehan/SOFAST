@@ -12,9 +12,7 @@ import SelectionScreen from './components/SelectionScreen';
 import Invoice from './pages/Invoice/Invoice';
 import SettlementInvoice from './pages/SettlementInvoice/SettlementInvoice';
 import RemainingBalance from './pages/RemainingBalance/RemainingBalance';
-import CustomerDamageReturn from './pages/CustomerDamageReturn/CustomerDamageReturn';
-import DamageClaim from './pages/DamageClaim/DamageClaim';
-import DamageItems from './pages/DamageItems/DamageItems';
+import Damage from './pages/Damage/Damage';
 import PrinterSetup from './pages/PrinterSetup/PrinterSetup';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
 
@@ -69,19 +67,23 @@ function App() {
       <Route path="/master-file/alternative-product" element={<AlternativeProduct />} />
       <Route path="/grn" element={<GoodReceiveNote />} />
       <Route path="/stock-control/grn" element={<GoodReceiveNote />} />
-      <Route path="/damage-claim" element={<DamageClaim />} />
-      <Route path="/stock-control/damage-claim" element={<DamageClaim />} />
-      <Route path="/damage-items" element={<DamageItems />} />
-      <Route path="/stock-control/damage-items" element={<DamageItems />} />
-      <Route path="/supplier-damage-claim" element={<Navigate to="/damage-claim" replace />} />
-      <Route path="/stock-control/supplier-damage-claim" element={<Navigate to="/damage-claim" replace />} />
-      <Route path="/damage-stock" element={<Navigate to="/damage-claim" replace />} />
-      <Route path="/stock-control/damage-stock" element={<Navigate to="/damage-claim" replace />} />
-      <Route path="/customer-damage-return" element={<DamageClaim />} />
-      <Route path="/customer-return-exchange" element={<DamageClaim />} />
-      <Route path="/sales-service/customer-return-exchange" element={<DamageClaim />} />
-      <Route path="/sales-service/customer-damage-return" element={<DamageClaim />} />
-      <Route path="/sales-service/damage-return" element={<DamageClaim />} />
+      <Route path="/damage" element={<Damage />} />
+      <Route path="/stock-control/damage" element={<Damage />} />
+      <Route path="/stock-control/data-entry-of-damage" element={<Damage />} />
+      <Route path="/data-entry-of-damage" element={<Damage />} />
+      <Route path="/damage-claim" element={<Navigate to="/damage" replace />} />
+      <Route path="/stock-control/damage-claim" element={<Navigate to="/damage" replace />} />
+      <Route path="/damage-items" element={<Navigate to="/damage" replace />} />
+      <Route path="/stock-control/damage-items" element={<Navigate to="/damage" replace />} />
+      <Route path="/supplier-damage-claim" element={<Navigate to="/damage" replace />} />
+      <Route path="/stock-control/supplier-damage-claim" element={<Navigate to="/damage" replace />} />
+      <Route path="/damage-stock" element={<Navigate to="/damage" replace />} />
+      <Route path="/stock-control/damage-stock" element={<Navigate to="/damage" replace />} />
+      <Route path="/customer-damage-return" element={<Navigate to="/damage" replace />} />
+      <Route path="/customer-return-exchange" element={<Navigate to="/damage" replace />} />
+      <Route path="/sales-service/customer-return-exchange" element={<Navigate to="/damage" replace />} />
+      <Route path="/sales-service/customer-damage-return" element={<Navigate to="/damage" replace />} />
+      <Route path="/sales-service/damage-return" element={<Navigate to="/damage" replace />} />
       <Route path="/master-file" element={<ManagementSystem />} />
       <Route path="/selection" element={<SelectionScreen />} />
       <Route path="/invoice" element={<Invoice />} />

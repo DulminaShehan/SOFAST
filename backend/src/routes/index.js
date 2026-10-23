@@ -11,6 +11,7 @@ import damageReturnRoutes from './damageReturn.routes.js';
 import damageItemRoutes from './damageItem.routes.js';
 import supplierClaimRoutes from './supplierClaim.routes.js';
 import damageStockRoutes from './damageStock.routes.js';
+import damageRoutes from './damage.routes.js';
 
 const router = Router();
 
@@ -40,6 +41,8 @@ router.use('/supplier-damage-claims', supplierClaimRoutes);
 router.use('/supplier-damage-claim', supplierClaimRoutes);
 router.use('/damage-stock', damageStockRoutes);
 router.use('/damaged-stock', damageStockRoutes);
+router.use('/damages', damageRoutes);
+router.use('/damage', damageRoutes);
 
 export default router;
 

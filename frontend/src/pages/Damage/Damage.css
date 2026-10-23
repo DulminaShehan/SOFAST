@@ -1,0 +1,1051 @@
+/* SOFAST POS - Data Entry of Damage Form
+   Classic Windows VB6 / ERP Desktop Layout and Styling
+   Matches the exact reference UI layout, grey background, blue labels, 3D borders, and large table area.
+*/
+
+.damage-window-wrapper {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #d4d0c8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* 1. Window Title Bar */
+.damage-window-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  min-height: 28px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #999999;
+  color: #000000;
+  padding: 0 0 0 8px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.damage-titlebar-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.damage-titlebar-icon {
+  width: 16px;
+  height: 16px;
+  fill: #f59e0b;
+  flex-shrink: 0;
+}
+
+.damage-titlebar-text {
+  font-size: 12px;
+  font-weight: 400;
+  color: #000000;
+  letter-spacing: 0.1px;
+}
+
+.damage-titlebar-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+.damage-titlebar-btn {
+  background: transparent;
+  border: none;
+  width: 32px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #555555;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 0.1s;
+}
+
+.damage-titlebar-btn:hover {
+  background-color: #e5e5e5;
+  color: #000000;
+}
+
+.damage-titlebar-btn.close:hover {
+  background-color: #e81123;
+  color: #ffffff;
+}
+
+/* 2. Top Navigation Menubar (SOFAST Standard ERP Nav) */
+.damage-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 26px;
+  min-height: 26px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.damage-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.damage-menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.damage-menubar-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 8px;
+  height: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+
+.damage-menubar-btn:hover,
+.damage-menubar-btn.active {
+  background-color: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+/* Dropdown Menu */
+.damage-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 210px;
+  z-index: 200;
+}
+
+.damage-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.damage-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.damage-dropdown-item-btn:hover {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+/* 3. Main Form Canvas */
+.damage-main-content {
+  flex: 1;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Outer Border Frame (Matches the screenshot's grey frame box) */
+.damage-outer-frame {
+  background-color: #d4d0c8;
+  border: 2px solid #808080;
+  border-top-color: #808080;
+  border-left-color: #808080;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  box-shadow: inset 1px 1px 0 #404040, inset -1px -1px 0 #dfdfdf;
+  padding: 12px 16px 14px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: calc(100vh - 90px);
+}
+
+/* Notification Banner */
+.damage-notification {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.damage-notification.success {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.damage-notification.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.damage-notification.info {
+  background-color: #e0f2fe;
+  color: #075985;
+  border: 1px solid #0284c7;
+}
+
+/* ==========================================================
+   4. Header Fields (Date, Supplier, Damage No, Buttons)
+   ========================================================== */
+.damage-header-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Row 1: Date & Supplier */
+.damage-header-row-1 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.damage-date-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  width: 250px;
+  flex-shrink: 0;
+}
+
+.damage-blue-label {
+  color: #000080;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.damage-activex-date-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+  height: 23px;
+  width: 135px;
+  box-sizing: border-box;
+}
+
+.damage-date-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+  color: #000000;
+  outline: none;
+}
+
+/* Supplier selection control */
+.damage-supplier-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.damage-activex-supplier-box {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex: 1;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+  height: 23px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.damage-supplier-text {
+  flex: 1;
+  font-size: 11px;
+  color: #000000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.damage-supplier-placeholder {
+  color: #555555;
+  font-style: italic;
+}
+
+.damage-lookup-trigger-btn {
+  background: #e1e1e1;
+  border: 1px solid #999999;
+  border-radius: 2px;
+  font-size: 10px;
+  padding: 1px 6px;
+  color: #333333;
+  cursor: pointer;
+  height: 17px;
+  margin-left: 4px;
+  outline: none;
+}
+
+.damage-lookup-trigger-btn:hover {
+  background: #d0d0d0;
+  color: #000000;
+}
+
+/* Row 2: Damage No & Buttons */
+.damage-header-row-2 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.damage-no-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.damage-combobox-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+  height: 23px;
+  width: 135px;
+  box-sizing: border-box;
+}
+
+.damage-select-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000000;
+  outline: none;
+  cursor: pointer;
+}
+
+/* 4 Action Buttons */
+.damage-buttons-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.damage-classic-btn {
+  background: linear-gradient(180deg, #fefefe 0%, #e7e7e7 50%, #dcdcdc 100%);
+  border: 1px solid #707070;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-right-color: #707070;
+  border-bottom-color: #707070;
+  box-shadow: 1px 1px 0 #404040;
+  border-radius: 3px;
+  padding: 3px 14px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #000000;
+  cursor: pointer;
+  outline: none;
+  min-width: 72px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.damage-classic-btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #eeeeee 50%, #e4e4e4 100%);
+  border-color: #3c7fb1;
+}
+
+.damage-classic-btn:active {
+  border-top-color: #707070;
+  border-left-color: #707070;
+  border-right-color: #ffffff;
+  border-bottom-color: #ffffff;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.3);
+  background: #d8d8d8;
+  padding: 4px 13px 2px 15px;
+}
+
+.damage-classic-btn:disabled {
+  color: #888888;
+  border-color: #a0a0a0;
+  background: #e0e0e0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ==========================================================
+   5. Damage Item Entry Fields (Item Code, Description, Reference, Qty, Cost)
+   ========================================================== */
+.damage-item-entry-section {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+/* Column Labels Row */
+.damage-column-labels-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0;
+  padding-bottom: 2px;
+  width: 100%;
+}
+
+.col-header {
+  color: #000080;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+}
+
+.col-item-code {
+  width: 160px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.col-description {
+  flex: 1;
+  text-align: center;
+  padding: 0 10px;
+}
+
+.col-reference {
+  width: 180px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.col-qty {
+  width: 85px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.col-cost {
+  width: 110px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+/* Input Row */
+.damage-item-inputs-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  height: 25px;
+}
+
+.damage-input-cell {
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.damage-input-cell.item-code {
+  width: 160px;
+  flex-shrink: 0;
+  border-right: 1px solid #7f9db9;
+}
+
+.damage-input-cell.description {
+  flex: 1;
+  background-color: #ffffff;
+  border-left: none;
+  border-right: none;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #000000;
+}
+
+.damage-input-cell.reference {
+  width: 180px;
+  flex-shrink: 0;
+  border-left: 1px solid #7f9db9;
+  border-right: 1px solid #7f9db9;
+}
+
+.damage-input-cell.qty {
+  width: 85px;
+  flex-shrink: 0;
+  border-right: 1px solid #7f9db9;
+}
+
+.damage-input-cell.cost {
+  width: 110px;
+  flex-shrink: 0;
+  padding: 0 6px;
+  justify-content: flex-end;
+  background-color: #f7f7f7;
+  font-size: 11px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.damage-text-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 6px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+  color: #000000;
+  outline: none;
+}
+
+.damage-text-input.right-align {
+  text-align: right;
+}
+
+.damage-item-search-btn {
+  background: #e2e8f0;
+  border: 1px solid #94a3b8;
+  font-size: 10px;
+  padding: 0 4px;
+  height: 17px;
+  cursor: pointer;
+  margin-right: 3px;
+  border-radius: 2px;
+}
+
+/* Help text under inputs */
+.damage-entry-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 2px;
+  font-size: 10px;
+  color: #555555;
+}
+
+.damage-add-item-btn {
+  background: #f0f0f0;
+  border: 1px solid #888888;
+  border-radius: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #000080;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.damage-add-item-btn:hover {
+  background: #e0f2fe;
+  border-color: #0284c7;
+}
+
+/* ==========================================================
+   6. Large Table Area (ActiveX Grid)
+   ========================================================== */
+.damage-table-container {
+  flex: 1;
+  min-height: 280px;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.damage-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+}
+
+.damage-grid-header th {
+  background: linear-gradient(180deg, #fbfbfb 0%, #ececec 100%);
+  border-right: 1px solid #c0c0c0;
+  border-bottom: 1px solid #999999;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000080;
+  text-align: left;
+  user-select: none;
+}
+
+.damage-grid-header th.text-center {
+  text-align: center;
+}
+
+.damage-grid-header th.text-right {
+  text-align: right;
+}
+
+.damage-grid-row {
+  border-bottom: 1px solid #e5e5e5;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.damage-grid-row:hover {
+  background-color: #f0f7ff;
+}
+
+.damage-grid-row.selected {
+  background-color: #000080 !important;
+  color: #ffffff !important;
+}
+
+.damage-grid-row.selected td {
+  color: #ffffff !important;
+  border-color: #000066;
+}
+
+.damage-grid-row td {
+  padding: 4px 6px;
+  border-right: 1px solid #e0e0e0;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #000000;
+}
+
+.damage-grid-row td.text-center {
+  text-align: center;
+}
+
+.damage-grid-row td.text-right {
+  text-align: right;
+}
+
+.damage-grid-row td.action-cell {
+  text-align: center;
+  width: 50px;
+}
+
+.damage-row-remove-btn {
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.damage-row-remove-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.damage-empty-grid-notice {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #888888;
+  font-size: 12px;
+  padding: 40px 0;
+  user-select: none;
+}
+
+.damage-activex-watermark {
+  color: #999999;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+/* ==========================================================
+   7. Modals (Supplier, Item Lookup & Add a Note)
+   ========================================================== */
+.damage-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.damage-classic-dialog {
+  background-color: #d4d0c8;
+  border: 2px solid #808080;
+  border-top-color: #ffffff;
+  border-left-color: #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.damage-classic-dialog.dialog-note {
+  width: 460px;
+}
+
+.damage-classic-dialog.dialog-lookup {
+  width: 650px;
+  max-height: 80vh;
+}
+
+.damage-dialog-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  background-color: #000080;
+  color: #ffffff;
+  padding: 0 4px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.damage-dialog-close-btn {
+  background: #d4d0c8;
+  border: 1px solid #ffffff;
+  border-right-color: #808080;
+  border-bottom-color: #808080;
+  color: #000000;
+  font-size: 11px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.damage-dialog-body {
+  padding: 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.damage-note-textarea {
+  width: 100%;
+  height: 120px;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.15);
+  box-sizing: border-box;
+  padding: 6px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  resize: none;
+  outline: none;
+}
+
+.damage-dialog-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 12px 12px 12px;
+}
+
+.damage-lookup-search-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.damage-lookup-search-input {
+  flex: 1;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 12px;
+  outline: none;
+}
+
+.damage-lookup-clear-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.damage-lookup-clear-btn:hover {
+  color: #b91c1c;
+}
+
+.damage-classic-dialog.dialog-item-lookup {
+  width: 780px;
+  max-height: 85vh;
+}
+
+.damage-lookup-status-bar {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #000080;
+  padding: 2px 0;
+}
+
+.damage-lookup-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.damage-page-btn {
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  border-radius: 2px;
+  padding: 1px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #000080;
+  font-weight: 600;
+}
+
+.damage-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.damage-page-info {
+  font-size: 11px;
+  color: #333333;
+}
+
+.damage-lookup-list-container {
+  height: 320px;
+  background-color: #ffffff;
+  border: 1px solid #7f9db9;
+  overflow-y: auto;
+}
+
+.damage-lookup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.damage-lookup-table th {
+  background: #eef2f6;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 5px 8px;
+  text-align: left;
+  font-weight: 700;
+  color: #000080;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.damage-lookup-table tr {
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.damage-lookup-table tr:hover {
+  background-color: #dbeafe;
+}
+
+.damage-lookup-table td {
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+/* Quick item dropdown from Item Code input */
+.damage-item-dropdown-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 440px;
+  background-color: #ffffff;
+  border: 1px solid #000080;
+  box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  max-height: 250px;
+  box-sizing: border-box;
+}
+
+.damage-item-dropdown-header {
+  display: grid;
+  grid-template-columns: 120px 1fr 65px;
+  background-color: #000080;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  user-select: none;
+}
+
+.damage-item-dropdown-list {
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.damage-item-dropdown-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 65px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  align-items: center;
+}
+
+.damage-item-dropdown-row:hover,
+.damage-item-dropdown-row.highlighted {
+  background-color: #0055ea;
+  color: #ffffff;
+}
+
+.dropdown-col-code {
+  font-weight: 700;
+  color: #000080;
+  font-family: monospace, Tahoma, sans-serif;
+}
+
+.damage-item-dropdown-row:hover .dropdown-col-code,
+.damage-item-dropdown-row.highlighted .dropdown-col-code {
+  color: #ffffff;
+}
+
+.dropdown-col-desc {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+}
+
+.dropdown-col-stock {
+  text-align: right;
+  font-weight: 600;
+}
+
+.damage-item-dropdown-footer {
+  background-color: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: #64748b;
+  text-align: center;
+}
+

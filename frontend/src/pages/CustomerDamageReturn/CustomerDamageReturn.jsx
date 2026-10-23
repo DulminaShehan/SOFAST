@@ -122,6 +122,7 @@ function CustomerDamageReturn() {
 
   const stockControlDropdownItems = [
     { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
+    { id: 'damage', label: 'Damage', path: '/damage' },
   ];
 
   const salesServiceDropdownItems = [
