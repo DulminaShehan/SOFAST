@@ -76,6 +76,7 @@ function AlternativeProduct() {
 
   const stockControlDropdownItems = [
     { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
+    { id: 'good-return-note', label: 'Good Return Note (GREN)', path: '/good-return-note' },
     { id: 'damage', label: 'Damage', path: '/damage' },
   ];
 

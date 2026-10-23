@@ -714,6 +714,11 @@ function Damage() {
                   </button>
                 </li>
                 <li className="damage-dropdown-entry">
+                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/good-return-note')}>
+                    Good Return Note (GREN)
+                  </button>
+                </li>
+                <li className="damage-dropdown-entry">
                   <button
                     type="button"
                     className="damage-dropdown-item-btn"

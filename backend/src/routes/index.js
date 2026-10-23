@@ -12,6 +12,7 @@ import damageItemRoutes from './damageItem.routes.js';
 import supplierClaimRoutes from './supplierClaim.routes.js';
 import damageStockRoutes from './damageStock.routes.js';
 import damageRoutes from './damage.routes.js';
+import goodReturnRoutes from './goodReturn.routes.js';
 
 const router = Router();
 
@@ -43,6 +44,12 @@ router.use('/damage-stock', damageStockRoutes);
 router.use('/damaged-stock', damageStockRoutes);
 router.use('/damages', damageRoutes);
 router.use('/damage', damageRoutes);
+
+// Good Return Note (GREN) routes
+router.use('/good-returns', goodReturnRoutes);
+router.use('/good-return-notes', goodReturnRoutes);
+router.use('/gren', goodReturnRoutes);
+router.use('/supplier-returns', goodReturnRoutes);
 
 export default router;
 

@@ -201,6 +201,17 @@ function Invoice() {
       ),
     },
     {
+      id: 'good-return-note',
+      label: 'Good Return Note (GREN)',
+      path: '/good-return-note',
+      renderIcon: () => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+          <path d="M9 14l-4-4 4-4" />
+          <path d="M5 10h11a4 4 0 1 1 0 8h-1" />
+        </svg>
+      ),
+    },
+    {
       id: 'damage',
       label: 'Damage',
       path: '/damage',
@@ -805,6 +816,19 @@ function Invoice() {
 
   // Handle Keyboard navigation on Item Code input
   const handleCodeKeyDown = (e) => {
+    if (e.key === 'F2' || e.key === 'F4') {
+      e.preventDefault();
+      e.stopPropagation();
+      setItemDropdownOpen(false);
+      setLookupModal({
+        isOpen: true,
+        type: 'item',
+        title: 'Select Item from Item Master',
+        search: itemEntry.code || '',
+      });
+      setLookupPage(1);
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!itemDropdownOpen) {
@@ -812,7 +836,7 @@ function Invoice() {
         setHighlightedItemIndex(0);
       } else {
         setHighlightedItemIndex((prev) =>
-          prev < Math.min(filteredDropdownItems.length, 150) - 1 ? prev + 1 : prev
+          prev < Math.min(filteredDropdownItems.length, 80) - 1 ? prev + 1 : prev
         );
       }
     } else if (e.key === 'ArrowUp') {
@@ -866,14 +890,31 @@ function Invoice() {
         setItemDropdownOpen(false);
         setHighlightedItemIndex(-1);
       } else {
+        // Fallback: Query backend directly in case item wasn't preloaded
+        api.get(`/items?search=${encodeURIComponent(query)}&limit=10`)
+          .then((res) => {
+            if (res.data?.data && res.data.data.length > 0) {
+              handleSelectItemFromLookup(res.data.data[0]);
+            } else {
+              setLookupModal({
+                isOpen: true,
+                type: 'item',
+                title: 'Select Item from Item Master',
+                search: itemEntry.code,
+              });
+              setLookupPage(1);
+            }
+          })
+          .catch(() => {
+            setLookupModal({
+              isOpen: true,
+              type: 'item',
+              title: 'Select Item from Item Master',
+              search: itemEntry.code,
+            });
+            setLookupPage(1);
+          });
         setItemDropdownOpen(false);
-        setLookupModal({
-          isOpen: true,
-          type: 'item',
-          title: 'Select Item from Item Master',
-          search: itemEntry.code,
-        });
-        setLookupPage(1);
       }
     }
   };
@@ -885,6 +926,8 @@ function Invoice() {
 
     // Auto-match Item by Code or Barcode
     if (name === 'code') {
+      setItemDropdownOpen(true);
+      setHighlightedItemIndex(0);
       const trimmed = String(value || '').trim().toLowerCase();
       const match = itemsList.find(
         (i) =>
@@ -2387,17 +2430,84 @@ function Invoice() {
                 {/* Form Row 1: Code - Material & GRN */}
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Code - Material</span>
-                  <input
-                    ref={itemCodeInputRef}
-                    type="text"
-                    name="code"
-                    className="sofast-input code-olive-input"
-                    style={{ width: '210px', marginRight: '8px' }}
-                    value={itemEntry.code}
-                    onChange={handleItemEntryChange}
-                    onKeyDown={handleCodeKeyDown}
-                    placeholder="Search by Item Code / Name"
-                  />
+                  <div
+                    className="sofast-code-search-container"
+                    ref={itemDropdownRef}
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '215px', marginRight: '8px' }}
+                  >
+                    <input
+                      ref={itemCodeInputRef}
+                      type="text"
+                      name="code"
+                      className="sofast-input code-olive-input"
+                      style={{ flex: 1, paddingRight: '22px' }}
+                      value={itemEntry.code}
+                      onChange={handleItemEntryChange}
+                      onKeyDown={handleCodeKeyDown}
+                      onFocus={() => {
+                        if (itemEntry.code && itemEntry.code.trim()) {
+                          setItemDropdownOpen(true);
+                        }
+                      }}
+                      placeholder="Type code/name/barcode (F2)"
+                      autoComplete="off"
+                    />
+                    <button
+                      type="button"
+                      className="sofast-item-search-btn"
+                      onClick={() => {
+                        setLookupModal({
+                          isOpen: true,
+                          type: 'item',
+                          title: 'Select Item from Item Master',
+                          search: itemEntry.code || '',
+                        });
+                        setLookupPage(1);
+                      }}
+                      title="Search all 5,993+ items in Item Master (F2 / F4)"
+                    >
+                      &#128269;
+                    </button>
+
+                    {/* Quick Auto-suggest Dropdown Panel directly beneath Code - Material */}
+                    {itemDropdownOpen && filteredDropdownItems.length > 0 && (
+                      <div className="invoice-item-dropdown-panel">
+                        <div className="invoice-item-dropdown-header">
+                          <span style={{ width: '95px' }}>Code</span>
+                          <span style={{ flex: 1 }}>Description</span>
+                          <span style={{ width: '65px', textAlign: 'right' }}>Price</span>
+                          <span style={{ width: '45px', textAlign: 'right' }}>Stock</span>
+                        </div>
+                        <div className="invoice-item-dropdown-list">
+                          {filteredDropdownItems.slice(0, 80).map((item, idx) => (
+                            <div
+                              key={item._id || item.code}
+                              className={`invoice-item-dropdown-row ${highlightedItemIndex === idx ? 'highlighted' : ''}`}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectItemFromLookup(item);
+                              }}
+                              onMouseEnter={() => setHighlightedItemIndex(idx)}
+                            >
+                              <span className="dropdown-col-code">{item.code}</span>
+                              <span className="dropdown-col-desc">{item.description}</span>
+                              <span className="dropdown-col-price">
+                                {Number(item.sellingPrice || item.finalSellingPrice || 0).toFixed(2)}
+                              </span>
+                              <span className="dropdown-col-stock">
+                                {item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        {filteredDropdownItems.length > 80 && (
+                          <div className="invoice-item-dropdown-footer">
+                            Showing 80 of {filteredDropdownItems.length} matching items. Click 🔍 or press F2 for full list.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <span className="sofast-navy-label" style={{ width: '45px' }}>GRN . .</span>
                   <input
                     type="text"
@@ -2586,20 +2696,29 @@ function Invoice() {
                           </td>
                         </tr>
                       ) : (
-                        filteredDropdownItems.map((item) => {
-                          const isSelected = itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase();
-                          return (
-                            <tr
-                              key={item._id || item.code}
-                              className={isSelected ? 'selected-row' : ''}
-                              onClick={() => handleSelectItemFromLookup(item)}
-                              title="Click to select this product"
-                            >
-                              <td className="sofast-cell-code">{item.code}</td>
-                              <td className="sofast-cell-desc">{item.description}</td>
+                        <>
+                          {filteredDropdownItems.slice(0, 150).map((item) => {
+                            const isSelected = itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase();
+                            return (
+                              <tr
+                                key={item._id || item.code}
+                                className={isSelected ? 'selected-row' : ''}
+                                onClick={() => handleSelectItemFromLookup(item)}
+                                title="Click to select this product"
+                              >
+                                <td className="sofast-cell-code">{item.code}</td>
+                                <td className="sofast-cell-desc">{item.description}</td>
+                              </tr>
+                            );
+                          })}
+                          {filteredDropdownItems.length > 150 && (
+                            <tr>
+                              <td colSpan="2" style={{ padding: '4px', color: '#000080', background: '#ece9d8', textAlign: 'center', fontSize: '10px', fontStyle: 'italic', borderTop: '1px solid #7f9db9' }}>
+                                Showing top 150 of {filteredDropdownItems.length} matching items. Type to refine or click 🔍 / F2 for all.
+                              </td>
                             </tr>
-                          );
-                        })
+                          )}
+                        </>
                       )}
                     </tbody>
                   </table>
@@ -2623,7 +2742,7 @@ function Invoice() {
               </thead>
               <tbody>
                 {lineItems.length === 0 ? (
-                  Array.from({ length: 12 }).map((_, emptyIdx) => (
+                  Array.from({ length: 7 }).map((_, emptyIdx) => (
                     <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
                       <td>&nbsp;</td>
                       <td>&nbsp;</td>
@@ -2658,7 +2777,7 @@ function Invoice() {
                   ))
                 )}
                 {/* Visual grid filler rows */}
-                {lineItems.length > 0 && Array.from({ length: Math.max(0, 10 - lineItems.length) }).map((_, emptyIdx) => (
+                {lineItems.length > 0 && Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
                   <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
                     <td>&nbsp;</td>
                     <td>&nbsp;</td>

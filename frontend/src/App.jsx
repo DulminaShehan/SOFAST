@@ -13,6 +13,7 @@ import Invoice from './pages/Invoice/Invoice';
 import SettlementInvoice from './pages/SettlementInvoice/SettlementInvoice';
 import RemainingBalance from './pages/RemainingBalance/RemainingBalance';
 import Damage from './pages/Damage/Damage';
+import GoodReturnNote from './pages/GoodReturnNote/GoodReturnNote';
 import PrinterSetup from './pages/PrinterSetup/PrinterSetup';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
 
@@ -67,6 +68,10 @@ function App() {
       <Route path="/master-file/alternative-product" element={<AlternativeProduct />} />
       <Route path="/grn" element={<GoodReceiveNote />} />
       <Route path="/stock-control/grn" element={<GoodReceiveNote />} />
+      <Route path="/good-return-note" element={<GoodReturnNote />} />
+      <Route path="/stock-control/good-return-note" element={<GoodReturnNote />} />
+      <Route path="/gren" element={<GoodReturnNote />} />
+      <Route path="/stock-control/gren" element={<GoodReturnNote />} />
       <Route path="/damage" element={<Damage />} />
       <Route path="/stock-control/damage" element={<Damage />} />
       <Route path="/stock-control/data-entry-of-damage" element={<Damage />} />

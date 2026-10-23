@@ -265,11 +265,11 @@ function DamageItems() {
                 <button type="button" className="di-dropdown-action" onClick={() => navigate('/grn')}>
                   Good Receive Note (GRN)
                 </button>
-                <button type="button" className="di-dropdown-action" onClick={() => navigate('/damage-claim')}>
-                  Damage Claim
+                <button type="button" className="di-dropdown-action" onClick={() => navigate('/good-return-note')}>
+                  Good Return Note (GREN)
                 </button>
-                <button type="button" className="di-dropdown-action" onClick={() => navigate('/damage-items')}>
-                  Damage Items
+                <button type="button" className="di-dropdown-action" onClick={() => navigate('/damage')}>
+                  Damage
                 </button>
               </div>
             )}

@@ -121,6 +121,20 @@ function ManagementSystem() {
       ),
     },
     {
+      id: 'good-return-note',
+      label: 'Good Return Note (GREN)',
+      path: '/good-return-note',
+      iconColor: '#2563eb',
+      badgeBg: '#dbeafe',
+      description: 'Create supplier good return notes, reverse purchases, and reduce sellable inventory.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 14l-4-4 4-4" />
+          <path d="M5 10h11a4 4 0 1 1 0 8h-1" />
+        </svg>
+      ),
+    },
+    {
       id: 'damage',
       label: 'Damage',
       path: '/damage',
