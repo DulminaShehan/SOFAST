@@ -191,12 +191,12 @@
 /* 3. Main Form Canvas */
 .invoice-main-canvas {
   flex: 1;
-  padding: 6px 12px 14px 12px;
+  padding: 4px 8px 10px 8px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   box-sizing: border-box;
-  max-width: 1600px;
+  max-width: 1340px;
   margin: 0 auto;
   width: 100%;
 }
@@ -1499,12 +1499,13 @@
   font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
   font-size: 11px;
   color: #000;
-  padding: 4px;
+  padding: 3px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   box-sizing: border-box;
-  min-width: 980px;
+  min-width: 960px;
+  zoom: 0.94;
 }
 
 .sofast-top-middle-grid {
@@ -1581,7 +1582,7 @@
 .sofast-customer-listbox {
   background: #fff;
   border: 1px solid #7f9db9;
-  height: 155px;
+  height: 110px;
   overflow-y: scroll;
   overflow-x: hidden;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -1801,7 +1802,7 @@
 .sofast-table-panel {
   border: 1px solid #7f9db9;
   background: #fff;
-  height: 195px;
+  height: 295px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -1874,8 +1875,8 @@
 .sofast-bottom-grid-container {
   border: 1px solid #7f9db9;
   background: #fff;
-  min-height: 160px;
-  max-height: 240px;
+  min-height: 125px;
+  max-height: 175px;
   overflow: scroll;
   width: 100%;
   box-sizing: border-box;
@@ -1937,3 +1938,130 @@
 .sofast-grid-del-btn:hover {
   color: #ff0000;
 }
+
+/* ==========================================================================
+   CODE - MATERIAL SEARCH & AUTO-SUGGEST DROPDOWN PANEL
+   ========================================================================== */
+.sofast-code-search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sofast-item-search-btn {
+  position: absolute;
+  right: 1px;
+  top: 1px;
+  bottom: 1px;
+  width: 20px;
+  background: #ece9d8;
+  border: none;
+  border-left: 1px solid #7f9db9;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  outline: none;
+  color: #000;
+  z-index: 2;
+}
+
+.sofast-item-search-btn:hover {
+  background: #dfdbca;
+}
+
+.invoice-item-dropdown-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 480px;
+  max-width: 90vw;
+  background-color: #ffffff;
+  border: 1px solid #0055ea;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  z-index: 500;
+  margin-top: 1px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+}
+
+.invoice-item-dropdown-header {
+  display: flex;
+  background: #ece9d8;
+  border-bottom: 1px solid #aca899;
+  padding: 3px 6px;
+  font-weight: bold;
+  color: #000080;
+  font-size: 10.5px;
+}
+
+.invoice-item-dropdown-list {
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #ffffff;
+}
+
+.invoice-item-dropdown-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  line-height: 18px;
+  color: #000;
+}
+
+.invoice-item-dropdown-row:hover,
+.invoice-item-dropdown-row.highlighted {
+  background-color: #0055ea;
+  color: #ffffff;
+}
+
+.invoice-item-dropdown-row .dropdown-col-code {
+  width: 95px;
+  font-weight: bold;
+  font-family: monospace, Tahoma, sans-serif;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.invoice-item-dropdown-row .dropdown-col-desc {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 6px;
+}
+
+.invoice-item-dropdown-row .dropdown-col-price {
+  width: 65px;
+  text-align: right;
+  flex-shrink: 0;
+  font-family: monospace, Tahoma, sans-serif;
+}
+
+.invoice-item-dropdown-row .dropdown-col-stock {
+  width: 45px;
+  text-align: right;
+  flex-shrink: 0;
+  font-family: monospace, Tahoma, sans-serif;
+  font-weight: bold;
+}
+
+.invoice-item-dropdown-footer {
+  padding: 3px 6px;
+  background-color: #f7f6f0;
+  border-top: 1px solid #aca899;
+  font-size: 10px;
+  color: #000080;
+  text-align: center;
+  font-style: italic;
+}
+
