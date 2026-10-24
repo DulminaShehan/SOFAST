@@ -1,18 +1,52 @@
 import mongoose from 'mongoose';
 
-// Payment Voucher Schema
+// Item Schema within Payment Voucher
+const voucherItemSchema = new mongoose.Schema({
+  particulars: { type: String, required: true },
+  account: { type: String, default: '' },
+  amountRs: { type: Number, default: 0 },
+  amountCts: { type: Number, default: 0 },
+  totalLineAmount: { type: Number, required: true },
+});
+
+// Attachment Schema for bills/receipts (CEB, SLT, SMS photo, etc.)
+const attachmentSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  type: { type: String, default: 'image/jpeg' },
+  dataUrl: { type: String, required: true }, // Base64 data URL for instant viewing
+  size: { type: Number, default: 0 },
+  uploadedAt: { type: Date, default: Date.now },
+});
+
+// Payment Voucher Schema matching PDF structure
 const paymentVoucherSchema = new mongoose.Schema(
   {
     voucherNo: { type: String, required: true, unique: true },
     date: { type: Date, default: Date.now },
+    dateFormatted: { type: String, default: '' }, // e.g. 04/05/2026
     payeeName: { type: String, required: true },
-    amount: { type: Number, required: true },
-    paymentMethod: { type: String, default: 'Bank Transfer' },
-    description: { type: String, default: '' },
-    status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
+    payeeNote: { type: String, default: '' }, // e.g. (Monthly Ex - Oct 26)
+    bank: { type: String, default: 'PEB' },
+    branch: { type: String, default: 'Horana' },
+    chequeNo: { type: String, default: 'TFR' },
+    items: [voucherItemSchema],
+    totalAmount: { type: Number, required: true, default: 0 },
+    amountInWords: { type: String, default: '' },
+    preparedBy: { type: String, required: true }, // Username or Staff Name
+    preparedDate: { type: Date, default: Date.now },
+    checkedBy: { type: String, default: '' },
     approvedBy: { type: String, default: null },
     approvedAt: { type: Date, default: null },
-    remarks: { type: String, default: '' },
+    receivedByName: { type: String, default: '' },
+    receivedByIdNumber: { type: String, default: '' },
+    receivedByDate: { type: Date, default: null },
+    status: {
+      type: String,
+      enum: ['Pending', 'Approved', 'Rejected'],
+      default: 'Pending',
+    },
+    adminRemarks: { type: String, default: '' },
+    attachments: [attachmentSchema],
   },
   { timestamps: true }
 );
@@ -31,6 +65,7 @@ const pettyCashSchema = new mongoose.Schema(
     approvedBy: { type: String, default: null },
     approvedAt: { type: Date, default: null },
     remarks: { type: String, default: '' },
+    attachments: [attachmentSchema],
   },
   { timestamps: true }
 );
