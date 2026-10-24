@@ -666,3 +666,203 @@
   background: #3730a3;
 }
 
+/* ==========================================================================
+   Spendable Limit Card & Fund Management Styles
+   ========================================================================== */
+.spendable-limit-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 4px solid #2563eb;
+}
+
+.spendable-limit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.spendable-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spendable-icon {
+  font-size: 26px;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spendable-title-text h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.spendable-title-text p {
+  margin: 2px 0 0 0;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.spendable-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-set-limit {
+  background: #1e3a8a;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.btn-set-limit:hover {
+  background: #1e40af;
+  box-shadow: 0 2px 6px rgba(30, 58, 138, 0.25);
+}
+
+.user-view-only-badge {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spendable-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.spendable-stat-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spendable-stat-box.primary {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.spendable-stat-box.spent {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.spendable-stat-box.balance {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.spendable-stat-box.pending {
+  background: #fefce8;
+  border-color: #fef08a;
+}
+
+.spendable-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.spendable-stat-val {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f172a;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.spendable-stat-box.spent .spendable-stat-val {
+  color: #b91c1c;
+}
+
+.spendable-stat-box.balance .spendable-stat-val {
+  color: #15803d;
+}
+
+.spendable-stat-box.pending .spendable-stat-val {
+  color: #a16207;
+}
+
+.spendable-stat-sub {
+  font-size: 10.5px;
+  color: #64748b;
+}
+
+/* Progress bar */
+.spendable-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spendable-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.spendable-progress-track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.spendable-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.spendable-progress-fill.low {
+  background: #10b981;
+}
+
+.spendable-progress-fill.medium {
+  background: #f59e0b;
+}
+
+.spendable-progress-fill.high {
+  background: #ef4444;
+}
+
+

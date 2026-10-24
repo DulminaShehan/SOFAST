@@ -6,6 +6,8 @@ import {
   getPettyCash,
   createPettyCash,
   updatePettyCashStatus,
+  getPettyCashLimit,
+  updatePettyCashLimit,
   getLeaveRequests,
   createLeaveRequest,
   updateLeaveRequestStatus,
@@ -18,7 +20,9 @@ router.get('/payment-vouchers', getPaymentVouchers);
 router.post('/payment-vouchers', createPaymentVoucher);
 router.put('/payment-vouchers/:id/status', updatePaymentVoucherStatus);
 
-// Petty Cash
+// Petty Cash & Spendable Fund Limit
+router.get('/petty-cash/limit', getPettyCashLimit);
+router.put('/petty-cash/limit', updatePettyCashLimit);
 router.get('/petty-cash', getPettyCash);
 router.post('/petty-cash', createPettyCash);
 router.put('/petty-cash/:id/status', updatePettyCashStatus);
