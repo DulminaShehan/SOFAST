@@ -16,6 +16,7 @@ import Damage from './pages/Damage/Damage';
 import GoodReturnNote from './pages/GoodReturnNote/GoodReturnNote';
 import PrinterSetup from './pages/PrinterSetup/PrinterSetup';
 import NewUser from './pages/NewUser/NewUser';
+import Approvement from './pages/Approvement/Approvement';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
 
 
@@ -109,6 +110,15 @@ function App() {
       <Route path="/administration/new-user" element={<NewUser />} />
       <Route path="/admin/new-user" element={<NewUser />} />
       <Route path="/user-management" element={<NewUser />} />
+
+      {/* Approvement Section & Sub-sections */}
+      <Route path="/approvement" element={<Approvement />} />
+      <Route path="/approvement/payment-voucher" element={<Approvement defaultSection="payment-voucher" />} />
+      <Route path="/payment-voucher" element={<Approvement defaultSection="payment-voucher" />} />
+      <Route path="/approvement/petty-cash" element={<Approvement defaultSection="petty-cash" />} />
+      <Route path="/petty-cash" element={<Approvement defaultSection="petty-cash" />} />
+      <Route path="/approvement/leave-request" element={<Approvement defaultSection="leave-request" />} />
+      <Route path="/leave-request" element={<Approvement defaultSection="leave-request" />} />
 
       <Route path="/reports" element={<ReportsPlaceholder />} />
       <Route path="*" element={<Navigate to="/management" replace />} />
