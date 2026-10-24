@@ -933,6 +933,73 @@
 }
 
 /* ==========================================================================
+   Invoice Returns Report Specific Styles (Matching Third PDF Document)
+   ========================================================================== */
+.ir-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.ir-table th {
+  padding: 4px 6px;
+  font-weight: 900;
+  color: #000000;
+  text-align: left;
+  border-bottom: 1.5px solid #000000;
+  white-space: nowrap;
+}
+
+.ir-table th.col-right {
+  text-align: right;
+}
+
+.ir-table td {
+  padding: 3.5px 6px;
+  color: #000000;
+  vertical-align: top;
+}
+
+.ir-th-code { width: 16%; }
+.ir-th-desc { width: 44%; }
+.ir-th-qty { width: 8%; }
+.ir-th-disc { width: 8%; }
+.ir-th-val { width: 12%; }
+.ir-th-rtn { width: 12%; }
+
+.ir-invoice-header-row td {
+  padding: 10px 6px 4px 6px;
+  font-weight: 800;
+  font-size: 11.5px;
+  color: #000000;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+}
+
+.ir-inv-label {
+  display: inline-block;
+  margin-right: 28px;
+}
+
+.ir-subtotal-row td {
+  padding: 4px 6px 12px 6px;
+  border-bottom: 1px dotted #94a3b8;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.ir-total-row td {
+  padding: 8px 6px 16px 6px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 2px solid #000000;
+  font-weight: 900;
+  font-size: 12px;
+  color: #000000;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -947,11 +1014,14 @@
   #printable-closing-stock-report,
   #printable-closing-stock-report *,
   #printable-daily-sales-report,
-  #printable-daily-sales-report * {
+  #printable-daily-sales-report *,
+  #printable-invoice-returns-report,
+  #printable-invoice-returns-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
-  #printable-daily-sales-report {
+  #printable-daily-sales-report,
+  #printable-invoice-returns-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -964,17 +1034,21 @@
     font-size: 10px !important;
   }
   .cs-table,
-  .ds-table {
+  .ds-table,
+  .ir-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
   .cs-table td,
   .ds-table th,
-  .ds-table td {
+  .ds-table td,
+  .ir-table th,
+  .ir-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,
-  .ds-section-header-row {
+  .ds-section-header-row,
+  .ir-invoice-header-row {
     page-break-inside: avoid;
   }
   .cs-grand-total-section {

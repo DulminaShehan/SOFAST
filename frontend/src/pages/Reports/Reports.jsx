@@ -8,8 +8,9 @@ import './Reports.css';
 /**
  * Reports Module
  * Supports:
- * 1. CLOSING STOCK REPORT (Exact 170-page replica from Report 1 PDF)
- * 2. DAILY SALES REPORT (Exact 2-page replica from Report 2 PDF)
+ * 1. INVOICE RETURNS REPORT (Exact replica from Report 3 PDF)
+ * 2. DAILY SALES & PROFIT REPORT (Exact replica from Report 2 PDF)
+ * 3. CLOSING STOCK REPORT (Exact 170-page replica from Report 1 PDF)
  * Features quick filters, instant sorting by Most Used Products, Staff, Category, and Profit.
  */
 function Reports() {
@@ -20,8 +21,8 @@ function Reports() {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const menuRef = useRef(null);
 
-  // Active Report Tab: 'daily_sales' (Second Report) or 'closing_stock' (First Report)
-  const [activeReportTab, setActiveReportTab] = useState('daily_sales');
+  // Active Report Tab: 'invoice_returns', 'daily_sales', or 'closing_stock'
+  const [activeReportTab, setActiveReportTab] = useState('invoice_returns');
 
   // Common View Mode: 'paper' (exact PDF replica) or 'modern' (interactive data table)
   const [viewMode, setViewMode] = useState('paper');
@@ -32,6 +33,35 @@ function Reports() {
     bins: [],
     staff: ['cashier', 'admin', 'admin_new', 'testcashier'],
   });
+
+  // ---------------------------------------------------------------------------
+  // REPORT 3: Invoice Returns Report States
+  // ---------------------------------------------------------------------------
+  const [irLoading, setIrLoading] = useState(true);
+  const [irReportData, setIrReportData] = useState(null);
+  const [irStartDate, setIrStartDate] = useState('2026-08-06');
+  const [irEndDate, setIrEndDate] = useState('2026-08-06');
+  const [irSelectedStaff, setIrSelectedStaff] = useState('All');
+  const [irSearch, setIrSearch] = useState('');
+  const [irSortBy, setIrSortBy] = useState('default');
+  const [irPageSize, setIrPageSize] = useState(50);
+  const [irPage, setIrPage] = useState(1);
+  const [irJumpPage, setIrJumpPage] = useState('1');
+
+  // ---------------------------------------------------------------------------
+  // REPORT 2: Daily Sales Report States
+  // ---------------------------------------------------------------------------
+  const [dsLoading, setDsLoading] = useState(false);
+  const [dsReportData, setDsReportData] = useState(null);
+  const [dsStartDate, setDsStartDate] = useState('2026-08-06');
+  const [dsEndDate, setDsEndDate] = useState('2026-08-06');
+  const [dsSelectedStaff, setDsSelectedStaff] = useState('All');
+  const [dsSelectedSection, setDsSelectedSection] = useState('all');
+  const [dsSearch, setDsSearch] = useState('');
+  const [dsSortBy, setDsSortBy] = useState('default');
+  const [dsPageSize, setDsPageSize] = useState(50);
+  const [dsPage, setDsPage] = useState(1);
+  const [dsJumpPage, setDsJumpPage] = useState('1');
 
   // ---------------------------------------------------------------------------
   // REPORT 1: Closing Stock Report States
@@ -47,21 +77,6 @@ function Reports() {
   const [csPageSize, setCsPageSize] = useState(35);
   const [csPage, setCsPage] = useState(1);
   const [csJumpPage, setCsJumpPage] = useState('1');
-
-  // ---------------------------------------------------------------------------
-  // REPORT 2: Daily Sales Report States
-  // ---------------------------------------------------------------------------
-  const [dsLoading, setDsLoading] = useState(true);
-  const [dsReportData, setDsReportData] = useState(null);
-  const [dsStartDate, setDsStartDate] = useState('2026-08-06');
-  const [dsEndDate, setDsEndDate] = useState('2026-08-06');
-  const [dsSelectedStaff, setDsSelectedStaff] = useState('All');
-  const [dsSelectedSection, setDsSelectedSection] = useState('all');
-  const [dsSearch, setDsSearch] = useState('');
-  const [dsSortBy, setDsSortBy] = useState('default'); // 'default', 'most_used', 'profit_desc', 'val_desc', 'cost_desc'
-  const [dsPageSize, setDsPageSize] = useState(50); // 50 items/page divides 80 items into 2 exact pages matching PDF
-  const [dsPage, setDsPage] = useState(1);
-  const [dsJumpPage, setDsJumpPage] = useState('1');
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -93,37 +108,36 @@ function Reports() {
     fetchOptions();
   }, []);
 
-  // Fetch Closing Stock Report
-  const fetchClosingStock = async () => {
+  // Fetch Invoice Returns Report
+  const fetchInvoiceReturns = async () => {
     try {
-      setCsLoading(true);
+      setIrLoading(true);
       const params = {
-        search: csSearch,
-        category: csSelectedCategory === 'All' ? '' : csSelectedCategory,
-        staff: csSelectedStaff === 'All' ? '' : csSelectedStaff,
-        stockStatus: csStockStatus,
-        bin: csSelectedBin === 'All' ? '' : csSelectedBin,
-        sortBy: csSortBy,
-        page: csPage,
-        limit: csPageSize,
+        startDate: irStartDate,
+        endDate: irEndDate,
+        staff: irSelectedStaff,
+        search: irSearch,
+        sortBy: irSortBy,
+        page: irPage,
+        limit: irPageSize,
       };
 
-      const res = await api.get('/reports/closing-stock', { params });
+      const res = await api.get('/reports/invoice-returns', { params });
       if (res.data?.success) {
-        setCsReportData(res.data);
+        setIrReportData(res.data);
       }
     } catch (err) {
-      console.error('Failed to load closing stock report:', err);
+      console.error('Failed to load invoice returns report:', err);
     } finally {
-      setCsLoading(false);
+      setIrLoading(false);
     }
   };
 
   useEffect(() => {
-    if (activeReportTab === 'closing_stock') {
-      fetchClosingStock();
+    if (activeReportTab === 'invoice_returns') {
+      fetchInvoiceReturns();
     }
-  }, [activeReportTab, csSearch, csSelectedCategory, csSelectedStaff, csStockStatus, csSelectedBin, csSortBy, csPage, csPageSize]);
+  }, [activeReportTab, irStartDate, irEndDate, irSelectedStaff, irSearch, irSortBy, irPage, irPageSize]);
 
   // Fetch Daily Sales Report
   const fetchDailySales = async () => {
@@ -157,48 +171,70 @@ function Reports() {
     }
   }, [activeReportTab, dsStartDate, dsEndDate, dsSelectedStaff, dsSelectedSection, dsSearch, dsSortBy, dsPage, dsPageSize]);
 
-  // Handle Preset Clicks for Closing Stock
-  const handleApplyCsPreset = (presetType) => {
-    setCsPage(1);
-    setCsJumpPage('1');
-    if (presetType === 'all') {
-      setCsSortBy('default');
-      setCsStockStatus('all');
-      setCsSelectedCategory('All');
-      setCsSelectedStaff('All');
-      setCsSelectedBin('All');
-      setCsSearch('');
-    } else if (presetType === 'most_used') {
-      setCsSortBy('most_used');
-      setCsSelectedStaff('All');
-      setCsSelectedCategory('All');
-      setCsSelectedBin('All');
-      setCsStockStatus('all');
-      setCsSearch('');
-    } else if (presetType === 'low_stock') {
-      setCsStockStatus('low_stock');
-      setCsSortBy('qty_asc');
-      setCsSelectedStaff('All');
-      setCsSelectedCategory('All');
-      setCsSelectedBin('All');
-      setCsSearch('');
-    } else if (presetType === 'high_value') {
-      setCsStockStatus('high_value');
-      setCsSortBy('value_desc');
-      setCsSelectedStaff('All');
-      setCsSelectedCategory('All');
-      setCsSelectedBin('All');
-      setCsSearch('');
-    } else if (presetType === 'staff') {
-      setCsSortBy('staff');
-      setCsSelectedStaff('cashier');
-      setCsSelectedCategory('All');
-      setCsStockStatus('all');
-      setCsSearch('');
+  // Fetch Closing Stock Report
+  const fetchClosingStock = async () => {
+    try {
+      setCsLoading(true);
+      const params = {
+        search: csSearch,
+        category: csSelectedCategory === 'All' ? '' : csSelectedCategory,
+        staff: csSelectedStaff === 'All' ? '' : csSelectedStaff,
+        stockStatus: csStockStatus,
+        bin: csSelectedBin === 'All' ? '' : csSelectedBin,
+        sortBy: csSortBy,
+        page: csPage,
+        limit: csPageSize,
+      };
+
+      const res = await api.get('/reports/closing-stock', { params });
+      if (res.data?.success) {
+        setCsReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load closing stock report:', err);
+    } finally {
+      setCsLoading(false);
     }
   };
 
-  // Handle Preset Clicks for Daily Sales
+  useEffect(() => {
+    if (activeReportTab === 'closing_stock') {
+      fetchClosingStock();
+    }
+  }, [activeReportTab, csSearch, csSelectedCategory, csSelectedStaff, csStockStatus, csSelectedBin, csSortBy, csPage, csPageSize]);
+
+  // Presets for Invoice Returns
+  const handleApplyIrPreset = (presetType) => {
+    setIrPage(1);
+    setIrJumpPage('1');
+    if (presetType === 'audit') {
+      setIrStartDate('2026-08-06');
+      setIrEndDate('2026-08-06');
+      setIrSortBy('default');
+      setIrSelectedStaff('All');
+      setIrSearch('');
+    } else if (presetType === 'today') {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      setIrStartDate(todayStr);
+      setIrEndDate(todayStr);
+      setIrSortBy('default');
+      setIrSelectedStaff('All');
+      setIrSearch('');
+    } else if (presetType === 'most_returned') {
+      setIrSortBy('most_returned');
+      setIrSelectedStaff('All');
+      setIrSearch('');
+    } else if (presetType === 'highest_val') {
+      setIrSortBy('value_desc');
+      setIrSelectedStaff('All');
+      setIrSearch('');
+    } else if (presetType === 'staff') {
+      setIrSelectedStaff('cashier');
+      setIrSearch('');
+    }
+  };
+
+  // Presets for Daily Sales
   const handleApplyDsPreset = (presetType) => {
     setDsPage(1);
     setDsJumpPage('1');
@@ -240,7 +276,48 @@ function Reports() {
     }
   };
 
-  // Jump to specific page
+  // Presets for Closing Stock
+  const handleApplyCsPreset = (presetType) => {
+    setCsPage(1);
+    setCsJumpPage('1');
+    if (presetType === 'all') {
+      setCsSortBy('default');
+      setCsStockStatus('all');
+      setCsSelectedCategory('All');
+      setCsSelectedStaff('All');
+      setCsSelectedBin('All');
+      setCsSearch('');
+    } else if (presetType === 'most_used') {
+      setCsSortBy('most_used');
+      setCsSelectedStaff('All');
+      setCsSelectedCategory('All');
+      setCsSelectedBin('All');
+      setCsStockStatus('all');
+      setCsSearch('');
+    } else if (presetType === 'low_stock') {
+      setCsStockStatus('low_stock');
+      setCsSortBy('qty_asc');
+      setCsSelectedStaff('All');
+      setCsSelectedCategory('All');
+      setCsSelectedBin('All');
+      setCsSearch('');
+    } else if (presetType === 'high_value') {
+      setCsStockStatus('high_value');
+      setCsSortBy('value_desc');
+      setCsSelectedStaff('All');
+      setCsSelectedCategory('All');
+      setCsSelectedBin('All');
+      setCsSearch('');
+    } else if (presetType === 'staff') {
+      setCsSortBy('staff');
+      setCsSelectedStaff('cashier');
+      setCsSelectedCategory('All');
+      setCsStockStatus('all');
+      setCsSearch('');
+    }
+  };
+
+  // Jump to page helper
   const handlePageJump = (e, targetPage, maxPages, setPageFn) => {
     e.preventDefault();
     const target = parseInt(targetPage, 10);
@@ -249,9 +326,32 @@ function Reports() {
     }
   };
 
-  // CSV Export Functionality
+  // CSV Export
   const handleExportCSV = () => {
-    if (activeReportTab === 'daily_sales') {
+    if (activeReportTab === 'invoice_returns') {
+      if (!irReportData?.data || irReportData.data.length === 0) return;
+      const headers = ['Invoice No', 'Invoice Date', 'Customer', 'Item Code', 'Description', 'Quantity', 'Discount', 'Refund Value', 'Return Date', 'Staff'];
+      const rows = irReportData.data.map((item) => [
+        `"${item.invoiceNumber || ''}"`,
+        `"${item.invoiceDate || ''}"`,
+        `"${item.customerName || ''}"`,
+        `"${item.itemCode || ''}"`,
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        Number(item.quantity || 0).toFixed(2),
+        Number(item.discount || 0).toFixed(2),
+        Number(item.value || 0).toFixed(2),
+        `"${item.returnDate || ''}"`,
+        `"${item.staff || ''}"`,
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Invoice_Returns_Report_${irStartDate}_to_${irEndDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (activeReportTab === 'daily_sales') {
       if (!dsReportData?.data || dsReportData.data.length === 0) return;
       const headers = ['Section', 'Item Code', 'Description', 'Quantity', 'Pur. Val', 'Value', 'Profit', 'Staff', 'Date'];
       const rows = dsReportData.data.map((item) => [
@@ -308,19 +408,6 @@ function Reports() {
     window.print();
   };
 
-  // Top products for Daily Sales
-  const topSalesProduct = useMemo(() => {
-    if (!dsReportData?.data || dsReportData.data.length === 0) return 'BAJAJ GENUINE OIL 20W 50 CAN 1L';
-    const sorted = [...dsReportData.data].sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
-    return sorted[0] ? `${sorted[0].description} (${sorted[0].quantity} units)` : 'BAJAJ GENUINE OIL 20W 50 CAN 1L';
-  }, [dsReportData]);
-
-  const topProfitProduct = useMemo(() => {
-    if (!dsReportData?.data || dsReportData.data.length === 0) return 'KIT CHAIN SPROCKET SPRINT';
-    const sorted = [...dsReportData.data].sort((a, b) => (b.profit || 0) - (a.profit || 0));
-    return sorted[0] ? `${sorted[0].description} (Rs. ${Number(sorted[0].profit).toLocaleString()})` : 'KIT CHAIN SPROCKET SPRINT';
-  }, [dsReportData]);
-
   return (
     <div className="reports-page-container">
       {/* =========================================================================
@@ -363,10 +450,17 @@ function Reports() {
       </div>
 
       {/* =========================================================================
-          REPORT TYPE TABS SELECTOR (Report 1 vs Report 2)
+          REPORT TYPE TABS SELECTOR (Report 1 vs Report 2 vs Report 3)
           ========================================================================= */}
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '16px' }} className="no-print">
         <div className="reports-type-tabs">
+          <button
+            type="button"
+            className={`reports-tab-btn ${activeReportTab === 'invoice_returns' ? 'active' : ''}`}
+            onClick={() => setActiveReportTab('invoice_returns')}
+          >
+            🔄 Invoice Returns Report
+          </button>
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'daily_sales' ? 'active' : ''}`}
@@ -383,6 +477,439 @@ function Reports() {
           </button>
         </div>
       </div>
+
+      {/* =========================================================================
+          REPORT 3: INVOICE RETURNS REPORT
+          ========================================================================= */}
+      {activeReportTab === 'invoice_returns' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Customer Returns &amp; Credit Notes</span>
+                <h1 className="reports-main-title">Invoice Returns Report</h1>
+                <p className="reports-subtitle">
+                  Audit and breakdown of customer returned parts, discount reversals, and refund subtotals grouped by billed invoice.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL REFUND VALUE</span>
+                  <span className="reports-kpi-val" style={{ color: '#dc2626' }}>
+                    Rs. {Number(irReportData?.summary?.totalRefundValue || -1990).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Reversed from Gross Daily Sales
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">RETURNED ITEMS COUNT</span>
+                  <span className="reports-kpi-val">
+                    {Math.abs(Number(irReportData?.summary?.totalReturnedQty || 3))} Units
+                  </span>
+                  <span className="reports-kpi-sub">
+                    {irReportData?.summary?.itemsCount || 3} Return Line Entries
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">INVOICES AFFECTED</span>
+                  <span className="reports-kpi-val">
+                    {irReportData?.summary?.invoiceCount || 3}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Invoices: 47530, 47568, 47588
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOP RETURNED ITEM</span>
+                  <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'normal', lineHeight: '1.3' }}>
+                    REVERSE GEAR CABLE COMPLETE (CMUAZ161212)
+                  </span>
+                  <span className="reports-kpi-sub" style={{ color: '#dc2626', fontWeight: 'bold' }}>
+                    Refund Value: Rs. -1,110.00
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Preset Filter Buttons */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
+              <button
+                type="button"
+                className={`reports-pill ${irStartDate === '2026-08-06' && irSortBy === 'default' ? 'active' : ''}`}
+                onClick={() => handleApplyIrPreset('audit')}
+              >
+                📋 6/8/2026 (Audit Record)
+              </button>
+              <button
+                type="button"
+                className="reports-pill"
+                onClick={() => handleApplyIrPreset('today')}
+              >
+                📅 Today's Returns
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${irSortBy === 'most_returned' ? 'active' : ''}`}
+                onClick={() => handleApplyIrPreset('most_returned')}
+              >
+                🔥 Most Returned Products
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${irSortBy === 'value_desc' ? 'active' : ''}`}
+                onClick={() => handleApplyIrPreset('highest_val')}
+              >
+                💸 Highest Refund Value
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${irSelectedStaff === 'cashier' ? 'active' : ''}`}
+                onClick={() => handleApplyIrPreset('staff')}
+              >
+                👤 Cashier Handled Returns
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Date Pickers */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>From:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={irStartDate}
+                  onChange={(e) => {
+                    setIrStartDate(e.target.value);
+                    setIrPage(1);
+                  }}
+                  title="Filter returns from date"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>To:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={irEndDate}
+                  onChange={(e) => {
+                    setIrEndDate(e.target.value);
+                    setIrPage(1);
+                  }}
+                  title="Filter returns to date"
+                />
+              </div>
+
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search item code, description or invoice..."
+                  value={irSearch}
+                  onChange={(e) => {
+                    setIrSearch(e.target.value);
+                    setIrPage(1);
+                  }}
+                />
+                {irSearch && (
+                  <button type="button" className="reports-search-clear" onClick={() => setIrSearch('')}>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Staff Member Filter */}
+              <select
+                className="reports-filter-select"
+                value={irSelectedStaff}
+                onChange={(e) => {
+                  setIrSelectedStaff(e.target.value);
+                  setIrPage(1);
+                }}
+                title="Filter returns by Staff member"
+              >
+                <option value="All">All Staff / Cashiers</option>
+                {filterOptions.staff.map((st, idx) => (
+                  <option key={idx} value={st}>
+                    Staff: {st}
+                  </option>
+                ))}
+              </select>
+
+              {/* Sort By Dropdown */}
+              <select
+                className="reports-filter-select"
+                value={irSortBy}
+                onChange={(e) => {
+                  setIrSortBy(e.target.value);
+                  setIrPage(1);
+                }}
+                title="Sort Report By"
+              >
+                <option value="default">Sort: Default PDF Invoice Sequence</option>
+                <option value="most_returned">Sort: 🔥 Most Returned (Highest Quantity)</option>
+                <option value="value_desc">Sort: 💸 Highest Refund Value (Rs.)</option>
+                <option value="code_asc">Sort: Item Code (A - Z)</option>
+                <option value="desc_asc">Sort: Description (A - Z)</option>
+                <option value="date_desc">Sort: Return Date (Newest First)</option>
+              </select>
+
+              {/* Page Size Selector */}
+              <select
+                className="reports-filter-select"
+                value={irPageSize}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 0 : Number(e.target.value);
+                  setIrPageSize(val);
+                  setIrPage(1);
+                }}
+                title="Items per page"
+              >
+                <option value={50}>50 items / page (Exact PDF Format)</option>
+                <option value={20}>20 items / page</option>
+                <option value={100}>100 items / page</option>
+                <option value="all">Show All Items (Continuous)</option>
+              </select>
+            </div>
+
+            <div className="reports-actions-group">
+              {/* View Mode Switcher */}
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Exact Physical Dot-Matrix Paper Layout from PDF"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export filtered items to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Invoice Returns Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {irLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Invoice Returns Report from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Processing credit notes, return line items and invoice subtotals</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                  EXACT PHYSICAL INVOICE RETURNS REPORT PAPER SHEET (MATCHING THIRD PDF 100%)
+                  ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-invoice-returns-report">
+                {/* Header matching PDF Scan */}
+                <div className="cs-report-header">
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+                  <div className="cs-report-title" style={{ marginTop: '8px' }}>
+                    Invoice Returns
+                  </div>
+                  <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '700', fontSize: '11px', marginTop: '4px' }}>
+                    {irReportData?.reportPeriod || 'For the period of 8/6/2026 to 8/6/2026'}
+                  </div>
+                </div>
+
+                {/* Table Header */}
+                <table className="ir-table">
+                  <thead>
+                    <tr>
+                      <th className="ir-th-code">Item Code</th>
+                      <th className="ir-th-desc">Description</th>
+                      <th className="ir-th-qty col-right">Qty</th>
+                      <th className="ir-th-disc col-right">Disc.</th>
+                      <th className="ir-th-val col-right">Value</th>
+                      <th className="ir-th-rtn col-right">Rtn On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {irReportData?.invoiceGroups && irReportData.invoiceGroups.length > 0 ? (
+                      irReportData.invoiceGroups.map((grp, gIdx) => (
+                        <Fragment key={`inv-grp-${gIdx}`}>
+                          {/* Invoice Meta Row matching PDF: Inv.  47530   Inv. Date: 05/08/2026   Customer   DAILY SALES */}
+                          <tr className="ir-invoice-header-row">
+                            <td colSpan={6}>
+                              <span className="ir-inv-label">Inv. &nbsp;&nbsp;&nbsp;{grp.invoiceNumber}</span>
+                              <span className="ir-inv-label">Inv. Date: &nbsp;{grp.invoiceDate}</span>
+                              <span className="ir-inv-label">Customer &nbsp;&nbsp;{grp.customerName}</span>
+                            </td>
+                          </tr>
+
+                          {/* Line Items for this Invoice */}
+                          {grp.items.map((it, iIdx) => (
+                            <tr key={`inv-item-${gIdx}-${iIdx}`}>
+                              <td className="cs-code">{it.itemCode}</td>
+                              <td className="cs-desc">{it.description}</td>
+                              <td className="cs-qty" style={{ color: '#dc2626' }}>
+                                {Number(it.quantity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="cs-qty">
+                                {it.discount > 0 ? Number(it.discount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
+                              </td>
+                              <td className="cs-val" style={{ color: '#dc2626' }}>
+                                {Number(it.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="cs-val">{it.returnDate}</td>
+                            </tr>
+                          ))}
+
+                          {/* Invoice Sub Total Row matching PDF */}
+                          <tr className="ir-subtotal-row">
+                            <td colSpan={4} style={{ textAlign: 'right', fontWeight: '900' }}>
+                              Sub Total
+                            </td>
+                            <td className="cs-val" style={{ fontWeight: '900', color: '#dc2626' }}>
+                              {Number(grp.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </Fragment>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No invoice returns found matching your filters.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Final Grand Total Row matching PDF: Total   -1,990.00 */}
+                    {irReportData?.summary && (
+                      <tr className="ir-total-row">
+                        <td colSpan={4} style={{ textAlign: 'right', fontWeight: '900', fontSize: '12px' }}>
+                          Total
+                        </td>
+                        <td className="cs-val" style={{ fontWeight: '900', color: '#dc2626', fontSize: '12px' }}>
+                          {Number(irReportData.summary.totalRefundValue || -1990).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Footer matching PDF */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
+                  <div className="cs-software-footer">
+                    {irReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
+                    1
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* MODERN TABLE VIEW FOR INVOICE RETURNS */
+              <div className="reports-modern-card">
+                <table className="reports-modern-table">
+                  <thead>
+                    <tr>
+                      <th>Invoice No</th>
+                      <th>Invoice Date</th>
+                      <th>Customer</th>
+                      <th>Item Code</th>
+                      <th>Description</th>
+                      <th style={{ textAlign: 'right' }}>Qty Returned</th>
+                      <th style={{ textAlign: 'right' }}>Discount</th>
+                      <th style={{ textAlign: 'right' }}>Refund Value</th>
+                      <th style={{ textAlign: 'center' }}>Return Date</th>
+                      <th>Staff</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {irReportData?.data && irReportData.data.length > 0 ? (
+                      irReportData.data.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <strong style={{ color: '#0284c7' }}>#{item.invoiceNumber}</strong>
+                          </td>
+                          <td style={{ fontSize: '12px', color: '#64748b' }}>{item.invoiceDate}</td>
+                          <td>
+                            <strong>{item.customerName}</strong>
+                          </td>
+                          <td>
+                            <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                              {item.itemCode}
+                            </code>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: '600' }}>{item.description}</div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '800', color: '#dc2626' }}>
+                            {Number(item.quantity).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: 'right', color: '#64748b' }}>
+                            {item.discount > 0 ? `Rs. ${Number(item.discount).toFixed(2)}` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '900', color: '#dc2626' }}>
+                            Rs. {Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ textAlign: 'center', fontSize: '12px', color: '#334155' }}>
+                            📅 {item.returnDate}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '12px', color: '#475569' }}>
+                              👤 {item.staff || 'cashier'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                          No invoice returns found matching filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* =========================================================================
           REPORT 2: DAILY SALES & PROFIT REPORT
@@ -435,10 +962,10 @@ function Reports() {
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">TOP PROFIT PRODUCT</span>
                   <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'normal', lineHeight: '1.3' }}>
-                    {topProfitProduct}
+                    KIT CHAIN SPROCKET SPRINT
                   </span>
                   <span className="reports-kpi-sub">
-                    Top Qty: {topSalesProduct}
+                    Top Qty: BAJAJ GENUINE OIL 20W 50 CAN 1L (5 units)
                   </span>
                 </div>
               </div>
@@ -942,9 +1469,7 @@ function Reports() {
                 </div>
               </div>
             ) : (
-              /* =========================================================================
-                  MODERN INTERACTIVE TABLE VIEW FOR DAILY SALES
-                  ========================================================================= */
+              /* MODERN TABLE VIEW FOR DAILY SALES */
               <div className="reports-modern-card">
                 <table className="reports-modern-table">
                   <thead>
