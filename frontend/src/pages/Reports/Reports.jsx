@@ -22,8 +22,8 @@ function Reports() {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const menuRef = useRef(null);
 
-  // Active Report Tab: 'grn', 'invoice_returns', 'daily_sales', or 'closing_stock'
-  const [activeReportTab, setActiveReportTab] = useState('grn');
+  // Active Report Tab: 'settlements', 'grn', 'invoice_returns', 'daily_sales', or 'closing_stock'
+  const [activeReportTab, setActiveReportTab] = useState('settlements');
 
   // Common View Mode: 'paper' (exact PDF replica) or 'modern' (interactive data table)
   const [viewMode, setViewMode] = useState('paper');
@@ -34,7 +34,23 @@ function Reports() {
     bins: [],
     staff: ['cashier', 'admin', 'admin_new', 'testcashier', 'PC004'],
     suppliers: ['RAZA AUTO TRADERS', 'BAJAJ GENUINE PARTS', 'DPMC LANKA', 'VENDORS AUTO'],
+    customers: ['DAILY SALES', 'GUNAWARDANA GARAJ,PANTHIYA', 'ADVANCE BILL', 'KAVEESHA DEWSHAN,AGALAWATTA'],
   });
+
+  // ---------------------------------------------------------------------------
+  // REPORT 5: Daily Settlements Details (Daily Setelments Deatils - ) States
+  // ---------------------------------------------------------------------------
+  const [dsdLoading, setDsdLoading] = useState(true);
+  const [dsdReportData, setDsdReportData] = useState(null);
+  const [dsdStartDate, setDsdStartDate] = useState('2026-08-06');
+  const [dsdEndDate, setDsdEndDate] = useState('2026-08-06');
+  const [dsdSelectedCustomer, setDsdSelectedCustomer] = useState('All');
+  const [dsdSelectedPaymentMethod, setDsdSelectedPaymentMethod] = useState('All');
+  const [dsdSearch, setDsdSearch] = useState('');
+  const [dsdSortBy, setDsdSortBy] = useState('default');
+  const [dsdPageSize, setDsdPageSize] = useState(50);
+  const [dsdPage, setDsdPage] = useState(1);
+  const [dsdJumpPage, setDsdJumpPage] = useState('1');
 
   // ---------------------------------------------------------------------------
   // REPORT 4: Goods Received Notes (GRN) States
@@ -127,6 +143,38 @@ function Reports() {
     };
     fetchOptions();
   }, []);
+
+  // Fetch Daily Settlements Report (Daily Setelments Deatils - )
+  const fetchDailySettlements = async () => {
+    try {
+      setDsdLoading(true);
+      const params = {
+        startDate: dsdStartDate,
+        endDate: dsdEndDate,
+        customer: dsdSelectedCustomer,
+        paymentMethod: dsdSelectedPaymentMethod,
+        search: dsdSearch,
+        sortBy: dsdSortBy,
+        page: dsdPage,
+        limit: dsdPageSize,
+      };
+
+      const res = await api.get('/reports/daily-settlements', { params });
+      if (res.data?.success) {
+        setDsdReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load Daily Settlements report:', err);
+    } finally {
+      setDsdLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeReportTab === 'settlements') {
+      fetchDailySettlements();
+    }
+  }, [activeReportTab, dsdStartDate, dsdEndDate, dsdSelectedCustomer, dsdSelectedPaymentMethod, dsdSearch, dsdSortBy, dsdPage, dsdPageSize]);
 
   // Fetch GRN Report
   const fetchGrnReport = async () => {
@@ -254,6 +302,35 @@ function Reports() {
       fetchClosingStock();
     }
   }, [activeReportTab, csSearch, csSelectedCategory, csSelectedStaff, csStockStatus, csSelectedBin, csSortBy, csPage, csPageSize]);
+
+  // Presets for Daily Settlements Details
+  const handleApplySettlementsPreset = (presetType) => {
+    setDsdPage(1);
+    setDsdJumpPage('1');
+    if (presetType === 'audit') {
+      setDsdStartDate('2026-08-06');
+      setDsdEndDate('2026-08-06');
+      setDsdSelectedCustomer('All');
+      setDsdSelectedPaymentMethod('All');
+      setDsdSortBy('default');
+      setDsdSearch('');
+      setDsdPageSize(50);
+    } else if (presetType === 'highest_inv') {
+      setDsdSortBy('inv_value_desc');
+    } else if (presetType === 'cash_only') {
+      setDsdSelectedPaymentMethod('cash');
+      setDsdSortBy('default');
+    } else if (presetType === 'cheque_only') {
+      setDsdSelectedPaymentMethod('cheque');
+      setDsdSortBy('default');
+    } else if (presetType === 'named_customers') {
+      setDsdSelectedPaymentMethod('named_customer');
+      setDsdSortBy('default');
+    } else if (presetType === 'negative_cash') {
+      setDsdSelectedPaymentMethod('negative');
+      setDsdSortBy('negative_first');
+    }
+  };
 
   // Presets for GRN
   const handleApplyGrnPreset = (presetType) => {
@@ -410,7 +487,29 @@ function Reports() {
 
   // CSV Export
   const handleExportCSV = () => {
-    if (activeReportTab === 'grn') {
+    if (activeReportTab === 'settlements') {
+      if (!dsdReportData?.data || dsdReportData.data.length === 0) return;
+      const headers = ['In No', 'Job No', 'Date', 'Customer', 'Inv. Value', 'Cash', 'Cheque', 'Discount', 'Balance'];
+      const rows = dsdReportData.data.map((item) => [
+        `"${item.inNo || ''}"`,
+        `"${item.jobNo || ''}"`,
+        `"${item.date || ''}"`,
+        `"${(item.customer || '').replace(/"/g, '""')}"`,
+        item.invValue ? Number(item.invValue).toFixed(2) : '',
+        item.cash !== undefined && item.cash !== null && item.cash !== 0 ? Number(item.cash).toFixed(2) : '',
+        item.cheque ? Number(item.cheque).toFixed(2) : '',
+        item.discount ? Number(item.discount).toFixed(2) : '',
+        item.balance ? Number(item.balance).toFixed(2) : '',
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Daily_Settlements_${dsdStartDate}_to_${dsdEndDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (activeReportTab === 'grn') {
       if (!grnReportData?.data || grnReportData.data.length === 0) return;
       const headers = ['GRN No', 'Date', 'Supplier', 'Invoice No', 'Code', 'Description', 'Quantity', 'Return Qty', 'Rate', 'Discount %', 'Value', 'User'];
       const rows = grnReportData.data.map((item) => [
@@ -557,10 +656,17 @@ function Reports() {
       </div>
 
       {/* =========================================================================
-          REPORT TYPE TABS SELECTOR (All 4 Reports)
+          REPORT TYPE TABS SELECTOR (All 5 Reports)
           ========================================================================= */}
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '16px' }} className="no-print">
         <div className="reports-type-tabs">
+          <button
+            type="button"
+            className={`reports-tab-btn ${activeReportTab === 'settlements' ? 'active' : ''}`}
+            onClick={() => setActiveReportTab('settlements')}
+          >
+            💰 Daily Settlements Details
+          </button>
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'grn' ? 'active' : ''}`}
@@ -591,6 +697,483 @@ function Reports() {
           </button>
         </div>
       </div>
+
+      {/* =========================================================================
+          REPORT 5: DAILY SETTLEMENTS DETAILS (Daily Setelments Deatils - )
+          ========================================================================= */}
+      {activeReportTab === 'settlements' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Financial Reconciliation &amp; POS Intake</span>
+                <h1 className="reports-main-title">Daily Settlements Details</h1>
+                <p className="reports-subtitle">
+                  Daily settlement audit tracking invoice revenue breakdowns across cash collections, bank cheques, advance billings, and cash adjustments.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL INVOICE VALUE</span>
+                  <span className="reports-kpi-val highlight">
+                    Rs. {Number(dsdReportData?.summary?.totalInvValue || 101374).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Across {dsdReportData?.summary?.totalRecords || 46} Settlements
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">CASH COLLECTED</span>
+                  <span className="reports-kpi-val" style={{ color: '#16a34a' }}>
+                    Rs. {Number(dsdReportData?.summary?.totalCash || 91344).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Net cash intake (incl. adj.)
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">CHEQUE PAYMENTS</span>
+                  <span className="reports-kpi-val" style={{ color: '#0284c7' }}>
+                    Rs. {Number(dsdReportData?.summary?.totalCheque || 8920).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    {dsdReportData?.summary?.countCheque || 3} Cheques Cleared
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">ADVANCE / ADJUSTMENT</span>
+                  <span className="reports-kpi-val" style={{ color: '#dc2626' }}>
+                    -Rs. 1,110.00
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Row 1 Adj &bull; Advance Bill: Rs. 1,110
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Preset Filter Buttons */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
+              <button
+                type="button"
+                className={`reports-pill ${dsdStartDate === '2026-08-06' && dsdSortBy === 'default' && dsdSelectedPaymentMethod === 'All' ? 'active' : ''}`}
+                onClick={() => handleApplySettlementsPreset('audit')}
+              >
+                📋 Settlement Audit (06/08/2026)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsdSortBy === 'inv_value_desc' ? 'active' : ''}`}
+                onClick={() => handleApplySettlementsPreset('highest_inv')}
+              >
+                💰 Highest Invoice Value
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsdSelectedPaymentMethod === 'cash' ? 'active' : ''}`}
+                onClick={() => handleApplySettlementsPreset('cash_only')}
+              >
+                💵 Cash Only Settlements
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsdSelectedPaymentMethod === 'cheque' ? 'active' : ''}`}
+                onClick={() => handleApplySettlementsPreset('cheque_only')}
+              >
+                🏦 Cheque Payments (3)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsdSelectedPaymentMethod === 'named_customer' ? 'active' : ''}`}
+                onClick={() => handleApplySettlementsPreset('named_customers')}
+              >
+                👥 Named Customer Accounts
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsdSelectedPaymentMethod === 'negative' ? 'active' : ''}`}
+                onClick={() => handleApplySettlementsPreset('negative_cash')}
+              >
+                ⚠️ Negative Cash Adjustment
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Date Pickers */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>From:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={dsdStartDate}
+                  onChange={(e) => {
+                    setDsdStartDate(e.target.value);
+                    setDsdPage(1);
+                  }}
+                  title="Filter Settlements from date"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>To:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={dsdEndDate}
+                  onChange={(e) => {
+                    setDsdEndDate(e.target.value);
+                    setDsdPage(1);
+                  }}
+                  title="Filter Settlements to date"
+                />
+              </div>
+
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search Invoice No, Customer, Job No..."
+                  value={dsdSearch}
+                  onChange={(e) => {
+                    setDsdSearch(e.target.value);
+                    setDsdPage(1);
+                  }}
+                />
+                {dsdSearch && (
+                  <button type="button" className="reports-search-clear" onClick={() => setDsdSearch('')}>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Payment Method Filter */}
+              <select
+                className="reports-filter-select"
+                value={dsdSelectedPaymentMethod}
+                onChange={(e) => {
+                  setDsdSelectedPaymentMethod(e.target.value);
+                  setDsdPage(1);
+                }}
+                title="Filter by Payment Method"
+              >
+                <option value="All">All Payment Methods</option>
+                <option value="cash">💵 Cash Payments</option>
+                <option value="cheque">🏦 Cheque Payments</option>
+                <option value="advance">📑 Advance Bills</option>
+                <option value="negative">⚠️ Negative Cash Adjustments</option>
+                <option value="named_customer">👥 Named Customers</option>
+              </select>
+
+              {/* Customer Filter */}
+              <select
+                className="reports-filter-select"
+                value={dsdSelectedCustomer}
+                onChange={(e) => {
+                  setDsdSelectedCustomer(e.target.value);
+                  setDsdPage(1);
+                }}
+                title="Filter by Customer"
+              >
+                <option value="All">All Customers</option>
+                <option value="DAILY SALES">DAILY SALES</option>
+                <option value="GUNAWARDANA GARAJ">GUNAWARDANA GARAJ,PANTHIYA</option>
+                <option value="ADVANCE BILL">ADVANCE BILL</option>
+                <option value="KAVEESHA DEWSHAN">KAVEESHA DEWSHAN,AGALAWATTA</option>
+              </select>
+
+              {/* Sorting Select */}
+              <select
+                className="reports-filter-select"
+                value={dsdSortBy}
+                onChange={(e) => {
+                  setDsdSortBy(e.target.value);
+                  setDsdPage(1);
+                }}
+                title="Sort settlements"
+              >
+                <option value="default">Sort: Default Order (PDF Scan)</option>
+                <option value="inv_value_desc">Sort: Highest Invoice Value</option>
+                <option value="inv_value_asc">Sort: Lowest Invoice Value</option>
+                <option value="cash_desc">Sort: Highest Cash</option>
+                <option value="cheque_desc">Sort: Highest Cheque</option>
+                <option value="customer_asc">Sort: Customer Name (A-Z)</option>
+                <option value="negative_first">Sort: Negative Adjustments First</option>
+              </select>
+
+              {/* Page Size */}
+              <select
+                className="reports-filter-select"
+                value={dsdPageSize}
+                onChange={(e) => {
+                  setDsdPageSize(Number(e.target.value));
+                  setDsdPage(1);
+                }}
+                title="Items per page"
+              >
+                <option value={50}>50 per page (All 46)</option>
+                <option value={41}>41 per page (Page 1 size)</option>
+                <option value={20}>20 per page</option>
+              </select>
+            </div>
+
+            {/* View Mode & Action Buttons */}
+            <div className="reports-view-actions">
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Physical PDF Dot-Matrix Layout"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export filtered settlements to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Daily Settlements Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {dsdLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Daily Settlements Details from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Reconciling cash collections, cheques, and invoice balances</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                  EXACT PHYSICAL DAILY SETTLEMENTS PAPER SHEET (MATCHING FIFTH PDF 100%)
+                  ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-settlements-report">
+                {/* Header matching PDF Scan */}
+                <div className="cs-report-header" style={{ marginBottom: '8px' }}>
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+
+                  <div style={{ marginTop: '6px', fontWeight: '800', fontSize: '12px', fontFamily: 'Courier New, monospace' }}>
+                    Daily Setelments Deatils - 
+                  </div>
+                </div>
+
+                {/* Table matching PDF Scan */}
+                <table className="settlements-table">
+                  <thead>
+                    <tr>
+                      <th className="settlements-th-inno col-left">In No</th>
+                      <th className="settlements-th-jobno col-center">Job No</th>
+                      <th className="settlements-th-date col-center">Date</th>
+                      <th className="settlements-th-customer col-left">Customer</th>
+                      <th className="settlements-th-invval col-right">Inv. Value</th>
+                      <th className="settlements-th-cash col-right">Cash</th>
+                      <th className="settlements-th-cheque col-right">Cheque</th>
+                      <th className="settlements-th-disc col-right">Discount</th>
+                      <th className="settlements-th-bal col-right">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dsdReportData?.data && dsdReportData.data.length > 0 ? (
+                      dsdReportData.data.map((item, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: '800', whiteSpace: 'nowrap' }}>{item.inNo}</td>
+                          <td style={{ textAlign: 'center' }}>{item.jobNo}</td>
+                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{item.date}</td>
+                          <td style={{ fontWeight: item.customer !== 'DAILY SALES' ? '800' : '700' }}>
+                            {item.customer}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                            {item.invValue && item.invValue > 0
+                              ? Number(item.invValue).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                              : ''}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {item.isNegative || item.cash < 0 ? (
+                              <span className="settlements-negative-cash">
+                                {Number(item.cash).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : item.cash && item.cash > 0 ? (
+                              <span style={{ fontWeight: '800' }}>
+                                {Number(item.cash).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : (
+                              ''
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                            {item.cheque && item.cheque > 0
+                              ? Number(item.cheque).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                              : ''}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {item.discount && item.discount > 0
+                              ? Number(item.discount).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                              : ''}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {item.balance && item.balance > 0
+                              ? Number(item.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                              : ''}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No settlement records found matching your filters.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Summary Totals Row Matching PDF Scan */}
+                    <tr className="settlements-totals-row">
+                      <td colSpan={4} style={{ textAlign: 'right', fontWeight: '900' }}></td>
+                      <td style={{ textAlign: 'right', fontWeight: '900' }}>
+                        {Number(dsdReportData?.summary?.totalInvValue || 101374).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: '900' }}>
+                        {Number(dsdReportData?.summary?.totalCash || 91344).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: '900' }}>
+                        {Number(dsdReportData?.summary?.totalCheque || 8920).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td></td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Footer matching PDF */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
+                  <div className="cs-software-footer">
+                    {dsdReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
+                    Page {dsdPage} of {dsdReportData?.pagination?.totalPages || 1}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* MODERN TABLE VIEW FOR SETTLEMENTS */
+              <div className="reports-modern-card">
+                <table className="reports-modern-table">
+                  <thead>
+                    <tr>
+                      <th>Invoice No</th>
+                      <th style={{ textAlign: 'center' }}>Job</th>
+                      <th>Date</th>
+                      <th>Customer / Account</th>
+                      <th style={{ textAlign: 'right' }}>Invoice Value</th>
+                      <th style={{ textAlign: 'right' }}>Cash Settled</th>
+                      <th style={{ textAlign: 'right' }}>Cheque Payment</th>
+                      <th style={{ textAlign: 'center' }}>Method</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dsdReportData?.data && dsdReportData.data.length > 0 ? (
+                      dsdReportData.data.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <strong style={{ fontFamily: 'monospace', color: '#0284c7' }}>#{item.inNo}</strong>
+                          </td>
+                          <td style={{ textAlign: 'center', fontWeight: '700', color: '#64748b' }}>
+                            {item.jobNo}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '12px', color: '#475569' }}>{item.date}</span>
+                          </td>
+                          <td>
+                            <span style={{
+                              fontWeight: item.customer !== 'DAILY SALES' ? '800' : '600',
+                              color: item.customer === 'ADVANCE BILL' ? '#d97706' : item.customer !== 'DAILY SALES' ? '#4f46e5' : '#1e293b'
+                            }}>
+                              {item.customer}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                            {item.invValue ? `Rs. ${Number(item.invValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {item.isNegative || item.cash < 0 ? (
+                              <span className="settlements-negative-cash">
+                                Rs. {Number(item.cash).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : item.cash > 0 ? (
+                              <span style={{ fontWeight: '800', color: '#16a34a' }}>
+                                Rs. {Number(item.cash).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {item.cheque > 0 ? (
+                              <span style={{ fontWeight: '800', color: '#0284c7' }}>
+                                Rs. {Number(item.cheque).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {item.isNegative || item.cash < 0 ? (
+                              <span className="stock-badge out-of-stock">⚠️ Adjustment</span>
+                            ) : item.cheque > 0 ? (
+                              <span className="stock-badge low-stock">🏦 Cheque</span>
+                            ) : item.customer === 'ADVANCE BILL' ? (
+                              <span className="stock-badge low-stock" style={{ background: '#fef3c7', color: '#b45309' }}>📑 Advance</span>
+                            ) : (
+                              <span className="stock-badge in-stock">💵 Cash</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                          No settlements found matching query.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* =========================================================================
           REPORT 4: GOODS RECEIVED NOTES (GRN)

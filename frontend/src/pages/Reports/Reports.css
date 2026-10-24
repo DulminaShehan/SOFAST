@@ -1086,6 +1086,76 @@
 }
 
 /* ==========================================================================
+   REPORT 5: DAILY SETTLEMENTS DETAILS (Daily Setelments Deatils - )
+   Exact physical dot-matrix paper format matching Report 5 PDF scan
+   ========================================================================== */
+.settlements-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.settlements-table th {
+  padding: 5px 6px;
+  font-weight: 900;
+  font-size: 11px;
+  color: #000000;
+  border-top: 1.5px solid #000000;
+  border-bottom: 1.5px solid #000000;
+  background-color: transparent;
+  white-space: nowrap;
+}
+
+.settlements-table th.col-left {
+  text-align: left;
+}
+
+.settlements-table th.col-center {
+  text-align: center;
+}
+
+.settlements-table th.col-right {
+  text-align: right;
+}
+
+.settlements-table td {
+  padding: 3px 6px;
+  color: #000000;
+  vertical-align: middle;
+  border-bottom: 1px dotted #cbd5e1;
+}
+
+.settlements-th-inno { width: 9%; }
+.settlements-th-jobno { width: 6%; text-align: center; }
+.settlements-th-date { width: 10%; text-align: center; }
+.settlements-th-customer { width: 31%; }
+.settlements-th-invval { width: 11%; text-align: right; }
+.settlements-th-cash { width: 11%; text-align: right; }
+.settlements-th-cheque { width: 10%; text-align: right; }
+.settlements-th-disc { width: 6%; text-align: right; }
+.settlements-th-bal { width: 6%; text-align: right; }
+
+.settlements-negative-cash {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.settlements-totals-row td {
+  padding: 6px 6px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 2px solid #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -1104,13 +1174,16 @@
   #printable-invoice-returns-report,
   #printable-invoice-returns-report *,
   #printable-grn-report,
-  #printable-grn-report * {
+  #printable-grn-report *,
+  #printable-settlements-report,
+  #printable-settlements-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
   #printable-daily-sales-report,
   #printable-invoice-returns-report,
-  #printable-grn-report {
+  #printable-grn-report,
+  #printable-settlements-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -1125,7 +1198,8 @@
   .cs-table,
   .ds-table,
   .ir-table,
-  .grn-table {
+  .grn-table,
+  .settlements-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
@@ -1135,7 +1209,9 @@
   .ir-table th,
   .ir-table td,
   .grn-table th,
-  .grn-table td {
+  .grn-table td,
+  .settlements-table th,
+  .settlements-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,
