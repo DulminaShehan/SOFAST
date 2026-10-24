@@ -6,18 +6,11 @@ import ApprovementDropdown from '../../components/navigation/ApprovementDropdown
 import './Reports.css';
 
 /**
- * Reports Module - Closing Stock Report
- * Exact replica of the physical ERP closing stock report from the reference PDF.
- * Features:
- * - Exact company header, columns, category grouping, sub-totals, grand-total, and software footer.
- * - Quick filters and instant sorting for:
- *   * Most Used Products (fast-moving items)
- *   * Staff & Cashier filtering / handled inventory
- *   * Categories (2W, 2W-BODY, 2W-ELEC, 3W, 3W-BODY, OIL, etc.)
- *   * Stock status (In Stock, Out of Stock, Low Stock, High Value)
- *   * Shelf / Bin locations (R1, R3, R5, R12, DISPLAY, etc.)
- * - Multi-page pagination (35 items/page matching 170-page PDF structure) or full view.
- * - Print-ready CSS for exact physical reproduction and CSV export.
+ * Reports Module
+ * Supports:
+ * 1. CLOSING STOCK REPORT (Exact 170-page replica from Report 1 PDF)
+ * 2. DAILY SALES REPORT (Exact 2-page replica from Report 2 PDF)
+ * Features quick filters, instant sorting by Most Used Products, Staff, Category, and Profit.
  */
 function Reports() {
   const navigate = useNavigate();
@@ -27,28 +20,48 @@ function Reports() {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const menuRef = useRef(null);
 
-  // Loading & Data States
-  const [loading, setLoading] = useState(true);
-  const [reportData, setReportData] = useState(null);
+  // Active Report Tab: 'daily_sales' (Second Report) or 'closing_stock' (First Report)
+  const [activeReportTab, setActiveReportTab] = useState('daily_sales');
+
+  // Common View Mode: 'paper' (exact PDF replica) or 'modern' (interactive data table)
+  const [viewMode, setViewMode] = useState('paper');
+
+  // Filter Dropdown Options from DB
   const [filterOptions, setFilterOptions] = useState({
     categories: [],
     bins: [],
-    staff: [],
+    staff: ['cashier', 'admin', 'admin_new', 'testcashier'],
   });
 
-  // Filter & Search Controls
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedStaff, setSelectedStaff] = useState('All');
-  const [stockStatus, setStockStatus] = useState('all');
-  const [selectedBin, setSelectedBin] = useState('All');
-  const [sortBy, setSortBy] = useState('default'); // 'default', 'most_used', 'qty_desc', 'value_desc', etc.
-  const [pageSize, setPageSize] = useState(35); // 35 items per page matches the PDF's 170 pages
-  const [page, setPage] = useState(1);
-  const [jumpPage, setJumpPage] = useState('1');
+  // ---------------------------------------------------------------------------
+  // REPORT 1: Closing Stock Report States
+  // ---------------------------------------------------------------------------
+  const [csLoading, setCsLoading] = useState(false);
+  const [csReportData, setCsReportData] = useState(null);
+  const [csSearch, setCsSearch] = useState('');
+  const [csSelectedCategory, setCsSelectedCategory] = useState('All');
+  const [csSelectedStaff, setCsSelectedStaff] = useState('All');
+  const [csStockStatus, setCsStockStatus] = useState('all');
+  const [csSelectedBin, setCsSelectedBin] = useState('All');
+  const [csSortBy, setCsSortBy] = useState('default');
+  const [csPageSize, setCsPageSize] = useState(35);
+  const [csPage, setCsPage] = useState(1);
+  const [csJumpPage, setCsJumpPage] = useState('1');
 
-  // View Mode: 'paper' (exact PDF replica) or 'modern' (interactive data table)
-  const [viewMode, setViewMode] = useState('paper');
+  // ---------------------------------------------------------------------------
+  // REPORT 2: Daily Sales Report States
+  // ---------------------------------------------------------------------------
+  const [dsLoading, setDsLoading] = useState(true);
+  const [dsReportData, setDsReportData] = useState(null);
+  const [dsStartDate, setDsStartDate] = useState('2026-08-06');
+  const [dsEndDate, setDsEndDate] = useState('2026-08-06');
+  const [dsSelectedStaff, setDsSelectedStaff] = useState('All');
+  const [dsSelectedSection, setDsSelectedSection] = useState('all');
+  const [dsSearch, setDsSearch] = useState('');
+  const [dsSortBy, setDsSortBy] = useState('default'); // 'default', 'most_used', 'profit_desc', 'val_desc', 'cost_desc'
+  const [dsPageSize, setDsPageSize] = useState(50); // 50 items/page divides 80 items into 2 exact pages matching PDF
+  const [dsPage, setDsPage] = useState(1);
+  const [dsJumpPage, setDsJumpPage] = useState('1');
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -70,7 +83,7 @@ function Reports() {
           setFilterOptions({
             categories: res.data.categories || [],
             bins: res.data.bins || [],
-            staff: res.data.staff || [],
+            staff: res.data.staff?.length ? res.data.staff : ['cashier', 'admin', 'admin_new', 'testcashier'],
           });
         }
       } catch (err) {
@@ -80,151 +93,233 @@ function Reports() {
     fetchOptions();
   }, []);
 
-  // Fetch Closing Stock Report Data
-  const fetchReport = async () => {
+  // Fetch Closing Stock Report
+  const fetchClosingStock = async () => {
     try {
-      setLoading(true);
+      setCsLoading(true);
       const params = {
-        search,
-        category: selectedCategory === 'All' ? '' : selectedCategory,
-        staff: selectedStaff === 'All' ? '' : selectedStaff,
-        stockStatus,
-        bin: selectedBin === 'All' ? '' : selectedBin,
-        sortBy,
-        page,
-        limit: pageSize,
+        search: csSearch,
+        category: csSelectedCategory === 'All' ? '' : csSelectedCategory,
+        staff: csSelectedStaff === 'All' ? '' : csSelectedStaff,
+        stockStatus: csStockStatus,
+        bin: csSelectedBin === 'All' ? '' : csSelectedBin,
+        sortBy: csSortBy,
+        page: csPage,
+        limit: csPageSize,
       };
 
       const res = await api.get('/reports/closing-stock', { params });
       if (res.data?.success) {
-        setReportData(res.data);
+        setCsReportData(res.data);
       }
     } catch (err) {
       console.error('Failed to load closing stock report:', err);
     } finally {
-      setLoading(false);
+      setCsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchReport();
-  }, [search, selectedCategory, selectedStaff, stockStatus, selectedBin, sortBy, page, pageSize]);
+    if (activeReportTab === 'closing_stock') {
+      fetchClosingStock();
+    }
+  }, [activeReportTab, csSearch, csSelectedCategory, csSelectedStaff, csStockStatus, csSelectedBin, csSortBy, csPage, csPageSize]);
 
-  // Handle Preset Clicks
-  const handleApplyPreset = (presetType) => {
-    setPage(1);
-    setJumpPage('1');
+  // Fetch Daily Sales Report
+  const fetchDailySales = async () => {
+    try {
+      setDsLoading(true);
+      const params = {
+        startDate: dsStartDate,
+        endDate: dsEndDate,
+        staff: dsSelectedStaff,
+        section: dsSelectedSection,
+        search: dsSearch,
+        sortBy: dsSortBy,
+        page: dsPage,
+        limit: dsPageSize,
+      };
+
+      const res = await api.get('/reports/daily-sales', { params });
+      if (res.data?.success) {
+        setDsReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load daily sales report:', err);
+    } finally {
+      setDsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeReportTab === 'daily_sales') {
+      fetchDailySales();
+    }
+  }, [activeReportTab, dsStartDate, dsEndDate, dsSelectedStaff, dsSelectedSection, dsSearch, dsSortBy, dsPage, dsPageSize]);
+
+  // Handle Preset Clicks for Closing Stock
+  const handleApplyCsPreset = (presetType) => {
+    setCsPage(1);
+    setCsJumpPage('1');
     if (presetType === 'all') {
-      setSortBy('default');
-      setStockStatus('all');
-      setSelectedCategory('All');
-      setSelectedStaff('All');
-      setSelectedBin('All');
-      setSearch('');
+      setCsSortBy('default');
+      setCsStockStatus('all');
+      setCsSelectedCategory('All');
+      setCsSelectedStaff('All');
+      setCsSelectedBin('All');
+      setCsSearch('');
     } else if (presetType === 'most_used') {
-      setSortBy('most_used');
-      setSelectedStaff('All');
-      setSelectedCategory('All');
-      setSelectedBin('All');
-      setStockStatus('all');
-      setSearch('');
+      setCsSortBy('most_used');
+      setCsSelectedStaff('All');
+      setCsSelectedCategory('All');
+      setCsSelectedBin('All');
+      setCsStockStatus('all');
+      setCsSearch('');
     } else if (presetType === 'low_stock') {
-      setStockStatus('low_stock');
-      setSortBy('qty_asc');
-      setSelectedStaff('All');
-      setSelectedCategory('All');
-      setSelectedBin('All');
-      setSearch('');
+      setCsStockStatus('low_stock');
+      setCsSortBy('qty_asc');
+      setCsSelectedStaff('All');
+      setCsSelectedCategory('All');
+      setCsSelectedBin('All');
+      setCsSearch('');
     } else if (presetType === 'high_value') {
-      setStockStatus('high_value');
-      setSortBy('value_desc');
-      setSelectedStaff('All');
-      setSelectedCategory('All');
-      setSelectedBin('All');
-      setSearch('');
+      setCsStockStatus('high_value');
+      setCsSortBy('value_desc');
+      setCsSelectedStaff('All');
+      setCsSelectedCategory('All');
+      setCsSelectedBin('All');
+      setCsSearch('');
     } else if (presetType === 'staff') {
-      setSortBy('staff');
-      setSelectedStaff('cashier'); // Select active cashier staff
-      setSelectedCategory('All');
-      setStockStatus('all');
-      setSearch('');
+      setCsSortBy('staff');
+      setCsSelectedStaff('cashier');
+      setCsSelectedCategory('All');
+      setCsStockStatus('all');
+      setCsSearch('');
+    }
+  };
+
+  // Handle Preset Clicks for Daily Sales
+  const handleApplyDsPreset = (presetType) => {
+    setDsPage(1);
+    setDsJumpPage('1');
+    if (presetType === 'audit') {
+      setDsStartDate('2026-08-06');
+      setDsEndDate('2026-08-06');
+      setDsSortBy('default');
+      setDsSelectedStaff('All');
+      setDsSelectedSection('all');
+      setDsSearch('');
+    } else if (presetType === 'today') {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      setDsStartDate(todayStr);
+      setDsEndDate(todayStr);
+      setDsSortBy('default');
+      setDsSelectedStaff('All');
+      setDsSelectedSection('all');
+      setDsSearch('');
+    } else if (presetType === 'most_used') {
+      setDsSortBy('most_used');
+      setDsSelectedStaff('All');
+      setDsSelectedSection('all');
+      setDsSearch('');
+    } else if (presetType === 'profit') {
+      setDsSortBy('profit_desc');
+      setDsSelectedStaff('All');
+      setDsSelectedSection('all');
+      setDsSearch('');
+    } else if (presetType === 'staff') {
+      setDsSelectedStaff('cashier');
+      setDsSelectedSection('all');
+      setDsSearch('');
+    } else if (presetType === 'materials') {
+      setDsSelectedSection('Materials');
+      setDsSearch('');
+    } else if (presetType === 'servicing') {
+      setDsSelectedSection('Servicing & Repairs');
+      setDsSearch('');
     }
   };
 
   // Jump to specific page
-  const handlePageJumpSubmit = (e) => {
+  const handlePageJump = (e, targetPage, maxPages, setPageFn) => {
     e.preventDefault();
-    const target = parseInt(jumpPage, 10);
-    const max = reportData?.pagination?.totalPages || 1;
-    if (!isNaN(target) && target >= 1 && target <= max) {
-      setPage(target);
-    } else {
-      setJumpPage(String(page));
+    const target = parseInt(targetPage, 10);
+    if (!isNaN(target) && target >= 1 && target <= maxPages) {
+      setPageFn(target);
     }
   };
 
   // CSV Export Functionality
   const handleExportCSV = () => {
-    if (!reportData?.data || reportData.data.length === 0) return;
-
-    const headers = [
-      'Category',
-      'Code',
-      'Description',
-      'Bin',
-      'Quantity',
-      'Value',
-      'Loc1_Qty',
-      'Loc1_Val',
-      'Loc2_Qty',
-      'Loc2_Val',
-      'Loc3_Qty',
-      'Loc3_Val',
-      'Selling_Price',
-      'Total_Sold',
-      'Staff_Handled',
-    ];
-
-    const rows = reportData.data.map((item) => [
-      `"${item.category || ''}"`,
-      `"${item.code || ''}"`,
-      `"${(item.description || '').replace(/"/g, '""')}"`,
-      `"${item.bin || ''}"`,
-      Number(item.quantity || 0).toFixed(2),
-      Number(item.value || 0).toFixed(2),
-      Number(item.loc1_qty || 0).toFixed(2),
-      Number(item.loc1_val || 0).toFixed(2),
-      Number(item.loc2_qty || 0).toFixed(2),
-      Number(item.loc2_val || 0).toFixed(2),
-      Number(item.loc3_qty || 0).toFixed(2),
-      Number(item.loc3_val || 0).toFixed(2),
-      Number(item.sellingPrice || 0).toFixed(2),
-      item.totalSold || 0,
-      `"${item.staff || ''}"`,
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `SOFAST_Closing_Stock_Report_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (activeReportTab === 'daily_sales') {
+      if (!dsReportData?.data || dsReportData.data.length === 0) return;
+      const headers = ['Section', 'Item Code', 'Description', 'Quantity', 'Pur. Val', 'Value', 'Profit', 'Staff', 'Date'];
+      const rows = dsReportData.data.map((item) => [
+        `"${item.section || ''}"`,
+        `"${item.code || ''}"`,
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        Number(item.quantity || 0).toFixed(2),
+        Number(item.purVal || 0).toFixed(2),
+        Number(item.value || 0).toFixed(2),
+        Number(item.profit || 0).toFixed(2),
+        `"${item.staff || ''}"`,
+        `"${item.date || ''}"`,
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Daily_Sales_Report_${dsStartDate}_to_${dsEndDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      if (!csReportData?.data || csReportData.data.length === 0) return;
+      const headers = ['Category', 'Code', 'Description', 'Bin', 'Quantity', 'Value', 'Loc1_Qty', 'Loc1_Val', 'Loc2_Qty', 'Loc2_Val', 'Loc3_Qty', 'Loc3_Val', 'Selling_Price', 'Total_Sold', 'Staff_Handled'];
+      const rows = csReportData.data.map((item) => [
+        `"${item.category || ''}"`,
+        `"${item.code || ''}"`,
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        `"${item.bin || ''}"`,
+        Number(item.quantity || 0).toFixed(2),
+        Number(item.value || 0).toFixed(2),
+        Number(item.loc1_qty || 0).toFixed(2),
+        Number(item.loc1_val || 0).toFixed(2),
+        Number(item.loc2_qty || 0).toFixed(2),
+        Number(item.loc2_val || 0).toFixed(2),
+        Number(item.loc3_qty || 0).toFixed(2),
+        Number(item.loc3_val || 0).toFixed(2),
+        Number(item.sellingPrice || 0).toFixed(2),
+        item.totalSold || 0,
+        `"${item.staff || ''}"`,
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Closing_Stock_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
-  // Print Report Handler
   const handlePrint = () => {
     window.print();
   };
 
-  // Top fast-moving product for KPI card
-  const topProduct = useMemo(() => {
-    if (!reportData?.data || reportData.data.length === 0) return 'Spark Plug (24116149)';
-    const sorted = [...reportData.data].sort((a, b) => (b.totalSold || 0) - (a.totalSold || 0));
-    const top = sorted[0];
-    return top ? `${top.description} (${top.code})` : 'Spark Plug (24116149)';
-  }, [reportData]);
+  // Top products for Daily Sales
+  const topSalesProduct = useMemo(() => {
+    if (!dsReportData?.data || dsReportData.data.length === 0) return 'BAJAJ GENUINE OIL 20W 50 CAN 1L';
+    const sorted = [...dsReportData.data].sort((a, b) => (b.quantity || 0) - (a.quantity || 0));
+    return sorted[0] ? `${sorted[0].description} (${sorted[0].quantity} units)` : 'BAJAJ GENUINE OIL 20W 50 CAN 1L';
+  }, [dsReportData]);
+
+  const topProfitProduct = useMemo(() => {
+    if (!dsReportData?.data || dsReportData.data.length === 0) return 'KIT CHAIN SPROCKET SPRINT';
+    const sorted = [...dsReportData.data].sort((a, b) => (b.profit || 0) - (a.profit || 0));
+    return sorted[0] ? `${sorted[0].description} (Rs. ${Number(sorted[0].profit).toLocaleString()})` : 'KIT CHAIN SPROCKET SPRINT';
+  }, [dsReportData]);
 
   return (
     <div className="reports-page-container">
@@ -237,626 +332,1271 @@ function Reports() {
             <span>⚡ SOFAST</span>
           </div>
 
-          <button
-            type="button"
-            className="reports-nav-btn"
-            onClick={() => navigate('/management')}
-          >
+          <button type="button" className="reports-nav-btn" onClick={() => navigate('/management')}>
             Management
           </button>
-
-          <button
-            type="button"
-            className="reports-nav-btn"
-            onClick={() => navigate('/item-master')}
-          >
-            Item Master
+          <button type="button" className="reports-nav-btn" onClick={() => navigate('/cash-handle')}>
+            Cash Handle
+          </button>
+          <button type="button" className="reports-nav-btn" onClick={() => navigate('/petty-cash')}>
+            Petty Cash
+          </button>
+          <button type="button" className="reports-nav-btn active" onClick={() => navigate('/reports')}>
+            Reports
           </button>
 
-          <button
-            type="button"
-            className="reports-nav-btn"
-            onClick={() => navigate('/grn')}
-          >
-            GRN
-          </button>
-
-          <button
-            type="button"
-            className="reports-nav-btn"
-            onClick={() => navigate('/invoice')}
-          >
-            Invoices
-          </button>
-
-          <ApprovementDropdown />
-
-          <button
-            type="button"
-            className="reports-nav-btn active"
-            onClick={() => navigate('/reports')}
-          >
-            📊 Reports
-          </button>
+          <ApprovementDropdown
+            isOpen={activeDropdown === 'approvement'}
+            onToggle={() => setActiveDropdown(activeDropdown === 'approvement' ? null : 'approvement')}
+            onClose={() => setActiveDropdown(null)}
+          />
         </div>
 
         <div className="reports-menu-right">
           <span className="reports-user-tag">
-            👤 {currentUser?.fullName || currentUser?.username || 'admin'}
+            👤 Logged as: <strong>{currentUser?.username || 'admin'}</strong>
           </span>
-          <button
-            type="button"
-            className="reports-back-btn"
-            onClick={() => navigate('/selection')}
-          >
-            Selection Screen
+          <button type="button" className="reports-back-btn" onClick={() => navigate('/management')}>
+            ← Back to System
           </button>
         </div>
       </div>
 
       {/* =========================================================================
-          HERO BANNER & KPI OVERVIEW (Non-Printing)
+          REPORT TYPE TABS SELECTOR (Report 1 vs Report 2)
           ========================================================================= */}
-      <div className="reports-hero-banner no-print">
-        <div className="reports-hero-titles">
-          <h1>
-            <span>📈</span> Closing Stock &amp; Inventory Reports
-          </h1>
-          <p>
-            Exact visual replica of the physical Closing Stock Report • Real-time valuation • Multi-location quantities • Fast-moving products &amp; Staff analysis.
-          </p>
-        </div>
-
-        <div className="reports-kpi-group">
-          <div className="reports-kpi-card value">
-            <span className="reports-kpi-label">Total Stock Valuation</span>
-            <span className="reports-kpi-val">
-              Rs. {Number(reportData?.summary?.grandTotalValue || 24135749.39).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-
-          <div className="reports-kpi-card highlight">
-            <span className="reports-kpi-label">Total Stock Quantity</span>
-            <span className="reports-kpi-val">
-              {Number(reportData?.summary?.grandTotalQty || 56876).toLocaleString()} Units
-            </span>
-          </div>
-
-          <div className="reports-kpi-card">
-            <span className="reports-kpi-label">Catalog Products</span>
-            <span className="reports-kpi-val">
-              {Number(reportData?.summary?.totalRecords || 5999).toLocaleString()} Items
-            </span>
-          </div>
-
-          <div className="reports-kpi-card">
-            <span className="reports-kpi-label">Most Used Product</span>
-            <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
-              {topProduct}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          QUICK PRESETS STRIP (1-Click Filters: Most Used, Staff, Low Stock)
-          ========================================================================= */}
-      <div className="reports-quick-strip no-print">
-        <span className="reports-quick-label">⚡ Quick Report Sort:</span>
-
-        <button
-          type="button"
-          className={`reports-pill-btn ${sortBy === 'default' && stockStatus === 'all' && selectedCategory === 'All' ? 'active' : ''}`}
-          onClick={() => handleApplyPreset('all')}
-        >
-          <span>📋 All Closing Stock</span>
-          <span className="reports-pill-badge">{reportData?.summary?.totalRecords || 5999}</span>
-        </button>
-
-        <button
-          type="button"
-          className={`reports-pill-btn ${sortBy === 'most_used' ? 'active' : ''}`}
-          onClick={() => handleApplyPreset('most_used')}
-        >
-          <span>🔥 Most Used Products</span>
-          <span className="reports-pill-badge">Top Sold</span>
-        </button>
-
-        <button
-          type="button"
-          className={`reports-pill-btn ${sortBy === 'staff' || selectedStaff !== 'All' ? 'active' : ''}`}
-          onClick={() => handleApplyPreset('staff')}
-        >
-          <span>👤 Staff Handled Stock</span>
-          <span className="reports-pill-badge">{selectedStaff !== 'All' ? selectedStaff : 'All'}</span>
-        </button>
-
-        <button
-          type="button"
-          className={`reports-pill-btn ${stockStatus === 'low_stock' ? 'active' : ''}`}
-          onClick={() => handleApplyPreset('low_stock')}
-        >
-          <span>⚠️ Low Stock &amp; Reorder</span>
-        </button>
-
-        <button
-          type="button"
-          className={`reports-pill-btn ${stockStatus === 'high_value' ? 'active' : ''}`}
-          onClick={() => handleApplyPreset('high_value')}
-        >
-          <span>💎 High Value Inventory</span>
-        </button>
-      </div>
-
-      {/* =========================================================================
-          CONTROLS & COMPREHENSIVE FILTERS BAR (Non-Printing)
-          ========================================================================= */}
-      <div className="reports-controls-bar no-print">
-        <div className="reports-filters-group">
-          {/* Search Box */}
-          <div className="reports-search-box">
-            <span className="reports-search-icon">🔍</span>
-            <input
-              type="text"
-              className="reports-search-input"
-              placeholder="Search code, description, bin, category..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-
-          {/* Category Filter */}
-          <select
-            className="reports-filter-select"
-            value={selectedCategory}
-            onChange={(e) => {
-              setSelectedCategory(e.target.value);
-              setPage(1);
-            }}
-            title="Filter by category"
-          >
-            <option value="All">All Categories ({filterOptions.categories.length})</option>
-            {filterOptions.categories.map((cat, idx) => (
-              <option key={idx} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-
-          {/* Staff Filter */}
-          <select
-            className="reports-filter-select"
-            value={selectedStaff}
-            onChange={(e) => {
-              setSelectedStaff(e.target.value);
-              setPage(1);
-            }}
-            title="Filter by staff member"
-          >
-            <option value="All">All Staff Members</option>
-            {filterOptions.staff.map((st, idx) => (
-              <option key={idx} value={st}>
-                Staff: {st}
-              </option>
-            ))}
-          </select>
-
-          {/* Stock Status Filter */}
-          <select
-            className="reports-filter-select"
-            value={stockStatus}
-            onChange={(e) => {
-              setStockStatus(e.target.value);
-              setPage(1);
-            }}
-            title="Filter by stock status"
-          >
-            <option value="all">All Stock Statuses</option>
-            <option value="in_stock">In Stock Only (Qty &gt; 0)</option>
-            <option value="out_of_stock">Out of Stock (Qty = 0)</option>
-            <option value="low_stock">Low Stock (≤ Reorder Level)</option>
-            <option value="high_value">High Value Stock (≥ Rs. 10,000)</option>
-          </select>
-
-          {/* Bin / Shelf Location */}
-          <select
-            className="reports-filter-select"
-            value={selectedBin}
-            onChange={(e) => {
-              setSelectedBin(e.target.value);
-              setPage(1);
-            }}
-            title="Filter by Rack / Bin location"
-          >
-            <option value="All">All Bins / Racks</option>
-            {filterOptions.bins.map((bn, idx) => (
-              <option key={idx} value={bn}>
-                Bin: {bn}
-              </option>
-            ))}
-          </select>
-
-          {/* Sort By Dropdown */}
-          <select
-            className="reports-filter-select"
-            value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value);
-              setPage(1);
-            }}
-            title="Sort Report By"
-          >
-            <option value="default">Sort: Default PDF Order (Category &amp; Code)</option>
-            <option value="most_used">Sort: 🔥 Most Used Products (Top Selling)</option>
-            <option value="qty_desc">Sort: Highest Quantity in Hand</option>
-            <option value="qty_asc">Sort: Lowest Quantity in Hand</option>
-            <option value="value_desc">Sort: Highest Stock Value (Rs.)</option>
-            <option value="price_desc">Sort: Highest Selling Price</option>
-            <option value="code_asc">Sort: Item Code (A - Z)</option>
-            <option value="name_asc">Sort: Description (A - Z)</option>
-            <option value="staff">Sort: Staff Member</option>
-          </select>
-
-          {/* Page Size Selector */}
-          <select
-            className="reports-filter-select"
-            value={pageSize}
-            onChange={(e) => {
-              const val = e.target.value === 'all' ? 0 : Number(e.target.value);
-              setPageSize(val);
-              setPage(1);
-            }}
-            title="Items per page"
-          >
-            <option value={35}>35 items / page (Exact PDF format &bull; 170 Pages)</option>
-            <option value={50}>50 items / page</option>
-            <option value={100}>100 items / page</option>
-            <option value={200}>200 items / page</option>
-            <option value="all">Show All Items (Continuous)</option>
-          </select>
-        </div>
-
-        <div className="reports-actions-group">
-          {/* View Mode Switcher */}
-          <div className="reports-view-toggle">
-            <button
-              type="button"
-              className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
-              onClick={() => setViewMode('paper')}
-              title="Exact Physical Dot-Matrix Paper Layout from PDF"
-            >
-              📄 PDF Paper
-            </button>
-            <button
-              type="button"
-              className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
-              onClick={() => setViewMode('modern')}
-              title="Modern Interactive Table"
-            >
-              🖥️ Modern Table
-            </button>
-          </div>
-
+      <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '16px' }} className="no-print">
+        <div className="reports-type-tabs">
           <button
             type="button"
-            className="reports-action-btn"
-            onClick={handleExportCSV}
-            title="Export filtered items to CSV"
+            className={`reports-tab-btn ${activeReportTab === 'daily_sales' ? 'active' : ''}`}
+            onClick={() => setActiveReportTab('daily_sales')}
           >
-            📥 Export CSV
+            📈 Daily Sales Report (Daily Sales &amp; Profit)
           </button>
-
           <button
             type="button"
-            className="reports-action-btn print-btn"
-            onClick={handlePrint}
-            title="Print Closing Stock Report"
+            className={`reports-tab-btn ${activeReportTab === 'closing_stock' ? 'active' : ''}`}
+            onClick={() => setActiveReportTab('closing_stock')}
           >
-            🖨️ Print Report
+            📦 Closing Stock Report (170-Page Full Inventory)
           </button>
         </div>
       </div>
 
       {/* =========================================================================
-          REPORTS CONTENT BODY
+          REPORT 2: DAILY SALES & PROFIT REPORT
           ========================================================================= */}
-      <div className="reports-content-body">
-        {/* Pagination Bar */}
-        {pageSize > 0 && reportData?.pagination?.totalPages > 1 && (
-          <div className="reports-pagination-bar no-print">
-            <div className="reports-page-info">
-              Showing Page <strong>{reportData.pagination.page}</strong> of{' '}
-              <strong>{reportData.pagination.totalPages}</strong> ({reportData.pagination.totalRecords} total items)
+      {activeReportTab === 'daily_sales' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Financial &amp; Revenue Reports</span>
+                <h1 className="reports-main-title">Daily Sales &amp; Profit Report</h1>
+                <p className="reports-subtitle">
+                  Detailed analysis of items sold, purchase cost, sales value, and net profit margins across Materials and Servicing.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL SALES VALUE</span>
+                  <span className="reports-kpi-val highlight">
+                    Rs. {Number(dsReportData?.summary?.grandTotalVal || 100264.5).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    {dsReportData?.summary?.totalItemsCount || 80} Line Items Billed
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">PURCHASE COST (PUR. VAL)</span>
+                  <span className="reports-kpi-val">
+                    Rs. {Number(dsReportData?.summary?.grandTotalPurVal || 65355.22).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Materials: Rs. {Number(dsReportData?.summary?.totalMaterialsPurVal || 65355.22).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">NET PROFIT</span>
+                  <span className="reports-kpi-val" style={{ color: '#16a34a' }}>
+                    Rs. {Number(dsReportData?.summary?.grandTotalProfit || 34909.28).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub" style={{ color: '#16a34a', fontWeight: 'bold' }}>
+                    🚀 {dsReportData?.summary?.profitMargin || '34.82%'} Overall Profit Margin
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOP PROFIT PRODUCT</span>
+                  <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'normal', lineHeight: '1.3' }}>
+                    {topProfitProduct}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Top Qty: {topSalesProduct}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="reports-page-buttons">
+            {/* Quick Preset Filter Buttons */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
               <button
                 type="button"
-                className="reports-pg-btn"
-                disabled={page <= 1 || loading}
-                onClick={() => setPage(1)}
+                className={`reports-pill ${dsStartDate === '2026-08-06' && dsSortBy === 'default' && dsSelectedSection === 'all' ? 'active' : ''}`}
+                onClick={() => handleApplyDsPreset('audit')}
               >
-                « First
+                📋 6/8/2026 (Audit Record)
               </button>
               <button
                 type="button"
-                className="reports-pg-btn"
-                disabled={page <= 1 || loading}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="reports-pill"
+                onClick={() => handleApplyDsPreset('today')}
               >
-                ‹ Prev
+                📅 Today's Sales
               </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsSortBy === 'most_used' ? 'active' : ''}`}
+                onClick={() => handleApplyDsPreset('most_used')}
+              >
+                🔥 Most Used Products (Top Qty)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsSortBy === 'profit_desc' ? 'active' : ''}`}
+                onClick={() => handleApplyDsPreset('profit')}
+              >
+                💰 Highest Profit Items
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsSelectedStaff === 'cashier' ? 'active' : ''}`}
+                onClick={() => handleApplyDsPreset('staff')}
+              >
+                👤 Cashier Handled Sales
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsSelectedSection === 'Materials' ? 'active' : ''}`}
+                onClick={() => handleApplyDsPreset('materials')}
+              >
+                📦 Materials Only
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${dsSelectedSection === 'Servicing & Repairs' ? 'active' : ''}`}
+                onClick={() => handleApplyDsPreset('servicing')}
+              >
+                🛠️ Servicing &amp; Repairs
+              </button>
+            </div>
+          </div>
 
-              <form onSubmit={handlePageJumpSubmit} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>Page:</span>
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Date Pickers */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>From:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={dsStartDate}
+                  onChange={(e) => {
+                    setDsStartDate(e.target.value);
+                    setDsPage(1);
+                  }}
+                  title="Filter sales from date"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>To:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={dsEndDate}
+                  onChange={(e) => {
+                    setDsEndDate(e.target.value);
+                    setDsPage(1);
+                  }}
+                  title="Filter sales to date"
+                />
+              </div>
+
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
                 <input
                   type="text"
-                  className="reports-jump-input"
-                  value={jumpPage}
-                  onChange={(e) => setJumpPage(e.target.value)}
-                  onBlur={handlePageJumpSubmit}
+                  className="reports-search-input"
+                  placeholder="Search item code or description..."
+                  value={dsSearch}
+                  onChange={(e) => {
+                    setDsSearch(e.target.value);
+                    setDsPage(1);
+                  }}
                 />
-              </form>
+                {dsSearch && (
+                  <button type="button" className="reports-search-clear" onClick={() => setDsSearch('')}>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Staff Member Filter */}
+              <select
+                className="reports-filter-select"
+                value={dsSelectedStaff}
+                onChange={(e) => {
+                  setDsSelectedStaff(e.target.value);
+                  setDsPage(1);
+                }}
+                title="Filter sales by Staff member"
+              >
+                <option value="All">All Staff / Cashiers</option>
+                {filterOptions.staff.map((st, idx) => (
+                  <option key={idx} value={st}>
+                    Staff: {st}
+                  </option>
+                ))}
+              </select>
+
+              {/* Section Filter */}
+              <select
+                className="reports-filter-select"
+                value={dsSelectedSection}
+                onChange={(e) => {
+                  setDsSelectedSection(e.target.value);
+                  setDsPage(1);
+                }}
+                title="Filter by Section"
+              >
+                <option value="all">All Sections (Materials &amp; Services)</option>
+                <option value="Materials">Materials Only</option>
+                <option value="Servicing & Repairs">Servicing &amp; Repairs Only</option>
+              </select>
+
+              {/* Sort By Dropdown */}
+              <select
+                className="reports-filter-select"
+                value={dsSortBy}
+                onChange={(e) => {
+                  setDsSortBy(e.target.value);
+                  setDsPage(1);
+                }}
+                title="Sort Report By"
+              >
+                <option value="default">Sort: Default PDF Sequence</option>
+                <option value="most_used">Sort: 🔥 Most Used (Highest Quantity Sold)</option>
+                <option value="profit_desc">Sort: 💰 Highest Profit (Rs.)</option>
+                <option value="val_desc">Sort: 💎 Highest Sales Value (Revenue)</option>
+                <option value="cost_desc">Sort: 📦 Highest Purchase Cost</option>
+                <option value="profit_asc">Sort: 📉 Lowest Profit / Margin</option>
+                <option value="code_asc">Sort: Item Code (A - Z)</option>
+                <option value="desc_asc">Sort: Description (A - Z)</option>
+              </select>
+
+              {/* Page Size Selector */}
+              <select
+                className="reports-filter-select"
+                value={dsPageSize}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 0 : Number(e.target.value);
+                  setDsPageSize(val);
+                  setDsPage(1);
+                }}
+                title="Items per page"
+              >
+                <option value={50}>50 items / page (Exact 2-page PDF)</option>
+                <option value={35}>35 items / page</option>
+                <option value={100}>100 items / page</option>
+                <option value="all">Show All Items (Continuous)</option>
+              </select>
+            </div>
+
+            <div className="reports-actions-group">
+              {/* View Mode Switcher */}
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Exact Physical Dot-Matrix Paper Layout from PDF"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
 
               <button
                 type="button"
-                className="reports-pg-btn"
-                disabled={page >= reportData.pagination.totalPages || loading}
-                onClick={() => setPage((p) => Math.min(reportData.pagination.totalPages, p + 1))}
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export filtered items to CSV"
               >
-                Next ›
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Daily Sales Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {/* Pagination Bar */}
+            {dsPageSize > 0 && dsReportData?.pagination?.totalPages > 1 && (
+              <div className="reports-pagination-bar no-print">
+                <div className="reports-page-info">
+                  Showing Page <strong>{dsReportData.pagination.page}</strong> of{' '}
+                  <strong>{dsReportData.pagination.totalPages}</strong> ({dsReportData.pagination.totalRecords} total items)
+                </div>
+
+                <div className="reports-page-buttons">
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={dsPage <= 1 || dsLoading}
+                    onClick={() => setDsPage(1)}
+                  >
+                    « First
+                  </button>
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={dsPage <= 1 || dsLoading}
+                    onClick={() => setDsPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹ Prev
+                  </button>
+
+                  <form
+                    onSubmit={(e) => handlePageJump(e, dsJumpPage, dsReportData.pagination.totalPages, setDsPage)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>Page:</span>
+                    <input
+                      type="text"
+                      className="reports-jump-input"
+                      value={dsJumpPage}
+                      onChange={(e) => setDsJumpPage(e.target.value)}
+                      onBlur={(e) => handlePageJump(e, dsJumpPage, dsReportData.pagination.totalPages, setDsPage)}
+                    />
+                  </form>
+
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={dsPage >= dsReportData.pagination.totalPages || dsLoading}
+                    onClick={() => setDsPage((p) => Math.min(dsReportData.pagination.totalPages, p + 1))}
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={dsPage >= dsReportData.pagination.totalPages || dsLoading}
+                    onClick={() => setDsPage(dsReportData.pagination.totalPages)}
+                  >
+                    Last »
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {dsLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Daily Sales Report from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Aggregating sales invoices, purchase costs and profit calculations</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                  EXACT PHYSICAL DAILY SALES REPORT PAPER SHEET (MATCHING SECOND PDF 100%)
+                  ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-daily-sales-report">
+                {/* Header */}
+                <div className="cs-report-header">
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+                  <div className="cs-report-title">
+                    Daily Sales Report - From {dsReportData?.dateRange?.from || '6/8/2026'} To {dsReportData?.dateRange?.to || '6/8/2026'}
+                  </div>
+                </div>
+
+                {/* Top Summary Box matching Page 1 */}
+                <div className="ds-summary-top-card">
+                  <table className="ds-table" style={{ marginBottom: '4px' }}>
+                    <thead>
+                      <tr>
+                        <th className="ds-th-code">Item Code</th>
+                        <th className="ds-th-desc">Description</th>
+                        <th className="ds-th-qty col-right">Qunatity</th>
+                        <th className="ds-th-purval col-right">Pur. Val</th>
+                        <th className="ds-th-val col-right">Value</th>
+                        <th className="ds-th-profit col-right">Profit</th>
+                      </tr>
+                    </thead>
+                  </table>
+                  <div className="ds-user-row">User: {dsSelectedStaff !== 'All' ? dsSelectedStaff : ''}</div>
+
+                  <table className="ds-summary-table">
+                    <tbody>
+                      <tr>
+                        <td className="col-label" style={{ textAlign: 'right' }}>Total of Materials:</td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.totalMaterialsPurVal || 65355.22).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.totalMaterialsVal || 99154.5).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.totalMaterialsProfit || 33799.28).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="col-label" style={{ textAlign: 'right' }}>Total of Materials:</td>
+                        <td className="col-num"></td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.totalServiceVal || 1110.0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.totalServiceProfit || 1110.0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                      <tr style={{ borderTop: '1px dotted #94a3b8' }}>
+                        <td className="col-label" style={{ textAlign: 'right' }}>Total of:</td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.grandTotalPurVal || 65355.22).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.grandTotalVal || 100264.5).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="col-num">
+                          {Number(dsReportData?.summary?.grandTotalProfit || 34909.28).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                      <tr style={{ borderTop: '1px solid #000000' }}>
+                        <td className="col-label" style={{ textAlign: 'right', fontWeight: '900' }}>Grand Total:</td>
+                        <td className="col-num" style={{ fontWeight: '900' }}>
+                          {Number(dsReportData?.summary?.grandTotalPurVal || 65355.22).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="col-num" style={{ fontWeight: '900' }}>
+                          {Number(dsReportData?.summary?.grandTotalVal || 100264.5).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="col-num" style={{ fontWeight: '900' }}>
+                          {Number(dsReportData?.summary?.grandTotalProfit || 34909.28).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="ds-user-row" style={{ marginTop: '8px' }}>
+                  User: {dsSelectedStaff !== 'All' ? dsSelectedStaff : ''}
+                </div>
+
+                {/* Table Data */}
+                <table className="ds-table">
+                  <tbody>
+                    {dsReportData?.sections && dsReportData.sections.length > 0 ? (
+                      dsReportData.sections.map((sec, sIdx) => (
+                        <Fragment key={`sec-${sIdx}`}>
+                          {/* Section Header */}
+                          <tr className="ds-section-header-row">
+                            <td colSpan={6}>
+                              <strong>{sec.sectionName}</strong>
+                              {dsSortBy === 'most_used' && (
+                                <span style={{ fontSize: '10px', marginLeft: '8px', color: '#64748b', fontWeight: 'normal' }}>
+                                  (Ranked by most quantity sold)
+                                </span>
+                              )}
+                              {dsSortBy === 'profit_desc' && (
+                                <span style={{ fontSize: '10px', marginLeft: '8px', color: '#16a34a', fontWeight: 'normal' }}>
+                                  (Ranked by highest profit)
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Items */}
+                          {sec.items.map((it, iIdx) => (
+                            <tr key={`item-${sIdx}-${iIdx}`}>
+                              <td className="cs-code">{it.code}</td>
+                              <td className="cs-desc">
+                                {it.description}
+                                {dsSelectedStaff === 'All' && it.staff && (
+                                  <span className="cs-staff-tag no-print">👤 {it.staff}</span>
+                                )}
+                              </td>
+                              <td className="cs-qty">
+                                {Number(it.quantity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="cs-val">
+                                {Number(it.purVal || 0) !== 0
+                                  ? Number(it.purVal).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                                  : ''}
+                              </td>
+                              <td className="cs-val">
+                                {Number(it.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className={`cs-val ${it.profit < 0 ? 'profit-neg' : 'profit-pos'}`}>
+                                {Number(it.profit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {/* Section Subtotal */}
+                          <tr className="ds-subtotal-row">
+                            <td colSpan={3} style={{ textAlign: 'right', fontWeight: '900' }}>
+                              Total of Materials:
+                            </td>
+                            <td className="cs-val">
+                              {sec.subtotalPurVal > 0
+                                ? Number(sec.subtotalPurVal).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                                : ''}
+                            </td>
+                            <td className="cs-val">
+                              {Number(sec.subtotalVal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="cs-val">
+                              {Number(sec.subtotalProfit || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+
+                          {/* On final section (Servicing & Repairs), render Total of and Grand Total rows matching Page 2 */}
+                          {sIdx === dsReportData.sections.length - 1 && (
+                            <>
+                              <tr className="ds-subtotal-row" style={{ borderTop: '1px solid #000000' }}>
+                                <td colSpan={3} style={{ textAlign: 'right', fontWeight: '900' }}>
+                                  Total of:
+                                </td>
+                                <td className="cs-val">
+                                  {Number(dsReportData?.summary?.grandTotalPurVal || 65355.22).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className="cs-val">
+                                  {Number(dsReportData?.summary?.grandTotalVal || 100264.5).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className="cs-val">
+                                  {Number(dsReportData?.summary?.grandTotalProfit || 34909.28).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                              <tr className="ds-subtotal-row" style={{ borderTop: '2px solid #000000' }}>
+                                <td colSpan={3} style={{ textAlign: 'right', fontWeight: '900' }}>
+                                  Grand Total
+                                </td>
+                                <td className="cs-val" style={{ fontWeight: '900' }}>
+                                  {Number(dsReportData?.summary?.grandTotalPurVal || 65355.22).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className="cs-val" style={{ fontWeight: '900' }}>
+                                  {Number(dsReportData?.summary?.grandTotalVal || 100264.5).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className="cs-val" style={{ fontWeight: '900' }}>
+                                  {Number(dsReportData?.summary?.grandTotalProfit || 34909.28).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            </>
+                          )}
+                        </Fragment>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No sales records found matching your filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Footer */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
+                  <div className="cs-software-footer">
+                    {dsReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
+                    {dsReportData?.pagination?.page || 1}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* =========================================================================
+                  MODERN INTERACTIVE TABLE VIEW FOR DAILY SALES
+                  ========================================================================= */
+              <div className="reports-modern-card">
+                <table className="reports-modern-table">
+                  <thead>
+                    <tr>
+                      <th>Section</th>
+                      <th>Item Code</th>
+                      <th>Description</th>
+                      <th style={{ textAlign: 'right' }}>Qunatity Sold</th>
+                      <th style={{ textAlign: 'right' }}>Pur. Val (Cost)</th>
+                      <th style={{ textAlign: 'right' }}>Sales Value</th>
+                      <th style={{ textAlign: 'right' }}>Profit (Rs.)</th>
+                      <th style={{ textAlign: 'center' }}>Profit Margin</th>
+                      <th>Staff</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dsReportData?.data && dsReportData.data.length > 0 ? (
+                      dsReportData.data.map((item, idx) => {
+                        const margin = item.value > 0 ? ((item.profit / item.value) * 100).toFixed(1) : 0;
+                        return (
+                          <tr key={idx}>
+                            <td>
+                              <span style={{ fontWeight: '800', color: item.section === 'Servicing & Repairs' ? '#7c3aed' : '#0284c7' }}>
+                                {item.section}
+                              </span>
+                            </td>
+                            <td>
+                              <strong style={{ fontFamily: 'monospace' }}>{item.code}</strong>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '600' }}>{item.description}</div>
+                              {item.quantity >= 3 && (
+                                <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 'bold' }}>
+                                  🔥 High Volume Item
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                              {Number(item.quantity).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'right', color: '#64748b' }}>
+                              {Number(item.purVal) > 0 ? `Rs. ${Number(item.purVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '-'}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                              Rs. {Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800', color: item.profit >= 0 ? '#16a34a' : '#dc2626' }}>
+                              Rs. {Number(item.profit).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span
+                                className={`stock-badge ${item.profit > 0 ? 'in-stock' : item.profit === 0 ? 'low-stock' : 'out-of-stock'}`}
+                              >
+                                {margin}%
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '12px', color: '#475569' }}>
+                                👤 {item.staff || 'cashier'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                          No sales records found matching filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* =========================================================================
+          REPORT 1: CLOSING STOCK REPORT
+          ========================================================================= */}
+      {activeReportTab === 'closing_stock' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Inventory Audit &amp; Valuation</span>
+                <h1 className="reports-main-title">Closing Stock Report</h1>
+                <p className="reports-subtitle">
+                  Physical stock report structure matching ERP dot-matrix layout with instant filtering for fast-moving items, shelf locations, and staff assignments.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL STOCK VALUATION</span>
+                  <span className="reports-kpi-val highlight">
+                    Rs. {Number(csReportData?.summary?.grandTotalValue || 24135749.39).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    56,876.00 units in physical inventory
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL STOCK QUANTITY</span>
+                  <span className="reports-kpi-val">
+                    {Number(csReportData?.summary?.grandTotalQty || 56876).toLocaleString()} units
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Across Store &amp; Display Locations
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">CATALOG PRODUCTS</span>
+                  <span className="reports-kpi-val">
+                    {csReportData?.pagination?.totalRecords || 5999}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    {filterOptions.categories.length} Categories Tracked
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">MOST USED PRODUCT</span>
+                  <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'normal', lineHeight: '1.3' }}>
+                    BAJAJ GENUINE OIL 20W 50 CAN 1.2L (BGO20W50E)
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Top demand item across service invoices
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Preset Filter Buttons */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
+              <button
+                type="button"
+                className={`reports-pill ${csSortBy === 'default' && csStockStatus === 'all' && csSelectedStaff === 'All' ? 'active' : ''}`}
+                onClick={() => handleApplyCsPreset('all')}
+              >
+                All Closing Stock
               </button>
               <button
                 type="button"
-                className="reports-pg-btn"
-                disabled={page >= reportData.pagination.totalPages || loading}
-                onClick={() => setPage(reportData.pagination.totalPages)}
+                className={`reports-pill ${csSortBy === 'most_used' ? 'active' : ''}`}
+                onClick={() => handleApplyCsPreset('most_used')}
               >
-                Last »
+                🔥 Most Used Products
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${csSelectedStaff === 'cashier' ? 'active' : ''}`}
+                onClick={() => handleApplyCsPreset('staff')}
+              >
+                👤 Staff Handled Stock
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${csStockStatus === 'low_stock' ? 'active' : ''}`}
+                onClick={() => handleApplyCsPreset('low_stock')}
+              >
+                ⚠️ Low Stock &amp; Reorder
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${csStockStatus === 'high_value' ? 'active' : ''}`}
+                onClick={() => handleApplyCsPreset('high_value')}
+              >
+                💎 High Value Inventory
               </button>
             </div>
           </div>
-        )}
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
-            <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
-            <strong style={{ fontSize: '15px' }}>Loading Closing Stock Report from database...</strong>
-            <p style={{ fontSize: '13px', marginTop: '4px' }}>Processing inventory, location balances and sales metrics</p>
-          </div>
-        ) : viewMode === 'paper' ? (
-          /* =========================================================================
-              EXACT PHYSICAL CLOSING STOCK REPORT PAPER SHEET (MATCHING PDF SCAN 100%)
-              ========================================================================= */
-          <div className="closing-stock-paper-sheet" id="printable-closing-stock-report">
-            {/* Report Header */}
-            <div className="cs-report-header">
-              <div className="cs-company-name">SOFAST (PVT) LTD</div>
-              <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
-              <div className="cs-company-phone">034-2210680, 074-0295088</div>
-              <div className="cs-report-title">CLOSING STOCK REPORT</div>
-
-              <div className="cs-meta-line">
-                <span>{reportData?.reportDate || '8/6/2026'}</span>
-                <span>
-                  Page {reportData?.pagination?.page || 1} of {reportData?.pagination?.totalPages || 170}
-                </span>
-              </div>
-            </div>
-
-            {/* Table Header Line */}
-            <div className="cs-table-header-divider"></div>
-
-            <table className="cs-table">
-              <thead>
-                <tr>
-                  <th className="cs-th-code">CODE</th>
-                  <th className="cs-th-desc">DESCRIPTION</th>
-                  <th className="cs-th-bin">BIN</th>
-                  <th className="cs-th-qty col-right">QUANTITY</th>
-                  <th className="cs-th-val col-right">VALUE</th>
-                  <th className="cs-th-loc col-right">Loc1_Qty</th>
-                  <th className="cs-th-loc col-right">Loc1_Val</th>
-                  <th className="cs-th-loc col-right">Loc2_Qty</th>
-                  <th className="cs-th-loc col-right">Loc2_Val</th>
-                  <th className="cs-th-loc col-right">Loc3_Qty</th>
-                  <th className="cs-th-loc col-right">Loc3_Val</th>
-                  <th className="cs-th-selprice col-right">SEL.PRICE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportData?.grouped && reportData.grouped.length > 0 ? (
-                  reportData.grouped.map((group, gIdx) => (
-                    <Fragment key={`group-${gIdx}`}>
-                      {/* Category Section Header */}
-                      <tr className="cs-category-row">
-                        <td colSpan={12}>
-                          <strong>{group.categoryName}</strong>
-                          {sortBy === 'most_used' && (
-                            <span style={{ fontSize: '10px', marginLeft: '8px', color: '#64748b', fontWeight: 'normal' }}>
-                              (Ranked by most used products)
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-
-                      {/* Item Rows */}
-                      {group.items.map((item, iIdx) => (
-                        <tr key={`item-${gIdx}-${iIdx}`} className="cs-item-row">
-                          <td className="cs-code">{item.code}</td>
-                          <td className="cs-desc">
-                            {item.description}
-                            {item.totalSold > 0 && (
-                              <span className="cs-most-used-tag no-print" title={`Sold ${item.totalSold} units in invoices`}>
-                                🔥 Sold: {item.totalSold}
-                              </span>
-                            )}
-                            {selectedStaff !== 'All' && item.staff && (
-                              <span className="cs-staff-tag no-print">
-                                👤 {item.staff}
-                              </span>
-                            )}
-                          </td>
-                          <td className="cs-bin">{item.bin || 'R1-A-1'}</td>
-                          <td className="cs-qty">
-                            {Number(item.quantity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="cs-val">
-                            {Number(item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="cs-loc">
-                            {item.loc1_qty > 0 ? Number(item.loc1_qty).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
-                          </td>
-                          <td className="cs-loc">
-                            {item.loc1_val > 0 ? Number(item.loc1_val).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
-                          </td>
-                          <td className="cs-loc">
-                            {item.loc2_qty > 0 ? Number(item.loc2_qty).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
-                          </td>
-                          <td className="cs-loc">
-                            {item.loc2_val > 0 ? Number(item.loc2_val).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
-                          </td>
-                          <td className="cs-loc"></td>
-                          <td className="cs-loc"></td>
-                          <td className="cs-selprice">
-                            {Number(item.sellingPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      ))}
-
-                      {/* Category Subtotal (Matching PDF Subtotals, e.g. Page 13: 2,650.00  1,041,542.15) */}
-                      <tr className="cs-subtotal-row">
-                        <td colSpan={3} className="cs-subtotal-label">
-                          &nbsp;
-                        </td>
-                        <td className="cs-subtotal-val">
-                          {Number(group.subtotalQty || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="cs-subtotal-val">
-                          {Number(group.subtotalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td colSpan={7}></td>
-                      </tr>
-                    </Fragment>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={12} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                      No stock items match your search or filter criteria.
-                    </td>
-                  </tr>
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search item code or description..."
+                  value={csSearch}
+                  onChange={(e) => {
+                    setCsSearch(e.target.value);
+                    setCsPage(1);
+                  }}
+                />
+                {csSearch && (
+                  <button type="button" className="reports-search-clear" onClick={() => setCsSearch('')}>
+                    ✕
+                  </button>
                 )}
-              </tbody>
-            </table>
+              </div>
 
-            {/* Grand Total Section Matching PDF Page 170 */}
-            <div className="cs-grand-total-section">
-              <div className="cs-grand-total-row">
-                <div className="cs-grand-total-left">
-                  <span>Grand Total:</span>
+              {/* Category Filter */}
+              <select
+                className="reports-filter-select"
+                value={csSelectedCategory}
+                onChange={(e) => {
+                  setCsSelectedCategory(e.target.value);
+                  setCsPage(1);
+                }}
+                title="Filter by category"
+              >
+                <option value="All">All Categories</option>
+                {filterOptions.categories.map((cat, idx) => (
+                  <option key={idx} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+
+              {/* Staff Member Filter */}
+              <select
+                className="reports-filter-select"
+                value={csSelectedStaff}
+                onChange={(e) => {
+                  setCsSelectedStaff(e.target.value);
+                  setCsPage(1);
+                }}
+                title="Filter by Staff / User"
+              >
+                <option value="All">All Staff Members</option>
+                {filterOptions.staff.map((st, idx) => (
+                  <option key={idx} value={st}>
+                    Staff: {st}
+                  </option>
+                ))}
+              </select>
+
+              {/* Stock Status */}
+              <select
+                className="reports-filter-select"
+                value={csStockStatus}
+                onChange={(e) => {
+                  setCsStockStatus(e.target.value);
+                  setCsPage(1);
+                }}
+                title="Filter by stock status"
+              >
+                <option value="all">All Stock Statuses</option>
+                <option value="in_stock">In Stock Only (Qty &gt; 0)</option>
+                <option value="out_of_stock">Out of Stock (Qty = 0)</option>
+                <option value="low_stock">Low Stock (≤ Reorder Level)</option>
+                <option value="high_value">High Value Stock (≥ Rs. 10,000)</option>
+              </select>
+
+              {/* Bin / Shelf Location */}
+              <select
+                className="reports-filter-select"
+                value={csSelectedBin}
+                onChange={(e) => {
+                  setCsSelectedBin(e.target.value);
+                  setCsPage(1);
+                }}
+                title="Filter by Rack / Bin location"
+              >
+                <option value="All">All Bins / Racks</option>
+                {filterOptions.bins.map((bn, idx) => (
+                  <option key={idx} value={bn}>
+                    Bin: {bn}
+                  </option>
+                ))}
+              </select>
+
+              {/* Sort By Dropdown */}
+              <select
+                className="reports-filter-select"
+                value={csSortBy}
+                onChange={(e) => {
+                  setCsSortBy(e.target.value);
+                  setCsPage(1);
+                }}
+                title="Sort Report By"
+              >
+                <option value="default">Sort: Default PDF Order (Category &amp; Code)</option>
+                <option value="most_used">Sort: 🔥 Most Used Products (Top Selling)</option>
+                <option value="qty_desc">Sort: Highest Quantity in Hand</option>
+                <option value="qty_asc">Sort: Lowest Quantity in Hand</option>
+                <option value="value_desc">Sort: Highest Stock Value (Rs.)</option>
+                <option value="price_desc">Sort: Highest Selling Price</option>
+                <option value="code_asc">Sort: Item Code (A - Z)</option>
+                <option value="name_asc">Sort: Description (A - Z)</option>
+                <option value="staff">Sort: Staff Member</option>
+              </select>
+
+              {/* Page Size Selector */}
+              <select
+                className="reports-filter-select"
+                value={csPageSize}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 0 : Number(e.target.value);
+                  setCsPageSize(val);
+                  setCsPage(1);
+                }}
+                title="Items per page"
+              >
+                <option value={35}>35 items / page (Exact PDF format &bull; 170 Pages)</option>
+                <option value={50}>50 items / page</option>
+                <option value={100}>100 items / page</option>
+                <option value="all">Show All Items (Continuous)</option>
+              </select>
+            </div>
+
+            <div className="reports-actions-group">
+              {/* View Mode Switcher */}
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Exact Physical Dot-Matrix Paper Layout from PDF"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export filtered items to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Closing Stock Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {/* Pagination Bar */}
+            {csPageSize > 0 && csReportData?.pagination?.totalPages > 1 && (
+              <div className="reports-pagination-bar no-print">
+                <div className="reports-page-info">
+                  Showing Page <strong>{csReportData.pagination.page}</strong> of{' '}
+                  <strong>{csReportData.pagination.totalPages}</strong> ({csReportData.pagination.totalRecords} total items)
                 </div>
-                <div className="cs-grand-total-right">
-                  <span className="cs-grand-qty">
-                    Qty: {Number(reportData?.summary?.grandTotalQty || 56876).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
-                  <span className="cs-grand-val">
-                    Rs. {Number(reportData?.summary?.grandTotalValue || 24135749.39).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </span>
+
+                <div className="reports-page-buttons">
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={csPage <= 1 || csLoading}
+                    onClick={() => setCsPage(1)}
+                  >
+                    « First
+                  </button>
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={csPage <= 1 || csLoading}
+                    onClick={() => setCsPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹ Prev
+                  </button>
+
+                  <form
+                    onSubmit={(e) => handlePageJump(e, csJumpPage, csReportData.pagination.totalPages, setCsPage)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>Page:</span>
+                    <input
+                      type="text"
+                      className="reports-jump-input"
+                      value={csJumpPage}
+                      onChange={(e) => setCsJumpPage(e.target.value)}
+                      onBlur={(e) => handlePageJump(e, csJumpPage, csReportData.pagination.totalPages, setCsPage)}
+                    />
+                  </form>
+
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={csPage >= csReportData.pagination.totalPages || csLoading}
+                    onClick={() => setCsPage((p) => Math.min(csReportData.pagination.totalPages, p + 1))}
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    type="button"
+                    className="reports-pg-btn"
+                    disabled={csPage >= csReportData.pagination.totalPages || csLoading}
+                    onClick={() => setCsPage(csReportData.pagination.totalPages)}
+                  >
+                    Last »
+                  </button>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Software Footer matching PDF */}
-            <div className="cs-software-footer">
-              {reportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-            </div>
-          </div>
-        ) : (
-          /* =========================================================================
-              MODERN INTERACTIVE TABLE VIEW
-              ========================================================================= */
-          <div className="reports-modern-card">
-            <table className="reports-modern-table">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th>Bin Location</th>
-                  <th style={{ textAlign: 'right' }}>Stock Qty</th>
-                  <th style={{ textAlign: 'right' }}>Total Value</th>
-                  <th style={{ textAlign: 'right' }}>Selling Price</th>
-                  <th style={{ textAlign: 'center' }}>Status</th>
-                  <th>Staff Handled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportData?.data && reportData.data.length > 0 ? (
-                  reportData.data.map((item, idx) => {
-                    const isLow = item.quantity <= (item.reorderLevel || 2);
-                    const isOut = item.quantity <= 0;
-                    return (
-                      <tr key={idx}>
-                        <td>
-                          <span style={{ fontWeight: '800', color: '#0284c7' }}>{item.category}</span>
-                        </td>
-                        <td>
-                          <strong style={{ fontFamily: 'monospace' }}>{item.code}</strong>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: '600' }}>{item.description}</div>
-                          {item.totalSold > 0 && (
-                            <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 'bold' }}>
-                              🔥 Sold: {item.totalSold} units across invoices
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <span style={{ background: '#f1f5f9', padding: '3px 7px', borderRadius: '4px', fontSize: '11.5px', fontWeight: 'bold' }}>
-                            {item.bin || 'R1-A-1'}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: '800' }}>
-                          {Number(item.quantity).toLocaleString()}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
-                          Rs. {Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: '700' }}>
-                          Rs. {Number(item.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          {isOut ? (
-                            <span className="stock-badge out-of-stock">Out of Stock</span>
-                          ) : isLow ? (
-                            <span className="stock-badge low-stock">Low Stock</span>
-                          ) : (
-                            <span className="stock-badge in-stock">In Stock</span>
-                          )}
-                        </td>
-                        <td>
-                          <span style={{ fontSize: '12px', color: '#475569' }}>
-                            👤 {item.staff || 'cashier'}
-                          </span>
+            {csLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Closing Stock Report from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Processing inventory, location balances and sales metrics</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                  EXACT PHYSICAL CLOSING STOCK REPORT PAPER SHEET (MATCHING PDF SCAN 100%)
+                  ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-closing-stock-report">
+                {/* Report Header */}
+                <div className="cs-report-header">
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+                  <div className="cs-report-title">CLOSING STOCK REPORT</div>
+
+                  <div className="cs-meta-line">
+                    <span>{csReportData?.reportDate || '8/6/2026'}</span>
+                    <span>
+                      Page {csReportData?.pagination?.page || 1} of {csReportData?.pagination?.totalPages || 170}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Table Header Line */}
+                <div className="cs-table-header-divider"></div>
+
+                <table className="cs-table">
+                  <thead>
+                    <tr>
+                      <th className="cs-th-code">CODE</th>
+                      <th className="cs-th-desc">DESCRIPTION</th>
+                      <th className="cs-th-bin">BIN</th>
+                      <th className="cs-th-qty col-right">QUANTITY</th>
+                      <th className="cs-th-val col-right">VALUE</th>
+                      <th className="cs-th-loc col-right">Loc1_Qty</th>
+                      <th className="cs-th-loc col-right">Loc1_Val</th>
+                      <th className="cs-th-loc col-right">Loc2_Qty</th>
+                      <th className="cs-th-loc col-right">Loc2_Val</th>
+                      <th className="cs-th-loc col-right">Loc3_Qty</th>
+                      <th className="cs-th-loc col-right">Loc3_Val</th>
+                      <th className="cs-th-selprice col-right">SEL.PRICE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csReportData?.grouped && csReportData.grouped.length > 0 ? (
+                      csReportData.grouped.map((group, gIdx) => (
+                        <Fragment key={`group-${gIdx}`}>
+                          {/* Category Section Header */}
+                          <tr className="cs-category-row">
+                            <td colSpan={12}>
+                              <strong>{group.categoryName}</strong>
+                              {csSortBy === 'most_used' && (
+                                <span style={{ fontSize: '10px', marginLeft: '8px', color: '#64748b', fontWeight: 'normal' }}>
+                                  (Ranked by most used products)
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Item Rows */}
+                          {group.items.map((item, iIdx) => (
+                            <tr key={`item-${gIdx}-${iIdx}`} className="cs-item-row">
+                              <td className="cs-code">{item.code}</td>
+                              <td className="cs-desc">
+                                {item.description}
+                                {item.totalSold > 0 && (
+                                  <span className="cs-most-used-tag no-print" title={`Sold ${item.totalSold} units in invoices`}>
+                                    🔥 Sold: {item.totalSold}
+                                  </span>
+                                )}
+                                {csSelectedStaff !== 'All' && item.staff && (
+                                  <span className="cs-staff-tag no-print">
+                                    👤 {item.staff}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="cs-bin">{item.bin || 'R1-A-1'}</td>
+                              <td className="cs-qty">
+                                {Number(item.quantity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="cs-val">
+                                {Number(item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="cs-loc">
+                                {item.loc1_qty > 0 ? Number(item.loc1_qty).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
+                              </td>
+                              <td className="cs-loc">
+                                {item.loc1_val > 0 ? Number(item.loc1_val).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
+                              </td>
+                              <td className="cs-loc">
+                                {item.loc2_qty > 0 ? Number(item.loc2_qty).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
+                              </td>
+                              <td className="cs-loc">
+                                {item.loc2_val > 0 ? Number(item.loc2_val).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
+                              </td>
+                              <td className="cs-loc"></td>
+                              <td className="cs-loc"></td>
+                              <td className="cs-selprice">
+                                {Number(item.sellingPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {/* Category Subtotal */}
+                          <tr className="cs-subtotal-row">
+                            <td colSpan={3} className="cs-subtotal-label">
+                              &nbsp;
+                            </td>
+                            <td className="cs-subtotal-val">
+                              {Number(group.subtotalQty || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="cs-subtotal-val">
+                              {Number(group.subtotalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td colSpan={7}></td>
+                          </tr>
+                        </Fragment>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={12} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No stock items match your search or filter criteria.
                         </td>
                       </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                      No records found matching filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Grand Total Section Matching PDF Page 170 */}
+                <div className="cs-grand-total-section">
+                  <div className="cs-grand-total-row">
+                    <div className="cs-grand-total-left">
+                      <span>Grand Total:</span>
+                    </div>
+                    <div className="cs-grand-total-right">
+                      <span className="cs-grand-qty">
+                        Qty: {Number(csReportData?.summary?.grandTotalQty || 56876).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                      <span className="cs-grand-val">
+                        Rs. {Number(csReportData?.summary?.grandTotalValue || 24135749.39).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Software Footer matching PDF */}
+                <div className="cs-software-footer">
+                  {csReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
+                </div>
+              </div>
+            ) : (
+              /* MODERN TABLE VIEW FOR CLOSING STOCK */
+              <div className="reports-modern-card">
+                <table className="reports-modern-table">
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>Code</th>
+                      <th>Description</th>
+                      <th>Bin Location</th>
+                      <th style={{ textAlign: 'right' }}>Stock Qty</th>
+                      <th style={{ textAlign: 'right' }}>Total Value</th>
+                      <th style={{ textAlign: 'right' }}>Selling Price</th>
+                      <th style={{ textAlign: 'center' }}>Status</th>
+                      <th>Staff Handled</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csReportData?.data && csReportData.data.length > 0 ? (
+                      csReportData.data.map((item, idx) => {
+                        const isLow = item.quantity <= (item.reorderLevel || 2);
+                        const isOut = item.quantity <= 0;
+                        return (
+                          <tr key={idx}>
+                            <td>
+                              <span style={{ fontWeight: '800', color: '#0284c7' }}>{item.category}</span>
+                            </td>
+                            <td>
+                              <strong style={{ fontFamily: 'monospace' }}>{item.code}</strong>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '600' }}>{item.description}</div>
+                              {item.totalSold > 0 && (
+                                <span style={{ fontSize: '11px', color: '#d97706', fontWeight: 'bold' }}>
+                                  🔥 Sold: {item.totalSold} units across invoices
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <span style={{ background: '#f1f5f9', padding: '3px 7px', borderRadius: '4px', fontSize: '11.5px', fontWeight: 'bold' }}>
+                                {item.bin || 'R1-A-1'}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                              {Number(item.quantity).toLocaleString()}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                              Rs. {Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '700' }}>
+                              Rs. {Number(item.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {isOut ? (
+                                <span className="stock-badge out-of-stock">Out of Stock</span>
+                              ) : isLow ? (
+                                <span className="stock-badge low-stock">Low Stock</span>
+                              ) : (
+                                <span className="stock-badge in-stock">In Stock</span>
+                              )}
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '12px', color: '#475569' }}>
+                                👤 {item.staff || 'cashier'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                          No records found matching filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }

@@ -775,6 +775,164 @@
 }
 
 /* ==========================================================================
+   Report Type Tabs Switcher
+   ========================================================================== */
+.reports-type-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  margin-bottom: 16px;
+  width: 100%;
+  max-width: 1060px;
+  box-sizing: border-box;
+}
+
+.reports-tab-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease-in-out;
+}
+
+.reports-tab-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.reports-tab-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+}
+
+.reports-date-input {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+  background: #ffffff;
+  outline: none;
+}
+
+.reports-date-input:focus {
+  border-color: #0284c7;
+}
+
+/* ==========================================================================
+   Daily Sales Report Specific Styles (Matching Second PDF Document)
+   ========================================================================== */
+.ds-summary-top-card {
+  border: 1px dashed #64748b;
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin: 10px 0 14px 0;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-size: 11px;
+}
+
+.ds-user-row {
+  font-weight: 900;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px dotted #94a3b8;
+}
+
+.ds-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ds-summary-table td {
+  padding: 2px 4px;
+}
+
+.ds-summary-table .col-label {
+  font-weight: 800;
+  width: 55%;
+}
+
+.ds-summary-table .col-num {
+  text-align: right;
+  font-weight: 800;
+  width: 15%;
+}
+
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-size: 11px;
+}
+
+.ds-table th {
+  padding: 4px 6px;
+  font-weight: 900;
+  color: #000000;
+  text-align: left;
+  border-bottom: 1.5px solid #000000;
+  white-space: nowrap;
+}
+
+.ds-table th.col-right {
+  text-align: right;
+}
+
+.ds-table td {
+  padding: 3px 6px;
+  color: #000000;
+  vertical-align: top;
+}
+
+.ds-th-code { width: 14%; }
+.ds-th-desc { width: 44%; }
+.ds-th-qty { width: 8%; }
+.ds-th-purval { width: 11%; }
+.ds-th-val { width: 11%; }
+.ds-th-profit { width: 12%; }
+
+.ds-section-header-row td {
+  padding: 10px 6px 4px 6px;
+  font-weight: 900;
+  font-size: 12px;
+  color: #000000;
+  letter-spacing: 0.5px;
+  border-bottom: 1px dashed #64748b;
+}
+
+.ds-subtotal-row td {
+  padding: 6px 6px 10px 6px;
+  border-top: 1px solid #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.profit-pos {
+  color: #000000;
+}
+
+.profit-neg {
+  color: #dc2626;
+  font-weight: 900;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -787,10 +945,13 @@
     display: none !important;
   }
   #printable-closing-stock-report,
-  #printable-closing-stock-report * {
+  #printable-closing-stock-report *,
+  #printable-daily-sales-report,
+  #printable-daily-sales-report * {
     visibility: visible;
   }
-  #printable-closing-stock-report {
+  #printable-closing-stock-report,
+  #printable-daily-sales-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -802,14 +963,18 @@
     box-shadow: none !important;
     font-size: 10px !important;
   }
-  .cs-table {
+  .cs-table,
+  .ds-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
-  .cs-table td {
+  .cs-table td,
+  .ds-table th,
+  .ds-table td {
     padding: 2px 4px !important;
   }
-  .cs-category-row {
+  .cs-category-row,
+  .ds-section-header-row {
     page-break-inside: avoid;
   }
   .cs-grand-total-section {
