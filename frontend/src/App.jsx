@@ -119,6 +119,8 @@ function App() {
       <Route path="/petty-cash" element={<Approvement defaultSection="petty-cash" />} />
       <Route path="/approvement/leave-request" element={<Approvement defaultSection="leave-request" />} />
       <Route path="/leave-request" element={<Approvement defaultSection="leave-request" />} />
+      <Route path="/receive-inbox" element={<Approvement defaultSection="receive-inbox" />} />
+      <Route path="/approvement/receive-inbox" element={<Approvement defaultSection="receive-inbox" />} />
 
       <Route path="/reports" element={<ReportsPlaceholder />} />
       <Route path="*" element={<Navigate to="/management" replace />} />

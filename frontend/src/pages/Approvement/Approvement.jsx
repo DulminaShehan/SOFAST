@@ -4,23 +4,26 @@ import MainMenu from '../../components/navigation/MainMenu';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
+import PaymentVoucherCreateModal from './PaymentVoucherCreateModal';
+import VoucherDetailsModal from './VoucherDetailsModal';
 import './Approvement.css';
 
 /**
  * SOFAST MOTORS - Approvement Module
- * Sub-sections:
- * 1. Payment Voucher (payment vauture)
+ * 1. Payment Voucher (with exact Page 1 replica, line items, and Pages 2-4 bill attachments)
  * 2. Petty Cash
- * 3. Leave Request (lever requerst)
+ * 3. Leave Request
+ * 4. Admin Receive Inbox (strictly visible only to Administrator)
  */
 function Approvement({ defaultSection }) {
-  const { currentUser, isAdmin, hasPermission } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Detect active tab from prop or URL
+  // Detect initial active tab
   const getInitialTab = () => {
     if (defaultSection) return defaultSection;
+    if (location.pathname.includes('receive-inbox') && isAdmin) return 'receive-inbox';
     if (location.pathname.includes('petty-cash')) return 'petty-cash';
     if (location.pathname.includes('leave-request')) return 'leave-request';
     return 'payment-voucher';
@@ -37,18 +40,15 @@ function Approvement({ defaultSection }) {
   const [pettyCashList, setPettyCashList] = useState([]);
   const [leaveRequests, setLeaveRequests] = useState([]);
 
-  // Modal State
+  // Modals state
+  const [isCreatePvOpen, setIsCreatePvOpen] = useState(false);
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [isProcessingApproval, setIsProcessingApproval] = useState(false);
+
+  // Other section modal states (Petty Cash & Leave Request)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form States
-  const [pvForm, setPvForm] = useState({
-    payeeName: '',
-    amount: '',
-    paymentMethod: 'Bank Transfer',
-    description: '',
-    remarks: '',
-  });
 
   const [pcForm, setPcForm] = useState({
     requestedBy: '',
@@ -71,26 +71,30 @@ function Approvement({ defaultSection }) {
 
   const showToast = (message, type = 'success') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 4500);
   };
 
-  // Sync tab with URL if prop or pathname changes
+  // Sync tab with URL
   useEffect(() => {
-    if (location.pathname.includes('petty-cash')) {
+    if (location.pathname.includes('receive-inbox') && isAdmin) {
+      setActiveTab('receive-inbox');
+    } else if (location.pathname.includes('petty-cash')) {
       setActiveTab('petty-cash');
     } else if (location.pathname.includes('leave-request')) {
       setActiveTab('leave-request');
     } else if (location.pathname.includes('payment-voucher')) {
       setActiveTab('payment-voucher');
     }
-  }, [location.pathname]);
+  }, [location.pathname, isAdmin]);
 
   // Fetch all approval records
   const fetchData = async () => {
     try {
       setLoading(true);
+      // Normal users pass their username to retrieve their submitted vouchers; admins retrieve all
+      const userParam = !isAdmin && currentUser?.username ? `?user=${currentUser.username}` : '';
       const [pvRes, pcRes, lrRes] = await Promise.all([
-        api.get('/approvement/payment-vouchers'),
+        api.get(`/approvement/payment-vouchers${userParam}`),
         api.get('/approvement/petty-cash'),
         api.get('/approvement/leave-requests'),
       ]);
@@ -108,14 +112,88 @@ function Approvement({ defaultSection }) {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [currentUser?.username, isAdmin]);
 
-  // Status Update Handler (Approve / Reject)
+  // ---------------- PAYMENT VOUCHER HANDLERS ----------------
+
+  // Create payment voucher
+  const handleCreatePvSubmit = async (payload) => {
+    try {
+      const res = await api.post('/approvement/payment-vouchers', payload);
+      if (res.data?.success) {
+        showToast(`Payment Voucher ${res.data.data?.voucherNo} submitted successfully to Admin!`);
+        setIsCreatePvOpen(false);
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to create payment voucher', 'error');
+      throw err;
+    }
+  };
+
+  // Approve payment voucher
+  const handleApprovePv = async (voucherId, adminRemarks = '') => {
+    try {
+      setIsProcessingApproval(true);
+      const res = await api.put(`/approvement/payment-vouchers/${voucherId}/status`, {
+        status: 'Approved',
+        approvedBy: currentUser?.username || 'admin',
+        adminRemarks,
+      });
+
+      if (res.data?.success) {
+        showToast(`Payment Voucher ${res.data.data?.voucherNo} marked as APPROVED!`);
+        if (selectedVoucher) {
+          setSelectedVoucher(res.data.data);
+        }
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to approve payment voucher', 'error');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  // Reject payment voucher
+  const handleRejectPv = async (voucherId, adminRemarks = '') => {
+    try {
+      setIsProcessingApproval(true);
+      const res = await api.put(`/approvement/payment-vouchers/${voucherId}/status`, {
+        status: 'Rejected',
+        approvedBy: currentUser?.username || 'admin',
+        adminRemarks,
+      });
+
+      if (res.data?.success) {
+        showToast(`Payment Voucher ${res.data.data?.voucherNo} marked as REJECTED.`);
+        if (selectedVoucher) {
+          setSelectedVoucher(res.data.data);
+        }
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to reject payment voucher', 'error');
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  // Open voucher viewer
+  const handleViewVoucher = (voucher) => {
+    setSelectedVoucher(voucher);
+    setIsViewerOpen(true);
+  };
+
+  // ---------------- PETTY CASH & LEAVE REQUEST HANDLERS ----------------
+
   const handleUpdateStatus = async (type, id, newStatus) => {
     try {
       let endpoint = '';
-      if (type === 'pv') endpoint = `/approvement/payment-vouchers/${id}/status`;
-      else if (type === 'pc') endpoint = `/approvement/petty-cash/${id}/status`;
+      if (type === 'pc') endpoint = `/approvement/petty-cash/${id}/status`;
       else if (type === 'lr') endpoint = `/approvement/leave-requests/${id}/status`;
 
       const res = await api.put(endpoint, {
@@ -128,30 +206,7 @@ function Approvement({ defaultSection }) {
         fetchData();
       }
     } catch (err) {
-      showToast('Failed to update approval status', 'error');
-    }
-  };
-
-  // Form Submissions
-  const handleSubmitPv = async (e) => {
-    e.preventDefault();
-    if (!pvForm.payeeName || !pvForm.amount) {
-      showToast('Payee name and amount are required', 'error');
-      return;
-    }
-    try {
-      setIsSubmitting(true);
-      const res = await api.post('/approvement/payment-vouchers', pvForm);
-      if (res.data?.success) {
-        showToast(`Payment Voucher ${res.data.data?.voucherNo} created successfully!`);
-        setIsModalOpen(false);
-        setPvForm({ payeeName: '', amount: '', paymentMethod: 'Bank Transfer', description: '', remarks: '' });
-        fetchData();
-      }
-    } catch (err) {
-      showToast('Failed to create payment voucher', 'error');
-    } finally {
-      setIsSubmitting(false);
+      showToast('Failed to update status', 'error');
     }
   };
 
@@ -167,7 +222,14 @@ function Approvement({ defaultSection }) {
       if (res.data?.success) {
         showToast(`Petty Cash Voucher ${res.data.data?.voucherNo} created successfully!`);
         setIsModalOpen(false);
-        setPcForm({ requestedBy: '', department: 'POS Cashier Counter', amount: '', category: 'Office Supplies', purpose: '', remarks: '' });
+        setPcForm({
+          requestedBy: '',
+          department: 'POS Cashier Counter',
+          amount: '',
+          category: 'Office Supplies',
+          purpose: '',
+          remarks: '',
+        });
         fetchData();
       }
     } catch (err) {
@@ -189,7 +251,15 @@ function Approvement({ defaultSection }) {
       if (res.data?.success) {
         showToast(`Leave Request ${res.data.data?.requestNo} submitted successfully!`);
         setIsModalOpen(false);
-        setLrForm({ employeeName: '', leaveType: 'Annual', startDate: '', endDate: '', numberOfDays: 1, reason: '', remarks: '' });
+        setLrForm({
+          employeeName: '',
+          leaveType: 'Annual',
+          startDate: '',
+          endDate: '',
+          numberOfDays: 1,
+          reason: '',
+          remarks: '',
+        });
         fetchData();
       }
     } catch (err) {
@@ -215,13 +285,15 @@ function Approvement({ defaultSection }) {
   const filteredPc = filterList(pettyCashList, 'requestedBy');
   const filteredLr = filterList(leaveRequests, 'employeeName');
 
-  const pendingPvCount = paymentVouchers.filter((v) => v.status === 'Pending').length;
+  // Pending counts
+  const pendingPvList = paymentVouchers.filter((v) => v.status === 'Pending');
+  const pendingPvCount = pendingPvList.length;
   const pendingPcCount = pettyCashList.filter((v) => v.status === 'Pending').length;
   const pendingLrCount = leaveRequests.filter((v) => v.status === 'Pending').length;
 
   return (
     <div className="approvement-page-container">
-      {/* 1. Header Bar */}
+      {/* 1. Window Header Bar */}
       <header className="approvement-window-header">
         <div className="approvement-header-left">
           <img src={windowIcon} alt="" className="approvement-header-icon" />
@@ -242,7 +314,28 @@ function Approvement({ defaultSection }) {
       {/* 2. Top Application Menu Bar */}
       <MainMenu />
 
-      {/* 3. Main Workspace */}
+      {/* Toast Notification */}
+      {notification && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '55px',
+            right: '25px',
+            zIndex: 9999,
+            padding: '10px 18px',
+            background: notification.type === 'error' ? '#ef4444' : '#10b981',
+            color: '#ffffff',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontSize: '13px',
+            fontWeight: 'bold',
+          }}
+        >
+          {notification.message}
+        </div>
+      )}
+
+      {/* 3. Main Workspace Canvas */}
       <main className="approvement-workspace">
         {/* Navigation Tabs Bar */}
         <div className="approvement-tabs-bar">
@@ -281,73 +374,125 @@ function Approvement({ defaultSection }) {
             <span>📅 Leave Request</span>
             {pendingLrCount > 0 && <span className="tab-pill-count">{pendingLrCount} pending</span>}
           </button>
+
+          {/* ADMIN ONLY RECEIVE INBOX TAB */}
+          {isAdmin && (
+            <button
+              type="button"
+              className={`approvement-tab-btn admin-inbox-tab ${activeTab === 'receive-inbox' ? 'active' : ''}`}
+              onClick={() => setActiveTab('receive-inbox')}
+              title="Admin Inbox: Receive and authorize submitted expense vouchers"
+            >
+              <span>📥 Receive Inbox</span>
+              {pendingPvCount > 0 ? (
+                <span className="tab-pill-count badge-urgent">{pendingPvCount} PENDING</span>
+              ) : (
+                <span className="tab-pill-count" style={{ background: '#22c55e', color: '#fff' }}>0</span>
+              )}
+            </button>
+          )}
         </div>
 
-        {/* Overview Banner Card */}
-        <div className="approvement-banner">
-          <div className="approvement-banner-left">
-            <div className="approvement-banner-icon">
-              {activeTab === 'payment-voucher' ? '💳' : activeTab === 'petty-cash' ? '💵' : '📅'}
+        {/* HERO BANNER SECTION */}
+        {activeTab === 'receive-inbox' && isAdmin ? (
+          <div className="inbox-hero-card">
+            <div className="inbox-hero-left">
+              <span className="inbox-hero-icon">📥</span>
+              <div className="inbox-hero-titles">
+                <h2>Admin Authorization Inbox — Receive &amp; Approve Vouchers</h2>
+                <p>
+                  Review vouchers submitted by cashiers and staff. Inspect attached bills (CEB electricity, SLT Mobitel, SMS receipts) before granting official approval.
+                </p>
+              </div>
             </div>
-            <div className="approvement-banner-titles">
-              <h1>
-                {activeTab === 'payment-voucher'
-                  ? 'Payment Voucher Approvals & Settlements'
-                  : activeTab === 'petty-cash'
-                  ? 'Petty Cash Requests & Disbursements'
-                  : 'Employee Leave Requests & Attendance Approvals'}
-              </h1>
-              <p>
-                {activeTab === 'payment-voucher'
-                  ? 'Manage vendor supplier payments, cheque disbursements, and transaction authorizations.'
-                  : activeTab === 'petty-cash'
-                  ? 'Approve day-to-day office expenses, branch cash requirements, and store maintenance funds.'
-                  : 'Process employee annual, casual, and medical leave requests with manager approval flow.'}
-              </p>
+            <div className="inbox-hero-badge">
+              {pendingPvCount} Voucher(s) Awaiting Decision
             </div>
           </div>
+        ) : (
+          <div className="approvement-banner">
+            <div className="approvement-banner-left">
+              <div className="approvement-banner-icon">
+                {activeTab === 'payment-voucher' ? '💳' : activeTab === 'petty-cash' ? '💵' : '📅'}
+              </div>
+              <div className="approvement-banner-titles">
+                <h1>
+                  {activeTab === 'payment-voucher'
+                    ? 'Payment Voucher Approvals &amp; Expense Settlements'
+                    : activeTab === 'petty-cash'
+                    ? 'Petty Cash Requests &amp; Disbursements'
+                    : 'Employee Leave Requests &amp; Attendance Approvals'}
+                </h1>
+                <p>
+                  {activeTab === 'payment-voucher'
+                    ? 'Exact Page 1 voucher structure &bull; Attach multiple bills (CEB electricity, SLT, SMS photo) &bull; Verified Admin authorization.'
+                    : activeTab === 'petty-cash'
+                    ? 'Approve day-to-day office expenses, branch cash requirements, and store maintenance funds.'
+                    : 'Process employee annual, casual, and medical leave requests with manager approval flow.'}
+                </p>
+              </div>
+            </div>
 
-          <div className="approvement-stats-group">
-            <div className="appr-stat-box">
-              <span className="appr-stat-val">
-                {activeTab === 'payment-voucher'
-                  ? paymentVouchers.length
-                  : activeTab === 'petty-cash'
-                  ? pettyCashList.length
-                  : leaveRequests.length}
-              </span>
-              <span className="appr-stat-lbl">Total Records</span>
-            </div>
-            <div className="appr-stat-box">
-              <span className="appr-stat-val" style={{ color: '#d97706' }}>
-                {activeTab === 'payment-voucher'
-                  ? pendingPvCount
-                  : activeTab === 'petty-cash'
-                  ? pendingPcCount
-                  : pendingLrCount}
-              </span>
-              <span className="appr-stat-lbl">Pending</span>
+            <div className="approvement-stats-group">
+              <div className="appr-stat-box">
+                <span className="appr-stat-val">
+                  {activeTab === 'payment-voucher'
+                    ? paymentVouchers.length
+                    : activeTab === 'petty-cash'
+                    ? pettyCashList.length
+                    : leaveRequests.length}
+                </span>
+                <span className="appr-stat-lbl">Total Records</span>
+              </div>
+              <div className="appr-stat-box">
+                <span className="appr-stat-val" style={{ color: '#d97706' }}>
+                  {activeTab === 'payment-voucher'
+                    ? pendingPvCount
+                    : activeTab === 'petty-cash'
+                    ? pendingPcCount
+                    : pendingLrCount}
+                </span>
+                <span className="appr-stat-lbl">Pending</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Toolbar */}
         <div className="approvement-toolbar">
           <div className="appr-toolbar-left">
-            <button
-              type="button"
-              className="appr-add-btn"
-              onClick={() => setIsModalOpen(true)}
-            >
-              <span>+</span>
-              <span>
-                {activeTab === 'payment-voucher'
-                  ? 'New Payment Voucher'
-                  : activeTab === 'petty-cash'
-                  ? 'New Petty Cash Request'
-                  : 'New Leave Request'}
-              </span>
-            </button>
+            {activeTab === 'payment-voucher' && (
+              <button
+                type="button"
+                className="appr-add-btn"
+                onClick={() => setIsCreatePvOpen(true)}
+              >
+                <span>+</span>
+                <span>New Payment Voucher</span>
+              </button>
+            )}
+
+            {activeTab === 'petty-cash' && (
+              <button
+                type="button"
+                className="appr-add-btn"
+                onClick={() => setIsModalOpen(true)}
+              >
+                <span>+</span>
+                <span>New Petty Cash Request</span>
+              </button>
+            )}
+
+            {activeTab === 'leave-request' && (
+              <button
+                type="button"
+                className="appr-add-btn"
+                onClick={() => setIsModalOpen(true)}
+              >
+                <span>+</span>
+                <span>New Leave Request</span>
+              </button>
+            )}
 
             <div className="appr-search-wrapper">
               <span className="appr-search-icon">🔍</span>
@@ -355,7 +500,7 @@ function Approvement({ defaultSection }) {
                 type="text"
                 className="appr-search-input"
                 placeholder={
-                  activeTab === 'payment-voucher'
+                  activeTab === 'payment-voucher' || activeTab === 'receive-inbox'
                     ? 'Search by payee or voucher #...'
                     : activeTab === 'petty-cash'
                     ? 'Search by requester or PC #...'
@@ -366,16 +511,18 @@ function Approvement({ defaultSection }) {
               />
             </div>
 
-            <select
-              className="appr-filter-select"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">All Statuses</option>
-              <option value="Pending">Pending Only</option>
-              <option value="Approved">Approved Only</option>
-              <option value="Rejected">Rejected Only</option>
-            </select>
+            {activeTab !== 'receive-inbox' && (
+              <select
+                className="appr-filter-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Pending">Pending Only</option>
+                <option value="Approved">Approved Only</option>
+                <option value="Rejected">Rejected Only</option>
+              </select>
+            )}
           </div>
 
           <div>
@@ -390,89 +537,229 @@ function Approvement({ defaultSection }) {
           </div>
         </div>
 
-        {/* Tab 1: Payment Voucher Table */}
-        {activeTab === 'payment-voucher' && (
+        {/* =========================================================================
+            TAB: ADMIN RECEIVE INBOX (STRICTLY ADMIN ONLY)
+            ========================================================================= */}
+        {activeTab === 'receive-inbox' && isAdmin && (
           <div className="approvement-table-card">
             <table className="appr-table">
               <thead>
                 <tr>
                   <th style={{ width: '13%' }}>Voucher No</th>
                   <th style={{ width: '11%' }}>Date</th>
-                  <th style={{ width: '22%' }}>Payee / Vendor</th>
-                  <th style={{ width: '13%' }}>Amount (LKR)</th>
-                  <th style={{ width: '13%' }}>Payment Method</th>
-                  <th style={{ width: '12%' }}>Status</th>
-                  <th style={{ width: '16%' }}>Action</th>
+                  <th style={{ width: '13%' }}>Submitted By</th>
+                  <th style={{ width: '22%' }}>Payee / Purpose</th>
+                  <th style={{ width: '13%' }}>Total Amount</th>
+                  <th style={{ width: '11%' }}>Attached Bills</th>
+                  <th style={{ width: '17%' }}>Admin Decision</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td colSpan="7" style={{ textAlign: 'center', padding: '30px' }}>
-                      Loading payment vouchers...
+                      Loading Receive Inbox...
                     </td>
                   </tr>
-                ) : filteredPv.length === 0 ? (
+                ) : pendingPvList.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                      No payment vouchers found.
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: '#16a34a' }}>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>🎉</div>
+                      <strong>All Caught Up!</strong>
+                      <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '12px' }}>
+                        No pending payment vouchers in Receive Inbox awaiting authorization.
+                      </p>
                     </td>
                   </tr>
                 ) : (
-                  filteredPv.map((v) => (
-                    <tr key={v._id}>
-                      <td style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{v.voucherNo}</td>
-                      <td>{new Date(v.date || v.createdAt).toLocaleDateString()}</td>
-                      <td>
-                        <strong>{v.payeeName}</strong>
-                        {v.description && (
-                          <div style={{ fontSize: '11px', color: '#64748b' }}>{v.description}</div>
-                        )}
-                      </td>
-                      <td style={{ fontWeight: '600', color: '#0f172a' }}>
-                        Rs. {Number(v.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td>{v.paymentMethod}</td>
-                      <td>
-                        <span className={`appr-status-badge ${v.status.toLowerCase()}`}>
-                          {v.status}
-                        </span>
-                      </td>
-                      <td>
-                        {v.status === 'Pending' ? (
+                  pendingPvList.map((v) => {
+                    const attachmentsCount = Array.isArray(v.attachments) ? v.attachments.length : 0;
+                    const displayAmount = v.totalAmount || v.amount || 0;
+                    return (
+                      <tr key={v._id || v.voucherNo}>
+                        <td style={{ fontWeight: 'bold', color: '#4338ca' }}>{v.voucherNo}</td>
+                        <td>{v.dateFormatted || new Date(v.date || v.createdAt).toLocaleDateString('en-GB')}</td>
+                        <td>
+                          <span style={{ fontWeight: '600', color: '#1e3a8a' }}>{v.preparedBy || 'User'}</span>
+                        </td>
+                        <td>
+                          <strong>{v.payeeName}</strong>
+                          {v.payeeNote && <div style={{ fontSize: '11px', color: '#4338ca' }}>{v.payeeNote}</div>}
+                          {v.items && v.items.length > 0 && (
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              {v.items[0].particulars} {v.items.length > 1 ? `(+${v.items.length - 1} more items)` : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: '700', color: '#0f172a' }}>
+                          Rs. {Number(displayAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td>
+                          <span className={`appr-bill-badge ${attachmentsCount === 0 ? 'none' : ''}`}>
+                            📎 {attachmentsCount} {attachmentsCount === 1 ? 'Bill' : 'Bills'}
+                          </span>
+                        </td>
+                        <td>
                           <div className="appr-actions-cell">
                             <button
                               type="button"
-                              className="btn-approve"
-                              onClick={() => handleUpdateStatus('pv', v._id, 'Approved')}
+                              className="btn-review-action"
+                              onClick={() => handleViewVoucher(v)}
+                              title="Review exact voucher sheet and inspect attached bills"
                             >
-                              ✓ Approve
+                              🔍 Review
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-approve"
+                              onClick={() => handleApprovePv(v._id || v.voucherNo)}
+                              title="Direct Approve"
+                            >
+                              ✓
                             </button>
                             <button
                               type="button"
                               className="btn-reject"
-                              onClick={() => handleUpdateStatus('pv', v._id, 'Rejected')}
+                              onClick={() => handleRejectPv(v._id || v.voucherNo)}
+                              title="Direct Reject"
                             >
-                              ✕ Reject
+                              ✕
                             </button>
                           </div>
-                        ) : (
-                          <span style={{ fontSize: '11px', color: '#64748b' }}>
-                            {v.status === 'Approved'
-                              ? `By ${v.approvedBy || 'Admin'}`
-                              : 'Rejected'}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* Tab 2: Petty Cash Table */}
+        {/* =========================================================================
+            TAB 1: PAYMENT VOUCHER TABLE (USER & ADMIN VIEW)
+            ========================================================================= */}
+        {activeTab === 'payment-voucher' && (
+          <div className="approvement-table-card">
+            <table className="appr-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '13%' }}>Voucher No</th>
+                  <th style={{ width: '10%' }}>Date</th>
+                  <th style={{ width: '22%' }}>Payee / Details</th>
+                  <th style={{ width: '13%' }}>Amount (LKR)</th>
+                  <th style={{ width: '10%' }}>Bills</th>
+                  <th style={{ width: '11%' }}>Prepared By</th>
+                  <th style={{ width: '14%' }}>Approval Status</th>
+                  <th style={{ width: '17%' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '30px' }}>
+                      Loading payment vouchers...
+                    </td>
+                  </tr>
+                ) : filteredPv.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                      No payment vouchers found. Click "+ New Payment Voucher" to submit one.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPv.map((v) => {
+                    const attachmentsCount = Array.isArray(v.attachments) ? v.attachments.length : 0;
+                    const displayAmount = v.totalAmount || v.amount || 0;
+                    return (
+                      <tr key={v._id || v.voucherNo}>
+                        <td style={{ fontWeight: 'bold', color: '#1e3a8a' }}>{v.voucherNo}</td>
+                        <td>{v.dateFormatted || new Date(v.date || v.createdAt).toLocaleDateString('en-GB')}</td>
+                        <td>
+                          <strong>{v.payeeName}</strong>
+                          {v.payeeNote && <div style={{ fontSize: '11px', color: '#1e40af' }}>{v.payeeNote}</div>}
+                          {v.items && v.items.length > 0 && (
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                              {v.items[0].particulars} {v.items.length > 1 ? `(+${v.items.length - 1} items)` : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: '700', color: '#0f172a' }}>
+                          Rs. {Number(displayAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td>
+                          <span className={`appr-bill-badge ${attachmentsCount === 0 ? 'none' : ''}`}>
+                            📎 {attachmentsCount}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '12px' }}>{v.preparedBy || 'user'}</span>
+                        </td>
+                        <td>
+                          <span className={`appr-status-badge ${v.status.toLowerCase()}`}>
+                            {v.status === 'Approved' ? (
+                              <span>✓ Approved by {v.approvedBy || 'Admin'}</span>
+                            ) : v.status === 'Pending' ? (
+                              <span>🟡 Pending Approval</span>
+                            ) : (
+                              <span>✕ Rejected</span>
+                            )}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="appr-actions-cell">
+                            <button
+                              type="button"
+                              className="appr-view-btn"
+                              onClick={() => handleViewVoucher(v)}
+                              title="View exact Page 1 voucher sheet & attached bills"
+                            >
+                              👁️ View
+                            </button>
+
+                            <button
+                              type="button"
+                              className="appr-print-btn"
+                              onClick={() => handleViewVoucher(v)}
+                              title="Print Voucher Sheet"
+                            >
+                              🖨️
+                            </button>
+
+                            {isAdmin && v.status === 'Pending' && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn-approve"
+                                  onClick={() => handleApprovePv(v._id || v.voucherNo)}
+                                  title="Approve Voucher"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-reject"
+                                  onClick={() => handleRejectPv(v._id || v.voucherNo)}
+                                  title="Reject Voucher"
+                                >
+                                  ✕
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB 2: PETTY CASH TABLE
+            ========================================================================= */}
         {activeTab === 'petty-cash' && (
           <div className="approvement-table-card">
             <table className="appr-table">
@@ -555,7 +842,9 @@ function Approvement({ defaultSection }) {
           </div>
         )}
 
-        {/* Tab 3: Leave Request Table */}
+        {/* =========================================================================
+            TAB 3: LEAVE REQUEST TABLE
+            ========================================================================= */}
         {activeTab === 'leave-request' && (
           <div className="approvement-table-card">
             <table className="appr-table">
@@ -654,17 +943,41 @@ function Approvement({ defaultSection }) {
         )}
       </main>
 
-      {/* Modal Dialogs */}
+      {/* =========================================================================
+          MODAL 1: NEW PAYMENT VOUCHER CREATION MODAL
+          ========================================================================= */}
+      <PaymentVoucherCreateModal
+        isOpen={isCreatePvOpen}
+        onClose={() => setIsCreatePvOpen(false)}
+        onSuccess={handleCreatePvSubmit}
+        currentUser={currentUser}
+      />
+
+      {/* =========================================================================
+          MODAL 2: VOUCHER DETAILS & ATTACHMENT VIEWER / ADMIN APPROVER
+          ========================================================================= */}
+      <VoucherDetailsModal
+        isOpen={isViewerOpen}
+        onClose={() => {
+          setIsViewerOpen(false);
+          setSelectedVoucher(null);
+        }}
+        voucher={selectedVoucher}
+        isAdmin={isAdmin}
+        onApprove={handleApprovePv}
+        onReject={handleRejectPv}
+        isProcessing={isProcessingApproval}
+      />
+
+      {/* =========================================================================
+          MODALS FOR PETTY CASH & LEAVE REQUEST
+          ========================================================================= */}
       {isModalOpen && (
         <div className="appr-modal-overlay" onClick={() => !isSubmitting && setIsModalOpen(false)}>
           <div className="appr-modal-window" onClick={(e) => e.stopPropagation()}>
             <div className="appr-modal-header">
               <h2>
-                {activeTab === 'payment-voucher'
-                  ? 'New Payment Voucher'
-                  : activeTab === 'petty-cash'
-                  ? 'New Petty Cash Request'
-                  : 'New Leave Request'}
+                {activeTab === 'petty-cash' ? 'New Petty Cash Request' : 'New Leave Request'}
               </h2>
               <button
                 type="button"
@@ -676,18 +989,18 @@ function Approvement({ defaultSection }) {
               </button>
             </div>
 
-            {/* Payment Voucher Modal Form */}
-            {activeTab === 'payment-voucher' && (
-              <form onSubmit={handleSubmitPv}>
+            {/* Petty Cash Form */}
+            {activeTab === 'petty-cash' && (
+              <form onSubmit={handleSubmitPc}>
                 <div className="appr-modal-body">
                   <div className="appr-form-field">
-                    <label>Payee / Vendor Name *</label>
+                    <label>Requested By (Employee Name) *</label>
                     <input
                       type="text"
                       className="appr-input"
-                      placeholder="e.g. Toyota Lanka (Pvt) Ltd"
-                      value={pvForm.payeeName}
-                      onChange={(e) => setPvForm({ ...pvForm, payeeName: e.target.value })}
+                      placeholder="e.g. Sunil Shantha"
+                      value={pcForm.requestedBy}
+                      onChange={(e) => setPcForm({ ...pcForm, requestedBy: e.target.value })}
                       required
                       autoFocus
                     />
@@ -699,92 +1012,7 @@ function Approvement({ defaultSection }) {
                       <input
                         type="number"
                         className="appr-input"
-                        placeholder="e.g. 50000"
-                        value={pvForm.amount}
-                        onChange={(e) => setPvForm({ ...pvForm, amount: e.target.value })}
-                        required
-                      />
-                    </div>
-
-                    <div className="appr-form-field">
-                      <label>Payment Method</label>
-                      <select
-                        className="appr-input"
-                        value={pvForm.paymentMethod}
-                        onChange={(e) => setPvForm({ ...pvForm, paymentMethod: e.target.value })}
-                      >
-                        <option value="Bank Transfer">Bank Transfer</option>
-                        <option value="Cheque">Cheque</option>
-                        <option value="Cash">Cash</option>
-                        <option value="Credit Card">Credit Card</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="appr-form-field">
-                    <label>Description / Invoice Reference</label>
-                    <textarea
-                      className="appr-input"
-                      rows="2"
-                      placeholder="e.g. Settlement for GRN-9981 spare parts invoice"
-                      value={pvForm.description}
-                      onChange={(e) => setPvForm({ ...pvForm, description: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="appr-modal-footer">
-                  <button
-                    type="button"
-                    className="modal-btn secondary"
-                    onClick={() => setIsModalOpen(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="modal-btn primary" disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving...' : 'Submit Payment Voucher'}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Petty Cash Modal Form */}
-            {activeTab === 'petty-cash' && (
-              <form onSubmit={handleSubmitPc}>
-                <div className="appr-modal-body">
-                  <div className="appr-form-row">
-                    <div className="appr-form-field">
-                      <label>Requested By *</label>
-                      <input
-                        type="text"
-                        className="appr-input"
-                        placeholder="Staff member name"
-                        value={pcForm.requestedBy}
-                        onChange={(e) => setPcForm({ ...pcForm, requestedBy: e.target.value })}
-                        required
-                        autoFocus
-                      />
-                    </div>
-
-                    <div className="appr-form-field">
-                      <label>Department</label>
-                      <input
-                        type="text"
-                        className="appr-input"
-                        placeholder="e.g. Cashier Counter"
-                        value={pcForm.department}
-                        onChange={(e) => setPcForm({ ...pcForm, department: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="appr-form-row">
-                    <div className="appr-form-field">
-                      <label>Amount (LKR) *</label>
-                      <input
-                        type="number"
-                        className="appr-input"
-                        placeholder="e.g. 3500"
+                        placeholder="e.g. 5000"
                         value={pcForm.amount}
                         onChange={(e) => setPcForm({ ...pcForm, amount: e.target.value })}
                         required
@@ -792,28 +1020,41 @@ function Approvement({ defaultSection }) {
                     </div>
 
                     <div className="appr-form-field">
-                      <label>Expense Category</label>
+                      <label>Department</label>
                       <select
                         className="appr-input"
-                        value={pcForm.category}
-                        onChange={(e) => setPcForm({ ...pcForm, category: e.target.value })}
+                        value={pcForm.department}
+                        onChange={(e) => setPcForm({ ...pcForm, department: e.target.value })}
                       >
-                        <option value="Office Supplies">Office Supplies</option>
-                        <option value="Staff Refreshments">Staff Refreshments</option>
-                        <option value="Transport & Fuel">Transport & Fuel</option>
-                        <option value="Minor Repairs">Minor Repairs</option>
-                        <option value="Postage & Delivery">Postage & Delivery</option>
-                        <option value="Miscellaneous">Miscellaneous</option>
+                        <option value="POS Cashier Counter">POS Cashier Counter</option>
+                        <option value="Workshop">Workshop</option>
+                        <option value="Spare Parts Warehouse">Spare Parts Warehouse</option>
+                        <option value="Administration">Administration</option>
                       </select>
                     </div>
                   </div>
 
                   <div className="appr-form-field">
-                    <label>Purpose / Expenditure Details *</label>
+                    <label>Category</label>
+                    <select
+                      className="appr-input"
+                      value={pcForm.category}
+                      onChange={(e) => setPcForm({ ...pcForm, category: e.target.value })}
+                    >
+                      <option value="Office Supplies">Office Supplies &amp; Thermal Paper</option>
+                      <option value="Staff Refreshments">Staff Refreshments &amp; Tea</option>
+                      <option value="Workshop Consumables">Workshop Consumables</option>
+                      <option value="Courier / Transport">Courier &amp; Transport</option>
+                      <option value="Store Maintenance">Store Maintenance</option>
+                    </select>
+                  </div>
+
+                  <div className="appr-form-field">
+                    <label>Purpose / Description *</label>
                     <textarea
                       className="appr-input"
                       rows="2"
-                      placeholder="State exact purpose of expense..."
+                      placeholder="e.g. 20 rolls of thermal receipt paper and invoice files"
                       value={pcForm.purpose}
                       onChange={(e) => setPcForm({ ...pcForm, purpose: e.target.value })}
                       required
@@ -836,24 +1077,24 @@ function Approvement({ defaultSection }) {
               </form>
             )}
 
-            {/* Leave Request Modal Form */}
+            {/* Leave Request Form */}
             {activeTab === 'leave-request' && (
               <form onSubmit={handleSubmitLr}>
                 <div className="appr-modal-body">
-                  <div className="appr-form-row">
-                    <div className="appr-form-field">
-                      <label>Employee Name *</label>
-                      <input
-                        type="text"
-                        className="appr-input"
-                        placeholder="Staff full name"
-                        value={lrForm.employeeName}
-                        onChange={(e) => setLrForm({ ...lrForm, employeeName: e.target.value })}
-                        required
-                        autoFocus
-                      />
-                    </div>
+                  <div className="appr-form-field">
+                    <label>Employee Name *</label>
+                    <input
+                      type="text"
+                      className="appr-input"
+                      placeholder="e.g. Kasun Silva"
+                      value={lrForm.employeeName}
+                      onChange={(e) => setLrForm({ ...lrForm, employeeName: e.target.value })}
+                      required
+                      autoFocus
+                    />
+                  </div>
 
+                  <div className="appr-form-row">
                     <div className="appr-form-field">
                       <label>Leave Type</label>
                       <select
@@ -864,8 +1105,21 @@ function Approvement({ defaultSection }) {
                         <option value="Annual">Annual Leave</option>
                         <option value="Casual">Casual Leave</option>
                         <option value="Medical">Medical Leave</option>
-                        <option value="Half-Day">Half-Day Leave</option>
+                        <option value="Half-Day">Half-Day</option>
                       </select>
+                    </div>
+
+                    <div className="appr-form-field">
+                      <label>Number of Days</label>
+                      <input
+                        type="number"
+                        className="appr-input"
+                        min="0.5"
+                        step="0.5"
+                        value={lrForm.numberOfDays}
+                        onChange={(e) => setLrForm({ ...lrForm, numberOfDays: e.target.value })}
+                        required
+                      />
                     </div>
                   </div>
 
@@ -893,27 +1147,12 @@ function Approvement({ defaultSection }) {
                     </div>
                   </div>
 
-                  <div className="appr-form-row">
-                    <div className="appr-form-field">
-                      <label>Number of Days</label>
-                      <input
-                        type="number"
-                        className="appr-input"
-                        min="0.5"
-                        step="0.5"
-                        value={lrForm.numberOfDays}
-                        onChange={(e) => setLrForm({ ...lrForm, numberOfDays: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
                   <div className="appr-form-field">
                     <label>Reason for Leave *</label>
                     <textarea
                       className="appr-input"
                       rows="2"
-                      placeholder="Briefly state reason..."
+                      placeholder="e.g. Family commitment / personal travel"
                       value={lrForm.reason}
                       onChange={(e) => setLrForm({ ...lrForm, reason: e.target.value })}
                       required
@@ -930,19 +1169,12 @@ function Approvement({ defaultSection }) {
                     Cancel
                   </button>
                   <button type="submit" className="modal-btn primary" disabled={isSubmitting}>
-                    {isSubmitting ? 'Submitting...' : 'Submit Leave Request'}
+                    {isSubmitting ? 'Saving...' : 'Submit Leave Request'}
                   </button>
                 </div>
               </form>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Toast Notification */}
-      {notification && (
-        <div className={`toast-notification ${notification.type}`}>
-          {notification.message}
         </div>
       )}
     </div>

@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
  * - Leave Request
  */
 function ApprovementDropdown({ onItemClick, activePath = '' }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
 
   const approvementItems = [
     {
@@ -32,6 +32,17 @@ function ApprovementDropdown({ onItemClick, activePath = '' }) {
       permitted: hasPermission('leave-request'),
       badge: 'HR',
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'receive-inbox',
+            label: '📥 Receive Inbox',
+            path: '/receive-inbox',
+            permitted: true,
+            badge: 'Admin',
+          },
+        ]
+      : []),
   ];
 
   const visibleItems = approvementItems.filter((item) => item.permitted);
