@@ -586,7 +586,7 @@ function Approvement({ defaultSection }) {
                 onClick={() => setIsCreatePcOpen(true)}
               >
                 <span>+</span>
-                <span>New Reimbursement Form</span>
+                <span>Add Petty Cash Expense</span>
               </button>
             )}
 

@@ -254,10 +254,20 @@ function ExpensesReimbursementSheet({ voucher, onPrint }) {
         {/* Three Dotted Notes Lines Below Table */}
         <div className="erf-notes-block">
           <div className="erf-dotted-line-row">
-            {notes && <span className="erf-notes-text">{notes}</span>}
+            {((notes || '').split('\n')[0] || (notes || '')) && (
+              <span className="erf-notes-text">{(notes || '').split('\n')[0] || notes}</span>
+            )}
           </div>
-          <div className="erf-dotted-line-row"></div>
-          <div className="erf-dotted-line-row"></div>
+          <div className="erf-dotted-line-row">
+            {(notes || '').split('\n')[1] && (
+              <span className="erf-notes-text">{(notes || '').split('\n')[1]}</span>
+            )}
+          </div>
+          <div className="erf-dotted-line-row">
+            {(notes || '').split('\n')[2] && (
+              <span className="erf-notes-text">{(notes || '').split('\n')[2]}</span>
+            )}
+          </div>
         </div>
 
         {/* Signatures Block: Requested by / Checked by / Approved by */}

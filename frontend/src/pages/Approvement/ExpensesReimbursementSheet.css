@@ -1,7 +1,11 @@
 /* ==========================================================================
    SOFAST MOTORS - Expenses Reimbursement Form Sheet CSS
    Exact replica of physical paper sheet from Page 1 of the PDF
+   Supports both View Mode and Interactive Multiple Expenses Create Mode
    ========================================================================== */
+
+/* Google handwriting font fallback for authentic signature */
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&display=swap');
 
 .erf-sheet-wrapper {
   display: flex;
@@ -10,7 +14,7 @@
   width: 100%;
 }
 
-/* Action Strip above sheet (no-print) */
+/* Action Strip above sheet in Details Modal (no-print) */
 .erf-sheet-actions {
   display: flex;
   align-items: center;
@@ -23,12 +27,14 @@
   padding: 10px 16px;
   margin-bottom: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
 }
 
 .erf-status-strip {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .erf-strip-label {
@@ -97,7 +103,7 @@
 }
 
 /* ==========================================================================
-   The Physical Paper Document
+   The Physical Paper Document Container
    ========================================================================== */
 .erf-paper-container {
   width: 100%;
@@ -105,12 +111,13 @@
   background: #ffffff;
   color: #000000;
   border: 1px solid #cbd5e1;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
   border-radius: 4px;
-  padding: 32px 36px 28px 36px;
+  padding: 36px 42px 32px 42px;
   box-sizing: border-box;
   font-family: 'Arial', 'Helvetica', sans-serif;
   position: relative;
+  margin: 0 auto;
 }
 
 /* Header Area */
@@ -119,13 +126,13 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-/* Scalloped badge with dots */
+/* Scalloped beaded badge */
 .erf-logo-badge {
-  width: 135px;
-  height: 60px;
+  width: 140px;
+  height: 64px;
   margin-bottom: 2px;
 }
 
@@ -137,7 +144,7 @@
 
 .erf-company-sub {
   font-family: 'Arial Black', Impact, sans-serif;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 2px;
   color: #000000;
@@ -161,9 +168,10 @@
   letter-spacing: 0.2px;
   margin-top: 2px;
   margin-bottom: 12px;
+  word-spacing: 1px;
 }
 
-/* Bordered Title Box */
+/* Bordered Title Box matching PDF */
 .erf-title-box {
   display: inline-block;
   border: 2px solid #000000;
@@ -174,28 +182,48 @@
 
 .erf-title-text {
   margin: 0;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 900;
   letter-spacing: 1.5px;
-  font-family: 'Arial Black', Impact, sans-serif;
+  font-family: 'Times New Roman', Times, Georgia, serif;
   color: #000000;
   text-align: center;
+  text-transform: uppercase;
 }
 
-/* Fields with Dotted Lines */
+/* ==========================================================================
+   Header Fields with Dotted Lines Matching PDF
+   ========================================================================== */
 .erf-fields-block {
   width: 100%;
   margin-bottom: 16px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
 }
 
 .erf-field-row {
   display: flex;
   align-items: flex-end;
-  width: 100%;
   position: relative;
+}
+
+.erf-field-row.name-row {
+  width: 100%;
+}
+
+.erf-field-row.date-row {
+  width: 55%;
+  max-width: 360px;
+}
+
+.erf-field-row.subject-row {
+  width: 100%;
+}
+
+.erf-field-row.reimb-date-row {
+  width: 65%;
+  max-width: 440px;
 }
 
 .erf-field-label {
@@ -225,18 +253,18 @@
 }
 
 .erf-field-value {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 14px;
+  font-family: 'Arial', sans-serif;
+  font-size: 13.5px;
   font-weight: 700;
   color: #0f172a;
-  letter-spacing: 0.5px;
-  padding-left: 6px;
+  letter-spacing: 0.2px;
+  padding-left: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Specific Label Widths for alignment */
+/* Specific Label Widths for authentic alignment */
 .erf-field-row.name-row .erf-field-label {
   min-width: 65px;
 }
@@ -247,7 +275,33 @@
   min-width: 65px;
 }
 .erf-field-row.reimb-date-row .erf-field-label {
-  min-width: 170px;
+  min-width: 165px;
+}
+
+/* Editable inputs directly on dotted lines */
+.erf-dotted-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font-family: 'Arial', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  outline: none;
+  padding: 0 4px 1px 4px;
+  box-sizing: border-box;
+}
+
+.erf-dotted-input:focus {
+  background: rgba(37, 99, 235, 0.06);
+  border-radius: 2px;
+}
+
+.erf-dotted-input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+  font-style: italic;
+  font-size: 12.5px;
 }
 
 /* ==========================================================================
@@ -261,7 +315,7 @@
 .erf-table {
   width: 100%;
   border-collapse: collapse;
-  border: 2px solid #000000;
+  border: 2.5px solid #000000;
   font-size: 13px;
 }
 
@@ -286,7 +340,7 @@
 
 .erf-table td {
   border: 1.5px solid #000000;
-  padding: 8px 12px;
+  padding: 7px 10px;
   vertical-align: middle;
 }
 
@@ -299,20 +353,110 @@
 
 .erf-table td.col-amount {
   text-align: right;
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 14px;
+  font-family: 'Arial', sans-serif;
+  font-size: 13.5px;
   font-weight: 700;
-  padding-right: 16px;
+  padding-right: 14px;
 }
 
 .erf-table tr.empty-row td {
   height: 28px;
 }
 
+/* Editable Table Inputs for Multiple Expenses */
+.erf-editable-row td.col-desc {
+  padding: 3px 6px;
+}
+
+.erf-editable-row td.col-amount {
+  padding: 3px 6px;
+}
+
+.erf-table-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-family: 'Arial', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 5px 8px;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.15s;
+}
+
+.erf-table-input:focus {
+  background: #ffffff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.erf-table-input.amount {
+  text-align: right;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.erf-amount-cell-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.erf-row-delete-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 3px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.erf-row-delete-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Button to Add More Expense Lines */
+.erf-add-line-row-wrap {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.erf-add-line-btn {
+  background: #f8fafc;
+  border: 1.5px dashed #2563eb;
+  color: #1d4ed8;
+  padding: 6px 14px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.erf-add-line-btn:hover {
+  background: #eff6ff;
+  border-color: #1e40af;
+  color: #1e40af;
+  transform: translateY(-1px);
+}
+
 /* Total Row */
 .erf-table tr.total-row td {
-  border-top: 2px solid #000000;
-  border-bottom: 2px solid #000000;
+  border-top: 2.5px solid #000000;
+  border-bottom: 2.5px solid #000000;
   font-weight: 900;
   font-size: 16px;
   padding: 8px 12px;
@@ -326,9 +470,10 @@
 
 .erf-table tr.total-row td.total-value {
   text-align: right;
-  padding-right: 16px;
-  font-family: 'Courier New', Courier, monospace;
+  padding-right: 14px;
+  font-family: 'Arial', sans-serif;
   font-size: 16px;
+  color: #000000;
 }
 
 /* ==========================================================================
@@ -336,7 +481,7 @@
    ========================================================================== */
 .erf-notes-block {
   width: 100%;
-  margin: 16px 0 28px 0;
+  margin: 16px 0 24px 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -352,12 +497,37 @@
 }
 
 .erf-notes-text {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'Arial', sans-serif;
   font-size: 13px;
   font-weight: 600;
   color: #1e293b;
   padding-left: 4px;
   padding-bottom: 2px;
+}
+
+.erf-notes-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font-family: 'Arial', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  outline: none;
+  padding: 0 4px 2px 4px;
+  box-sizing: border-box;
+}
+
+.erf-notes-input:focus {
+  background: rgba(37, 99, 235, 0.05);
+  border-radius: 2px;
+}
+
+.erf-notes-input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+  font-style: italic;
+  font-size: 12px;
 }
 
 /* ==========================================================================
@@ -392,7 +562,7 @@
 
 .erf-sig-handwriting {
   font-family: 'Caveat', 'Segoe Script', cursive, sans-serif;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   color: #1e3a8a;
   transform: rotate(-3deg);
@@ -413,8 +583,8 @@
 }
 
 .erf-sig-label {
-  font-weight: 800;
-  font-size: 13px;
+  font-weight: 900;
+  font-size: 13.5px;
   color: #000000;
   font-family: 'Arial', sans-serif;
 }
@@ -424,8 +594,8 @@
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  margin-top: 24px;
-  padding-top: 8px;
+  margin-top: 22px;
+  padding-top: 6px;
 }
 
 .erf-scanner-text {
@@ -445,6 +615,340 @@
   border-radius: 2px;
   font-size: 9px;
   font-weight: 900;
+}
+
+/* ==========================================================================
+   Create Modal Office Backdrop & Controls (no-print)
+   ========================================================================== */
+.erf-create-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px 40px 16px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.erf-create-modal-window {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  margin: auto;
+  padding-bottom: 70px;
+}
+
+/* Top Toolbar above paper sheet */
+.erf-modal-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.erf-top-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.erf-top-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: 0.3px;
+}
+
+.erf-fund-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.erf-fund-pill.healthy {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.erf-fund-pill.warning {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.erf-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.erf-top-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+}
+
+.erf-top-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.erf-top-close-btn {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.erf-top-close-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+/* Quick Presets Bar */
+.erf-presets-strip {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.erf-presets-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.erf-preset-chip {
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.erf-preset-chip:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+/* Receipts / Attachments Panel */
+.erf-attachments-panel {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 14px 18px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.erf-att-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.erf-att-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.erf-att-quick-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.erf-att-sample-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.erf-att-sample-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.erf-att-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.erf-att-item-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  color: #1e293b;
+}
+
+.erf-att-del-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 0 2px;
+}
+
+/* Sticky Modal Footer Action Bar */
+.erf-modal-sticky-footer {
+  position: sticky;
+  bottom: 0;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 12px 18px;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  z-index: 100;
+}
+
+.erf-footer-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #ffffff;
+}
+
+.erf-summary-count {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.erf-summary-total {
+  font-size: 17px;
+  font-weight: 900;
+  color: #4ade80;
+  letter-spacing: 0.3px;
+}
+
+.erf-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.erf-btn-cancel {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f1f5f9;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.erf-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.erf-btn-submit {
+  background: #15803d;
+  border: 1px solid #16a34a;
+  color: #ffffff;
+  padding: 8px 22px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(21, 128, 61, 0.4);
+}
+
+.erf-btn-submit:hover:not(:disabled) {
+  background: #16a34a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.5);
+}
+
+.erf-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.erf-val-alert {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #f87171;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
 }
 
 /* ==========================================================================
@@ -468,7 +972,7 @@
     top: 0;
     width: 100% !important;
     max-width: 100% !important;
-    padding: 15mm !important;
+    padding: 12mm 15mm !important;
     margin: 0 !important;
     border: none !important;
     box-shadow: none !important;
