@@ -15,6 +15,7 @@ import RemainingBalance from './pages/RemainingBalance/RemainingBalance';
 import Damage from './pages/Damage/Damage';
 import GoodReturnNote from './pages/GoodReturnNote/GoodReturnNote';
 import PrinterSetup from './pages/PrinterSetup/PrinterSetup';
+import NewUser from './pages/NewUser/NewUser';
 import ReportsPlaceholder from './components/ReportsPlaceholder';
 
 
@@ -103,6 +104,12 @@ function App() {
       <Route path="/printer-setup" element={<PrinterSetup />} />
       <Route path="/administration/printer-setup" element={<PrinterSetup />} />
       <Route path="/admin/printer-setup" element={<PrinterSetup />} />
+
+      <Route path="/new-user" element={<NewUser />} />
+      <Route path="/administration/new-user" element={<NewUser />} />
+      <Route path="/admin/new-user" element={<NewUser />} />
+      <Route path="/user-management" element={<NewUser />} />
+
       <Route path="/reports" element={<ReportsPlaceholder />} />
       <Route path="*" element={<Navigate to="/management" replace />} />
     </Routes>

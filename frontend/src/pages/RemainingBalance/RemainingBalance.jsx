@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './RemainingBalance.css';
 
 /**
@@ -12,6 +13,7 @@ import './RemainingBalance.css';
 function RemainingBalance() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin } = useAuth();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -64,6 +66,7 @@ function RemainingBalance() {
 
   const administrationDropdownItems = [
     { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
+    ...(isAdmin ? [{ id: 'new-user', label: 'New User', path: '/new-user' }] : []),
   ];
 
   // Close dropdown on outside click
