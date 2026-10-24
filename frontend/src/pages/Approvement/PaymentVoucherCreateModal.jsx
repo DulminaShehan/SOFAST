@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { numberToWords } from '../../utils/numberToWords';
 import { SAMPLE_ATTACHMENTS } from './sampleAttachments';
+import './PaymentVoucherSheet.css';
 import './PaymentVoucherModal.css';
 
 /**
  * PaymentVoucherCreateModal
- * Allows normal users (and admin) to create and submit a new Payment Voucher
- * matching the exact structure of Page 1 of the PDF, and attach multiple
- * expense bills/receipts (like Pages 2-4: CEB electricity bill, SLT mobitel bill, Dialog SMS).
+ * Rendered directly as the physical paper Payment Voucher bill from Page 1 of the PDF.
+ * Users fill in the voucher directly on the dotted lines and ledger table cells.
+ * Attached bills (Pages 2-4: CEB, SLT, SMS photo, etc.) are stapled below the bill.
  */
 function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) {
   if (!isOpen) return null;
@@ -33,18 +34,17 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
     { particulars: '', account: '', amountRs: '', amountCts: '00', totalLineAmount: 0 },
   ]);
 
-  // Attachments State
+  // Attachments State (Pages 2-4 bills)
   const [attachments, setAttachments] = useState([]);
-  const [previewMedia, setPreviewMedia] = useState(null); // Lightbox preview
+  const [previewMedia, setPreviewMedia] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Handle item line change
+  // Handle line item edit
   const handleItemChange = (index, field, value) => {
     const updated = [...items];
     updated[index][field] = value;
 
-    // Recalculate line total
     const rs = Number(updated[index].amountRs) || 0;
     const cts = Number(updated[index].amountCts) || 0;
     updated[index].totalLineAmount = rs + cts / 100;
@@ -52,7 +52,7 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
     setItems(updated);
   };
 
-  // Add new item row
+  // Add line item
   const handleAddItem = () => {
     setItems([
       ...items,
@@ -60,23 +60,26 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
     ]);
   };
 
-  // Remove item row
+  // Remove line item
   const handleRemoveItem = (index) => {
     if (items.length <= 1) return;
     setItems(items.filter((_, i) => i !== index));
   };
 
-  // Total calculation
+  // Calculate totals
   const totalAmount = items.reduce((sum, item) => {
     const rs = Number(item.amountRs) || 0;
     const cts = Number(item.amountCts) || 0;
     return sum + rs + cts / 100;
   }, 0);
 
+  const totalRs = Math.floor(totalAmount);
+  const totalCts = Math.round((totalAmount - totalRs) * 100);
+
   // Auto-calculated amount in words
   const amountInWords = numberToWords(totalAmount);
 
-  // Helper to load sample items matching Page 1 of the PDF
+  // Load exact Page 1 PDF sample data
   const handleLoadPdfSample = () => {
     setPayeeName('P.H.A. Prashan');
     setPayeeNote('(Monthly Ex - Oct 26)');
@@ -94,18 +97,17 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
       { particulars: '074-0895088', account: 'Dialog Mobile Bill', amountRs: 930, amountCts: '00', totalLineAmount: 930 },
     ]);
 
-    // Attach sample bills from Pages 2-4 if none yet
+    // Attach sample bills from Pages 2-4
     if (attachments.length === 0) {
       setAttachments([...SAMPLE_ATTACHMENTS]);
     }
   };
 
-  // Attach sample bills button
   const handleLoadSampleBills = () => {
     setAttachments([...SAMPLE_ATTACHMENTS]);
   };
 
-  // File Upload Handler (Base64 conversion)
+  // Handle file uploads
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -131,26 +133,25 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
       reader.readAsDataURL(file);
     });
 
-    e.target.value = null; // Reset input
+    e.target.value = null;
   };
 
-  // Remove attachment
   const handleRemoveAttachment = (index) => {
     setAttachments(attachments.filter((_, i) => i !== index));
   };
 
-  // Form submission
+  // Submit Handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
     if (!payeeName.trim()) {
-      setErrorMsg('Please enter Payee Name.');
+      setErrorMsg('Please enter Payee Name on the voucher.');
       return;
     }
 
     if (totalAmount <= 0) {
-      setErrorMsg('Please enter at least one line item with a valid amount.');
+      setErrorMsg('Please enter at least one line item with an amount.');
       return;
     }
 
@@ -187,14 +188,18 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
     }
   };
 
+  // Minimum rows for authentic bill sheet look
+  const minRows = 6;
+  const emptyRowsCount = Math.max(0, minRows - items.length);
+
   return (
     <div className="pv-modal-overlay" onClick={() => !isSubmitting && onClose()}>
-      <div className="pv-modal-window large" onClick={(e) => e.stopPropagation()}>
-        {/* Modal Header */}
-        <div className="pv-modal-header">
-          <div className="pv-modal-header-titles">
-            <h2>💳 Create Payment Voucher &amp; Upload Expense Bills</h2>
-            <p>Structure replicates Page 1 of PDF &bull; Attach multiple expense bills (Pages 2-4)</p>
+      <div className="pv-modal-window bill-creator-window" onClick={(e) => e.stopPropagation()}>
+        {/* Top Control Bar */}
+        <div className="pv-bill-modal-topbar">
+          <div className="pv-topbar-info">
+            <span className="pv-topbar-badge">NEW PAYMENT VOUCHER</span>
+            <span className="pv-topbar-desc">Fill directly on the official bill sheet &bull; Replicating Page 1 of PDF</span>
           </div>
           <div className="pv-modal-header-actions">
             <button
@@ -216,175 +221,223 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
           </div>
         </div>
 
-        {/* Modal Form */}
-        <form onSubmit={handleSubmit} className="pv-modal-form">
-          <div className="pv-modal-scrollable-body">
-            {errorMsg && <div className="pv-error-banner">⚠️ {errorMsg}</div>}
+        {/* Scrollable Container containing the Bill Paper Sheet */}
+        <div className="pv-bill-scrollable-container">
+          {errorMsg && <div className="pv-error-banner">⚠️ {errorMsg}</div>}
 
-            {/* Section 1: Header / Payee & Bank Info */}
-            <div className="pv-form-section">
-              <div className="pv-section-header">
-                <span className="pv-section-num">1</span>
-                <h3>Voucher Header &amp; Banking Details</h3>
-              </div>
-
-              <div className="pv-form-grid-3">
-                <div className="pv-input-group">
-                  <label>PAYEE NAME *</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="e.g. P.H.A. Prashan"
-                    value={payeeName}
-                    onChange={(e) => {
-                      setPayeeName(e.target.value);
-                      if (!receivedByName) setReceivedByName(e.target.value);
-                    }}
-                    required
-                    autoFocus
-                  />
+          <form onSubmit={handleSubmit} id="pv-bill-form">
+            {/* =========================================================================
+                THE EXACT PHYSICAL PAYMENT VOUCHER BILL SHEET (PAGE 1 OF PDF)
+                ========================================================================= */}
+            <div className="pv-paper-container interactive-bill-paper">
+              {/* Header: SOFAST MOTORS Emblem & Company Name */}
+              <div className="pv-header-grid">
+                <div className="pv-logo-badge">
+                  <svg viewBox="0 0 120 70" className="pv-badge-svg" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                      d="M10,25 C10,12 18,5 30,5 L90,5 C102,5 110,12 110,25 C110,35 115,40 115,45 C115,58 105,65 90,65 L30,65 C15,65 5,58 5,45 C5,40 10,35 10,25 Z"
+                      fill="none"
+                      stroke="#111827"
+                      strokeWidth="2.5"
+                    />
+                    <path
+                      d="M14,26 C14,15 21,9 32,9 L88,9 C99,9 106,15 106,26 C106,34 111,39 111,44 C111,54 102,61 88,61 L32,61 C18,61 9,54 9,44 C9,39 14,34 14,26 Z"
+                      fill="none"
+                      stroke="#111827"
+                      strokeWidth="1"
+                    />
+                    <text x="60" y="30" fontFamily="'Georgia', serif" fontSize="17" fontWeight="bold" textAnchor="middle" fill="#000000">
+                      SOFAST
+                    </text>
+                    <line x1="22" y1="36" x2="98" y2="36" stroke="#000000" strokeWidth="1.2" />
+                    <text x="60" y="52" fontFamily="'Arial Black', sans-serif" fontSize="13" fontWeight="900" textAnchor="middle" letterSpacing="1.5" fill="#000000">
+                      MOTORS
+                    </text>
+                  </svg>
                 </div>
 
-                <div className="pv-input-group">
-                  <label>PAYEE NOTE / PERIOD</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="e.g. (Monthly Ex - Oct 26)"
-                    value={payeeNote}
-                    onChange={(e) => setPayeeNote(e.target.value)}
-                  />
-                </div>
-
-                <div className="pv-input-group">
-                  <label>DATE (DD/MM/YYYY) *</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="04/05/2026"
-                    value={dateFormatted}
-                    onChange={(e) => setDateFormatted(e.target.value)}
-                    required
-                  />
+                <div className="pv-title-area">
+                  <h1 className="pv-company-name">Sofast (Private) Limited.</h1>
+                  <h2 className="pv-document-title">Payment Voucher</h2>
                 </div>
               </div>
 
-              <div className="pv-form-grid-3" style={{ marginTop: '12px' }}>
-                <div className="pv-input-group">
-                  <label>BANK</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="e.g. PEB / Commercial Bank"
-                    value={bank}
-                    onChange={(e) => setBank(e.target.value)}
-                  />
+              {/* Dotted Underline Fields: PAYEE, DATE, BANK, CHEQUE NO, BRANCH */}
+              <div className="pv-top-fields">
+                {/* Row 1: PAYEE & DATE */}
+                <div className="pv-field-row">
+                  <div className="pv-field-col payee-col">
+                    <span className="pv-field-label">PAYEE</span>
+                    <span className="pv-field-colon">:</span>
+                    <div className="pv-dotted-line-content edit-mode">
+                      <input
+                        type="text"
+                        className="pv-bill-dotted-input payee-name-input"
+                        placeholder="e.g. P.H.A. Prashan"
+                        value={payeeName}
+                        onChange={(e) => {
+                          setPayeeName(e.target.value);
+                          if (!receivedByName) setReceivedByName(e.target.value);
+                        }}
+                        required
+                        autoFocus
+                      />
+                      <input
+                        type="text"
+                        className="pv-bill-dotted-input payee-note-input"
+                        placeholder="(Monthly Ex - Oct 26)"
+                        value={payeeNote}
+                        onChange={(e) => setPayeeNote(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pv-field-col date-col">
+                    <span className="pv-field-label">DATE</span>
+                    <span className="pv-field-colon">:</span>
+                    <div className="pv-dotted-line-content edit-mode">
+                      <input
+                        type="text"
+                        className="pv-bill-dotted-input center"
+                        placeholder="04/05/2026"
+                        value={dateFormatted}
+                        onChange={(e) => setDateFormatted(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="pv-input-group">
-                  <label>BRANCH</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="e.g. Horana"
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
-                  />
+                {/* Row 2: BANK & CHEQUE NO */}
+                <div className="pv-field-row">
+                  <div className="pv-field-col bank-col">
+                    <span className="pv-field-label">BANK</span>
+                    <span className="pv-field-colon">:</span>
+                    <div className="pv-dotted-line-content edit-mode">
+                      <input
+                        type="text"
+                        className="pv-bill-dotted-input"
+                        placeholder="PEB"
+                        value={bank}
+                        onChange={(e) => setBank(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pv-field-col cheque-col">
+                    <span className="pv-field-label">CHEQUE NO</span>
+                    <span className="pv-field-colon">:</span>
+                    <div className="pv-dotted-line-content edit-mode">
+                      <input
+                        type="text"
+                        className="pv-bill-dotted-input center"
+                        placeholder="TFR."
+                        value={chequeNo}
+                        onChange={(e) => setChequeNo(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="pv-input-group">
-                  <label>CHEQUE NO / METHOD</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="e.g. TFR. / Cheque # 049811"
-                    value={chequeNo}
-                    onChange={(e) => setChequeNo(e.target.value)}
-                  />
+                {/* Row 3: BRANCH */}
+                <div className="pv-field-row">
+                  <div className="pv-field-col branch-col">
+                    <span className="pv-field-label">BRANCH</span>
+                    <span className="pv-field-colon">:</span>
+                    <div className="pv-dotted-line-content edit-mode" style={{ maxWidth: '320px' }}>
+                      <input
+                        type="text"
+                        className="pv-bill-dotted-input"
+                        placeholder="Horana"
+                        value={branch}
+                        onChange={(e) => setBranch(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Section 2: Table of Particulars (Line Items) */}
-            <div className="pv-form-section">
-              <div className="pv-section-header between">
-                <div className="pv-section-title-wrap">
-                  <span className="pv-section-num">2</span>
-                  <h3>Particulars &amp; Expense Line Items</h3>
-                </div>
-                <button
-                  type="button"
-                  className="pv-add-row-btn"
-                  onClick={handleAddItem}
-                >
-                  + Add Expense Line
-                </button>
-              </div>
-
-              <div className="pv-items-table-container">
-                <table className="pv-edit-table">
+              {/* Bill Particulars & Amounts Table */}
+              <div className="pv-table-wrapper">
+                <table className="pv-table interactive-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '4%' }}>#</th>
-                      <th style={{ width: '48%' }}>PARTICULARS</th>
-                      <th style={{ width: '22%' }}>ACCOUNT / REF</th>
-                      <th style={{ width: '15%' }}>AMOUNT (Rs.)</th>
-                      <th style={{ width: '7%' }}>Cts</th>
-                      <th style={{ width: '4%' }}></th>
+                      <th className="pv-th-particulars">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px' }}>
+                          <span>PARTICULARS</span>
+                          <button
+                            type="button"
+                            className="pv-bill-add-row-action"
+                            onClick={handleAddItem}
+                            title="Add new expense row to voucher"
+                          >
+                            + Add Line
+                          </button>
+                        </div>
+                      </th>
+                      <th className="pv-th-account">ACCOUNT</th>
+                      <th className="pv-th-amount-wrapper" colSpan="2">
+                        <div className="pv-th-amount-top">AMOUNT</div>
+                        <div className="pv-th-amount-split">
+                          <span className="pv-sub-th-rs">Rs.</span>
+                          <span className="pv-sub-th-cts">Cts</span>
+                        </div>
+                      </th>
+                      <th className="pv-th-action-col no-print"></th>
                     </tr>
                   </thead>
                   <tbody>
+                    {/* User Editable Rows */}
                     {items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="pv-edit-td-num">{idx + 1}</td>
-                        <td>
+                      <tr key={idx} className="pv-row-data edit-row">
+                        <td className="pv-td-particulars edit-cell">
                           <input
                             type="text"
-                            className="pv-table-input"
+                            className="pv-bill-cell-input"
                             placeholder="e.g. Electricity Bill OCT-26"
                             value={item.particulars}
                             onChange={(e) => handleItemChange(idx, 'particulars', e.target.value)}
                             required
                           />
                         </td>
-                        <td>
+                        <td className="pv-td-account edit-cell">
                           <input
                             type="text"
-                            className="pv-table-input"
-                            placeholder="e.g. 4413433203"
+                            className="pv-bill-cell-input center"
+                            placeholder="4413433203"
                             value={item.account}
                             onChange={(e) => handleItemChange(idx, 'account', e.target.value)}
                           />
                         </td>
-                        <td>
+                        <td className="pv-td-rs edit-cell">
                           <input
                             type="number"
                             min="0"
                             step="1"
-                            className="pv-table-input right"
+                            className="pv-bill-cell-input right"
                             placeholder="14200"
                             value={item.amountRs}
                             onChange={(e) => handleItemChange(idx, 'amountRs', e.target.value)}
                             required
                           />
                         </td>
-                        <td>
+                        <td className="pv-td-cts edit-cell">
                           <input
                             type="text"
                             maxLength="2"
-                            className="pv-table-input center"
+                            className="pv-bill-cell-input center"
                             placeholder="00"
                             value={item.amountCts}
                             onChange={(e) => handleItemChange(idx, 'amountCts', e.target.value)}
                           />
                         </td>
-                        <td className="pv-edit-td-action">
+                        <td className="pv-td-action-col no-print">
                           {items.length > 1 && (
                             <button
                               type="button"
-                              className="pv-delete-row-btn"
+                              className="pv-bill-remove-row-btn"
                               onClick={() => handleRemoveItem(idx)}
-                              title="Delete row"
+                              title="Delete line"
                             >
                               ✕
                             </button>
@@ -392,72 +445,203 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                         </td>
                       </tr>
                     ))}
+
+                    {/* Classic Empty Rows with Z-stroke line & Circled Amount callout */}
+                    {Array.from({ length: emptyRowsCount }).map((_, idx) => (
+                      <tr key={`empty-${idx}`} className="pv-row-empty">
+                        <td className="pv-td-particulars empty-cell">
+                          {idx === 0 && (
+                            <div className="pv-callout-overlay">
+                              <div className="pv-circled-amount">
+                                <span>{totalRs.toLocaleString()}/=</span>
+                              </div>
+                              <svg className="pv-z-strike-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                <line x1="10" y1="10" x2="90" y2="10" stroke="#0f172a" strokeWidth="2.5" />
+                                <line x1="90" y1="10" x2="10" y2="90" stroke="#0f172a" strokeWidth="2.5" />
+                                <line x1="10" y1="90" x2="90" y2="90" stroke="#0f172a" strokeWidth="2.5" />
+                              </svg>
+                            </div>
+                          )}
+                        </td>
+                        <td className="pv-td-account empty-cell"></td>
+                        <td className="pv-td-rs empty-cell"></td>
+                        <td className="pv-td-cts empty-cell"></td>
+                        <td className="no-print"></td>
+                      </tr>
+                    ))}
                   </tbody>
                   <tfoot>
-                    <tr className="pv-edit-total-row">
-                      <td colSpan="3" style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                        TOTAL AMOUNT (LKR):
+                    <tr className="pv-total-row">
+                      <td className="pv-td-total-label" colSpan="2">
+                        <span className="pv-total-text">TOTAL</span>
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: '900', color: '#1e3a8a', fontSize: '15px' }}>
-                        Rs. {Math.floor(totalAmount).toLocaleString()}
+                      <td className="pv-td-rs pv-total-val">
+                        <span className="pv-handwriting-cell bold">{totalRs.toLocaleString()}</span>
                       </td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                        {String(Math.round((totalAmount - Math.floor(totalAmount)) * 100)).padStart(2, '0')}
+                      <td className="pv-td-cts pv-total-val">
+                        <span className="pv-handwriting-cell bold">{String(totalCts).padStart(2, '0')}</span>
                       </td>
-                      <td></td>
+                      <td className="no-print"></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
 
-              {/* Rupees In Words display */}
-              <div className="pv-words-display-box">
-                <span className="pv-words-label">Rupees:</span>
-                <span className="pv-words-value">{amountInWords}</span>
+              {/* Rupees In Words Line */}
+              <div className="pv-rupees-section">
+                <div className="pv-rupees-row">
+                  <span className="pv-rupees-label">Rupees</span>
+                  <div className="pv-rupees-content">
+                    <span className="pv-handwriting rupees-text">{amountInWords}</span>
+                  </div>
+                </div>
+                <div className="pv-rupees-dotted-blank"></div>
               </div>
-            </div>
 
-            {/* Section 3: Supporting Bills & Attachments (Pages 2-4) */}
-            <div className="pv-form-section">
-              <div className="pv-section-header between">
-                <div className="pv-section-title-wrap">
-                  <span className="pv-section-num">3</span>
-                  <div>
-                    <h3>Supporting Expense Bills &amp; Receipts Upload</h3>
-                    <p className="pv-sub-desc">
-                      Upload receipts or invoices (e.g. CEB Electricity bill, SLT Telecom, Dialog SMS screenshot)
-                    </p>
+              {/* Signatures & Authorizations Grid */}
+              <div className="pv-signatures-grid">
+                {/* Prepared By & Checked By */}
+                <div className="pv-sig-row-top">
+                  <div className="pv-sig-col">
+                    <div className="pv-sig-handwriting-box">
+                      <span className="pv-sig-signature-mock">{currentUser?.username || 'Prepared'}</span>
+                    </div>
+                    <div className="pv-sig-line"></div>
+                    <span className="pv-sig-role">Prepared By</span>
+                  </div>
+
+                  <div className="pv-sig-col">
+                    <div className="pv-sig-handwriting-box">
+                      <span className="pv-sig-signature-mock faint">Accountant</span>
+                    </div>
+                    <div className="pv-sig-line"></div>
+                    <span className="pv-sig-role">Checked By</span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="pv-sample-bills-btn"
-                  onClick={handleLoadSampleBills}
-                >
-                  ⚡ Attach Demo Bills (Pages 2-4)
-                </button>
+                {/* Approved By Row */}
+                <div className="pv-approved-row">
+                  <div className="pv-approved-col">
+                    <span className="pv-approved-label">Approved By :</span>
+                    <div className="pv-approved-stamp-area">
+                      <span className="pv-approved-dotted-line">
+                        <span className="pv-awaiting-txt">(Pending Admin Inbox Review)</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Received By Section */}
+                <div className="pv-received-by-section">
+                  <div className="pv-received-title">Received By</div>
+
+                  <div className="pv-received-fields-grid">
+                    {/* Name & Date */}
+                    <div className="pv-received-left-col">
+                      <div className="pv-rec-field">
+                        <div className="pv-dotted-line-rec edit-mode">
+                          <input
+                            type="text"
+                            className="pv-bill-dotted-input center"
+                            placeholder="Recipient Name"
+                            value={receivedByName}
+                            onChange={(e) => setReceivedByName(e.target.value)}
+                          />
+                        </div>
+                        <span className="pv-rec-label">Name</span>
+                      </div>
+
+                      <div className="pv-rec-field">
+                        <div className="pv-dotted-line-rec edit-mode">
+                          <input
+                            type="text"
+                            className="pv-bill-dotted-input center"
+                            placeholder="DD/MM/YYYY"
+                            value={dateFormatted}
+                            onChange={(e) => setDateFormatted(e.target.value)}
+                          />
+                        </div>
+                        <span className="pv-rec-label">Date</span>
+                      </div>
+                    </div>
+
+                    {/* ID number */}
+                    <div className="pv-received-mid-col">
+                      <span className="pv-rec-label-top">ID number</span>
+                      <input
+                        type="text"
+                        className="pv-bill-dotted-input center id-number-val-input"
+                        placeholder="1602"
+                        value={receivedByIdNumber}
+                        onChange={(e) => setReceivedByIdNumber(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Signature Box */}
+                    <div className="pv-received-right-col">
+                      <span className="pv-rec-label-top">Signature</span>
+                      <div className="pv-signature-box">
+                        <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
+                          Sign on Receipt
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Dropzone & Upload Button */}
-              <div className="pv-upload-dropzone">
-                <input
-                  type="file"
-                  id="pv-file-uploader"
-                  multiple
-                  accept="image/*,application/pdf"
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                />
-                <label htmlFor="pv-file-uploader" className="pv-upload-btn-label">
-                  <span className="pv-upload-icon">📁</span>
-                  <span className="pv-upload-txt">Choose Bill Photos / Invoices to Upload</span>
-                  <span className="pv-upload-sub">Supports PNG, JPG, JPEG, WEBP, and PDF</span>
-                </label>
+              {/* CamScanner Footer */}
+              <div className="pv-scanner-footer">
+                <div className="pv-footer-left">SOFAST MOTORS MANAGEMENT SYSTEM &bull; VOUCHER FORM</div>
+                <div className="pv-camscanner-tag">
+                  <span className="cs-box">CS</span>
+                  <span className="cs-text">CamScanner</span>
+                </div>
+              </div>
+            </div>
+
+            {/* =========================================================================
+                STAPLED ATTACHMENTS SECTION (PAGES 2-4 BILLS & RECEIPTS)
+                ========================================================================= */}
+            <div className="pv-stapled-attachments-card">
+              <div className="pv-stapled-header">
+                <div className="pv-stapled-title">
+                  <span className="pv-paperclip-icon">📎</span>
+                  <div>
+                    <h4>Attached Supporting Bills &amp; Receipts (Pages 2-4)</h4>
+                    <p>Staple photos or PDF invoices for Electricity, SLT phone, Dialog SMS, and fuel expenses</p>
+                  </div>
+                </div>
+
+                <div className="pv-stapled-actions">
+                  <button
+                    type="button"
+                    className="pv-sample-bills-btn"
+                    onClick={handleLoadSampleBills}
+                  >
+                    ⚡ Attach Demo Bills (Pages 2-4)
+                  </button>
+
+                  <label htmlFor="pv-bill-file-input" className="pv-attach-upload-btn">
+                    <span>+ Upload Bill Photos / PDF</span>
+                  </label>
+                  <input
+                    type="file"
+                    id="pv-bill-file-input"
+                    multiple
+                    accept="image/*,application/pdf"
+                    onChange={handleFileUpload}
+                    style={{ display: 'none' }}
+                  />
+                </div>
               </div>
 
-              {/* Uploaded Files Grid */}
-              {attachments.length > 0 && (
+              {/* Attachments List */}
+              {attachments.length === 0 ? (
+                <div className="pv-no-attachments-prompt">
+                  <p>No bills attached yet. Click <strong>"+ Upload Bill Photos / PDF"</strong> or <strong>"⚡ Attach Demo Bills"</strong> to attach supporting receipts.</p>
+                </div>
+              ) : (
                 <div className="pv-attachments-grid">
                   {attachments.map((file, idx) => (
                     <div key={idx} className="pv-attachment-card">
@@ -466,12 +650,12 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                         onClick={() => setPreviewMedia(file)}
                         title="Click to preview full size"
                       >
-                        {file.type.includes('image') || file.dataUrl.startsWith('data:image') ? (
+                        {file.type?.includes('image') || file.dataUrl?.startsWith('data:image') ? (
                           <img src={file.dataUrl} alt={file.name} className="pv-attachment-thumb" />
                         ) : (
                           <div className="pv-pdf-badge-icon">📄 PDF DOCUMENT</div>
                         )}
-                        <span className="pv-view-hover-pill">🔍 View</span>
+                        <span className="pv-view-hover-pill">🔍 Zoom</span>
                       </div>
 
                       <div className="pv-attachment-info">
@@ -495,67 +679,25 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
               )}
             </div>
 
-            {/* Section 4: Received By & Signatory Info */}
-            <div className="pv-form-section">
-              <div className="pv-section-header">
-                <span className="pv-section-num">4</span>
-                <h3>Received By &amp; Signatures</h3>
-              </div>
+            {/* Bottom Form Actions */}
+            <div className="pv-bill-modal-bottom-bar">
+              <button
+                type="button"
+                className="pv-btn secondary"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
 
-              <div className="pv-form-grid-3">
-                <div className="pv-input-group">
-                  <label>RECEIVED BY (NAME)</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="e.g. P.H.A. Prashan"
-                    value={receivedByName}
-                    onChange={(e) => setReceivedByName(e.target.value)}
-                  />
-                </div>
-
-                <div className="pv-input-group">
-                  <label>ID NUMBER (DEFAULT: 1602)</label>
-                  <input
-                    type="text"
-                    className="pv-text-input"
-                    placeholder="1602"
-                    value={receivedByIdNumber}
-                    onChange={(e) => setReceivedByIdNumber(e.target.value)}
-                  />
-                </div>
-
-                <div className="pv-input-group">
-                  <label>PREPARED BY</label>
-                  <input
-                    type="text"
-                    className="pv-text-input disabled"
-                    value={currentUser?.username || 'user'}
-                    disabled
-                  />
-                </div>
-              </div>
+              <button type="submit" className="pv-btn primary submit-bill-btn" disabled={isSubmitting}>
+                {isSubmitting ? 'Submitting to Admin...' : '✓ Submit Payment Voucher to Admin Inbox'}
+              </button>
             </div>
-          </div>
+          </form>
+        </div>
 
-          {/* Modal Footer */}
-          <div className="pv-modal-footer">
-            <button
-              type="button"
-              className="pv-btn secondary"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-
-            <button type="submit" className="pv-btn primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting Voucher...' : '✓ Submit Voucher to Admin Inbox'}
-            </button>
-          </div>
-        </form>
-
-        {/* Lightbox Preview Modal for uploaded bills */}
+        {/* Lightbox Modal for Attached Bill Zoom */}
         {previewMedia && (
           <div className="pv-lightbox-overlay" onClick={() => setPreviewMedia(null)}>
             <div className="pv-lightbox-content" onClick={(e) => e.stopPropagation()}>
