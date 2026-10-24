@@ -56,8 +56,12 @@ function NewUser() {
       keys: ['printer-setup'],
     },
     {
+      name: 'Approvement System',
+      keys: ['payment-voucher', 'petty-cash', 'leave-request'],
+    },
+    {
       name: 'General & Reports',
-      keys: ['reports', 'accounting', 'production'],
+      keys: ['reports', 'accounting'],
     },
   ];
 
@@ -194,6 +198,11 @@ function NewUser() {
       setFormData((prev) => ({
         ...prev,
         permissions: ['grn', 'good-return-note', 'damage', 'item-master', 'supplier-master', 'alternative-product'],
+      }));
+    } else if (presetName === 'approver') {
+      setFormData((prev) => ({
+        ...prev,
+        permissions: ['payment-voucher', 'petty-cash', 'leave-request', 'reports'],
       }));
     }
   };
@@ -713,6 +722,13 @@ function NewUser() {
                         onClick={() => applyPreset('stock')}
                       >
                         📦 Stock Manager Preset
+                      </button>
+                      <button
+                        type="button"
+                        className="preset-btn"
+                        onClick={() => applyPreset('approver')}
+                      >
+                        ✍️ Approver Preset
                       </button>
                       <button
                         type="button"

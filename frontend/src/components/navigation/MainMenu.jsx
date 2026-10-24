@@ -5,6 +5,7 @@ import MasterFilesDropdown from './MasterFilesDropdown';
 import StockControlDropdown from './StockControlDropdown';
 import SalesServiceDropdown from './SalesServiceDropdown';
 import AdministrationDropdown from './AdministrationDropdown';
+import ApprovementDropdown from './ApprovementDropdown';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -13,7 +14,7 @@ import { useAuth } from '../../context/AuthContext';
  * - Master Files
  * - Stock Control System
  * - Sales and Service
- * - Production
+ * - Approvement (Payment Voucher, Petty Cash, Leave Request)
  * - Reports
  * - Accounting
  * - Administration (Printer Setup, New User [Admin only])
@@ -28,7 +29,7 @@ function MainMenu({ onMenuSelect }) {
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
-    { id: 'production', label: 'Production', path: '/management' },
+    { id: 'approvement', label: 'Approvement', hasDropdown: true },
     { id: 'reports', label: 'Reports', path: '/reports' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', hasDropdown: true },
@@ -112,6 +113,10 @@ function MainMenu({ onMenuSelect }) {
 
             {item.id === 'sales-service' && openDropdown === 'sales-service' && (
               <SalesServiceDropdown onItemClick={handleDropdownItemClick} />
+            )}
+
+            {item.id === 'approvement' && openDropdown === 'approvement' && (
+              <ApprovementDropdown onItemClick={handleDropdownItemClick} />
             )}
 
             {item.id === 'administration' && openDropdown === 'administration' && (

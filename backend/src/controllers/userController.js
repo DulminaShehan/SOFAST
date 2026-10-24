@@ -25,10 +25,14 @@ export const SYSTEM_PERMISSIONS = [
   // Administration
   { id: 'printer-setup', label: 'Printer Setup', category: 'Administration', path: '/printer-setup' },
 
+  // Approvement
+  { id: 'payment-voucher', label: 'Payment Voucher', category: 'Approvement', path: '/payment-voucher' },
+  { id: 'petty-cash', label: 'Petty Cash', category: 'Approvement', path: '/petty-cash' },
+  { id: 'leave-request', label: 'Leave Request', category: 'Approvement', path: '/leave-request' },
+
   // Other modules
   { id: 'reports', label: 'Reports', category: 'Other Modules', path: '/reports' },
   { id: 'accounting', label: 'Accounting', category: 'Other Modules', path: '/accounting' },
-  { id: 'production', label: 'Production', category: 'Other Modules', path: '/production' },
 ];
 
 // Helper to hash password for in-memory or mongo

@@ -14,6 +14,7 @@ import damageStockRoutes from './damageStock.routes.js';
 import damageRoutes from './damage.routes.js';
 import goodReturnRoutes from './goodReturn.routes.js';
 import userRoutes from './user.routes.js';
+import approvementRoutes from './approvement.routes.js';
 
 const router = Router();
 
@@ -21,6 +22,8 @@ const router = Router();
 router.use('/health', healthRoutes);
 router.use('/users', userRoutes);
 router.use('/user', userRoutes);
+router.use('/approvement', approvementRoutes);
+router.use('/approvements', approvementRoutes);
 router.use('/suppliers', supplierRoutes);
 router.use('/items', itemRoutes);
 router.use('/grn', grnRoutes);
