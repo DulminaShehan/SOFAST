@@ -1,0 +1,818 @@
+/* ==========================================================================
+   SOFAST POS SYSTEM - CLOSING STOCK REPORT & REPORTS MODULE CSS
+   Exact replica of the physical ERP dot-matrix / print closing stock report.
+   Includes modern filtering bar, most-used product filters, and staff sorting.
+   ========================================================================== */
+
+.reports-page-container {
+  min-height: 100vh;
+  background: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #0f172a;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================================
+   Top Navigation Menubar (Consistent with SOFAST Master Pages)
+   ========================================================================== */
+.reports-menubar {
+  background: #1e293b;
+  color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 48px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 50;
+}
+
+.reports-menu-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reports-brand-badge {
+  font-family: 'Arial Black', Impact, sans-serif;
+  font-size: 15px;
+  font-weight: 900;
+  color: #38bdf8;
+  letter-spacing: 1px;
+  margin-right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reports-nav-btn {
+  background: transparent;
+  color: #cbd5e1;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reports-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.reports-nav-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.reports-menu-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reports-user-tag {
+  font-size: 12px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.reports-back-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.reports-back-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   Hero Section & KPI Overview
+   ========================================================================== */
+.reports-hero-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid #0284c7;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.reports-hero-titles h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reports-hero-titles p {
+  margin: 4px 0 0 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.reports-kpi-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.reports-kpi-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+}
+
+.reports-kpi-card.highlight {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.reports-kpi-card.value {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.reports-kpi-label {
+  font-size: 11px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.reports-kpi-val {
+  font-size: 17px;
+  font-weight: 900;
+  color: #f8fafc;
+  margin-top: 2px;
+}
+
+.reports-kpi-card.value .reports-kpi-val {
+  color: #4ade80;
+}
+
+.reports-kpi-card.highlight .reports-kpi-val {
+  color: #38bdf8;
+}
+
+/* ==========================================================================
+   Quick Presets Strip (1-Click Filters: Most Used, Staff, Low Stock)
+   ========================================================================== */
+.reports-quick-strip {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reports-quick-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 4px;
+}
+
+.reports-pill-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.reports-pill-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.reports-pill-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+}
+
+.reports-pill-badge {
+  background: rgba(0, 0, 0, 0.15);
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+.reports-pill-btn.active .reports-pill-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   Interactive Controls & Filters Bar
+   ========================================================================== */
+.reports-controls-bar {
+  background: #ffffff;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.reports-filters-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.reports-search-box {
+  position: relative;
+  min-width: 260px;
+}
+
+.reports-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.reports-search-input {
+  width: 100%;
+  padding: 7px 12px 7px 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #f8fafc;
+  transition: all 0.15s;
+  box-sizing: border-box;
+}
+
+.reports-search-input:focus {
+  background: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.reports-filter-select {
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #334155;
+  background: #f8fafc;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.reports-filter-select:focus {
+  border-color: #0284c7;
+  background: #ffffff;
+}
+
+.reports-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reports-action-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.reports-action-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.reports-action-btn.print-btn {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.reports-action-btn.print-btn:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+}
+
+.reports-view-toggle {
+  display: flex;
+  background: #e2e8f0;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.reports-view-toggle-btn {
+  background: transparent;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.reports-view-toggle-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ==========================================================================
+   Report Content Body & Pagination
+   ========================================================================== */
+.reports-content-body {
+  flex: 1;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+/* Pagination Control Bar */
+.reports-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 1060px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.reports-page-info {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.reports-page-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reports-pg-btn {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.reports-pg-btn:hover:not(:disabled) {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.reports-pg-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reports-jump-input {
+  width: 50px;
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   THE EXACT PHYSICAL PAPER SHEET (MATCHING PDF SCAN 100%)
+   ========================================================================== */
+.closing-stock-paper-sheet {
+  width: 100%;
+  max-width: 1060px;
+  background: #ffffff;
+  color: #000000;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12), 0 1px 4px rgba(0, 0, 0, 0.06);
+  border: 1px solid #94a3b8;
+  padding: 36px 40px;
+  box-sizing: border-box;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  position: relative;
+  margin: 0 auto 30px auto;
+}
+
+/* PDF Header Area */
+.cs-report-header {
+  margin-bottom: 8px;
+}
+
+.cs-company-name {
+  font-weight: 900;
+  font-size: 14px;
+  color: #000000;
+  letter-spacing: 0.5px;
+}
+
+.cs-company-addr {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #000000;
+}
+
+.cs-company-phone {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #000000;
+}
+
+.cs-report-title {
+  font-weight: 900;
+  font-size: 15px;
+  color: #000000;
+  margin-top: 6px;
+  letter-spacing: 0.5px;
+}
+
+.cs-meta-line {
+  display: flex;
+  justify-content: flex-end;
+  gap: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000000;
+  margin-top: -18px;
+  margin-bottom: 6px;
+}
+
+/* Table Column Headers Divider */
+.cs-table-header-divider {
+  width: 100%;
+  border-bottom: 1.5px solid #000000;
+  margin: 4px 0 2px 0;
+}
+
+/* Report Table */
+.cs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-size: 11px;
+}
+
+.cs-table th {
+  padding: 4px 6px;
+  font-weight: 900;
+  color: #000000;
+  text-align: left;
+  border-bottom: 1.5px solid #000000;
+  white-space: nowrap;
+}
+
+.cs-table th.col-right {
+  text-align: right;
+}
+
+.cs-table th.col-center {
+  text-align: center;
+}
+
+/* Specific Column Widths Matching PDF Layout */
+.cs-th-code { width: 11%; }
+.cs-th-desc { width: 34%; }
+.cs-th-bin { width: 10%; }
+.cs-th-qty { width: 7%; }
+.cs-th-val { width: 10%; }
+.cs-th-loc { width: 6%; }
+.cs-th-selprice { width: 10%; }
+
+/* Category Section Header */
+.cs-category-row td {
+  padding: 10px 4px 4px 4px;
+  font-weight: 900;
+  font-size: 12px;
+  color: #000000;
+  letter-spacing: 0.5px;
+  border-bottom: 1px dashed #64748b;
+}
+
+/* Item Data Rows */
+.cs-item-row td {
+  padding: 2.5px 6px;
+  color: #000000;
+  vertical-align: top;
+}
+
+.cs-code {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cs-desc {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cs-bin {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cs-qty {
+  text-align: right;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cs-val {
+  text-align: right;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.cs-loc {
+  text-align: right;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.cs-selprice {
+  text-align: right;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Fast-Moving / Most Used Highlight Badge */
+.cs-most-used-tag {
+  display: inline-block;
+  background: #fef08a;
+  color: #854d0e;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 0 4px;
+  border-radius: 2px;
+  margin-left: 4px;
+}
+
+.cs-staff-tag {
+  display: inline-block;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 0 4px;
+  border-radius: 2px;
+  margin-left: 4px;
+}
+
+/* Category Subtotal Row Matching PDF */
+.cs-subtotal-row td {
+  padding: 6px 6px 12px 6px;
+  border-top: 1px solid #000000;
+  font-weight: 900;
+  font-size: 12px;
+  color: #000000;
+}
+
+.cs-subtotal-label {
+  text-align: right;
+  font-weight: 900;
+}
+
+.cs-subtotal-val {
+  text-align: right;
+  font-weight: 900;
+}
+
+/* Grand Total Row Matching PDF */
+.cs-grand-total-section {
+  margin-top: 18px;
+  padding-top: 6px;
+  border-top: 2px solid #000000;
+  border-bottom: 2px solid #000000;
+}
+
+.cs-grand-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  font-weight: 900;
+  font-size: 14px;
+  color: #000000;
+}
+
+.cs-grand-total-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cs-grand-total-right {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.cs-grand-qty {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.cs-grand-val {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+/* Software Credit Footer */
+.cs-software-footer {
+  margin-top: 24px;
+  font-size: 11px;
+  color: #334155;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Modern Table View Mode
+   ========================================================================== */
+.reports-modern-card {
+  width: 100%;
+  max-width: 1100px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.reports-modern-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.reports-modern-table th {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 800;
+  padding: 10px 14px;
+  border-bottom: 2px solid #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reports-modern-table th:hover {
+  background: #f1f5f9;
+}
+
+.reports-modern-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+}
+
+.reports-modern-table tr:hover {
+  background: #f8fafc;
+}
+
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.stock-badge.in-stock {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.stock-badge.low-stock {
+  background: #fef9c3;
+  color: #a16207;
+}
+
+.stock-badge.out-of-stock {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* ==========================================================================
+   Print Styles for Reports
+   Exact multi-page replica matching the user's PDF scan
+   ========================================================================== */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+  #printable-closing-stock-report,
+  #printable-closing-stock-report * {
+    visibility: visible;
+  }
+  #printable-closing-stock-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 8mm 10mm !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 10px !important;
+  }
+  .cs-table {
+    font-size: 9.5px !important;
+  }
+  .cs-table th,
+  .cs-table td {
+    padding: 2px 4px !important;
+  }
+  .cs-category-row {
+    page-break-inside: avoid;
+  }
+  .cs-grand-total-section {
+    page-break-inside: avoid;
+  }
+}
