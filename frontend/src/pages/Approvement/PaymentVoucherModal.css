@@ -1267,3 +1267,95 @@
   background: #15803d !important;
 }
 
+/* ==========================================================================
+   Multi-Expense Table & Quick Presets Toolbar Styles
+   ========================================================================== */
+
+.pv-table-quick-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+}
+
+.pv-quick-label {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  color: #1e3a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pv-preset-pill {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pv-preset-pill:hover {
+  background: #1e40af;
+  color: #ffffff;
+  border-color: #1e3a8a;
+}
+
+.pv-preset-pill.highlight {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.pv-preset-pill.highlight:hover {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.pv-row-index-pill {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #475569;
+  border-radius: 3px;
+  padding: 2px 5px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.pv-add-more-row {
+  border-top: 1px dashed #cbd5e1;
+}
+
+.pv-add-more-line-btn {
+  background: #eff6ff;
+  border: 1.5px dashed #3b82f6;
+  color: #1d4ed8;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 6px 14px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.pv-add-more-line-btn:hover {
+  background: #dbeafe;
+  border-color: #1d4ed8;
+}
+
+

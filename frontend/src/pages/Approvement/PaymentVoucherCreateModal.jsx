@@ -29,8 +29,11 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
   const [receivedByName, setReceivedByName] = useState('');
   const [receivedByIdNumber, setReceivedByIdNumber] = useState('1602');
 
-  // Particulars Line Items
+  // Particulars Line Items - Multiple rows ready by default matching PDF Page 1
   const [items, setItems] = useState([
+    { particulars: '', account: '', amountRs: '', amountCts: '00', totalLineAmount: 0 },
+    { particulars: '', account: '', amountRs: '', amountCts: '00', totalLineAmount: 0 },
+    { particulars: '', account: '', amountRs: '', amountCts: '00', totalLineAmount: 0 },
     { particulars: '', account: '', amountRs: '', amountCts: '00', totalLineAmount: 0 },
   ]);
 
@@ -53,20 +56,36 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
   };
 
   // Add line item
-  const handleAddItem = () => {
-    setItems([
-      ...items,
-      { particulars: '', account: '', amountRs: '', amountCts: '00', totalLineAmount: 0 },
+  const handleAddItem = (presetParticulars = '', presetAccount = '') => {
+    setItems((prev) => [
+      ...prev,
+      { particulars: presetParticulars, account: presetAccount, amountRs: '', amountCts: '00', totalLineAmount: 0 },
     ]);
+  };
+
+  // Quick preset helper
+  const handleAddPreset = (particulars, account = '') => {
+    const emptyIndex = items.findIndex((i) => !i.particulars && !i.amountRs);
+    if (emptyIndex !== -1) {
+      const updated = [...items];
+      updated[emptyIndex].particulars = particulars;
+      updated[emptyIndex].account = account;
+      setItems(updated);
+    } else {
+      handleAddItem(particulars, account);
+    }
   };
 
   // Remove line item
   const handleRemoveItem = (index) => {
-    if (items.length <= 1) return;
+    if (items.length <= 1) {
+      setItems([{ particulars: '', account: '', amountRs: '', amountCts: '00', totalLineAmount: 0 }]);
+      return;
+    }
     setItems(items.filter((_, i) => i !== index));
   };
 
-  // Calculate totals
+  // Calculate totals across all active rows
   const totalAmount = items.reduce((sum, item) => {
     const rs = Number(item.amountRs) || 0;
     const cts = Number(item.amountCts) || 0;
@@ -150,8 +169,19 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
       return;
     }
 
-    if (totalAmount <= 0) {
-      setErrorMsg('Please enter at least one line item with an amount.');
+    // Filter only rows that have either a description or an amount
+    const validItems = items
+      .filter((i) => (i.particulars && i.particulars.trim() !== '') || (Number(i.amountRs) || 0) > 0)
+      .map((i) => ({
+        particulars: i.particulars.trim() || 'Expense Item',
+        account: i.account?.trim() || '',
+        amountRs: Number(i.amountRs) || 0,
+        amountCts: Number(i.amountCts) || 0,
+        totalLineAmount: Number(i.totalLineAmount) || (Number(i.amountRs) || 0) + (Number(i.amountCts) || 0) / 100,
+      }));
+
+    if (validItems.length === 0) {
+      setErrorMsg('Please enter at least one expense with an amount.');
       return;
     }
 
@@ -164,13 +194,7 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
         bank: bank.trim(),
         branch: branch.trim(),
         chequeNo: chequeNo.trim(),
-        items: items.map((i) => ({
-          particulars: i.particulars || 'Expense Item',
-          account: i.account || '',
-          amountRs: Number(i.amountRs) || 0,
-          amountCts: Number(i.amountCts) || 0,
-          totalLineAmount: Number(i.totalLineAmount) || (Number(i.amountRs) || 0) + (Number(i.amountCts) || 0) / 100,
-        })),
+        items: validItems,
         totalAmount,
         amountInWords,
         preparedBy: currentUser?.username || 'user',
@@ -357,6 +381,46 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                 </div>
               </div>
 
+              {/* Quick Expense Presets Toolbar */}
+              <div className="pv-table-quick-presets">
+                <span className="pv-quick-label">⚡ Quick Presets:</span>
+                <button
+                  type="button"
+                  className="pv-preset-pill"
+                  onClick={() => handleAddPreset('Electricity Bill OCT-26', '4413433203')}
+                >
+                  + Electricity Bill
+                </button>
+                <button
+                  type="button"
+                  className="pv-preset-pill"
+                  onClick={() => handleAddPreset('Telephone Bill 0342210696', 'SLT-0342210680')}
+                >
+                  + Telephone Bill
+                </button>
+                <button
+                  type="button"
+                  className="pv-preset-pill"
+                  onClick={() => handleAddPreset('0766064946', 'Mobitel Data')}
+                >
+                  + Mobile Data
+                </button>
+                <button
+                  type="button"
+                  className="pv-preset-pill"
+                  onClick={() => handleAddPreset('074-0895088', 'Dialog Mobile Bill')}
+                >
+                  + Dialog Mobile
+                </button>
+                <button
+                  type="button"
+                  className="pv-preset-pill highlight"
+                  onClick={() => handleAddItem()}
+                >
+                  + Add Empty Line
+                </button>
+              </div>
+
               {/* Bill Particulars & Amounts Table */}
               <div className="pv-table-wrapper">
                 <table className="pv-table interactive-table">
@@ -368,7 +432,7 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                           <button
                             type="button"
                             className="pv-bill-add-row-action"
-                            onClick={handleAddItem}
+                            onClick={() => handleAddItem()}
                             title="Add new expense row to voucher"
                           >
                             + Add Line
@@ -387,24 +451,26 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                     </tr>
                   </thead>
                   <tbody>
-                    {/* User Editable Rows */}
+                    {/* User Editable Rows - Every single row is open and ready to write on */}
                     {items.map((item, idx) => (
                       <tr key={idx} className="pv-row-data edit-row">
                         <td className="pv-td-particulars edit-cell">
-                          <input
-                            type="text"
-                            className="pv-bill-cell-input"
-                            placeholder="e.g. Electricity Bill OCT-26"
-                            value={item.particulars}
-                            onChange={(e) => handleItemChange(idx, 'particulars', e.target.value)}
-                            required
-                          />
+                          <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+                            <span className="pv-row-index-pill">{idx + 1}</span>
+                            <input
+                              type="text"
+                              className="pv-bill-cell-input"
+                              placeholder={`Line ${idx + 1}: e.g. Electricity Bill, SLT, Mobile...`}
+                              value={item.particulars}
+                              onChange={(e) => handleItemChange(idx, 'particulars', e.target.value)}
+                            />
+                          </div>
                         </td>
                         <td className="pv-td-account edit-cell">
                           <input
                             type="text"
                             className="pv-bill-cell-input center"
-                            placeholder="4413433203"
+                            placeholder="Account / Ref"
                             value={item.account}
                             onChange={(e) => handleItemChange(idx, 'account', e.target.value)}
                           />
@@ -415,10 +481,9 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                             min="0"
                             step="1"
                             className="pv-bill-cell-input right"
-                            placeholder="14200"
+                            placeholder="Amount"
                             value={item.amountRs}
                             onChange={(e) => handleItemChange(idx, 'amountRs', e.target.value)}
-                            required
                           />
                         </td>
                         <td className="pv-td-cts edit-cell">
@@ -437,7 +502,7 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                               type="button"
                               className="pv-bill-remove-row-btn"
                               onClick={() => handleRemoveItem(idx)}
-                              title="Delete line"
+                              title="Delete this expense line"
                             >
                               ✕
                             </button>
@@ -446,29 +511,18 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
                       </tr>
                     ))}
 
-                    {/* Classic Empty Rows with Z-stroke line & Circled Amount callout */}
-                    {Array.from({ length: emptyRowsCount }).map((_, idx) => (
-                      <tr key={`empty-${idx}`} className="pv-row-empty">
-                        <td className="pv-td-particulars empty-cell">
-                          {idx === 0 && (
-                            <div className="pv-callout-overlay">
-                              <div className="pv-circled-amount">
-                                <span>{totalRs.toLocaleString()}/=</span>
-                              </div>
-                              <svg className="pv-z-strike-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                <line x1="10" y1="10" x2="90" y2="10" stroke="#0f172a" strokeWidth="2.5" />
-                                <line x1="90" y1="10" x2="10" y2="90" stroke="#0f172a" strokeWidth="2.5" />
-                                <line x1="10" y1="90" x2="90" y2="90" stroke="#0f172a" strokeWidth="2.5" />
-                              </svg>
-                            </div>
-                          )}
-                        </td>
-                        <td className="pv-td-account empty-cell"></td>
-                        <td className="pv-td-rs empty-cell"></td>
-                        <td className="pv-td-cts empty-cell"></td>
-                        <td className="no-print"></td>
-                      </tr>
-                    ))}
+                    {/* Button Row to add more lines */}
+                    <tr className="pv-add-more-row no-print">
+                      <td colSpan="5" style={{ padding: '6px 10px', background: '#fafafa', textAlign: 'left' }}>
+                        <button
+                          type="button"
+                          className="pv-add-more-line-btn"
+                          onClick={() => handleAddItem()}
+                        >
+                          + Add Another Expense Line (Line {items.length + 1})
+                        </button>
+                      </td>
+                    </tr>
                   </tbody>
                   <tfoot>
                     <tr className="pv-total-row">
