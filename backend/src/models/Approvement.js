@@ -51,21 +51,44 @@ const paymentVoucherSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Petty Cash Schema
+// Petty Cash Line Item Schema
+const pettyCashItemSchema = new mongoose.Schema({
+  description: { type: String, required: true },
+  amount: { type: Number, required: true, default: 0 },
+});
+
+// Petty Cash / Expenses Reimbursement Form Schema matching PDF
 const pettyCashSchema = new mongoose.Schema(
   {
     voucherNo: { type: String, required: true, unique: true },
+    name: { type: String, required: true }, // Name on form
     date: { type: Date, default: Date.now },
+    dateFormatted: { type: String, default: '' },
+    subject: { type: String, default: '' },
+    reimbursementDate: { type: String, default: '' },
+    items: [pettyCashItemSchema],
+    amount: { type: Number, required: true, default: 0 }, // Total Amount
+    notes: { type: String, default: '' }, // 3 dotted lines below table
     requestedBy: { type: String, required: true },
+    checkedBy: { type: String, default: 'Accountant' },
     department: { type: String, default: 'General' },
-    amount: { type: Number, required: true },
     category: { type: String, default: 'Office Supplies' },
-    purpose: { type: String, required: true },
     status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
     approvedBy: { type: String, default: null },
     approvedAt: { type: Date, default: null },
     remarks: { type: String, default: '' },
     attachments: [attachmentSchema],
+  },
+  { timestamps: true }
+);
+
+// Spendable Limit Schema for Petty Cash Fund Allocation
+const pettyCashLimitSchema = new mongoose.Schema(
+  {
+    totalLimit: { type: Number, default: 50000 },
+    period: { type: String, default: 'Monthly' },
+    setBy: { type: String, default: 'admin' },
+    lastUpdated: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
@@ -95,5 +118,9 @@ export const PaymentVoucher =
 export const PettyCash =
   mongoose.models.PettyCash || mongoose.model('PettyCash', pettyCashSchema);
 
+export const PettyCashLimit =
+  mongoose.models.PettyCashLimit || mongoose.model('PettyCashLimit', pettyCashLimitSchema);
+
 export const LeaveRequest =
   mongoose.models.LeaveRequest || mongoose.model('LeaveRequest', leaveRequestSchema);
+

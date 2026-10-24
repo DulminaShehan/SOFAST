@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { PaymentVoucher, PettyCash, LeaveRequest } from '../models/Approvement.js';
+import { PaymentVoucher, PettyCash, PettyCashLimit, LeaveRequest } from '../models/Approvement.js';
 import { backendSampleAttachments } from './approvementSampleBills.js';
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
@@ -39,32 +39,61 @@ const initialPaymentVouchers = [
 
 const initialPettyCash = [
   {
-    voucherNo: 'PC-2026-001',
+    voucherNo: 'ERF-2026-001',
+    name: 'Sunil Shantha',
     date: new Date('2026-10-22'),
-    requestedBy: 'Sunil Shantha',
-    department: 'POS Cashier Counter',
+    dateFormatted: '22/10/2026',
+    subject: 'POS Counter Thermal Paper Rolls & Stationery Supplies',
+    reimbursementDate: '22/10/2026',
+    items: [
+      { description: 'Thermal Paper Rolls (80mm x 50 rolls)', amount: 3500 },
+      { description: 'Gel Ink Pens & Invoice Filing Folders', amount: 1000 },
+    ],
     amount: 4500,
+    notes: 'Urgent thermal roll refills for busy weekend service cashier counters.',
+    requestedBy: 'Sunil Shantha',
+    checkedBy: 'Accountant',
+    department: 'POS Cashier Counter',
     category: 'Office Supplies',
-    purpose: 'Thermal receipt rolls (80mm x 20 rolls) & ink pens',
+    purpose: 'Thermal receipt rolls & pens',
     status: 'Approved',
     approvedBy: 'admin',
     approvedAt: new Date('2026-10-22'),
-    remarks: 'Cash handed over',
+    remarks: 'Approved & deducted from monthly spendable fund.',
+    attachments: [],
   },
   {
-    voucherNo: 'PC-2026-002',
+    voucherNo: 'ERF-2026-002',
+    name: 'Nimal Bandara',
     date: new Date('2026-10-24'),
-    requestedBy: 'Nimal Bandara',
-    department: 'Workshop',
+    dateFormatted: '24/10/2026',
+    subject: 'Workshop Staff Overtime Refreshments (Saturday Shift)',
+    reimbursementDate: '24/10/2026',
+    items: [
+      { description: 'Technicians Tea & Evening Refreshments', amount: 2200 },
+      { description: 'Mineral Water (5L x 2 bottles)', amount: 1000 },
+    ],
     amount: 3200,
+    notes: 'Saturday overtime brake-disk servicing shift staff refreshments.',
+    requestedBy: 'Nimal Bandara',
+    checkedBy: 'Accountant',
+    department: 'Workshop',
     category: 'Workshop Refreshments',
-    purpose: 'Staff tea & overtime refreshments for Saturday shift',
+    purpose: 'Staff tea & overtime refreshments',
     status: 'Pending',
     approvedBy: null,
     approvedAt: null,
     remarks: '',
+    attachments: [],
   },
 ];
+
+const initialPettyCashLimit = {
+  totalLimit: 50000,
+  period: 'Monthly (October 2026)',
+  setBy: 'Admin',
+  lastUpdated: new Date(),
+};
 
 const initialLeaveRequests = [
   {
@@ -85,6 +114,7 @@ const initialLeaveRequests = [
 
 let memPaymentVouchers = [...initialPaymentVouchers];
 let memPettyCash = [...initialPettyCash];
+let memPettyCashLimit = { ...initialPettyCashLimit };
 let memLeaveRequests = [...initialLeaveRequests];
 
 // Helper to seed Mongo if empty or upgrade
@@ -112,6 +142,10 @@ const seedIfEmpty = async () => {
     const pcCount = await PettyCash.countDocuments();
     if (pcCount === 0) {
       await PettyCash.insertMany(initialPettyCash);
+    }
+    const limitCount = await PettyCashLimit.countDocuments();
+    if (limitCount === 0) {
+      await PettyCashLimit.create(initialPettyCashLimit);
     }
     const lrCount = await LeaveRequest.countDocuments();
     if (lrCount === 0) {
@@ -277,7 +311,7 @@ export const updatePaymentVoucherStatus = async (req, res, next) => {
   }
 };
 
-// ---------------- Petty Cash Handlers ----------------
+// ---------------- Petty Cash / Expenses Reimbursement Handlers ----------------
 
 export const getPettyCash = async (req, res, next) => {
   try {
@@ -294,41 +328,84 @@ export const getPettyCash = async (req, res, next) => {
 
 export const createPettyCash = async (req, res, next) => {
   try {
-    const { requestedBy, department, amount, category, purpose, remarks, attachments = [] } = req.body;
-    if (!requestedBy || !amount || !purpose) {
-      return res.status(400).json({ success: false, message: 'Requester, amount, and purpose are required' });
+    const {
+      name,
+      dateFormatted,
+      subject,
+      reimbursementDate,
+      items = [],
+      amount,
+      notes,
+      requestedBy,
+      checkedBy,
+      department,
+      category,
+      purpose,
+      remarks,
+      attachments = [],
+    } = req.body;
+
+    const requesterName = (name || requestedBy || '').trim();
+    if (!requesterName) {
+      return res.status(400).json({ success: false, message: 'Requester / Employee Name is required' });
+    }
+
+    let parsedItems = [];
+    if (Array.isArray(items) && items.length > 0) {
+      parsedItems = items
+        .filter((it) => it && it.description && String(it.description).trim() !== '')
+        .map((it) => ({
+          description: String(it.description).trim(),
+          amount: Number(it.amount) || 0,
+        }));
+    }
+
+    const calculatedTotal =
+      parsedItems.length > 0
+        ? parsedItems.reduce((sum, it) => sum + it.amount, 0)
+        : Number(amount) || 0;
+
+    if (calculatedTotal <= 0) {
+      return res.status(400).json({ success: false, message: 'Total reimbursement amount must be greater than 0' });
     }
 
     const count = isDbConnected() ? await PettyCash.countDocuments() : memPettyCash.length;
-    const voucherNo = `PC-2026-${String(count + 1).padStart(3, '0')}`;
+    const voucherNo = `ERF-2026-${String(count + 1).padStart(3, '0')}`;
 
     const data = {
       voucherNo,
+      name: requesterName,
       date: new Date(),
-      requestedBy: requestedBy.trim(),
+      dateFormatted: dateFormatted || new Date().toLocaleDateString('en-GB'),
+      subject: (subject || purpose || 'Petty Cash Expense Reimbursement').trim(),
+      reimbursementDate: reimbursementDate || new Date().toLocaleDateString('en-GB'),
+      items: parsedItems.length > 0 ? parsedItems : [{ description: purpose || subject || 'Petty Cash Expense', amount: calculatedTotal }],
+      amount: calculatedTotal,
+      notes: notes || remarks || '',
+      requestedBy: requesterName,
+      checkedBy: checkedBy || 'Accountant',
       department: department || 'General',
-      amount: Number(amount),
       category: category || 'Office Supplies',
-      purpose: purpose.trim(),
+      purpose: (purpose || subject || 'Petty Cash Reimbursement').trim(),
       remarks: remarks || '',
-      attachments,
+      attachments: Array.isArray(attachments) ? attachments : [],
       status: 'Pending',
+      approvedBy: null,
+      approvedAt: null,
     };
 
     if (isDbConnected()) {
       const newPc = new PettyCash(data);
       await newPc.save();
-      return res.status(201).json({ success: true, data: newPc });
+      return res.status(201).json({ success: true, message: 'Expenses reimbursement form submitted successfully!', data: newPc });
     }
 
     const newMem = {
-      _id: 'pc_' + Date.now(),
+      _id: 'erf_' + Date.now(),
       ...data,
-      approvedBy: null,
-      approvedAt: null,
     };
     memPettyCash.unshift(newMem);
-    return res.status(201).json({ success: true, data: newMem });
+    return res.status(201).json({ success: true, message: 'Expenses reimbursement form submitted successfully!', data: newMem });
   } catch (error) {
     next(error);
   }
@@ -341,26 +418,118 @@ export const updatePettyCashStatus = async (req, res, next) => {
 
     if (isDbConnected()) {
       const pc = await PettyCash.findById(id);
-      if (!pc) return res.status(404).json({ success: false, message: 'Petty cash voucher not found' });
+      if (!pc) return res.status(404).json({ success: false, message: 'Reimbursement voucher not found' });
       pc.status = status;
       if (status === 'Approved') {
+        pc.approvedBy = approvedBy;
+        pc.approvedAt = new Date();
+      } else if (status === 'Rejected') {
         pc.approvedBy = approvedBy;
         pc.approvedAt = new Date();
       }
       if (remarks) pc.remarks = remarks;
       await pc.save();
-      return res.status(200).json({ success: true, data: pc });
+      return res.status(200).json({ success: true, message: `Reimbursement ${pc.voucherNo} marked as ${status}!`, data: pc });
     }
 
-    const pc = memPettyCash.find((item) => item._id === id);
-    if (!pc) return res.status(404).json({ success: false, message: 'Petty cash voucher not found' });
+    const pc = memPettyCash.find((item) => item._id === id || item.voucherNo === id);
+    if (!pc) return res.status(404).json({ success: false, message: 'Reimbursement voucher not found' });
     pc.status = status;
-    if (status === 'Approved') {
+    if (status === 'Approved' || status === 'Rejected') {
       pc.approvedBy = approvedBy;
       pc.approvedAt = new Date();
     }
     if (remarks) pc.remarks = remarks;
-    return res.status(200).json({ success: true, data: pc });
+    return res.status(200).json({ success: true, message: `Reimbursement ${pc.voucherNo} marked as ${status}!`, data: pc });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------- Spendable Limit Handlers ----------------
+
+export const getPettyCashLimit = async (req, res, next) => {
+  try {
+    let limitDoc;
+    let approvedPettyCashList = [];
+    let pendingPettyCashList = [];
+
+    if (isDbConnected()) {
+      await seedIfEmpty();
+      limitDoc = await PettyCashLimit.findOne().sort({ createdAt: -1 });
+      if (!limitDoc) {
+        limitDoc = await PettyCashLimit.create(initialPettyCashLimit);
+      }
+      approvedPettyCashList = await PettyCash.find({ status: 'Approved' });
+      pendingPettyCashList = await PettyCash.find({ status: 'Pending' });
+    } else {
+      limitDoc = memPettyCashLimit;
+      approvedPettyCashList = memPettyCash.filter((item) => item.status === 'Approved');
+      pendingPettyCashList = memPettyCash.filter((item) => item.status === 'Pending');
+    }
+
+    const totalLimit = Number(limitDoc.totalLimit) || 50000;
+    const totalSpent = approvedPettyCashList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const pendingAmount = pendingPettyCashList.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const remainingLimit = Math.max(0, totalLimit - totalSpent);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalLimit,
+        totalSpent,
+        remainingLimit,
+        pendingAmount,
+        approvedCount: approvedPettyCashList.length,
+        pendingCount: pendingPettyCashList.length,
+        period: limitDoc.period || 'Monthly (October 2026)',
+        setBy: limitDoc.setBy || 'Admin',
+        lastUpdated: limitDoc.lastUpdated || limitDoc.updatedAt || new Date(),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updatePettyCashLimit = async (req, res, next) => {
+  try {
+    const { totalLimit, period, setBy = 'Admin' } = req.body;
+    if (totalLimit === undefined || totalLimit === null || isNaN(Number(totalLimit))) {
+      return res.status(400).json({ success: false, message: 'Valid totalLimit amount is required' });
+    }
+
+    const newLimitVal = Math.max(0, Number(totalLimit));
+    let limitDoc;
+
+    if (isDbConnected()) {
+      limitDoc = await PettyCashLimit.findOne().sort({ createdAt: -1 });
+      if (!limitDoc) {
+        limitDoc = new PettyCashLimit({
+          totalLimit: newLimitVal,
+          period: period || 'Monthly',
+          setBy,
+          lastUpdated: new Date(),
+        });
+      } else {
+        limitDoc.totalLimit = newLimitVal;
+        if (period) limitDoc.period = period;
+        limitDoc.setBy = setBy;
+        limitDoc.lastUpdated = new Date();
+      }
+      await limitDoc.save();
+    } else {
+      memPettyCashLimit = {
+        ...memPettyCashLimit,
+        totalLimit: newLimitVal,
+        period: period || memPettyCashLimit.period,
+        setBy,
+        lastUpdated: new Date(),
+      };
+      limitDoc = memPettyCashLimit;
+    }
+
+    return getPettyCashLimit(req, res, next);
   } catch (error) {
     next(error);
   }
