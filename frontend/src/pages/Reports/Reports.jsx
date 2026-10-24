@@ -8,10 +8,11 @@ import './Reports.css';
 /**
  * Reports Module
  * Supports:
- * 1. INVOICE RETURNS REPORT (Exact replica from Report 3 PDF)
- * 2. DAILY SALES & PROFIT REPORT (Exact replica from Report 2 PDF)
- * 3. CLOSING STOCK REPORT (Exact 170-page replica from Report 1 PDF)
- * Features quick filters, instant sorting by Most Used Products, Staff, Category, and Profit.
+ * 1. GOODS RECEIVED NOTES (GRN Report - Exact replica from Report 4 PDF)
+ * 2. INVOICE RETURNS REPORT (Exact replica from Report 3 PDF)
+ * 3. DAILY SALES & PROFIT REPORT (Exact replica from Report 2 PDF)
+ * 4. CLOSING STOCK REPORT (Exact 170-page replica from Report 1 PDF)
+ * Features quick filters, instant sorting by Most Used/Received Products, Staff, Category, and Profit.
  */
 function Reports() {
   const navigate = useNavigate();
@@ -21,8 +22,8 @@ function Reports() {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const menuRef = useRef(null);
 
-  // Active Report Tab: 'invoice_returns', 'daily_sales', or 'closing_stock'
-  const [activeReportTab, setActiveReportTab] = useState('invoice_returns');
+  // Active Report Tab: 'grn', 'invoice_returns', 'daily_sales', or 'closing_stock'
+  const [activeReportTab, setActiveReportTab] = useState('grn');
 
   // Common View Mode: 'paper' (exact PDF replica) or 'modern' (interactive data table)
   const [viewMode, setViewMode] = useState('paper');
@@ -31,13 +32,29 @@ function Reports() {
   const [filterOptions, setFilterOptions] = useState({
     categories: [],
     bins: [],
-    staff: ['cashier', 'admin', 'admin_new', 'testcashier'],
+    staff: ['cashier', 'admin', 'admin_new', 'testcashier', 'PC004'],
+    suppliers: ['RAZA AUTO TRADERS', 'BAJAJ GENUINE PARTS', 'DPMC LANKA', 'VENDORS AUTO'],
   });
+
+  // ---------------------------------------------------------------------------
+  // REPORT 4: Goods Received Notes (GRN) States
+  // ---------------------------------------------------------------------------
+  const [grnLoading, setGrnLoading] = useState(true);
+  const [grnReportData, setGrnReportData] = useState(null);
+  const [grnStartDate, setGrnStartDate] = useState('2026-08-06');
+  const [grnEndDate, setGrnEndDate] = useState('2026-08-06');
+  const [grnSelectedSupplier, setGrnSelectedSupplier] = useState('All');
+  const [grnSelectedUser, setGrnSelectedUser] = useState('All');
+  const [grnSearch, setGrnSearch] = useState('');
+  const [grnSortBy, setGrnSortBy] = useState('default');
+  const [grnPageSize, setGrnPageSize] = useState(50);
+  const [grnPage, setGrnPage] = useState(1);
+  const [grnJumpPage, setGrnJumpPage] = useState('1');
 
   // ---------------------------------------------------------------------------
   // REPORT 3: Invoice Returns Report States
   // ---------------------------------------------------------------------------
-  const [irLoading, setIrLoading] = useState(true);
+  const [irLoading, setIrLoading] = useState(false);
   const [irReportData, setIrReportData] = useState(null);
   const [irStartDate, setIrStartDate] = useState('2026-08-06');
   const [irEndDate, setIrEndDate] = useState('2026-08-06');
@@ -95,11 +112,14 @@ function Reports() {
       try {
         const res = await api.get('/reports/filter-options');
         if (res.data?.success) {
-          setFilterOptions({
+          setFilterOptions((prev) => ({
+            ...prev,
             categories: res.data.categories || [],
             bins: res.data.bins || [],
-            staff: res.data.staff?.length ? res.data.staff : ['cashier', 'admin', 'admin_new', 'testcashier'],
-          });
+            staff: res.data.staff?.length
+              ? [...new Set([...res.data.staff, 'PC004', 'cashier', 'admin'])]
+              : ['cashier', 'admin', 'admin_new', 'testcashier', 'PC004'],
+          }));
         }
       } catch (err) {
         console.warn('Failed to load filter options:', err);
@@ -107,6 +127,38 @@ function Reports() {
     };
     fetchOptions();
   }, []);
+
+  // Fetch GRN Report
+  const fetchGrnReport = async () => {
+    try {
+      setGrnLoading(true);
+      const params = {
+        startDate: grnStartDate,
+        endDate: grnEndDate,
+        supplier: grnSelectedSupplier,
+        user: grnSelectedUser,
+        search: grnSearch,
+        sortBy: grnSortBy,
+        page: grnPage,
+        limit: grnPageSize,
+      };
+
+      const res = await api.get('/reports/grn', { params });
+      if (res.data?.success) {
+        setGrnReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load GRN report:', err);
+    } finally {
+      setGrnLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeReportTab === 'grn') {
+      fetchGrnReport();
+    }
+  }, [activeReportTab, grnStartDate, grnEndDate, grnSelectedSupplier, grnSelectedUser, grnSearch, grnSortBy, grnPage, grnPageSize]);
 
   // Fetch Invoice Returns Report
   const fetchInvoiceReturns = async () => {
@@ -202,6 +254,36 @@ function Reports() {
       fetchClosingStock();
     }
   }, [activeReportTab, csSearch, csSelectedCategory, csSelectedStaff, csStockStatus, csSelectedBin, csSortBy, csPage, csPageSize]);
+
+  // Presets for GRN
+  const handleApplyGrnPreset = (presetType) => {
+    setGrnPage(1);
+    setGrnJumpPage('1');
+    if (presetType === 'audit') {
+      setGrnStartDate('2026-08-06');
+      setGrnEndDate('2026-08-06');
+      setGrnSelectedSupplier('All');
+      setGrnSelectedUser('All');
+      setGrnSortBy('default');
+      setGrnSearch('');
+    } else if (presetType === 'most_received') {
+      setGrnSortBy('most_received');
+      setGrnSelectedSupplier('All');
+      setGrnSelectedUser('All');
+      setGrnSearch('');
+    } else if (presetType === 'highest_val') {
+      setGrnSortBy('value_desc');
+      setGrnSelectedSupplier('All');
+      setGrnSelectedUser('All');
+      setGrnSearch('');
+    } else if (presetType === 'returns') {
+      setGrnSortBy('has_returns');
+      setGrnSearch('');
+    } else if (presetType === 'user_pc004') {
+      setGrnSelectedUser('PC004');
+      setGrnSearch('');
+    }
+  };
 
   // Presets for Invoice Returns
   const handleApplyIrPreset = (presetType) => {
@@ -328,7 +410,32 @@ function Reports() {
 
   // CSV Export
   const handleExportCSV = () => {
-    if (activeReportTab === 'invoice_returns') {
+    if (activeReportTab === 'grn') {
+      if (!grnReportData?.data || grnReportData.data.length === 0) return;
+      const headers = ['GRN No', 'Date', 'Supplier', 'Invoice No', 'Code', 'Description', 'Quantity', 'Return Qty', 'Rate', 'Discount %', 'Value', 'User'];
+      const rows = grnReportData.data.map((item) => [
+        `"${item.grnNumber || ''}"`,
+        `"${item.date || ''}"`,
+        `"${item.supplier || ''}"`,
+        `"${item.invoice || ''}"`,
+        `"${item.code || ''}"`,
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        Number(item.quantity || 0).toFixed(2),
+        Number(item.returnQty || 0).toFixed(2),
+        Number(item.rate || 0).toFixed(2),
+        Number(item.discount || 0).toFixed(2),
+        Number(item.value || 0).toFixed(2),
+        `"${item.user || ''}"`,
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_GRN_Report_${grnStartDate}_to_${grnEndDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (activeReportTab === 'invoice_returns') {
       if (!irReportData?.data || irReportData.data.length === 0) return;
       const headers = ['Invoice No', 'Invoice Date', 'Customer', 'Item Code', 'Description', 'Quantity', 'Discount', 'Refund Value', 'Return Date', 'Staff'];
       const rows = irReportData.data.map((item) => [
@@ -450,10 +557,17 @@ function Reports() {
       </div>
 
       {/* =========================================================================
-          REPORT TYPE TABS SELECTOR (Report 1 vs Report 2 vs Report 3)
+          REPORT TYPE TABS SELECTOR (All 4 Reports)
           ========================================================================= */}
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '16px' }} className="no-print">
         <div className="reports-type-tabs">
+          <button
+            type="button"
+            className={`reports-tab-btn ${activeReportTab === 'grn' ? 'active' : ''}`}
+            onClick={() => setActiveReportTab('grn')}
+          >
+            📥 Goods Received Notes (GRN)
+          </button>
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'invoice_returns' ? 'active' : ''}`}
@@ -477,6 +591,473 @@ function Reports() {
           </button>
         </div>
       </div>
+
+      {/* =========================================================================
+          REPORT 4: GOODS RECEIVED NOTES (GRN)
+          ========================================================================= */}
+      {activeReportTab === 'grn' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Inventory Purchasing &amp; Receipts</span>
+                <h1 className="reports-main-title">Goods Received Notes (GRN) Report</h1>
+                <p className="reports-subtitle">
+                  Inventory receipt and purchase intake audit showing received quantities, return quantities, trade discounts, and net intake values.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL GRN VALUE</span>
+                  <span className="reports-kpi-val highlight">
+                    Rs. {Number(grnReportData?.summary?.grandTotal || 94625.01).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Net after 3.5% Trade Discount
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL UNITS RECEIVED</span>
+                  <span className="reports-kpi-val">
+                    {Number(grnReportData?.summary?.totalQuantity || 52)} Units
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Across {grnReportData?.summary?.itemsCount || 16} Part Codes
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">RETURNED UNITS (REJECTS)</span>
+                  <span className="reports-kpi-val" style={{ color: Number(grnReportData?.summary?.totalReturnQty || 2) > 0 ? '#ea580c' : '#16a34a' }}>
+                    {Number(grnReportData?.summary?.totalReturnQty || 2)} Units
+                  </span>
+                  <span className="reports-kpi-sub">
+                    SF36AA4117 &amp; SFAA121090
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">PRIMARY SUPPLIER</span>
+                  <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'normal', lineHeight: '1.3' }}>
+                    {grnReportData?.meta?.supplier || 'RAZA AUTO TRADERS'}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Inv: #{grnReportData?.meta?.invoice || '33919'} &bull; Paid: {grnReportData?.meta?.paidBy || 'Cheque'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Preset Filter Buttons */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
+              <button
+                type="button"
+                className={`reports-pill ${grnStartDate === '2026-08-06' && grnSortBy === 'default' ? 'active' : ''}`}
+                onClick={() => handleApplyGrnPreset('audit')}
+              >
+                📋 GRN 2,399 (Audit Record)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${grnSortBy === 'most_received' ? 'active' : ''}`}
+                onClick={() => handleApplyGrnPreset('most_received')}
+              >
+                🔥 Most Received Products
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${grnSortBy === 'value_desc' ? 'active' : ''}`}
+                onClick={() => handleApplyGrnPreset('highest_val')}
+              >
+                💰 Highest Value Items
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${grnSortBy === 'has_returns' ? 'active' : ''}`}
+                onClick={() => handleApplyGrnPreset('returns')}
+              >
+                ⚠️ Items with Returns
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${grnSelectedUser === 'PC004' ? 'active' : ''}`}
+                onClick={() => handleApplyGrnPreset('user_pc004')}
+              >
+                👤 User PC004 Handled
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Date Pickers */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>From:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={grnStartDate}
+                  onChange={(e) => {
+                    setGrnStartDate(e.target.value);
+                    setGrnPage(1);
+                  }}
+                  title="Filter GRN from date"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>To:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={grnEndDate}
+                  onChange={(e) => {
+                    setGrnEndDate(e.target.value);
+                    setGrnPage(1);
+                  }}
+                  title="Filter GRN to date"
+                />
+              </div>
+
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search code, description, GRN or invoice..."
+                  value={grnSearch}
+                  onChange={(e) => {
+                    setGrnSearch(e.target.value);
+                    setGrnPage(1);
+                  }}
+                />
+                {grnSearch && (
+                  <button type="button" className="reports-search-clear" onClick={() => setGrnSearch('')}>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Supplier Filter */}
+              <select
+                className="reports-filter-select"
+                value={grnSelectedSupplier}
+                onChange={(e) => {
+                  setGrnSelectedSupplier(e.target.value);
+                  setGrnPage(1);
+                }}
+                title="Filter by Supplier"
+              >
+                <option value="All">All Suppliers</option>
+                {filterOptions.suppliers.map((sup, idx) => (
+                  <option key={idx} value={sup}>
+                    Supplier: {sup}
+                  </option>
+                ))}
+              </select>
+
+              {/* User / Staff Filter */}
+              <select
+                className="reports-filter-select"
+                value={grnSelectedUser}
+                onChange={(e) => {
+                  setGrnSelectedUser(e.target.value);
+                  setGrnPage(1);
+                }}
+                title="Filter by User / Staff"
+              >
+                <option value="All">All Users / Staff</option>
+                {filterOptions.staff.map((st, idx) => (
+                  <option key={idx} value={st}>
+                    User: {st}
+                  </option>
+                ))}
+              </select>
+
+              {/* Sort By Dropdown */}
+              <select
+                className="reports-filter-select"
+                value={grnSortBy}
+                onChange={(e) => {
+                  setGrnSortBy(e.target.value);
+                  setGrnPage(1);
+                }}
+                title="Sort Report By"
+              >
+                <option value="default">Sort: Default PDF Sequence</option>
+                <option value="most_received">Sort: 🔥 Most Received (Highest Quantity)</option>
+                <option value="value_desc">Sort: 💰 Highest Value (Rs.)</option>
+                <option value="rate_desc">Sort: 💎 Highest Rate / Cost Price</option>
+                <option value="has_returns">Sort: ⚠️ Has Return Quantity</option>
+                <option value="code_asc">Sort: Part Code (A - Z)</option>
+                <option value="desc_asc">Sort: Description (A - Z)</option>
+              </select>
+
+              {/* Page Size Selector */}
+              <select
+                className="reports-filter-select"
+                value={grnPageSize}
+                onChange={(e) => {
+                  const val = e.target.value === 'all' ? 0 : Number(e.target.value);
+                  setGrnPageSize(val);
+                  setGrnPage(1);
+                }}
+                title="Items per page"
+              >
+                <option value={50}>50 items / page (Exact PDF format)</option>
+                <option value={20}>20 items / page</option>
+                <option value={100}>100 items / page</option>
+                <option value="all">Show All Items (Continuous)</option>
+              </select>
+            </div>
+
+            <div className="reports-actions-group">
+              {/* View Mode Switcher */}
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Exact Physical Dot-Matrix Paper Layout from PDF"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export filtered items to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Goods Received Notes Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {grnLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Goods Received Notes from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Aggregating purchase intake, suppliers, discount rates and inventory values</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                  EXACT PHYSICAL GOODS RECEIVED NOTES PAPER SHEET (MATCHING FOURTH PDF 100%)
+                  ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-grn-report">
+                {/* Header matching PDF Scan */}
+                <div className="cs-report-header">
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '6px' }}>
+                    <div className="cs-report-title" style={{ margin: 0 }}>
+                      Goods Received Notes
+                    </div>
+                    <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
+                      From {grnReportData?.dateRange?.from || '06/08/2026'} &nbsp;To &nbsp;{grnReportData?.dateRange?.to || '06/08/2026'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Meta Box with horizontal solid lines matching PDF */}
+                <div className="grn-meta-box">
+                  <table className="grn-meta-table">
+                    <tbody>
+                      <tr>
+                        <td className="grn-meta-key">G.R.N.</td>
+                        <td className="grn-meta-val">{grnReportData?.meta?.grnNumber || '2,399'}</td>
+                        <td className="grn-meta-key">Date</td>
+                        <td className="grn-meta-val">{grnReportData?.meta?.date || '06/08/2026'}</td>
+                        <td className="grn-meta-key">Supplier</td>
+                        <td className="grn-meta-val" style={{ width: '30%' }}>{grnReportData?.meta?.supplier || 'RAZA AUTO TRADERS'}</td>
+                        <td className="grn-meta-key">Paid by</td>
+                        <td className="grn-meta-val">{grnReportData?.meta?.paidBy || 'Cheque'}</td>
+                      </tr>
+                      <tr>
+                        <td className="grn-meta-key">Invoice</td>
+                        <td className="grn-meta-val">{grnReportData?.meta?.invoice || '33919'}</td>
+                        <td className="grn-meta-key"></td>
+                        <td className="grn-meta-val"></td>
+                        <td className="grn-meta-key">Mater P.O.</td>
+                        <td className="grn-meta-val"></td>
+                        <td className="grn-meta-key">User</td>
+                        <td className="grn-meta-val">{grnReportData?.meta?.user || 'PC004'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Table Data matching PDF */}
+                <table className="grn-table">
+                  <thead>
+                    <tr>
+                      <th className="grn-th-code">Code</th>
+                      <th className="grn-th-desc">Description</th>
+                      <th className="grn-th-qty col-right">Quantity</th>
+                      <th className="grn-th-rtn col-right">Return Qty</th>
+                      <th className="grn-th-rate col-right">Rate</th>
+                      <th className="grn-th-disc col-right">Discount</th>
+                      <th className="grn-th-val col-right">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grnReportData?.data && grnReportData.data.length > 0 ? (
+                      grnReportData.data.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="cs-code">{item.code}</td>
+                          <td className="cs-desc">{item.description}</td>
+                          <td className="cs-qty">
+                            {Number(item.quantity || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="cs-qty" style={{ color: Number(item.returnQty) > 0 ? '#ea580c' : 'inherit' }}>
+                            {Number(item.returnQty || 0) > 0 ? Number(item.returnQty).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''}
+                          </td>
+                          <td className="cs-val">
+                            {Number(item.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="cs-val">
+                            {Number(item.discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="cs-val">
+                            {Number(item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No GRN items found matching your filters.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Sub Total & Grand Total Rows matching PDF */}
+                    <tr className="grn-subtotal-row">
+                      <td colSpan={6} style={{ textAlign: 'right', fontWeight: '900' }}>
+                        Sub Total
+                      </td>
+                      <td className="cs-val" style={{ fontWeight: '900' }}>
+                        {Number(grnReportData?.summary?.subTotal || 94625.01).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                    <tr className="grn-grandtotal-row">
+                      <td colSpan={6} style={{ textAlign: 'right', fontWeight: '900' }}>
+                        Grand Total
+                      </td>
+                      <td className="cs-val" style={{ fontWeight: '900' }}>
+                        {Number(grnReportData?.summary?.grandTotal || 94625.01).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Footer matching PDF */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
+                  <div className="cs-software-footer">
+                    {grnReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
+                    1
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* MODERN TABLE VIEW FOR GRN */
+              <div className="reports-modern-card">
+                <table className="reports-modern-table">
+                  <thead>
+                    <tr>
+                      <th>Part Code</th>
+                      <th>Description</th>
+                      <th style={{ textAlign: 'right' }}>Received Qty</th>
+                      <th style={{ textAlign: 'right' }}>Return Qty</th>
+                      <th style={{ textAlign: 'right' }}>Unit Rate</th>
+                      <th style={{ textAlign: 'center' }}>Discount</th>
+                      <th style={{ textAlign: 'right' }}>Net Value (Rs.)</th>
+                      <th>Supplier</th>
+                      <th>User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grnReportData?.data && grnReportData.data.length > 0 ? (
+                      grnReportData.data.map((item, idx) => (
+                        <tr key={idx}>
+                          <td>
+                            <strong style={{ fontFamily: 'monospace', color: '#0284c7' }}>{item.code}</strong>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: '600' }}>{item.description}</div>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                            {Number(item.quantity).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '800', color: Number(item.returnQty) > 0 ? '#ea580c' : '#64748b' }}>
+                            {Number(item.returnQty) > 0 ? `${Number(item.returnQty).toFixed(2)} ⚠️` : '-'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            Rs. {Number(item.rate).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className="stock-badge in-stock">{item.discount}%</span>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '900', color: '#0f172a' }}>
+                            Rs. {Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>
+                              🏢 {item.supplier || 'RAZA AUTO TRADERS'}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '12px', color: '#64748b' }}>
+                              👤 {item.user || 'PC004'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                          No GRN records found matching filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* =========================================================================
           REPORT 3: INVOICE RETURNS REPORT

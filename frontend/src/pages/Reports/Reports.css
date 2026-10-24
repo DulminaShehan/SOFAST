@@ -1000,6 +1000,92 @@
 }
 
 /* ==========================================================================
+   Goods Received Notes (GRN) Specific Styles (Matching Fourth PDF Document)
+   ========================================================================== */
+.grn-meta-box {
+  width: 100%;
+  border-top: 1.5px solid #000000;
+  border-bottom: 1.5px solid #000000;
+  padding: 6px 4px;
+  margin: 10px 0 6px 0;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-size: 11px;
+}
+
+.grn-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.grn-meta-table td {
+  padding: 2px 4px;
+  color: #000000;
+}
+
+.grn-meta-key {
+  font-weight: 900;
+  width: 10%;
+}
+
+.grn-meta-val {
+  font-weight: 700;
+  width: 23%;
+}
+
+.grn-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, 'Lucida Console', monospace;
+  font-size: 11px;
+}
+
+.grn-table th {
+  padding: 5px 6px;
+  font-weight: 900;
+  color: #000000;
+  text-align: left;
+  border-bottom: 1.5px solid #000000;
+  white-space: nowrap;
+}
+
+.grn-table th.col-right {
+  text-align: right;
+}
+
+.grn-table td {
+  padding: 3px 6px;
+  color: #000000;
+  vertical-align: top;
+  border-bottom: 1px dotted #cbd5e1;
+}
+
+.grn-th-code { width: 14%; }
+.grn-th-desc { width: 42%; }
+.grn-th-qty { width: 8%; }
+.grn-th-rtn { width: 9%; }
+.grn-th-rate { width: 9%; }
+.grn-th-disc { width: 8%; }
+.grn-th-val { width: 10%; }
+
+.grn-subtotal-row td {
+  padding: 6px 6px;
+  border-top: 1px solid #000000;
+  border-bottom: none;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.grn-grandtotal-row td {
+  padding: 4px 6px 14px 6px;
+  border-top: 1px solid #000000;
+  border-bottom: 2px solid #000000;
+  font-weight: 900;
+  font-size: 12px;
+  color: #000000;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -1016,12 +1102,15 @@
   #printable-daily-sales-report,
   #printable-daily-sales-report *,
   #printable-invoice-returns-report,
-  #printable-invoice-returns-report * {
+  #printable-invoice-returns-report *,
+  #printable-grn-report,
+  #printable-grn-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
   #printable-daily-sales-report,
-  #printable-invoice-returns-report {
+  #printable-invoice-returns-report,
+  #printable-grn-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -1035,7 +1124,8 @@
   }
   .cs-table,
   .ds-table,
-  .ir-table {
+  .ir-table,
+  .grn-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
@@ -1043,7 +1133,9 @@
   .ds-table th,
   .ds-table td,
   .ir-table th,
-  .ir-table td {
+  .ir-table td,
+  .grn-table th,
+  .grn-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,
@@ -1055,3 +1147,4 @@
     page-break-inside: avoid;
   }
 }
+
