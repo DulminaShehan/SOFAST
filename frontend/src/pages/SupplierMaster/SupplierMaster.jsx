@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
+import { useAuth } from '../../context/AuthContext';
 import './SupplierMaster.css';
 import '../ManagementSystem/ManagementSystem.css';
 
@@ -11,6 +12,7 @@ import '../ManagementSystem/ManagementSystem.css';
  * Status Bar, and the classic Supplier Master File dialog window (#EAF3FF pale blue theme).
  */
 function SupplierMaster() {
+  const { isAdmin } = useAuth();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -66,6 +68,7 @@ function SupplierMaster() {
 
   const administrationDropdownItems = [
     { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
+    ...(isAdmin ? [{ id: 'new-user', label: 'New User', path: '/new-user' }] : []),
   ];
 
   // Close dropdown on outside click

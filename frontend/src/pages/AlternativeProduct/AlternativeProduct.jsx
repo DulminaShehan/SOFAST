@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './AlternativeProduct.css';
 
 /**
@@ -10,6 +11,7 @@ import './AlternativeProduct.css';
  */
 function AlternativeProduct() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState('master-files');
@@ -90,6 +92,7 @@ function AlternativeProduct() {
 
   const administrationDropdownItems = [
     { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
+    ...(isAdmin ? [{ id: 'new-user', label: 'New User', path: '/new-user' }] : []),
   ];
 
   const showNotification = (msg, type = 'success') => {

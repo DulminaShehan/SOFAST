@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './SettlementInvoice.css';
 
 /**
@@ -12,6 +13,7 @@ import './SettlementInvoice.css';
 function SettlementInvoice() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin } = useAuth();
 
   // Top Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -92,6 +94,7 @@ function SettlementInvoice() {
 
   const administrationDropdownItems = [
     { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
+    ...(isAdmin ? [{ id: 'new-user', label: 'New User', path: '/new-user' }] : []),
   ];
 
   // Close dropdown menu on outside click

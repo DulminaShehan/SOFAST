@@ -4,31 +4,34 @@ import './MainMenu.css';
 import MasterFilesDropdown from './MasterFilesDropdown';
 import StockControlDropdown from './StockControlDropdown';
 import SalesServiceDropdown from './SalesServiceDropdown';
+import AdministrationDropdown from './AdministrationDropdown';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * MainMenu Component
  * Classic horizontal SOFAST desktop ERP menu bar:
- * - Master Files (Dropdown with Item, Supplier, Customer, Category, Sub Category Master)
+ * - Master Files
  * - Stock Control System
  * - Sales and Service
  * - Production
  * - Reports
  * - Accounting
- * - Administration
+ * - Administration (Printer Setup, New User [Admin only])
  */
 function MainMenu({ onMenuSelect }) {
   const [openDropdown, setOpenDropdown] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const { currentUser, isAdmin, logout } = useAuth();
 
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
-    { id: 'production', label: 'Production', path: '/production' },
+    { id: 'production', label: 'Production', path: '/management' },
     { id: 'reports', label: 'Reports', path: '/reports' },
-    { id: 'accounting', label: 'Accounting', path: '/accounting' },
-    { id: 'administration', label: 'Administration', path: '/administration' },
+    { id: 'accounting', label: 'Accounting', path: '/management' },
+    { id: 'administration', label: 'Administration', hasDropdown: true },
   ];
 
   // Close dropdown when clicking outside
@@ -56,10 +59,8 @@ function MainMenu({ onMenuSelect }) {
 
   const handleTopItemClick = (item) => {
     if (item.hasDropdown) {
-      // Toggle dropdown on click
       setOpenDropdown((prev) => (prev === item.id ? null : item.id));
     } else {
-      // Clicking another top menu immediately closes the Master Files dropdown
       setOpenDropdown(null);
       if (onMenuSelect) {
         onMenuSelect(item.label);
@@ -71,7 +72,6 @@ function MainMenu({ onMenuSelect }) {
   };
 
   const handleDropdownItemClick = (item) => {
-    // Close dropdown and navigate to the selected master module
     setOpenDropdown(null);
     if (onMenuSelect) {
       onMenuSelect(item.label);
@@ -79,6 +79,11 @@ function MainMenu({ onMenuSelect }) {
     if (item.path) {
       navigate(item.path);
     }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   return (
@@ -108,9 +113,34 @@ function MainMenu({ onMenuSelect }) {
             {item.id === 'sales-service' && openDropdown === 'sales-service' && (
               <SalesServiceDropdown onItemClick={handleDropdownItemClick} />
             )}
+
+            {item.id === 'administration' && openDropdown === 'administration' && (
+              <AdministrationDropdown onItemClick={handleDropdownItemClick} />
+            )}
           </li>
         ))}
       </ul>
+
+      {/* Right side user status badge */}
+      {currentUser && (
+        <div className="sofast-menubar-user-status">
+          <span className="user-status-pill">
+            <span className="user-status-icon">👤</span>
+            <span className="user-status-name">{currentUser.username}</span>
+            <span className={`user-status-role-badge ${isAdmin ? 'admin-badge' : 'user-badge'}`}>
+              {isAdmin ? 'ADMIN' : 'USER'}
+            </span>
+          </span>
+          <button
+            type="button"
+            className="user-status-logout-btn"
+            onClick={handleLogout}
+            title="Log out of system"
+          >
+            Logout
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

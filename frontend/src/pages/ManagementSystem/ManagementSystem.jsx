@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import './ManagementSystem.css';
 
 /**
@@ -11,6 +12,7 @@ function ManagementSystem() {
   const [selectedModule, setSelectedModule] = useState('Item Master');
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   // Module data for Master Files and top menus
   const masterFilesItems = [
@@ -226,6 +228,26 @@ function ManagementSystem() {
         </svg>
       ),
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'new-user',
+            label: 'New User',
+            path: '/new-user',
+            iconColor: '#f59e0b',
+            badgeBg: '#fef3c7',
+            description: 'Create user accounts, set login credentials, and configure page access permissions.',
+            renderIcon: (size = 20) => (
+              <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="8.5" cy="7" r="4" />
+                <line x1="20" y1="8" x2="20" y2="14" />
+                <line x1="23" y1="11" x2="17" y2="11" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const topMenuItems = [
