@@ -233,6 +233,8 @@ function Reports() {
   // ---------------------------------------------------------------------------
   // REPORT 5: Daily Settlements Details (Daily Setelments Deatils - ) States
   // ---------------------------------------------------------------------------
+  // REPORT 5: Daily Settlements Details States
+  // ---------------------------------------------------------------------------
   const [dsdLoading, setDsdLoading] = useState(true);
   const [dsdReportData, setDsdReportData] = useState(null);
   const [dsdStartDate, setDsdStartDate] = useState('2026-08-06');
@@ -250,8 +252,8 @@ function Reports() {
   // ---------------------------------------------------------------------------
   const [grnLoading, setGrnLoading] = useState(true);
   const [grnReportData, setGrnReportData] = useState(null);
-  const [grnStartDate, setGrnStartDate] = useState('2026-08-06');
-  const [grnEndDate, setGrnEndDate] = useState('2026-08-06');
+  const [grnStartDate, setGrnStartDate] = useState('2026-08-01');
+  const [grnEndDate, setGrnEndDate] = useState('2026-10-31');
   const [grnSelectedSupplier, setGrnSelectedSupplier] = useState('All');
   const [grnSelectedUser, setGrnSelectedUser] = useState('All');
   const [grnSearch, setGrnSearch] = useState('');
@@ -265,8 +267,8 @@ function Reports() {
   // ---------------------------------------------------------------------------
   const [irLoading, setIrLoading] = useState(false);
   const [irReportData, setIrReportData] = useState(null);
-  const [irStartDate, setIrStartDate] = useState('2026-08-06');
-  const [irEndDate, setIrEndDate] = useState('2026-08-06');
+  const [irStartDate, setIrStartDate] = useState('2026-08-01');
+  const [irEndDate, setIrEndDate] = useState('2026-10-31');
   const [irSelectedStaff, setIrSelectedStaff] = useState('All');
   const [irSearch, setIrSearch] = useState('');
   const [irSortBy, setIrSortBy] = useState('default');
@@ -309,8 +311,8 @@ function Reports() {
   // ---------------------------------------------------------------------------
   const [spLoading, setSpLoading] = useState(false);
   const [spReportData, setSpReportData] = useState(null);
-  const [spStartDate, setSpStartDate] = useState('2026-08-02');
-  const [spEndDate, setSpEndDate] = useState('2026-08-07');
+  const [spStartDate, setSpStartDate] = useState('2026-08-01');
+  const [spEndDate, setSpEndDate] = useState('2026-10-31');
   const [spSelectedSupplier, setSpSelectedSupplier] = useState('All');
   const [spSearch, setSpSearch] = useState('');
   const [spHasReturns, setSpHasReturns] = useState('all');
@@ -348,7 +350,7 @@ function Reports() {
   const [grenLoading, setGrenLoading] = useState(false);
   const [grenReportData, setGrenReportData] = useState(null);
   const [grenStartDate, setGrenStartDate] = useState('2026-08-01');
-  const [grenEndDate, setGrenEndDate] = useState('2026-08-10');
+  const [grenEndDate, setGrenEndDate] = useState('2026-10-31');
   const [grenSelectedSupplier, setGrenSelectedSupplier] = useState('All');
   const [grenSelectedNote, setGrenSelectedNote] = useState('All');
   const [grenSearch, setGrenSearch] = useState('');
@@ -732,6 +734,14 @@ function Reports() {
       setDsdSortBy('default');
       setDsdSearch('');
       setDsdPageSize(50);
+    } else if (presetType === 'all_dates') {
+      setDsdStartDate('');
+      setDsdEndDate('');
+      setDsdSelectedCustomer('All');
+      setDsdSelectedPaymentMethod('All');
+      setDsdSortBy('default');
+      setDsdSearch('');
+      setDsdPageSize(50);
     } else if (presetType === 'highest_inv') {
       setDsdSortBy('inv_value_desc');
     } else if (presetType === 'cash_only') {
@@ -754,8 +764,15 @@ function Reports() {
     setGrnPage(1);
     setGrnJumpPage('1');
     if (presetType === 'audit') {
-      setGrnStartDate('2026-08-06');
-      setGrnEndDate('2026-08-06');
+      setGrnStartDate('2026-08-01');
+      setGrnEndDate('2026-10-31');
+      setGrnSelectedSupplier('All');
+      setGrnSelectedUser('All');
+      setGrnSortBy('default');
+      setGrnSearch('');
+    } else if (presetType === 'all_dates') {
+      setGrnStartDate('');
+      setGrnEndDate('');
       setGrnSelectedSupplier('All');
       setGrnSelectedUser('All');
       setGrnSortBy('default');
@@ -784,8 +801,14 @@ function Reports() {
     setIrPage(1);
     setIrJumpPage('1');
     if (presetType === 'audit') {
-      setIrStartDate('2026-08-06');
-      setIrEndDate('2026-08-06');
+      setIrStartDate('2026-08-01');
+      setIrEndDate('2026-10-31');
+      setIrSortBy('default');
+      setIrSelectedStaff('All');
+      setIrSearch('');
+    } else if (presetType === 'all_dates') {
+      setIrStartDate('');
+      setIrEndDate('');
       setIrSortBy('default');
       setIrSelectedStaff('All');
       setIrSearch('');
@@ -817,6 +840,13 @@ function Reports() {
     if (presetType === 'audit') {
       setDsStartDate('2026-08-06');
       setDsEndDate('2026-08-06');
+      setDsSortBy('default');
+      setDsSelectedStaff('All');
+      setDsSelectedSection('all');
+      setDsSearch('');
+    } else if (presetType === 'all_dates') {
+      setDsStartDate('');
+      setDsEndDate('');
       setDsSortBy('default');
       setDsSelectedStaff('All');
       setDsSelectedSection('all');
@@ -896,8 +926,15 @@ function Reports() {
   // Presets for Supplier Wise Purchases
   const handleApplySpPreset = (presetType) => {
     if (presetType === 'audit') {
-      setSpStartDate('2026-08-02');
-      setSpEndDate('2026-08-07');
+      setSpStartDate('2026-08-01');
+      setSpEndDate('2026-10-31');
+      setSpSelectedSupplier('All');
+      setSpSearch('');
+      setSpHasReturns('all');
+      setSpSortBy('default');
+    } else if (presetType === 'all_dates') {
+      setSpStartDate('');
+      setSpEndDate('');
       setSpSelectedSupplier('All');
       setSpSearch('');
       setSpHasReturns('all');
@@ -991,28 +1028,35 @@ function Reports() {
   const handleApplyGrenPreset = (presetType) => {
     if (presetType === 'all') {
       setGrenStartDate('2026-08-01');
-      setGrenEndDate('2026-08-10');
+      setGrenEndDate('2026-10-31');
+      setGrenSelectedSupplier('All');
+      setGrenSelectedNote('All');
+      setGrenSearch('');
+      setGrenSortBy('default');
+    } else if (presetType === 'all_dates') {
+      setGrenStartDate('');
+      setGrenEndDate('');
       setGrenSelectedSupplier('All');
       setGrenSelectedNote('All');
       setGrenSearch('');
       setGrenSortBy('default');
     } else if (presetType === 'note_205') {
       setGrenStartDate('2026-08-01');
-      setGrenEndDate('2026-08-10');
+      setGrenEndDate('2026-10-31');
       setGrenSelectedSupplier('All');
       setGrenSelectedNote('205');
       setGrenSearch('');
       setGrenSortBy('default');
     } else if (presetType === 'supplier_rat') {
       setGrenStartDate('2026-08-01');
-      setGrenEndDate('2026-08-10');
+      setGrenEndDate('2026-10-31');
       setGrenSelectedSupplier('RAT');
       setGrenSelectedNote('All');
       setGrenSearch('');
       setGrenSortBy('default');
     } else if (presetType === 'high_value') {
       setGrenStartDate('2026-08-01');
-      setGrenEndDate('2026-08-10');
+      setGrenEndDate('2026-10-31');
       setGrenSelectedSupplier('All');
       setGrenSelectedNote('All');
       setGrenSearch('');
@@ -1948,6 +1992,13 @@ function Reports() {
               <span className="reports-pills-label">Quick Presets:</span>
               <button
                 type="button"
+                className={`reports-pill ${!dsdStartDate && !dsdEndDate ? 'active' : ''}`}
+                onClick={() => handleApplySettlementsPreset('all_dates')}
+              >
+                🌐 All Dates (Full DB)
+              </button>
+              <button
+                type="button"
                 className={`reports-pill ${dsdStartDate === '2026-08-06' && dsdSortBy === 'default' && dsdSelectedPaymentMethod === 'All' ? 'active' : ''}`}
                 onClick={() => handleApplySettlementsPreset('audit')}
               >
@@ -2425,10 +2476,17 @@ function Reports() {
               <span className="reports-pills-label">Quick Presets:</span>
               <button
                 type="button"
-                className={`reports-pill ${grnStartDate === '2026-08-06' && grnSortBy === 'default' ? 'active' : ''}`}
+                className={`reports-pill ${!grnStartDate && !grnEndDate ? 'active' : ''}`}
+                onClick={() => handleApplyGrnPreset('all_dates')}
+              >
+                🌐 All Dates (Full DB)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${grnStartDate === '2026-08-01' && grnEndDate === '2026-10-31' && grnSortBy === 'default' ? 'active' : ''}`}
                 onClick={() => handleApplyGrnPreset('audit')}
               >
-                📋 GRN 2,399 (Audit Record)
+                📋 All Active GRNs
               </button>
               <button
                 type="button"
@@ -2892,10 +2950,17 @@ function Reports() {
               <span className="reports-pills-label">Quick Presets:</span>
               <button
                 type="button"
-                className={`reports-pill ${irStartDate === '2026-08-06' && irSortBy === 'default' ? 'active' : ''}`}
+                className={`reports-pill ${!irStartDate && !irEndDate ? 'active' : ''}`}
+                onClick={() => handleApplyIrPreset('all_dates')}
+              >
+                🌐 All Dates (Full DB)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${irStartDate === '2026-08-01' && irEndDate === '2026-10-31' && irSortBy === 'default' ? 'active' : ''}`}
                 onClick={() => handleApplyIrPreset('audit')}
               >
-                📋 6/8/2026 (Audit Record)
+                📋 All Active Returns
               </button>
               <button
                 type="button"
@@ -3325,10 +3390,17 @@ function Reports() {
               <span className="reports-pills-label">Quick Presets:</span>
               <button
                 type="button"
+                className={`reports-pill ${!dsStartDate && !dsEndDate ? 'active' : ''}`}
+                onClick={() => handleApplyDsPreset('all_dates')}
+              >
+                🌐 All Dates (Full DB)
+              </button>
+              <button
+                type="button"
                 className={`reports-pill ${dsStartDate === '2026-08-06' && dsSortBy === 'default' && dsSelectedSection === 'all' ? 'active' : ''}`}
                 onClick={() => handleApplyDsPreset('audit')}
               >
-                📋 6/8/2026 (Audit Record)
+                📋 6/8/2026 (Audit Day)
               </button>
               <button
                 type="button"
@@ -4536,10 +4608,17 @@ function Reports() {
               <span className="reports-pills-label">Quick Presets:</span>
               <button
                 type="button"
-                className={`reports-pill ${spSelectedSupplier === 'All' && spHasReturns === 'all' && !spSearch && spSortBy === 'default' ? 'active' : ''}`}
+                className={`reports-pill ${!spStartDate && !spEndDate ? 'active' : ''}`}
+                onClick={() => handleApplySpPreset('all_dates')}
+              >
+                🌐 All Dates (Full DB)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${spStartDate === '2026-08-01' && spEndDate === '2026-10-31' && spSelectedSupplier === 'All' && spHasReturns === 'all' && !spSearch && spSortBy === 'default' ? 'active' : ''}`}
                 onClick={() => handleApplySpPreset('audit')}
               >
-                📋 All Suppliers Audit (02/08 - 07/08)
+                📋 All Active Purchases
               </button>
               <button
                 type="button"
@@ -6110,10 +6189,17 @@ function Reports() {
             <div className="reports-presets-list">
               <button
                 type="button"
+                className={`reports-preset-chip ${!grenStartDate && !grenEndDate ? 'active' : ''}`}
+                onClick={() => handleApplyGrenPreset('all_dates')}
+              >
+                🌐 All Dates (Full DB)
+              </button>
+              <button
+                type="button"
                 className="reports-preset-chip"
                 onClick={() => handleApplyGrenPreset('all')}
               >
-                📋 All G.RE.N Notes (Rs. 25,277.23)
+                📋 Active Notes Period
               </button>
               <button
                 type="button"
