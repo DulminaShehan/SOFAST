@@ -39,8 +39,6 @@ function Reports() {
     { id: 'item-master', label: 'Item Master', path: '/item-master' },
     { id: 'supplier-master', label: 'Supplier Master', path: '/supplier-master' },
     { id: 'customer-details', label: 'Customer Details', path: '/customer-details' },
-    { id: 'category-master', label: 'Category Master', path: '/management' },
-    { id: 'sub-category-master', label: 'Sub Category Master', path: '/management' },
     { id: 'alternative-product', label: 'Alternative Product', path: '/alternative-product' },
   ];
 
@@ -448,6 +446,67 @@ function Reports() {
     }
     return list;
   }, [altReportData, altSearch, altStatusFilter, altStockFilter, altSortBy]);
+
+  // Grouped Closing Stock items by category for the PDF Paper View
+  const displayClosingStockGroups = useMemo(() => {
+    if (csReportData?.grouped && csReportData.grouped.length > 0) {
+      return csReportData.grouped;
+    }
+    if (csReportData?.data && csReportData.data.length > 0) {
+      const map = new Map();
+      csReportData.data.forEach((item) => {
+        const cat = item.category || 'GENERAL';
+        if (!map.has(cat)) {
+          map.set(cat, {
+            categoryName: cat,
+            items: [],
+            subtotalQty: 0,
+            subtotalValue: 0,
+          });
+        }
+        const g = map.get(cat);
+        g.items.push(item);
+        g.subtotalQty += Number(item.quantity) || 0;
+        g.subtotalValue += Number(item.value) || 0;
+      });
+      return Array.from(map.values()).map((g) => ({
+        ...g,
+        subtotalQty: Math.round(g.subtotalQty * 100) / 100,
+        subtotalValue: Math.round(g.subtotalValue * 100) / 100,
+      }));
+    }
+    return [];
+  }, [csReportData]);
+
+  // Grouped Invoice Returns by invoice for PDF Paper View
+  const displayInvoiceReturnGroups = useMemo(() => {
+    if (irReportData?.invoiceGroups && irReportData.invoiceGroups.length > 0) {
+      return irReportData.invoiceGroups;
+    }
+    if (irReportData?.data && irReportData.data.length > 0) {
+      const map = new Map();
+      irReportData.data.forEach((item) => {
+        const invNo = item.invoiceNumber || 'INV-GENERAL';
+        if (!map.has(invNo)) {
+          map.set(invNo, {
+            invoiceNumber: invNo,
+            invoiceDate: item.invoiceDate || item.returnDate || '',
+            customerName: item.customerName || 'CUSTOMER',
+            items: [],
+            subTotal: 0,
+          });
+        }
+        const grp = map.get(invNo);
+        grp.items.push(item);
+        grp.subTotal += Number(item.value || 0);
+      });
+      return Array.from(map.values()).map((grp) => ({
+        ...grp,
+        subTotal: Number(grp.subTotal.toFixed(2)),
+      }));
+    }
+    return [];
+  }, [irReportData]);
 
   // Fetch Daily Settlements Report (Daily Setelments Deatils - )
   const fetchDailySettlements = async () => {
@@ -1837,9 +1896,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    Software by S.L.M.D.Chinthana-0777722076
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     Total: {displayAltProducts.length} Mappings
                   </div>
@@ -2336,9 +2393,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {dsdReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     Page {dsdPage} of {dsdReportData?.pagination?.totalPages || 1}
                   </div>
@@ -2827,9 +2882,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {grnReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     1
                   </div>
@@ -2925,7 +2978,7 @@ function Reports() {
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">TOTAL REFUND VALUE</span>
                   <span className="reports-kpi-val" style={{ color: '#dc2626' }}>
-                    Rs. {Number(irReportData?.summary?.totalRefundValue || -1990).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    Rs. {Number(irReportData?.summary?.totalRefundValue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                   <span className="reports-kpi-sub">
                     Reversed from Gross Daily Sales
@@ -2935,30 +2988,30 @@ function Reports() {
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">RETURNED ITEMS COUNT</span>
                   <span className="reports-kpi-val">
-                    {Math.abs(Number(irReportData?.summary?.totalReturnedQty || 3))} Units
+                    {Math.abs(Number(irReportData?.summary?.totalReturnedQty || 0))} Units
                   </span>
                   <span className="reports-kpi-sub">
-                    {irReportData?.summary?.itemsCount || 3} Return Line Entries
+                    {irReportData?.summary?.itemsCount || 0} Return Line Entries
                   </span>
                 </div>
 
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">INVOICES AFFECTED</span>
                   <span className="reports-kpi-val">
-                    {irReportData?.summary?.invoiceCount || 3}
+                    {irReportData?.summary?.invoiceCount || 0}
                   </span>
                   <span className="reports-kpi-sub">
-                    Invoices: 47530, 47568, 47588
+                    {irReportData?.summary?.invoicesList ? `Invoices: ${irReportData.summary.invoicesList}` : 'No invoices affected'}
                   </span>
                 </div>
 
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">TOP RETURNED ITEM</span>
                   <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'normal', lineHeight: '1.3' }}>
-                    REVERSE GEAR CABLE COMPLETE (CMUAZ161212)
+                    {irReportData?.summary?.topReturnedItem || 'None'}
                   </span>
                   <span className="reports-kpi-sub" style={{ color: '#dc2626', fontWeight: 'bold' }}>
-                    Refund Value: Rs. -1,110.00
+                    Refund Value: Rs. {Number(irReportData?.summary?.topReturnedValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -3198,8 +3251,8 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {irReportData?.invoiceGroups && irReportData.invoiceGroups.length > 0 ? (
-                      irReportData.invoiceGroups.map((grp, gIdx) => (
+                    {displayInvoiceReturnGroups && displayInvoiceReturnGroups.length > 0 ? (
+                      displayInvoiceReturnGroups.map((grp, gIdx) => (
                         <Fragment key={`inv-grp-${gIdx}`}>
                           {/* Invoice Meta Row matching PDF: Inv.  47530   Inv. Date: 05/08/2026   Customer   DAILY SALES */}
                           <tr className="ir-invoice-header-row">
@@ -3248,14 +3301,14 @@ function Reports() {
                       </tr>
                     )}
 
-                    {/* Final Grand Total Row matching PDF: Total   -1,990.00 */}
+                    {/* Final Grand Total Row matching PDF: Total */}
                     {irReportData?.summary && (
                       <tr className="ir-total-row">
                         <td colSpan={4} style={{ textAlign: 'right', fontWeight: '900', fontSize: '12px' }}>
                           Total
                         </td>
                         <td className="cs-val" style={{ fontWeight: '900', color: '#dc2626', fontSize: '12px' }}>
-                          {Number(irReportData.summary.totalRefundValue || -1990).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {Number(irReportData?.summary?.totalRefundValue ?? irReportData?.summary?.totalReturnAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                         <td></td>
                       </tr>
@@ -3265,9 +3318,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {irReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     1
                   </div>
@@ -3900,9 +3951,7 @@ function Reports() {
 
                 {/* Footer */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {dsReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     {dsReportData?.pagination?.page || 1}
                   </div>
@@ -4373,8 +4422,8 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {csReportData?.grouped && csReportData.grouped.length > 0 ? (
-                      csReportData.grouped.map((group, gIdx) => (
+                    {displayClosingStockGroups && displayClosingStockGroups.length > 0 ? (
+                      displayClosingStockGroups.map((group, gIdx) => (
                         <Fragment key={`group-${gIdx}`}>
                           {/* Category Section Header */}
                           <tr className="cs-category-row">
@@ -4474,10 +4523,7 @@ function Reports() {
                   </div>
                 </div>
 
-                {/* Software Footer matching PDF */}
-                <div className="cs-software-footer">
-                  {csReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                </div>
+
               </div>
             ) : (
               /* MODERN TABLE VIEW FOR CLOSING STOCK */
@@ -4922,10 +4968,7 @@ function Reports() {
                   </tbody>
                 </table>
 
-                {/* Software Footer */}
-                <div className="cs-report-footer" style={{ marginTop: '24px', borderTop: 'none', textAlign: 'left', fontSize: '11px', fontFamily: 'Courier New, monospace' }}>
-                  {spReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                </div>
+
               </div>
             ) : (
               /* =========================================================================
@@ -5929,9 +5972,7 @@ function Reports() {
 
                 {/* Footer matching PDF Scan */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {nmReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
                     Page {nmPage} of {nmReportData?.pagination?.totalPages || 1}
                   </div>
@@ -6463,9 +6504,7 @@ function Reports() {
 
                 {/* Footer matching PDF Scan */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {grenReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
                     Page 1 of 1
                   </div>
@@ -6578,11 +6617,11 @@ function Reports() {
 
           {/* Bottom Software Footer Bar matching Customer Details */}
           <div className="cust-report-statusbar no-print">
-            <span style={{ fontWeight: '700', color: '#000080' }}>
-              Software by S.L.M.D.Chinthana-0777722076
+            <span>
+              Active Report: {reportTabsList.find(t => t.id === activeReportTab)?.label || activeReportTab}
             </span>
             <span>
-              Active Report: {reportTabsList.find(t => t.id === activeReportTab)?.label || activeReportTab} &bull; Ready
+              Ready
             </span>
           </div>
         </div>

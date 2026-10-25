@@ -103,14 +103,14 @@ function MasterFile() {
                   <button
                     type="button"
                     className="quick-launch-btn"
-                    onClick={() => handleSelectMenuItem('Category Master File')}
+                    onClick={() => handleSelectMenuItem('Alternative Product File')}
                   >
-                    🏷️ Category Master File
+                    🔄 Alternative Product File
                   </button>
                 </div>
 
                 <div className="module-placeholder-note">
-                  Menu Ready: Master Files (Supplier, Stock, Customer, Category, Sub Category)
+                  Menu Ready: Master Files (Supplier, Stock, Customer, Alternative Product)
                 </div>
               </>
             )}

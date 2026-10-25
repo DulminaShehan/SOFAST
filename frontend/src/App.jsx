@@ -94,8 +94,8 @@ function App() {
       <Route path="/master-file" element={<ManagementSystem />} />
       <Route path="/master-files" element={<ManagementSystem />} />
       <Route path="/masterfiles" element={<ManagementSystem />} />
-      <Route path="/category-master" element={<ManagementSystem defaultModule="Category Master" />} />
-      <Route path="/sub-category-master" element={<ManagementSystem defaultModule="Sub Category Master" />} />
+      <Route path="/category-master" element={<Navigate to="/management" replace />} />
+      <Route path="/sub-category-master" element={<Navigate to="/management" replace />} />
       <Route path="/accounting" element={<ManagementSystem defaultModule="Accounting" />} />
       <Route path="/stock-control" element={<Navigate to="/grn" replace />} />
       <Route path="/sales-service" element={<Navigate to="/invoice" replace />} />

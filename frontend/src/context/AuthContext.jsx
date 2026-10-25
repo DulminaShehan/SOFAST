@@ -9,8 +9,6 @@ export const SYSTEM_MODULES = [
   { id: 'supplier-master', label: 'Supplier Master', category: 'Master Files', path: '/supplier-master' },
   { id: 'customer-details', label: 'Customer Details', category: 'Master Files', path: '/customer-details' },
   { id: 'alternative-product', label: 'Alternative Product', category: 'Master Files', path: '/alternative-product' },
-  { id: 'category-master', label: 'Category Master', category: 'Master Files', path: '/management' },
-  { id: 'sub-category-master', label: 'Sub Category Master', category: 'Master Files', path: '/management' },
 
   // Stock Control System
   { id: 'grn', label: 'Good Receive Note (GRN)', category: 'Stock Control', path: '/grn' },
