@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import ApprovementDropdown from '../../components/navigation/ApprovementDropdown';
 import './Reports.css';
 
 /**
@@ -858,12 +857,6 @@ function Reports() {
           <button type="button" className="reports-nav-btn active" onClick={() => navigate('/reports')}>
             Reports
           </button>
-
-          <ApprovementDropdown
-            isOpen={activeDropdown === 'approvement'}
-            onToggle={() => setActiveDropdown(activeDropdown === 'approvement' ? null : 'approvement')}
-            onClose={() => setActiveDropdown(null)}
-          />
         </div>
 
         <div className="reports-menu-right">
