@@ -1601,6 +1601,140 @@
 }
 
 /* ==========================================================================
+   Report 10: Goods Return Notes (G.RE.N)
+   Matches SOFAST (PVT) LTD physical PDF
+   ========================================================================== */
+.gren-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #000000;
+  border: 1.5px solid #000000;
+  margin-top: 6px;
+}
+
+.gren-table th,
+.gren-table td {
+  padding: 3px 6px;
+}
+
+.gren-header-row th {
+  font-weight: 800;
+  font-size: 11.5px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 1.5px solid #000000;
+  text-transform: capitalize;
+  background: #ffffff;
+  color: #000000;
+}
+
+.gren-th-code {
+  width: 18%;
+  text-align: left;
+}
+
+.gren-th-desc {
+  width: 50%;
+  text-align: left;
+}
+
+.gren-th-rate {
+  width: 11%;
+  text-align: right;
+}
+
+.gren-th-qty {
+  width: 9%;
+  text-align: right;
+}
+
+.gren-th-val {
+  width: 12%;
+  text-align: right;
+}
+
+.gren-meta-cell {
+  padding-top: 6px;
+  padding-bottom: 2px;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.gren-dashed-line-cell {
+  padding: 0 4px !important;
+  border-bottom: 1px dashed #000000;
+  height: 2px;
+}
+
+.gren-item-row:hover td {
+  background: rgba(241, 245, 249, 0.4);
+}
+
+.gren-code-cell {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gren-desc-cell {
+  color: #111827;
+  word-break: break-word;
+}
+
+.gren-rate-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gren-qty-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gren-val-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gren-subtotal-row td {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.gren-subtotal-label {
+  text-align: right;
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.gren-subtotal-val {
+  font-weight: 800;
+  text-align: right;
+}
+
+.gren-grandtotal-row td {
+  padding: 6px 6px;
+  border-top: 1px dashed #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.gren-grandtotal-label {
+  text-align: right;
+  font-weight: 900;
+  font-size: 11.5px;
+}
+
+.gren-grandtotal-val {
+  text-align: right;
+  font-weight: 900;
+  font-size: 11.5px;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -1629,7 +1763,9 @@
   #printable-top-selling-report,
   #printable-top-selling-report *,
   #printable-non-moving-report,
-  #printable-non-moving-report * {
+  #printable-non-moving-report *,
+  #printable-gren-report,
+  #printable-gren-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
@@ -1640,7 +1776,8 @@
   #printable-alt-report,
   #printable-supplier-purchases-report,
   #printable-top-selling-report,
-  #printable-non-moving-report {
+  #printable-non-moving-report,
+  #printable-gren-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -1659,7 +1796,8 @@
   .settlements-table,
   .sp-table,
   .ts-table,
-  .nm-table {
+  .nm-table,
+  .gren-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
@@ -1677,14 +1815,17 @@
   .ts-table th,
   .ts-table td,
   .nm-table th,
-  .nm-table td {
+  .nm-table td,
+  .gren-table th,
+  .gren-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,
   .ds-section-header-row,
   .ir-invoice-header-row,
   .sp-supplier-header-row,
-  .nm-cat-header-row {
+  .nm-cat-header-row,
+  .gren-meta-row {
     page-break-inside: avoid;
   }
   .cs-grand-total-section {

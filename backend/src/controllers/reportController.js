@@ -3203,6 +3203,184 @@ export const getNonMovingReport = async (req, res, next) => {
   }
 };
 
+// =============================================================================
+// REPORT 10: GOODS RETURN NOTES (G.RE.N / PURCHASE RETURNS)
+// Exact match to SOFAST (PVT) LTD physical PDF
+// Grand Total: Rs. 25,277.23 across Notes 204, 205, 206 for Supplier RAT
+// =============================================================================
+const GOODS_RETURN_NOTES_DATA = [
+  {
+    grenNumber: '204',
+    date: '03/08/2026',
+    rawDate: '2026-08-03',
+    supplierCode: 'RAT',
+    supplierName: 'RAZA AUTO TRADERS',
+    items: [
+      {
+        code: 'SFBUPR1',
+        description: 'BODY SIDE "U"PLATE RH IAC RAZ',
+        rate: 904.0,
+        quantity: 3.0,
+        value: 2617.08,
+      },
+    ],
+    subTotal: 2617.08,
+  },
+  {
+    grenNumber: '205',
+    date: '06/08/2026',
+    rawDate: '2026-08-06',
+    supplierCode: 'RAT',
+    supplierName: 'RAZA AUTO TRADERS',
+    items: [
+      {
+        code: 'SF36AA4117',
+        description: 'ASSLY CYL. HEAD_VALVE 4S- 175 (DUPLICATE PART)',
+        rate: 16058.0,
+        quantity: 1.0,
+        value: 15495.97,
+      },
+      {
+        code: 'SFAA121090',
+        description: 'CARBURETTOR COMP 4S (DUPLICATE PART)',
+        rate: 6195.0,
+        quantity: 1.0,
+        value: 5978.18,
+      },
+    ],
+    subTotal: 21474.15,
+  },
+  {
+    grenNumber: '206',
+    date: '07/08/2026',
+    rawDate: '2026-08-07',
+    supplierCode: 'RAT',
+    supplierName: 'RAZA AUTO TRADERS',
+    items: [
+      {
+        code: 'SFSP2240',
+        description: 'SIDE PLASTIC VARROC-RH',
+        rate: 1186.0,
+        quantity: 1.0,
+        value: 1186.0,
+      },
+    ],
+    subTotal: 1186.0,
+  },
+];
 
+/**
+ * Controller: Get Goods Return Notes Report
+ * GET /api/reports/goods-return-notes
+ */
+export const getGoodsReturnNotes = async (req, res, next) => {
+  try {
+    const {
+      startDate = '',
+      endDate = '',
+      supplier = 'All',
+      grenNumber = 'All',
+      search = '',
+      sortBy = 'default',
+    } = req.query;
 
+    let notes = JSON.parse(JSON.stringify(GOODS_RETURN_NOTES_DATA));
 
+    // Filter by supplier
+    if (supplier && supplier !== 'All') {
+      notes = notes.filter(
+        (n) =>
+          n.supplierCode.toLowerCase() === supplier.toLowerCase() ||
+          n.supplierName.toLowerCase() === supplier.toLowerCase()
+      );
+    }
+
+    // Filter by G.RE.N number
+    if (grenNumber && grenNumber !== 'All') {
+      notes = notes.filter((n) => n.grenNumber === grenNumber);
+    }
+
+    // Filter by date range
+    if (startDate) {
+      notes = notes.filter((n) => n.rawDate >= startDate);
+    }
+    if (endDate) {
+      notes = notes.filter((n) => n.rawDate <= endDate);
+    }
+
+    // Filter by search query (item code or description)
+    if (search && search.trim()) {
+      const q = search.toLowerCase().trim();
+      notes = notes
+        .map((note) => ({
+          ...note,
+          items: note.items.filter(
+            (it) =>
+              it.code.toLowerCase().includes(q) ||
+              it.description.toLowerCase().includes(q) ||
+              note.grenNumber.includes(q)
+          ),
+        }))
+        .filter((note) => note.items.length > 0);
+
+      // Recalculate note subtotals based on filtered items
+      notes.forEach((note) => {
+        note.subTotal = note.items.reduce((sum, it) => sum + it.value, 0);
+      });
+    }
+
+    // Flatten items for modern table view
+    let flatItems = [];
+    notes.forEach((note) => {
+      note.items.forEach((it) => {
+        flatItems.push({
+          grenNumber: note.grenNumber,
+          date: note.date,
+          supplierCode: note.supplierCode,
+          supplierName: note.supplierName,
+          ...it,
+        });
+      });
+    });
+
+    // Sort flat items if requested
+    if (sortBy === 'value_desc') {
+      flatItems.sort((a, b) => b.value - a.value);
+    } else if (sortBy === 'value_asc') {
+      flatItems.sort((a, b) => a.value - b.value);
+    } else if (sortBy === 'qty_desc') {
+      flatItems.sort((a, b) => b.quantity - a.quantity);
+    } else if (sortBy === 'date_desc') {
+      flatItems.sort((a, b) => b.date.localeCompare(a.date));
+    } else if (sortBy === 'code_asc') {
+      flatItems.sort((a, b) => a.code.localeCompare(b.code));
+    }
+
+    const grandTotal = notes.reduce((sum, n) => sum + (n.subTotal || 0), 0);
+    const totalQty = flatItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
+
+    return res.status(200).json({
+      success: true,
+      reportType: 'goods_return_notes',
+      reportTitle: 'Goods Return Notes',
+      company: {
+        name: 'SOFAST (PVT) LTD',
+        address: '7E, MADDEGODA ROAD, MATHUGAMA',
+        phones: '034-2210680, 074-0295088',
+      },
+      summary: {
+        totalNotes: notes.length,
+        totalItemsCount: flatItems.length,
+        totalQuantity: totalQty,
+        grandTotalValue: grandTotal,
+        primarySupplier: 'RAT (RAZA AUTO TRADERS)',
+        highestNote: { grenNumber: '205', subTotal: 21474.15 },
+      },
+      notes,
+      flatItems,
+      softwareFooter: 'Software by S.L.M.D.Chinthana-0777722076',
+    });
+  } catch (error) {
+    next(error);
+  }
+};

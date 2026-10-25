@@ -10,6 +10,7 @@ import {
   getSupplierWisePurchasesReport,
   getTopSellingItemsReport,
   getNonMovingReport,
+  getGoodsReturnNotes,
 } from '../controllers/reportController.js';
 
 const router = Router();
@@ -24,6 +25,7 @@ const router = Router();
  * - GET /api/reports/supplier-purchases
  * - GET /api/reports/top-selling
  * - GET /api/reports/non-moving
+ * - GET /api/reports/goods-return-notes
  * - GET /api/reports/filter-options
  * - GET /api/reports/most-used-products
  */
@@ -44,6 +46,9 @@ router.get('/top-selling-items', getTopSellingItemsReport);
 router.get('/non-moving', getNonMovingReport);
 router.get('/non-moving-items', getNonMovingReport);
 router.get('/dead-stock', getNonMovingReport);
+router.get('/goods-return-notes', getGoodsReturnNotes);
+router.get('/gren', getGoodsReturnNotes);
+router.get('/goods-returns', getGoodsReturnNotes);
 router.get('/filter-options', getReportFilterOptions);
 router.get('/most-used-products', getMostUsedProducts);
 

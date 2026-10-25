@@ -432,6 +432,20 @@ function ManagementSystem() {
       ),
     },
     {
+      id: 'goods-return-notes-rep',
+      label: 'Goods Return Notes (G.RE.N)',
+      path: '/reports?tab=goods_return_notes',
+      iconColor: '#f43f5e',
+      badgeBg: '#ffe4e6',
+      description: 'Supplier return vouchers, credit note audits and defective product returns register.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 14 4 9 9 4" />
+          <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+        </svg>
+      ),
+    },
+    {
       id: 'all-reports',
       label: '📊 Open Reports Center',
       path: '/reports',
