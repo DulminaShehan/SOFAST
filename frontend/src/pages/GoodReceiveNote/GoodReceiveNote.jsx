@@ -891,7 +891,7 @@ function GoodReceiveNote() {
     });
   };
 
-  // 3. BUTTON: SAVE (Saves as Draft - Does NOT increase stock)
+  // 3. BUTTON: SAVE (Prompts to Post to Stock or Save as Draft)
   const handleSave = async () => {
     if (!grnHeader.supplierCode || grnHeader.supplierCode.trim() === '') {
       showNotification('Please select a Supplier before saving', 'error');
@@ -900,6 +900,17 @@ function GoodReceiveNote() {
     if (lineItems.length === 0) {
       showNotification('Please add at least one Item before saving', 'error');
       return;
+    }
+
+    // Prompt user to choose between posting stock or saving as draft
+    let willPost = isRecordPosted;
+    if (!isRecordPosted) {
+      const confirmPost = window.confirm(
+        "Do you want to post this GRN to stock now?\n\n" +
+        "• Click 'OK' to Post to Stock (Stock increases immediately in Item Master & Sales Invoice)\n" +
+        "• Click 'Cancel' to Save as Draft (Stock will NOT change)"
+      );
+      willPost = Boolean(confirmPost);
     }
 
     const payload = {
@@ -926,7 +937,7 @@ function GoodReceiveNote() {
         value: li.value,
         locationCode: li.location || 'MAIN',
       })),
-      isPosted: isRecordPosted, // Preserve draft status if not posted; do NOT post stock on draft save
+      isPosted: willPost,
     };
 
     try {
@@ -943,13 +954,17 @@ function GoodReceiveNote() {
         setActiveGrnId(savedGrn._id);
         setIsRecordPosted(Boolean(savedGrn.isPosted));
         showNotification(
-          `GRN '${savedGrn.grnNumber || grnHeader.grnNumber}' saved successfully (${savedGrn.isPosted ? 'POSTED' : 'DRAFT'})!`,
+          `GRN '${savedGrn.grnNumber || grnHeader.grnNumber}' saved successfully (${savedGrn.isPosted ? 'POSTED TO STOCK' : 'SAVED AS DRAFT'})!`,
           'success'
         );
 
-        // Refresh GRN list
-        const grnsRes = await api.get('/grn?limit=100').catch(() => null);
+        // Refresh Items and GRN list from backend so Closing Stock & Item Master displays real updated values
+        const [grnsRes, itemsRes] = await Promise.all([
+          api.get('/grn?limit=100').catch(() => null),
+          api.get('/items?limit=2000').catch(() => null),
+        ]);
         if (grnsRes?.data?.data) setGrnList(grnsRes.data.data);
+        if (itemsRes?.data?.data) setItemsList(itemsRes.data.data);
 
         // Refresh item history if item is being viewed
         if (itemEntry.code) {
@@ -1355,6 +1370,39 @@ function GoodReceiveNote() {
                         ))}
                       </select>
                     )}
+                    {isRecordPosted ? (
+                      <span
+                        title="Stock has been posted to Item Master & Sales Invoice"
+                        style={{
+                          marginLeft: '6px',
+                          padding: '1px 5px',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          backgroundColor: '#d1fae5',
+                          color: '#065f46',
+                          border: '1px solid #10b981',
+                          borderRadius: '2px',
+                        }}
+                      >
+                        POSTED
+                      </span>
+                    ) : activeGrnId ? (
+                      <span
+                        title="Draft only - Stock has NOT been posted yet. Click Update or Process to post."
+                        style={{
+                          marginLeft: '6px',
+                          padding: '1px 5px',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          backgroundColor: '#fef3c7',
+                          color: '#92400e',
+                          border: '1px solid #f59e0b',
+                          borderRadius: '2px',
+                        }}
+                      >
+                        DRAFT
+                      </span>
+                    ) : null}
                   </div>
 
                   <span className="grn-label-blue" style={{ marginLeft: '12px' }}>Date</span>
@@ -2134,8 +2182,21 @@ function GoodReceiveNote() {
                 className="grn-btn-classic"
                 onClick={() => setValidateModal({ isOpen: false, isValid: false, errors: [], summary: null })}
               >
-                OK
+                Close
               </button>
+              {validateModal.isValid && (
+                <button
+                  type="button"
+                  className="grn-btn-classic"
+                  style={{ backgroundColor: '#006600', color: '#ffffff', fontWeight: 'bold', marginLeft: '6px' }}
+                  onClick={async () => {
+                    setValidateModal({ isOpen: false, isValid: false, errors: [], summary: null });
+                    await handleUpdate();
+                  }}
+                >
+                  &#10004; Post GRN to Stock
+                </button>
+              )}
             </div>
           </div>
         </div>

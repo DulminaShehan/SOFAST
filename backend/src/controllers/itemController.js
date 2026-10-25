@@ -352,6 +352,18 @@ export const getItemById = async (req, res, next) => {
     if (!item) {
       item = await Item.findOne({ code: id.trim() }).lean();
     }
+    if (!item) {
+      const trimmed = id.trim();
+      const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      item = await Item.findOne({
+        $or: [
+          { code: new RegExp(`^${escaped}$`, 'i') },
+          { barcode: trimmed },
+          { barCode: trimmed },
+          { description: new RegExp(`^${escaped}$`, 'i') },
+        ],
+      }).lean();
+    }
 
     if (!item) {
       return res.status(404).json({ success: false, message: 'Item not found' });

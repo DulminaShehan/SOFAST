@@ -2065,3 +2065,126 @@
   font-style: italic;
 }
 
+/* ==========================================================================
+   BOTTOM ACTIONS BAR (New | Bill Print | Save | Delete) & Summary
+   ========================================================================== */
+.sofast-bottom-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  border-top: none;
+  padding: 4px 8px;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 34px;
+  flex-shrink: 0;
+}
+
+.sofast-bottom-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sofast-bottom-btn {
+  height: 25px;
+  min-width: 82px;
+  padding: 0 12px;
+  background: #ece9d8;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  box-shadow: inset 1px 1px 0px #ffffff, inset -1px -1px 0px #808080;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: bold;
+  color: #000000;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  user-select: none;
+}
+
+.sofast-bottom-btn:hover {
+  background: #f4f2e8;
+}
+
+.sofast-bottom-btn:active {
+  border-top: 1px solid #707070;
+  border-left: 1px solid #707070;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.sofast-bottom-btn:disabled {
+  color: #888888;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.sofast-bottom-btn.sofast-btn-new {
+  color: #000000;
+}
+
+.sofast-bottom-btn.sofast-btn-print {
+  color: #004d40;
+}
+
+.sofast-bottom-btn.sofast-btn-save {
+  color: #000080;
+}
+
+.sofast-bottom-btn.sofast-btn-delete {
+  color: #8b0000;
+}
+
+.sofast-bottom-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+}
+
+.sofast-bottom-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sofast-bottom-summary-item .summary-label {
+  color: #000080;
+  font-weight: bold;
+}
+
+.sofast-bottom-summary-item .summary-value {
+  background: #ffffff;
+  border: 1px solid #7f9db9;
+  padding: 1px 6px;
+  min-width: 45px;
+  text-align: right;
+  font-weight: bold;
+  color: #000000;
+  height: 20px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.sofast-bottom-summary-item.grand-total-item .grand-total-value {
+  background: #fffbe6;
+  border: 1px solid #d4b106;
+  color: #b32400;
+  font-size: 12px;
+  font-weight: 800;
+  min-width: 90px;
+}
+
