@@ -7,7 +7,8 @@ import { useAuth } from '../../context/AuthContext';
  * - Petty Cash
  * - Leave Request
  */
-function ApprovementDropdown({ onItemClick, activePath = '' }) {
+function ApprovementDropdown({ isOpen = true, onItemClick, activePath = '' }) {
+  if (isOpen === false) return null;
   const { hasPermission, isAdmin } = useAuth();
 
   const approvementItems = [

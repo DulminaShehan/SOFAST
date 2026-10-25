@@ -22,9 +22,23 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor (for centralized error handling, refreshing tokens, etc.)
+// Response interceptor (notifies app of database changes, centralized error handling)
 api.interceptors.response.use(
   (response) => {
+    const method = String(response.config?.method || '').toLowerCase();
+    if (['post', 'put', 'patch', 'delete'].includes(method)) {
+      try {
+        const timestamp = Date.now().toString();
+        window.dispatchEvent(
+          new CustomEvent('sofast:database-updated', {
+            detail: { method, url: response.config?.url, timestamp },
+          })
+        );
+        localStorage.setItem('sofast_db_last_update', timestamp);
+      } catch {
+        // Ignore environments where window/localStorage are unavailable
+      }
+    }
     return response;
   },
   (error) => {

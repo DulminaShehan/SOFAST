@@ -62,7 +62,7 @@ function AlternativeProduct() {
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
     { id: 'approvement', label: 'Approvement', hasDropdown: true },
-    { id: 'reports', label: 'Reports', path: '/management' },
+    { id: 'reports', label: 'Reports', path: '/reports' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', hasDropdown: true },
   ];
@@ -759,6 +759,15 @@ function AlternativeProduct() {
                   onClick={handleDeleteRelationship}
                 >
                   Delete
+                </button>
+                <button
+                  type="button"
+                  className="alt-prod-btn-classic"
+                  style={{ color: '#000080', fontWeight: 'bold' }}
+                  onClick={() => navigate('/reports?tab=alternative_products')}
+                  title="View Alternative Products Report in Reports Center"
+                >
+                  Reports
                 </button>
               </div>
             </div>

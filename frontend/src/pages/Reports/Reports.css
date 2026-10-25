@@ -1,387 +1,805 @@
 /* ==========================================================================
-   SOFAST POS SYSTEM - CLOSING STOCK REPORT & REPORTS MODULE CSS
-   Exact replica of the physical ERP dot-matrix / print closing stock report.
-   Includes modern filtering bar, most-used product filters, and staff sorting.
+   SOFAST POS SYSTEM - REPORTS MODULE CSS
+   Classic SOFAST Desktop ERP / Visual Basic 6 UI Matching Customer Details
    ========================================================================== */
 
+.cust-master-container,
 .reports-page-container {
+  width: 100%;
   min-height: 100vh;
-  background: #f1f5f9;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: #0f172a;
   display: flex;
   flex-direction: column;
+  background-color: #d4d0c8;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
-/* ==========================================================================
-   Top Navigation Menubar (Consistent with SOFAST Master Pages)
-   ========================================================================== */
-.reports-menubar {
-  background: #1e293b;
-  color: #f8fafc;
+/* 1. Windows Blue Title Bar */
+.cust-titlebar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  min-height: 32px;
+  background-color: #006ecb;
+  color: #ffffff;
+  padding: 0 0 0 10px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.cust-titlebar-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.cust-titlebar-car-icon {
+  width: 16px;
+  height: 16px;
+  fill: #ffffff;
+}
+
+.cust-titlebar-heading {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.cust-titlebar-controls {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+.control-btn {
+  width: 32px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn.close:hover {
+  background-color: #e81123;
+}
+
+/* 2. Top Navigation Menu Bar */
+.cust-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.cust-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.cust-menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.cust-menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 10px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+}
+
+.cust-menubar-button:hover,
+.cust-menubar-button.active {
+  background-color: #0055ea;
+  border-color: #0044bb;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Dropdown Menu */
+.cust-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 210px;
+  z-index: 200;
+}
+
+.cust-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.cust-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  outline: none;
+}
+
+.cust-dropdown-item-btn:hover,
+.cust-dropdown-item-btn.selected {
+  background-color: #2b78e4;
+  color: #ffffff;
+}
+
+/* 3. Main Content Canvas */
+.cust-main-canvas {
+  flex: 1;
+  padding: 8px 12px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: 1720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Outer Panel Container matching reference screenshot */
+.cust-panel-container {
+  background-color: #ece9d8;
+  border: 1px solid #716f64;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Classic Dialog Window Title Bar */
+.cust-window-titlebar {
+  height: 28px;
+  background: #ece9d8;
+  border-bottom: 1px solid #aca899;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  height: 48px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  position: relative;
-  z-index: 50;
+  padding: 0 6px 0 8px;
+  box-sizing: border-box;
+  user-select: none;
 }
 
-.reports-menu-left {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.reports-brand-badge {
-  font-family: 'Arial Black', Impact, sans-serif;
-  font-size: 15px;
-  font-weight: 900;
-  color: #38bdf8;
-  letter-spacing: 1px;
-  margin-right: 14px;
+.cust-window-title-left {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.reports-nav-btn {
+.cust-window-logo-svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.cust-window-title-text {
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #000000;
+}
+
+.cust-window-controls {
+  display: flex;
+  align-items: center;
+}
+
+.cust-window-close-btn {
+  width: 22px;
+  height: 20px;
   background: transparent;
-  color: #cbd5e1;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.reports-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ffffff;
-}
-
-.reports-nav-btn.active {
-  background: #0284c7;
-  color: #ffffff;
-}
-
-.reports-menu-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.reports-user-tag {
-  font-size: 12px;
-  color: #94a3b8;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 4px 10px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.reports-back-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #f8fafc;
-  padding: 5px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.reports-back-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-}
-
-/* ==========================================================================
-   Hero Section & KPI Overview
-   ========================================================================== */
-.reports-hero-banner {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  color: #ffffff;
-  padding: 18px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 2px solid #0284c7;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.reports-hero-titles h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.reports-hero-titles p {
-  margin: 4px 0 0 0;
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.reports-kpi-group {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.reports-kpi-card {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  padding: 8px 14px;
-  min-width: 140px;
-  display: flex;
-  flex-direction: column;
-}
-
-.reports-kpi-card.highlight {
-  border-color: #38bdf8;
-  background: rgba(56, 189, 248, 0.08);
-}
-
-.reports-kpi-card.value {
-  border-color: #4ade80;
-  background: rgba(74, 222, 128, 0.08);
-}
-
-.reports-kpi-label {
+  border: 1px solid transparent;
   font-size: 11px;
-  color: #94a3b8;
-  text-transform: uppercase;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-.reports-kpi-val {
-  font-size: 17px;
-  font-weight: 900;
-  color: #f8fafc;
-  margin-top: 2px;
-}
-
-.reports-kpi-card.value .reports-kpi-val {
-  color: #4ade80;
-}
-
-.reports-kpi-card.highlight .reports-kpi-val {
-  color: #38bdf8;
-}
-
-/* ==========================================================================
-   Quick Presets Strip (1-Click Filters: Most Used, Staff, Low Stock)
-   ========================================================================== */
-.reports-quick-strip {
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 10px 24px;
+  color: #333333;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 2px;
 }
 
-.reports-quick-label {
-  font-size: 12px;
-  font-weight: 800;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-right: 4px;
+.cust-window-close-btn:hover {
+  background-color: #e81123;
+  color: #ffffff;
+  border-color: #b50012;
 }
 
-.reports-pill-btn {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  padding: 5px 12px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 700;
+/* Classic Windows Bevelled Tab Strip */
+.cust-tabs-strip {
+  background-color: #ece9d8;
+  border-bottom: 1px solid #716f64;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 6px 8px 0 8px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+
+.cust-tab-btn {
+  background: linear-gradient(180deg, #f7f6f0 0%, #e0ded4 100%);
+  border: 1px solid #999588;
+  border-bottom: 1px solid #716f64;
+  border-radius: 3px 3px 0 0;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #333333;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.15s;
+  white-space: nowrap;
+  outline: none;
+  user-select: none;
+  transition: background 0.1s;
 }
 
-.reports-pill-btn:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-  border-color: #94a3b8;
+.cust-tab-btn:hover {
+  background: #fbfaf6;
+  color: #000000;
 }
 
-.reports-pill-btn.active {
-  background: #0284c7;
-  color: #ffffff;
-  border-color: #0284c7;
-  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
+.cust-tab-btn.active {
+  background: #ece9d8;
+  border-top: 2px solid #0055ea;
+  border-left: 1px solid #716f64;
+  border-right: 1px solid #716f64;
+  border-bottom: 1px solid #ece9d8;
+  margin-bottom: -1px;
+  font-weight: 700;
+  color: #000080;
+  z-index: 2;
 }
 
-.reports-pill-badge {
-  background: rgba(0, 0, 0, 0.15);
-  padding: 1px 6px;
-  border-radius: 9999px;
-  font-size: 10.5px;
-  font-weight: 800;
+/* Live Database Synchronization & Status Bar */
+.reports-live-sync-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, #fbfaf6 0%, #ece9d8 100%);
+  border-bottom: 1px solid #716f64;
+  border-top: 1px solid #ffffff;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  color: #333333;
+  flex-shrink: 0;
+  gap: 12px;
 }
 
-.reports-pill-btn.active .reports-pill-badge {
-  background: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
+.reports-live-sync-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.reports-live-pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #16a34a;
+  box-shadow: 0 0 6px #16a34a;
+  display: inline-block;
+  animation: pulse-green 2s infinite ease-in-out;
+}
+
+.reports-live-pulse-dot.syncing {
+  background-color: #0284c7;
+  box-shadow: 0 0 8px #0284c7;
+  animation: pulse-blue 0.8s infinite ease-in-out;
+}
+
+@keyframes pulse-green {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+@keyframes pulse-blue {
+  0% { transform: scale(0.85); opacity: 0.7; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.85); opacity: 0.7; }
+}
+
+.reports-live-status-text {
+  color: #000080;
+  font-weight: 500;
+}
+
+.reports-live-timestamp {
+  color: #666666;
+  font-size: 11px;
+}
+
+.reports-live-sync-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reports-auto-sync-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #444444;
+}
+
+.reports-auto-sync-select {
+  padding: 2px 4px;
+  font-size: 11px;
+  font-family: inherit;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+  border-radius: 2px;
+  outline: none;
+}
+
+.reports-live-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 100%);
+  border: 1px solid #7f9db9;
+  border-radius: 3px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #000080;
+  cursor: pointer;
+  outline: none;
+  box-shadow: inset 0 1px 0 #ffffff;
+  transition: all 0.1s;
+}
+
+.reports-live-refresh-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #e8f1fc 0%, #d2e4f8 100%);
+  border-color: #2b70c9;
+  color: #000080;
+}
+
+.reports-live-refresh-btn:active:not(:disabled) {
+  background: #cce0f5;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.reports-live-refresh-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.reports-refresh-spin-icon.spinning {
+  display: inline-block;
+  animation: spin-refresh 1s linear infinite;
+}
+
+@keyframes spin-refresh {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cust-report-workspace {
+  background-color: #ece9d8;
+  display: flex;
+  flex-direction: column;
+}
+
+.cust-report-statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: #444444;
+  font-family: Tahoma, Arial, sans-serif;
+  background-color: #ece9d8;
+  border-top: 1px solid #aca899;
 }
 
 /* ==========================================================================
-   Interactive Controls & Filters Bar
+   Header Section & KPI Overview Dashboard (Classic ERP Dialog Theme)
    ========================================================================== */
-.reports-controls-bar {
+.reports-header-section {
+  background: #ece9d8;
+  color: #000000;
+  padding: 10px 14px;
+  border-bottom: 1px solid #aca899;
+  position: relative;
+}
+
+.reports-header-content {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.reports-title-area {
+  flex: 1;
+  min-width: 280px;
+}
+
+.reports-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #000080;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #e0ded4;
+  border: 1px solid #aca899;
+  padding: 2px 8px;
+  border-radius: 2px;
+  margin-bottom: 4px;
+}
+
+.reports-main-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #000080;
+  margin: 2px 0 4px 0;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+}
+
+.reports-subtitle {
+  font-size: 11.5px;
+  color: #444444;
+  margin: 0;
+  line-height: 1.4;
+  max-width: 650px;
+}
+
+.reports-kpi-grid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.reports-kpi-card {
   background: #ffffff;
-  border-bottom: 1px solid #cbd5e1;
-  padding: 12px 24px;
+  border: 1px solid #7f9db9;
+  padding: 6px 12px;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.reports-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #000080;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+
+.reports-kpi-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: #000000;
+  display: block;
+  white-space: nowrap;
+}
+
+.reports-kpi-val.highlight {
+  color: #000080 !important;
+}
+
+.reports-kpi-sub {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #555555;
+  margin-top: 2px;
+  display: block;
+}
+
+/* ==========================================================================
+   Quick Presets Strip (Classic ERP Button Style)
+   ========================================================================== */
+.reports-quick-pills {
+  background: #ece9d8;
+  border-bottom: 1px solid #aca899;
+  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reports-pills-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #000080;
+  letter-spacing: 0.2px;
+  margin-right: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reports-pill {
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  box-shadow: 1px 1px 0 #000000;
+  color: #000000;
+  padding: 2px 10px;
+  border-radius: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  outline: none;
+  user-select: none;
+}
+
+.reports-pill:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 100%);
+}
+
+.reports-pill.active {
+  background: #316ac5;
+  color: #ffffff;
+  border-top: 1px solid #002266;
+  border-left: 1px solid #002266;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+/* ==========================================================================
+   Interactive Controls & Filters Bar (Classic Windows ERP Style)
+   ========================================================================== */
+.reports-filter-bar {
+  background: #ece9d8;
+  border-bottom: 1px solid #aca899;
+  padding: 8px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  gap: 10px;
 }
 
-.reports-filters-group {
+.reports-filter-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
   flex: 1;
 }
 
 .reports-search-box {
   position: relative;
-  min-width: 260px;
+  min-width: 220px;
+  flex: 1;
+  max-width: 320px;
 }
 
 .reports-search-icon {
   position: absolute;
-  left: 10px;
+  left: 6px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 13px;
-  color: #94a3b8;
+  font-size: 11px;
+  color: #666666;
   pointer-events: none;
 }
 
 .reports-search-input {
   width: 100%;
-  padding: 7px 12px 7px 32px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 13px;
+  height: 23px;
+  padding: 2px 22px 2px 24px;
+  border: 1px solid #7f9db9;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  color: #000000;
+  background: #ffffff;
   outline: none;
-  background: #f8fafc;
-  transition: all 0.15s;
   box-sizing: border-box;
 }
 
 .reports-search-input:focus {
-  background: #ffffff;
-  border-color: #0284c7;
-  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+  border-color: #0055ea;
+  box-shadow: inset 0 0 1px #0055ea;
+}
+
+.reports-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  color: #666666;
+  cursor: pointer;
+  padding: 0;
 }
 
 .reports-filter-select {
-  padding: 7px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #334155;
-  background: #f8fafc;
+  height: 23px;
+  padding: 1px 6px;
+  border: 1px solid #7f9db9;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  color: #000000;
+  background: #ffffff;
   outline: none;
   cursor: pointer;
-  transition: all 0.15s;
 }
 
 .reports-filter-select:focus {
-  border-color: #0284c7;
-  background: #ffffff;
+  border-color: #0055ea;
 }
 
-.reports-actions-group {
+.reports-date-input {
+  height: 23px;
+  padding: 1px 4px;
+  border: 1px solid #7f9db9;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  color: #000000;
+  background: #ffffff;
+  outline: none;
+}
+
+.reports-date-input:focus {
+  border-color: #0055ea;
+}
+
+.reports-view-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.reports-action-btn {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  padding: 7px 14px;
-  border-radius: 6px;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.15s;
-}
-
-.reports-action-btn:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.reports-action-btn.print-btn {
-  background: #0f172a;
-  border-color: #0f172a;
-  color: #ffffff;
-}
-
-.reports-action-btn.print-btn:hover {
-  background: #1e293b;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+  flex-wrap: wrap;
 }
 
 .reports-view-toggle {
   display: flex;
-  background: #e2e8f0;
-  border-radius: 6px;
-  padding: 2px;
+  background: #e0ded4;
+  border: 1px solid #716f64;
+  padding: 1px;
+  gap: 1px;
 }
 
 .reports-view-toggle-btn {
   background: transparent;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #64748b;
+  border: 1px solid transparent;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #000000;
   cursor: pointer;
-  transition: all 0.15s;
+  outline: none;
+}
+
+.reports-view-toggle-btn:hover {
+  background: #ffffff;
 }
 
 .reports-view-toggle-btn.active {
-  background: #ffffff;
-  color: #0f172a;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: #316ac5;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.reports-action-btn {
+  height: 23px;
+  padding: 0 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #707070;
+  border-bottom: 1px solid #707070;
+  box-shadow: 1px 1px 0 #000000;
+  color: #000000;
+  outline: none;
+  user-select: none;
+}
+
+.reports-action-btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 100%);
+}
+
+.reports-action-btn:active {
+  border-top: 1px solid #707070;
+  border-left: 1px solid #707070;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+  box-shadow: none;
+  transform: translate(1px, 1px);
+}
+
+.reports-action-btn.print-btn {
+  color: #000080;
+  font-weight: 700;
 }
 
 /* ==========================================================================
@@ -774,65 +1192,6 @@
   color: #b91c1c;
 }
 
-/* ==========================================================================
-   Report Type Tabs Switcher
-   ========================================================================== */
-.reports-type-tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #ffffff;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  margin-bottom: 16px;
-  width: 100%;
-  max-width: 1060px;
-  box-sizing: border-box;
-}
-
-.reports-tab-btn {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  padding: 8px 18px;
-  border-radius: 6px;
-  font-size: 13.5px;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.15s ease-in-out;
-}
-
-.reports-tab-btn:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
-.reports-tab-btn.active {
-  background: #0284c7;
-  color: #ffffff;
-  border-color: #0284c7;
-  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
-}
-
-.reports-date-input {
-  padding: 6px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #334155;
-  background: #ffffff;
-  outline: none;
-}
-
-.reports-date-input:focus {
-  border-color: #0284c7;
-}
 
 /* ==========================================================================
    Daily Sales Report Specific Styles (Matching Second PDF Document)
@@ -1156,6 +1515,495 @@
 }
 
 /* ==========================================================================
+   REPORT 7: SUPPLIER WISE PURCHASES (Exact PDF continuous paper printout)
+   ========================================================================== */
+.sp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000000;
+  margin-top: 4px;
+}
+
+.sp-table thead {
+  border-top: 1px dotted #000000;
+  border-bottom: 1px dotted #000000;
+}
+
+.sp-table th {
+  padding: 4px 6px;
+  font-weight: 800;
+  color: #000000;
+  background-color: transparent;
+  white-space: nowrap;
+}
+
+.sp-table th.col-left { text-align: left; }
+.sp-table th.col-center { text-align: center; }
+.sp-table th.col-right { text-align: right; }
+
+.sp-th-grn { width: 10%; text-align: left; }
+.sp-th-date { width: 12%; text-align: center; }
+.sp-th-invoice { width: 28%; text-align: left; }
+.sp-th-val { width: 13%; text-align: right; }
+.sp-th-ret { width: 12%; text-align: right; }
+.sp-th-tot { width: 13%; text-align: right; }
+.sp-th-disc { width: 12%; text-align: right; }
+
+.sp-supplier-header-row td {
+  padding: 6px 4px 2px 4px;
+  font-weight: 800;
+  color: #000000;
+  border-top: 1px dotted #cbd5e1;
+}
+
+.sp-supplier-header-row:first-child td {
+  border-top: none;
+}
+
+.sp-code-cell {
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.sp-name-cell {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.sp-item-row td {
+  padding: 2.5px 6px;
+  color: #000000;
+  vertical-align: middle;
+}
+
+.sp-grn-cell {
+  padding-left: 18px !important;
+  white-space: nowrap;
+}
+
+.sp-date-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sp-invoice-cell {
+  white-space: nowrap;
+}
+
+.sp-val-cell,
+.sp-ret-cell,
+.sp-tot-cell,
+.sp-disc-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sp-subtotal-row td {
+  padding: 4px 6px;
+  border-top: 1px dotted #000000;
+  font-weight: 800;
+  color: #000000;
+}
+
+.sp-subtotal-label {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.sp-subtotal-val,
+.sp-subtotal-ret,
+.sp-subtotal-tot,
+.sp-subtotal-disc {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sp-grand-total-row td {
+  padding: 6px 6px;
+  border-top: 1px solid #000000;
+  border-bottom: 2.5px double #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.sp-grand-total-label {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.sp-grand-total-val,
+.sp-grand-total-ret,
+.sp-grand-total-tot,
+.sp-grand-total-disc {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   TOP SELLING ITEMS REPORT STYLES
+   Exact replica of the 162-page physical continuous paper report
+   ========================================================================== */
+.ts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 6px;
+}
+
+.ts-month-header-row th {
+  padding: 4px 6px;
+  font-weight: 900;
+  border-top: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+  font-size: 11px;
+  color: #000000;
+}
+
+.ts-sub-header-row th {
+  padding: 3px 6px;
+  font-weight: 800;
+  border-bottom: 1.5px solid #000000;
+  font-size: 10.5px;
+  color: #000000;
+}
+
+.ts-th-code {
+  width: 14%;
+  text-align: left;
+}
+
+.ts-th-desc {
+  width: 32%;
+  text-align: left;
+}
+
+.ts-th-qty {
+  width: 6%;
+}
+
+.ts-th-share {
+  width: 4.8%;
+}
+
+.ts-month-col {
+  border-left: 1px dotted #94a3b8;
+}
+
+.ts-item-row td {
+  padding: 2px 5px;
+  vertical-align: middle;
+  border-bottom: 0.5px dotted #cbd5e1;
+  font-size: 10.5px;
+  color: #000000;
+}
+
+.ts-code-cell {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.ts-desc-cell {
+  font-weight: 600;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-qty-cell {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.ts-share-cell {
+  text-align: right;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.ts-total-highlight {
+  font-weight: 900 !important;
+  color: #000000 !important;
+  background: rgba(241, 245, 249, 0.6);
+}
+
+.ts-grand-total-row td {
+  padding: 6px 6px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 2.5px double #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.ts-total-label {
+  text-align: left;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+/* ==========================================================================
+   Report 9: Non Moving Inventory Report (Dead Stock Audit)
+   Matches SOFAST (PVT) LTD 99-page Non Moving Report
+   ========================================================================== */
+.nm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000000;
+  border: 1.5px solid #000000;
+  margin-top: 6px;
+}
+
+.nm-table th,
+.nm-table td {
+  padding: 3px 6px;
+  border: none;
+}
+
+.nm-header-row th {
+  font-weight: 800;
+  font-size: 11.5px;
+  border-bottom: 1.5px solid #000000;
+  border-top: 1.5px solid #000000;
+  text-transform: uppercase;
+  background: #ffffff;
+  color: #000000;
+}
+
+.nm-th-code {
+  width: 18%;
+  text-align: left;
+}
+
+.nm-th-desc {
+  width: 54%;
+  text-align: left;
+}
+
+.nm-th-qty {
+  width: 12%;
+  text-align: right;
+}
+
+.nm-th-val {
+  width: 16%;
+  text-align: right;
+}
+
+.nm-cat-header-row td {
+  padding-top: 8px;
+  padding-bottom: 2px;
+}
+
+.nm-cat-title {
+  font-weight: 900;
+  font-size: 12px;
+  text-decoration: underline;
+  color: #000000;
+}
+
+.nm-item-row:hover td {
+  background: rgba(241, 245, 249, 0.4);
+}
+
+.nm-code-cell {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nm-desc-cell {
+  color: #111827;
+  word-break: break-word;
+}
+
+.nm-qty-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.nm-val-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.nm-subtotal-row td {
+  padding-top: 4px;
+  padding-bottom: 8px;
+}
+
+.nm-subtotal-val {
+  border-top: 1px solid #000000;
+  font-weight: 800;
+  text-align: right;
+}
+
+.nm-grand-total-row td {
+  padding: 8px 6px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 2.5px double #000000;
+  font-weight: 900;
+  font-size: 12px;
+  color: #000000;
+}
+
+.nm-grand-total-label {
+  text-align: left;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.nm-grand-total-val {
+  text-align: right;
+  font-weight: 900;
+  font-size: 12.5px;
+}
+
+/* ==========================================================================
+   Report 10: Goods Return Notes (G.RE.N)
+   Matches SOFAST (PVT) LTD physical PDF
+   ========================================================================== */
+.gren-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #000000;
+  border: 1.5px solid #000000;
+  margin-top: 6px;
+}
+
+.gren-table th,
+.gren-table td {
+  padding: 3px 6px;
+}
+
+.gren-header-row th {
+  font-weight: 800;
+  font-size: 11.5px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 1.5px solid #000000;
+  text-transform: capitalize;
+  background: #ffffff;
+  color: #000000;
+}
+
+.gren-th-code {
+  width: 18%;
+  text-align: left;
+}
+
+.gren-th-desc {
+  width: 50%;
+  text-align: left;
+}
+
+.gren-th-rate {
+  width: 11%;
+  text-align: right;
+}
+
+.gren-th-qty {
+  width: 9%;
+  text-align: right;
+}
+
+.gren-th-val {
+  width: 12%;
+  text-align: right;
+}
+
+.gren-meta-cell {
+  padding-top: 6px;
+  padding-bottom: 2px;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.gren-dashed-line-cell {
+  padding: 0 4px !important;
+  border-bottom: 1px dashed #000000;
+  height: 2px;
+}
+
+.gren-item-row:hover td {
+  background: rgba(241, 245, 249, 0.4);
+}
+
+.gren-code-cell {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gren-desc-cell {
+  color: #111827;
+  word-break: break-word;
+}
+
+.gren-rate-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gren-qty-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gren-val-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gren-subtotal-row td {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.gren-subtotal-label {
+  text-align: right;
+  font-weight: 800;
+  font-size: 11px;
+}
+
+.gren-subtotal-val {
+  font-weight: 800;
+  text-align: right;
+}
+
+.gren-grandtotal-row td {
+  padding: 6px 6px;
+  border-top: 1px dashed #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.gren-grandtotal-label {
+  text-align: right;
+  font-weight: 900;
+  font-size: 11.5px;
+}
+
+.gren-grandtotal-val {
+  text-align: right;
+  font-weight: 900;
+  font-size: 11.5px;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -1176,14 +2024,29 @@
   #printable-grn-report,
   #printable-grn-report *,
   #printable-settlements-report,
-  #printable-settlements-report * {
+  #printable-settlements-report *,
+  #printable-alt-report,
+  #printable-alt-report *,
+  #printable-supplier-purchases-report,
+  #printable-supplier-purchases-report *,
+  #printable-top-selling-report,
+  #printable-top-selling-report *,
+  #printable-non-moving-report,
+  #printable-non-moving-report *,
+  #printable-gren-report,
+  #printable-gren-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
   #printable-daily-sales-report,
   #printable-invoice-returns-report,
   #printable-grn-report,
-  #printable-settlements-report {
+  #printable-settlements-report,
+  #printable-alt-report,
+  #printable-supplier-purchases-report,
+  #printable-top-selling-report,
+  #printable-non-moving-report,
+  #printable-gren-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -1199,7 +2062,11 @@
   .ds-table,
   .ir-table,
   .grn-table,
-  .settlements-table {
+  .settlements-table,
+  .sp-table,
+  .ts-table,
+  .nm-table,
+  .gren-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
@@ -1211,12 +2078,23 @@
   .grn-table th,
   .grn-table td,
   .settlements-table th,
-  .settlements-table td {
+  .settlements-table td,
+  .sp-table th,
+  .sp-table td,
+  .ts-table th,
+  .ts-table td,
+  .nm-table th,
+  .nm-table td,
+  .gren-table th,
+  .gren-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,
   .ds-section-header-row,
-  .ir-invoice-header-row {
+  .ir-invoice-header-row,
+  .sp-supplier-header-row,
+  .nm-cat-header-row,
+  .gren-meta-row {
     page-break-inside: avoid;
   }
   .cs-grand-total-section {
