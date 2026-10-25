@@ -15,6 +15,16 @@ import {
 
 const router = Router();
 
+// Ensure all report responses are never cached by browsers, proxies, or intermediate caches,
+// guaranteeing that any time database data is inserted, updated, or deleted, fresh data is served.
+router.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
+  next();
+});
+
 /**
  * Report Routes
  * - GET /api/reports/closing-stock

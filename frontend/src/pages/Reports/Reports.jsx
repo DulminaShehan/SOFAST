@@ -117,6 +117,10 @@ function Reports() {
     customers: ['DAILY SALES', 'GUNAWARDANA GARAJ,PANTHIYA', 'ADVANCE BILL', 'KAVEESHA DEWSHAN,AGALAWATTA'],
   });
 
+  // Live Database Sync & Auto-Update States
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(new Date());
+  const [autoSyncInterval, setAutoSyncInterval] = useState(30); // 30s auto-refresh by default
+
   // ---------------------------------------------------------------------------
   // REPORT 6: Alternative Products Report States & Baseline Data
   // ---------------------------------------------------------------------------
@@ -721,6 +725,102 @@ function Reports() {
       fetchGoodsReturnNotes();
     }
   }, [activeReportTab, grenStartDate, grenEndDate, grenSelectedSupplier, grenSelectedNote, grenSearch, grenSortBy]);
+
+  // Unified live refresh for currently active report
+  const refreshActiveReport = () => {
+    setLastRefreshedAt(new Date());
+    switch (activeReportTab) {
+      case 'settlements':
+        fetchDailySettlements();
+        break;
+      case 'grn':
+        fetchGrnReport();
+        break;
+      case 'invoice_returns':
+        fetchInvoiceReturns();
+        break;
+      case 'daily_sales':
+        fetchDailySales();
+        break;
+      case 'closing_stock':
+        fetchClosingStock();
+        break;
+      case 'alternative_products':
+        fetchAlternativeProducts();
+        break;
+      case 'supplier_purchases':
+        fetchSupplierPurchases();
+        break;
+      case 'top_selling':
+        fetchTopSellingItems();
+        break;
+      case 'non_moving':
+        fetchNonMovingReport();
+        break;
+      case 'goods_return_notes':
+        fetchGoodsReturnNotes();
+        break;
+      default:
+        break;
+    }
+  };
+
+  // 1. Auto-refresh when user switches back to this tab/window
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshActiveReport();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshActiveReport();
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [activeReportTab]);
+
+  // 2. React to database mutation events across the app and across other open browser tabs
+  useEffect(() => {
+    const handleDbUpdate = () => {
+      refreshActiveReport();
+    };
+    const handleStorage = (e) => {
+      if (e.key === 'sofast_db_last_update') {
+        refreshActiveReport();
+      }
+    };
+    window.addEventListener('sofast:database-updated', handleDbUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('sofast:database-updated', handleDbUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [activeReportTab]);
+
+  // 3. Background periodic polling so reports always reflect live database records automatically
+  useEffect(() => {
+    if (!autoSyncInterval || autoSyncInterval <= 0) return;
+    const intervalId = setInterval(() => {
+      refreshActiveReport();
+    }, autoSyncInterval * 1000);
+    return () => clearInterval(intervalId);
+  }, [autoSyncInterval, activeReportTab]);
+
+  const isCurrentlyLoading =
+    activeReportTab === 'settlements' ? dsdLoading :
+    activeReportTab === 'grn' ? grnLoading :
+    activeReportTab === 'invoice_returns' ? irLoading :
+    activeReportTab === 'daily_sales' ? dsLoading :
+    activeReportTab === 'closing_stock' ? csLoading :
+    activeReportTab === 'alternative_products' ? altLoading :
+    activeReportTab === 'supplier_purchases' ? spLoading :
+    activeReportTab === 'top_selling' ? tsLoading :
+    activeReportTab === 'non_moving' ? nmLoading :
+    activeReportTab === 'goods_return_notes' ? grenLoading : false;
 
   // Presets for Daily Settlements Details
   const handleApplySettlementsPreset = (presetType) => {
@@ -1515,6 +1615,46 @@ function Reports() {
                 <span>{tab.label}</span>
               </button>
             ))}
+          </div>
+
+          {/* Live Database Sync & Status Bar */}
+          <div className="reports-live-sync-bar no-print">
+            <div className="reports-live-sync-left">
+              <span className={`reports-live-pulse-dot ${isCurrentlyLoading ? 'syncing' : ''}`} title="Live MongoDB Atlas Connection Active"></span>
+              <span className="reports-live-status-text">
+                <strong>Live Database:</strong> Active MongoDB Atlas sync
+              </span>
+              <span className="reports-live-timestamp">
+                • Last updated: {lastRefreshedAt ? lastRefreshedAt.toLocaleTimeString() : 'Just now'}
+              </span>
+            </div>
+            <div className="reports-live-sync-right">
+              <div className="reports-auto-sync-control">
+                <label htmlFor="reports-auto-sync-select">Auto-Update:</label>
+                <select
+                  id="reports-auto-sync-select"
+                  value={autoSyncInterval}
+                  onChange={(e) => setAutoSyncInterval(Number(e.target.value))}
+                  className="reports-auto-sync-select"
+                  title="Periodically re-queries MongoDB Atlas to reflect real-time cashier sales, returns, and inventory updates"
+                >
+                  <option value={15}>Every 15s</option>
+                  <option value={30}>Every 30s</option>
+                  <option value={60}>Every 1m</option>
+                  <option value={0}>Manual Only</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                className={`reports-live-refresh-btn ${isCurrentlyLoading ? 'loading' : ''}`}
+                onClick={refreshActiveReport}
+                disabled={isCurrentlyLoading}
+                title="Fetch latest data from database immediately"
+              >
+                <span className={`reports-refresh-spin-icon ${isCurrentlyLoading ? 'spinning' : ''}`}>🔄</span>
+                <span>{isCurrentlyLoading ? 'Updating...' : 'Refresh Live DB'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Report Workspace Content */}
