@@ -20,9 +20,74 @@ function Reports() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, isAdmin } = useAuth();
 
-  // Navigation Menubar Dropdowns
+  // Navigation Menubar Dropdowns matching Customer Details
   const [activeDropdown, setActiveDropdown] = useState(null);
   const menuRef = useRef(null);
+
+  const topMenuItems = [
+    { id: 'master-files', label: 'Master Files', hasDropdown: true },
+    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
+    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
+    { id: 'approvement', label: 'Approvement', hasDropdown: true },
+    { id: 'reports', label: 'Reports', path: '/reports' },
+    { id: 'accounting', label: 'Accounting', path: '/management' },
+    { id: 'administration', label: 'Administration', hasDropdown: true },
+  ];
+
+  const masterFilesDropdownItems = [
+    { id: 'item-master', label: 'Item Master', path: '/item-master' },
+    { id: 'supplier-master', label: 'Supplier Master', path: '/supplier-master' },
+    { id: 'customer-details', label: 'Customer Details', path: '/customer-details' },
+    { id: 'category-master', label: 'Category Master', path: '/management' },
+    { id: 'sub-category-master', label: 'Sub Category Master', path: '/management' },
+    { id: 'alternative-product', label: 'Alternative Product', path: '/alternative-product' },
+  ];
+
+  const stockControlDropdownItems = [
+    { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
+    { id: 'good-return-note', label: 'Good Return Note (GREN)', path: '/good-return-note' },
+    { id: 'damage', label: 'Damage', path: '/damage' },
+  ];
+
+  const salesServiceDropdownItems = [
+    { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
+    { id: 'settlement-invoice', label: 'Settlement Invoice', path: '/settlement-invoice' },
+    { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
+  ];
+
+  const approvementDropdownItems = [
+    { id: 'payment-voucher', label: 'Payment Voucher', path: '/payment-voucher' },
+    { id: 'petty-cash', label: 'Petty Cash', path: '/petty-cash' },
+    { id: 'leave-request', label: 'Leave Request', path: '/leave-request' },
+  ];
+
+  const administrationDropdownItems = [
+    { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
+    ...(isAdmin ? [{ id: 'new-user', label: 'New User', path: '/new-user' }] : []),
+  ];
+
+  const reportTabsList = [
+    { id: 'settlements', label: 'Daily Settlements Details', icon: '💰' },
+    { id: 'grn', label: 'Goods Received Notes (GRN)', icon: '📥' },
+    { id: 'invoice_returns', label: 'Invoice Returns Report', icon: '🔄' },
+    { id: 'daily_sales', label: 'Daily Sales & Profit Report', icon: '📈' },
+    { id: 'closing_stock', label: 'Closing Stock Report (170-Page)', icon: '📦' },
+    { id: 'alternative_products', label: 'Alternative Products Report', icon: '🔄' },
+    { id: 'supplier_purchases', label: 'Supplier Wise Purchases', icon: '🚚' },
+    { id: 'top_selling', label: 'Top Selling Items Report', icon: '🔥' },
+    { id: 'non_moving', label: 'Non Moving Inventory Report', icon: '⏳' },
+    { id: 'goods_return_notes', label: 'Goods Return Notes (G.RE.N)', icon: '↩️' },
+  ];
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   // Active Report Tab: 'settlements', 'grn', 'invoice_returns', 'daily_sales', 'closing_stock', or 'alternative_products'
   const initialTab = searchParams.get('tab') || 'settlements';
@@ -1219,117 +1284,197 @@ function Reports() {
   };
 
   return (
-    <div className="reports-page-container">
-      {/* =========================================================================
-          MENUBAR (Non-Printing)
-          ========================================================================= */}
-      <div className="reports-menubar no-print" ref={menuRef}>
-        <div className="reports-menu-left">
-          <div className="reports-brand-badge" onClick={() => navigate('/management')} style={{ cursor: 'pointer' }}>
-            <span>⚡ SOFAST</span>
+    <div className="cust-master-container reports-page-container">
+      {/* 1. Top Windows Blue Header matching Customer Details */}
+      <header className="cust-titlebar no-print">
+        <div className="cust-titlebar-brand">
+          <svg className="cust-titlebar-car-icon" viewBox="0 0 24 24">
+            <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+          </svg>
+          <span className="cust-titlebar-heading">SOFAST MOTORS - Management System</span>
+        </div>
+        <div className="cust-titlebar-controls">
+          <button type="button" className="control-btn" aria-label="Minimize">&#8212;</button>
+          <button type="button" className="control-btn" aria-label="Maximize">&#9633;</button>
+          <button
+            type="button"
+            className="control-btn close"
+            aria-label="Close"
+            onClick={() => navigate('/management')}
+          >
+            &#x2715;
+          </button>
+        </div>
+      </header>
+
+      {/* 2. Top Classic Menu Bar matching Customer Details */}
+      <nav className="cust-menubar-container no-print" ref={menuRef}>
+        <ul className="cust-menubar">
+          {topMenuItems.map((item) => (
+            <li key={item.id} className="cust-menubar-item">
+              <button
+                type="button"
+                className={`cust-menubar-button ${
+                  item.id === 'reports' || activeDropdown === item.id ? 'active' : ''
+                }`}
+                onClick={() => {
+                  if (item.hasDropdown) {
+                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
+                  } else if (item.path) {
+                    navigate(item.path);
+                  }
+                }}
+              >
+                {item.label}
+              </button>
+
+              {/* Master Files Dropdown */}
+              {item.id === 'master-files' && activeDropdown === 'master-files' && (
+                <ul className="cust-dropdown-menu">
+                  {masterFilesDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="cust-dropdown-entry">
+                      <button
+                        type="button"
+                        className="cust-dropdown-item-btn"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Stock Control System Dropdown */}
+              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
+                <ul className="cust-dropdown-menu">
+                  {stockControlDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="cust-dropdown-entry">
+                      <button
+                        type="button"
+                        className="cust-dropdown-item-btn"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Sales and Service Dropdown */}
+              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
+                <ul className="cust-dropdown-menu">
+                  {salesServiceDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="cust-dropdown-entry">
+                      <button
+                        type="button"
+                        className="cust-dropdown-item-btn"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Approvement Dropdown */}
+              {item.id === 'approvement' && activeDropdown === 'approvement' && (
+                <ul className="cust-dropdown-menu">
+                  {approvementDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="cust-dropdown-entry">
+                      <button
+                        type="button"
+                        className="cust-dropdown-item-btn"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Administration Dropdown */}
+              {item.id === 'administration' && activeDropdown === 'administration' && (
+                <ul className="cust-dropdown-menu">
+                  {administrationDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="cust-dropdown-entry">
+                      <button
+                        type="button"
+                        className="cust-dropdown-item-btn"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span>{dropItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      {/* 3. Main Report Canvas */}
+      <main className="cust-main-canvas">
+        <div className="cust-panel-container">
+          {/* Classic Window Title Bar matching Customer Details */}
+          <div className="cust-window-titlebar no-print">
+            <div className="cust-window-title-left">
+              <svg className="cust-window-logo-svg" viewBox="0 0 24 24" width="16" height="16">
+                <path d="M3 3h8v8H3z" fill="#f25022"/>
+                <path d="M13 3h8v8h-8z" fill="#7fba00"/>
+                <path d="M3 13h8v8H3z" fill="#00a4ef"/>
+                <path d="M13 13h8v8h-8z" fill="#ffb900"/>
+              </svg>
+              <span className="cust-window-title-text">Reports Center - Financial &amp; Inventory Auditing Suite</span>
+            </div>
+            <div className="cust-window-controls">
+              <button
+                type="button"
+                className="cust-window-close-btn"
+                aria-label="Close"
+                onClick={() => navigate('/management')}
+              >
+                &#x2715;
+              </button>
+            </div>
           </div>
 
-          <button type="button" className="reports-nav-btn" onClick={() => navigate('/management')}>
-            Management
-          </button>
-          <button type="button" className="reports-nav-btn" onClick={() => navigate('/cash-handle')}>
-            Cash Handle
-          </button>
-          <button type="button" className="reports-nav-btn" onClick={() => navigate('/petty-cash')}>
-            Petty Cash
-          </button>
-          <button type="button" className="reports-nav-btn active" onClick={() => navigate('/reports')}>
-            Reports
-          </button>
-        </div>
+          {/* Classic Windows Bevelled Tab Strip */}
+          <div className="cust-tabs-strip no-print">
+            {reportTabsList.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`cust-tab-btn ${activeReportTab === tab.id ? 'active' : ''}`}
+                onClick={() => handleTabSwitch(tab.id)}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
 
-        <div className="reports-menu-right">
-          <span className="reports-user-tag">
-            👤 Logged as: <strong>{currentUser?.username || 'admin'}</strong>
-          </span>
-          <button type="button" className="reports-back-btn" onClick={() => navigate('/management')}>
-            ← Back to System
-          </button>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          REPORT TYPE TABS SELECTOR (All 6 Reports)
-          ========================================================================= */}
-      <div className="reports-tabs-wrapper no-print">
-        <div className="reports-type-tabs">
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'settlements' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('settlements')}
-          >
-            💰 Daily Settlements Details
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'grn' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('grn')}
-          >
-            📥 Goods Received Notes (GRN)
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'invoice_returns' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('invoice_returns')}
-          >
-            🔄 Invoice Returns Report
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'daily_sales' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('daily_sales')}
-          >
-            📈 Daily Sales Report (Daily Sales &amp; Profit)
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'closing_stock' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('closing_stock')}
-          >
-            📦 Closing Stock Report (170-Page Full Inventory)
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'alternative_products' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('alternative_products')}
-          >
-            🔄 Alternative Products Report
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'supplier_purchases' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('supplier_purchases')}
-          >
-            🚚 Supplier Wise Purchases
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'top_selling' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('top_selling')}
-          >
-            🔥 Top Selling Items Report
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'non_moving' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('non_moving')}
-          >
-            ⏳ Non Moving Report
-          </button>
-          <button
-            type="button"
-            className={`reports-tab-btn ${activeReportTab === 'goods_return_notes' ? 'active' : ''}`}
-            onClick={() => handleTabSwitch('goods_return_notes')}
-          >
-            ↩️ Goods Return Notes (G.RE.N)
-          </button>
-        </div>
-      </div>
+          {/* Report Workspace Content */}
+          <div className="cust-report-workspace">
 
       {/* =========================================================================
           REPORT 6: ALTERNATIVE PRODUCTS & COMPATIBILITY REPORT
@@ -6323,6 +6468,20 @@ function Reports() {
           </div>
         </>
       )}
+
+          </div>
+
+          {/* Bottom Software Footer Bar matching Customer Details */}
+          <div className="cust-report-statusbar no-print">
+            <span style={{ fontWeight: '700', color: '#000080' }}>
+              Software by S.L.M.D.Chinthana-0777722076
+            </span>
+            <span>
+              Active Report: {reportTabsList.find(t => t.id === activeReportTab)?.label || activeReportTab} &bull; Ready
+            </span>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './ManagementSystem.css';
@@ -10,9 +10,132 @@ import './ManagementSystem.css';
 function ManagementSystem() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(true);
   const [selectedModule, setSelectedModule] = useState('Item Master');
+  const [reportSearchQuery, setReportSearchQuery] = useState('');
+  const [reportCategoryFilter, setReportCategoryFilter] = useState('All');
+  const [selectedReportRow, setSelectedReportRow] = useState('REP-01');
   const menuRef = useRef(null);
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+
+  // Directory of all 10 Reports for the Classic ERP Data Grid
+  const reportsDirectoryList = [
+    {
+      code: 'REP-01',
+      id: 'settlements',
+      label: 'Daily Settlements Details',
+      category: 'financial',
+      categoryName: 'Financial & Settlements',
+      path: '/reports?tab=settlements',
+      description: 'Daily cash collections, cheque payments and invoice settlement breakdown.',
+      auditScope: 'Audit reconciliation across cash drawers, bank cheques, advance billings, and cash adjustments (Report 5 PDF).',
+    },
+    {
+      code: 'REP-02',
+      id: 'grn',
+      label: 'Goods Received Notes (GRN)',
+      category: 'stock',
+      categoryName: 'Stock & Inventory Audit',
+      path: '/reports?tab=grn',
+      description: 'Inventory intake audit, supplier trade discounts and return quantities.',
+      auditScope: 'Incoming inventory intake audit, 3.5% supplier trade discounts, return quantities and net intake valuations (Report 4 PDF).',
+    },
+    {
+      code: 'REP-03',
+      id: 'invoice_returns',
+      label: 'Invoice Returns Report',
+      category: 'financial',
+      categoryName: 'Financial & Settlements',
+      path: '/reports?tab=invoice_returns',
+      description: 'Customer returns audit, refund values and returned stock items.',
+      auditScope: 'Customer counter returns audit, refund values, return reasons, and restocked item quantities (Report 3 PDF).',
+    },
+    {
+      code: 'REP-04',
+      id: 'daily_sales',
+      label: 'Daily Sales & Profit Report',
+      category: 'sales',
+      categoryName: 'Sales & Profitability',
+      path: '/reports?tab=daily_sales',
+      description: 'Daily counter sales, purchase costs, gross margins and profit calculations.',
+      auditScope: 'Itemized sales revenue, weighted average purchase cost, gross margins, and net profit calculations (Report 2 PDF).',
+    },
+    {
+      code: 'REP-05',
+      id: 'closing_stock',
+      label: 'Closing Stock Report (170-Page Full Inventory)',
+      category: 'stock',
+      categoryName: 'Stock & Inventory Audit',
+      path: '/reports?tab=closing_stock',
+      description: 'Complete warehouse inventory audit with bin locations, quantities and valuations.',
+      auditScope: '170-page complete physical inventory audit across 14 stock categories, bin locations, and total valuation of Rs. 27,249,709.81 (Report 1 PDF).',
+    },
+    {
+      code: 'REP-06',
+      id: 'alternative_products',
+      label: 'Alternative Products Report',
+      category: 'stock',
+      categoryName: 'Stock & Inventory Audit',
+      path: '/reports?tab=alternative_products',
+      description: 'Mapped substitute and interchangeable products catalog for fast counter lookup.',
+      auditScope: 'Substitute part compatibility mappings, in-stock alternatives, and cross-reference catalog for out-of-stock items.',
+    },
+    {
+      code: 'REP-07',
+      id: 'supplier_purchases',
+      label: 'Supplier Wise Purchases',
+      category: 'supplier',
+      categoryName: 'Supplier Purchases & Credit',
+      path: '/reports?tab=supplier_purchases',
+      description: 'Consolidated supplier purchases audit, return deductions, net payable and trade discounts.',
+      auditScope: 'Consolidated vendor purchase orders, gross purchases, return deductions, trade discounts, and net payable ledger.',
+    },
+    {
+      code: 'REP-08',
+      id: 'top_selling',
+      label: 'Top Selling Items Report',
+      category: 'sales',
+      categoryName: 'Sales & Profitability',
+      path: '/reports?tab=top_selling',
+      description: 'Monthly item volume consumption analysis, market share percentage and sales velocity.',
+      auditScope: 'Sales volume turnover velocity, fast-moving consumable parts ranking, and revenue contribution percentages.',
+    },
+    {
+      code: 'REP-09',
+      id: 'non_moving',
+      label: 'Non Moving Inventory Report',
+      category: 'stock',
+      categoryName: 'Stock & Inventory Audit',
+      path: '/reports?tab=non_moving',
+      description: 'Dead stock audit, dormant capital valuation and slow-moving spare parts analysis across 14 categories.',
+      auditScope: 'Dormant inventory audit, zero-movement capital lock-up across 14 categories with total dormant capital of Rs. 25,182,045.17.',
+    },
+    {
+      code: 'REP-10',
+      id: 'goods_return_notes',
+      label: 'Goods Return Notes (G.RE.N)',
+      category: 'returns',
+      categoryName: 'Defective Returns & Exchanges',
+      path: '/reports?tab=goods_return_notes',
+      description: 'Supplier return vouchers, credit note audits and defective product returns register.',
+      auditScope: 'Defective stock debit notes, supplier warranty returns, and credit note ledger totaling Rs. 25,277.23.',
+    },
+  ];
+
+  const filteredReports = useMemo(() => {
+    return reportsDirectoryList.filter((item) => {
+      const matchesCategory =
+        reportCategoryFilter === 'All' || item.category === reportCategoryFilter;
+      const q = reportSearchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        item.code.toLowerCase().includes(q) ||
+        item.label.toLowerCase().includes(q) ||
+        item.categoryName.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q) ||
+        item.auditScope.toLowerCase().includes(q);
+      return matchesCategory && matchesSearch;
+    });
+  }, [reportSearchQuery, reportCategoryFilter]);
 
   // Module data for Master Files and top menus
   const masterFilesItems = [
@@ -672,117 +795,224 @@ function ManagementSystem() {
       </nav>
 
       {/* 3. Center Workspace Content Area */}
-      <main className="management-workspace">
-        <div className="workspace-content">
-          <div className="workspace-circle-badge" style={{ backgroundColor: activeBadgeBg }}>
-            {currentMasterItem ? (
-              currentMasterItem.renderIcon(54)
-            ) : (
-              <svg width="50" height="50" viewBox="0 0 24 24" fill="#2563eb">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#60a5fa" />
-                <path d="M2 17l10 5V12L2 7v10z" fill="#2563eb" />
-                <path d="M22 17l-10 5V12l10-5v10z" fill="#1d4ed8" />
-              </svg>
-            )}
-          </div>
-
-          <h1 className="workspace-title">{activeTitle}</h1>
-          <p className="workspace-description">{activeDescription}</p>
-
-          {selectedModule === 'Reports' ? (
-            <div className="management-reports-hub" style={{ marginTop: '20px', width: '100%', maxWidth: '840px' }}>
-              <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
+      {selectedModule === 'Reports' ? (
+        <main className="management-workspace reports-canvas-mode">
+          <div className="cust-panel-container" style={{ maxWidth: '1440px', margin: '0 auto' }}>
+            {/* Classic Window Title Bar matching Customer Details reference */}
+            <div className="cust-window-titlebar">
+              <div className="cust-window-title-left">
+                <svg className="cust-window-logo-svg" viewBox="0 0 24 24" width="16" height="16">
+                  <path d="M3 3h8v8H3z" fill="#f25022" />
+                  <path d="M13 3h8v8h-8z" fill="#7fba00" />
+                  <path d="M3 13h8v8H3z" fill="#00a4ef" />
+                  <path d="M13 13h8v8h-8z" fill="#ffb900" />
+                </svg>
+                <span className="cust-window-title-text">Reports Directory - SOFAST Management System</span>
+              </div>
+              <div className="cust-window-controls">
                 <button
                   type="button"
-                  onClick={() => navigate('/reports')}
-                  style={{
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '12px 28px',
-                    fontWeight: '700',
-                    fontSize: '15px',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    transition: 'transform 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.03)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                  className="cust-window-close-btn"
+                  aria-label="Close"
+                  onClick={() => setSelectedModule('Item Master')}
                 >
-                  <span>📊 Open Full Reports Center (All Reports)</span>
-                  <span>&rarr;</span>
+                  &#x2715;
                 </button>
               </div>
+            </div>
 
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: '14px',
-                textAlign: 'left'
-              }}>
-                {reportsItems.filter(r => r.id !== 'all-reports').map(r => (
-                  <div
-                    key={r.id}
-                    onClick={() => navigate(r.path)}
-                    style={{
-                      background: '#ffffff',
-                      border: '1.5px solid #e2e8f0',
-                      borderRadius: '10px',
-                      padding: '16px',
-                      cursor: 'pointer',
-                      transition: 'all 0.18s ease',
-                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#0284c7';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 8px 20px rgba(2, 132, 199, 0.16)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#e2e8f0';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.04)';
+            {/* Filter Toolbar matching Customer Details form controls */}
+            <div className="cust-reports-toolbar">
+              <div className="cust-form-row">
+                <span className="dotted-label-blue">Category . . . . . . . .</span>
+                <select
+                  className="cust-input"
+                  style={{ width: '220px', fontWeight: 'bold', color: '#000080' }}
+                  value={reportCategoryFilter}
+                  onChange={(e) => setReportCategoryFilter(e.target.value)}
+                >
+                  <option value="All">All Categories (10 Reports)</option>
+                  <option value="financial">Financial &amp; Settlements</option>
+                  <option value="stock">Stock &amp; Inventory Audit</option>
+                  <option value="sales">Sales &amp; Profitability</option>
+                  <option value="supplier">Supplier Purchases &amp; Credit</option>
+                  <option value="returns">Defective Returns &amp; Exchanges</option>
+                </select>
+
+                <span className="dotted-label-blue" style={{ marginLeft: '12px' }}>Search Report . . . .</span>
+                <input
+                  type="text"
+                  className="cust-input"
+                  style={{ width: '320px' }}
+                  placeholder="Filter by report title, code, description..."
+                  value={reportSearchQuery}
+                  onChange={(e) => setReportSearchQuery(e.target.value)}
+                />
+
+                <button
+                  type="button"
+                  className="cust-btn-classic"
+                  style={{ marginLeft: '10px', fontWeight: 'bold', color: '#000080' }}
+                  onClick={() => navigate('/reports')}
+                  title="Open full reports center with continuous paper printer"
+                >
+                  📊 Open Full Reports Center
+                </button>
+
+                {(reportSearchQuery || reportCategoryFilter !== 'All') && (
+                  <button
+                    type="button"
+                    className="cust-btn-classic"
+                    style={{ marginLeft: '6px' }}
+                    onClick={() => {
+                      setReportSearchQuery('');
+                      setReportCategoryFilter('All');
                     }}
                   >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                        <div style={{
-                          background: r.badgeBg,
-                          borderRadius: '8px',
-                          padding: '7px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          {r.renderIcon(20)}
-                        </div>
-                        <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{r.label}</strong>
-                      </div>
-                      <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px 0', lineHeight: '1.45' }}>
-                        {r.description}
-                      </p>
-                    </div>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      Launch Report &rarr;
-                    </span>
-                  </div>
-                ))}
+                    Reset
+                  </button>
+                )}
               </div>
             </div>
-          ) : (
+
+            {/* Classic Data Grid Table Section matching Customer Details */}
+            <div className="cust-table-section">
+              <div className="cust-table-filter-bar">
+                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#000080' }}>
+                  Available System Reports ({filteredReports.length} records)
+                </span>
+                <span style={{ fontSize: '11px', color: '#555', fontStyle: 'italic' }}>
+                  Double-click or click 'Launch Report' to generate audit report
+                </span>
+              </div>
+
+              <div className="cust-table-viewport" style={{ maxHeight: '520px' }}>
+                <table className="cust-data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                      <th style={{ width: '80px' }}>Code</th>
+                      <th style={{ width: '270px' }}>Report Title</th>
+                      <th style={{ width: '190px' }}>Classification</th>
+                      <th>Audit Scope &amp; Physical Scan Reference</th>
+                      <th style={{ width: '130px', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReports.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', padding: '28px', color: '#666', fontStyle: 'italic' }}>
+                          No reports found matching current category or search criteria.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredReports.map((rep, idx) => {
+                        const isSelected = selectedReportRow === rep.code;
+                        return (
+                          <tr
+                            key={rep.code}
+                            className={isSelected ? 'selected' : ''}
+                            onClick={() => setSelectedReportRow(rep.code)}
+                            onDoubleClick={() => navigate(rep.path)}
+                            title="Double-click to open report"
+                          >
+                            <td style={{ textAlign: 'center', color: isSelected ? '#fff' : '#666' }}>{idx + 1}</td>
+                            <td style={{ fontWeight: 'bold', color: isSelected ? '#fff' : '#000080' }}>
+                              {rep.code}
+                            </td>
+                            <td style={{ fontWeight: '600' }}>
+                              {rep.label}
+                            </td>
+                            <td>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '1px 6px',
+                                borderRadius: '2px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                background: isSelected ? 'rgba(255,255,255,0.2)' : '#f0f0f0',
+                                border: isSelected ? '1px solid #ffffff' : '1px solid #d0d0d0',
+                                color: isSelected ? '#ffffff' : '#333333',
+                              }}>
+                                {rep.categoryName}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '11.5px', color: isSelected ? '#ffffff' : '#444444' }}>
+                              {rep.auditScope}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="cust-btn-classic"
+                                style={{
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  height: '20px',
+                                  fontWeight: 'bold',
+                                  color: '#000080',
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(rep.path);
+                                }}
+                              >
+                                Launch Report &rarr;
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Classic Dialog Status Info Bar matching Customer Details */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '6px 4px 2px 4px',
+                fontSize: '11px',
+                color: '#444444',
+                fontFamily: 'Tahoma, Arial, sans-serif',
+                borderTop: '1px solid #d0d0d0',
+                marginTop: '4px',
+              }}>
+                <span style={{ fontWeight: '600', color: '#000080' }}>
+                  Software by S.L.M.D.Chinthana-0777722076
+                </span>
+                <span>
+                  Showing {filteredReports.length} of {reportsDirectoryList.length} Total Registered Reports &bull; Ready
+                </span>
+              </div>
+            </div>
+          </div>
+        </main>
+      ) : (
+        <main className="management-workspace">
+          <div className="workspace-content">
+            <div className="workspace-circle-badge" style={{ backgroundColor: activeBadgeBg }}>
+              {currentMasterItem ? (
+                currentMasterItem.renderIcon(54)
+              ) : (
+                <svg width="50" height="50" viewBox="0 0 24 24" fill="#2563eb">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#60a5fa" />
+                  <path d="M2 17l10 5V12L2 7v10z" fill="#2563eb" />
+                  <path d="M22 17l-10 5V12l10-5v10z" fill="#1d4ed8" />
+                </svg>
+              )}
+            </div>
+
+            <h1 className="workspace-title">{activeTitle}</h1>
+            <p className="workspace-description">{activeDescription}</p>
+
             <div className="coming-soon-badge">
               Coming Soon...
             </div>
-          )}
-        </div>
-      </main>
+          </div>
+        </main>
+      )}
 
       {/* 4. Bottom Status Bar */}
       <footer className="management-statusbar">
