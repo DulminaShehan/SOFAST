@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './SettlementInvoice.css';
@@ -697,131 +698,7 @@ function SettlementInvoice() {
   return (
     <div className="settlement-page-wrapper">
       {/* 1. Top Classic Navigation Menu Bar */}
-      <nav className="settlement-menubar-container" ref={menuRef}>
-        <ul className="settlement-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="settlement-menubar-item">
-              <button
-                type="button"
-                className={`settlement-menubar-button ${
-                  (item.id === 'sales-service') || (activeDropdown === item.id) ? 'active' : ''
-                }`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                  } else if (item.path) {
-                    navigate(item.path);
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {/* Master Files Dropdown */}
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="settlement-dropdown-menu">
-                  {masterFilesDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="settlement-dropdown-entry">
-                      <button
-                        type="button"
-                        className="settlement-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="settlement-dropdown-menu">
-                  {stockControlDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="settlement-dropdown-entry">
-                      <button
-                        type="button"
-                        className="settlement-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="settlement-dropdown-menu">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="settlement-dropdown-entry">
-                      <button
-                        type="button"
-                        className={`settlement-dropdown-item-btn ${
-                          dropItem.id === 'settlement-invoice' ? 'selected' : ''
-                        }`}
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Approvement Dropdown */}
-              {item.id === 'approvement' && activeDropdown === 'approvement' && (
-                <ul className="settlement-dropdown-menu">
-                  {approvementDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="settlement-dropdown-entry">
-                      <button
-                        type="button"
-                        className="settlement-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Administration Dropdown */}
-              {item.id === 'administration' && activeDropdown === 'administration' && (
-                <ul className="settlement-dropdown-menu">
-                  {administrationDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="settlement-dropdown-entry">
-                      <button
-                        type="button"
-                        className="settlement-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="sales-service" />
 
       {/* 2. Windows Classic Title Bar */}
       <header className="settlement-win-titlebar">

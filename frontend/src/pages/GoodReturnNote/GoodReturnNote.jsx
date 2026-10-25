@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import './GoodReturnNote.css';
 
@@ -659,7 +660,10 @@ function GoodReturnNote() {
         </div>
       </div>
 
-      {/* 2. Menu Bar */}
+      {/* 2. Standard ERP Menu Bar */}
+      <ClassicNavbar activeMenu="stock-control" />
+
+      {/* 3. Action Submenu */}
       <div className="gren-menubar">
         <div className="gren-menu-item" ref={fileMenuRef} onClick={() => setFileMenuOpen(!fileMenuOpen)}>
           File

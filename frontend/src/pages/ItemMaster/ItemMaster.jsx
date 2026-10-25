@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import './ItemMaster.css';
 
@@ -704,85 +705,7 @@ function ItemMaster() {
       </header>
 
       {/* 2. Top Classic Menu Bar */}
-      <nav className="management-menubar-container" ref={menuRef}>
-        <ul className="management-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="menubar-item">
-              <button
-                type="button"
-                className={`menubar-button ${activeDropdown === item.id ? 'active' : ''}`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                  } else if (item.path) {
-                    setActiveDropdown(null);
-                    navigate(item.path);
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="masterfiles-dropdown">
-                  {masterFilesDropdownItems.map((masterItem) => (
-                    <li key={masterItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className={`dropdown-item-btn ${masterItem.id === 'item-master' ? 'selected' : ''}`}
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(masterItem.path);
-                        }}
-                      >
-                        <span>{masterItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="masterfiles-dropdown">
-                  {stockControlDropdownItems.map((scItem) => (
-                    <li key={scItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(scItem.path);
-                        }}
-                      >
-                        <span>{scItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="masterfiles-dropdown">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="master-files" />
 
       {/* 3. Main Desktop Workspace centering the Data Entry for Master File window */}
       <main className="item-master-workspace">
@@ -906,10 +829,10 @@ function ItemMaster() {
 
               {/* Row 3: Category | Sub Category */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-category" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-category" style={{ width: '140px' }}>
                   Category . . . . . .
                 </label>
-                <div className="field-control-group" style={{ width: '220px' }}>
+                <div className="field-control-group" style={{ width: '280px' }}>
                   <select
                     id="item-category"
                     name="category"
@@ -932,10 +855,10 @@ function ItemMaster() {
                   </button>
                 </div>
 
-                <label className="field-label" htmlFor="item-sub-category" style={{ marginLeft: '36px', width: '120px' }}>
+                <label className="field-label" htmlFor="item-sub-category" style={{ marginLeft: '36px', width: '140px' }}>
                   Sub Category . . . .
                 </label>
-                <div className="field-control-group" style={{ width: '220px' }}>
+                <div className="field-control-group" style={{ width: '280px' }}>
                   <select
                     id="item-sub-category"
                     name="subCategory"
@@ -961,10 +884,10 @@ function ItemMaster() {
 
               {/* Row 4: Location */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-location" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-location" style={{ width: '140px' }}>
                   Location . . . . . .
                 </label>
-                <div className="field-control-group" style={{ width: '220px' }}>
+                <div className="field-control-group" style={{ width: '280px' }}>
                   <select
                     id="item-location"
                     name="location"
@@ -989,7 +912,7 @@ function ItemMaster() {
 
               {/* Row 5: Re-Order Level | Re-Order Qty | Max Stock Level | Bulk Item */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-reorder-level" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-reorder-level" style={{ width: '140px' }}>
                   Re-Order Level .
                 </label>
                 <input
@@ -1003,7 +926,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="field-label" htmlFor="item-reorder-qty" style={{ marginLeft: '14px', width: '100px' }}>
+                <label className="field-label" htmlFor="item-reorder-qty" style={{ marginLeft: '20px', width: '120px' }}>
                   Re-Order Qty . . .
                 </label>
                 <input
@@ -1017,7 +940,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="field-label" htmlFor="item-max-stock" style={{ marginLeft: '14px', width: '110px' }}>
+                <label className="field-label" htmlFor="item-max-stock" style={{ marginLeft: '20px', width: '130px' }}>
                   Max Stock Level . .
                 </label>
                 <input
@@ -1031,20 +954,21 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="checkbox-field" style={{ marginLeft: '24px' }}>
+                <label className="checkbox-field" style={{ marginLeft: '28px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <span className="field-label">Bulk Item . . . . .</span>
                   <input
                     type="checkbox"
                     name="isBulkItem"
                     checked={formData.isBulkItem}
                     onChange={handleInputChange}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#002D62' }}
                   />
                 </label>
               </div>
 
               {/* Row 6: Selling Price | Bar Code | Last GRN Price */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-selling-price" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-selling-price" style={{ width: '140px' }}>
                   Selling Price . . . .
                 </label>
                 <input
@@ -1060,7 +984,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="field-label" htmlFor="item-barcode" style={{ marginLeft: '24px', width: '100px' }}>
+                <label className="field-label" htmlFor="item-barcode" style={{ marginLeft: '24px', width: '120px' }}>
                   Bar Code . . . . . .
                 </label>
                 <input
@@ -1073,7 +997,7 @@ function ItemMaster() {
                   autoComplete="off"
                 />
 
-                <label className="field-label" htmlFor="item-last-grn-price" style={{ marginLeft: '20px', width: '105px' }}>
+                <label className="field-label" htmlFor="item-last-grn-price" style={{ marginLeft: '24px', width: '130px' }}>
                   Last GRN Price .
                 </label>
                 <input
@@ -1091,10 +1015,10 @@ function ItemMaster() {
 
               {/* Row 7: Last GRN Date */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-last-grn-date" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-last-grn-date" style={{ width: '140px' }}>
                   Last GRN Date . .
                 </label>
-                <div className="field-control-group" style={{ width: '170px' }}>
+                <div className="field-control-group" style={{ width: '220px' }}>
                   <input
                     id="item-last-grn-date"
                     name="lastGrnDate"
@@ -1120,16 +1044,17 @@ function ItemMaster() {
                 </div>
               </div>
 
-              {/* Row 8: Supplier & Supplier Code */}
+              {/* Row 8: Supplier */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-supplier" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-supplier" style={{ width: '140px' }}>
                   Supplier . . . . . . .
                 </label>
-                <div className="field-control-group" style={{ width: '200px' }}>
+                <div className="field-control-group" style={{ width: '340px' }}>
                   <select
                     id="item-supplier"
                     name="supplier"
                     className="select-classic"
+                    style={{ flex: 1, minWidth: 0 }}
                     value={formData.supplier}
                     onChange={handleSupplierChange}
                   >
@@ -1156,8 +1081,11 @@ function ItemMaster() {
                     ...
                   </button>
                 </div>
+              </div>
 
-                <label className="field-label" htmlFor="item-supplier-code" style={{ marginLeft: '12px', width: '115px' }}>
+              {/* Row 8b: Supplier Code (placed below Supplier) */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-supplier-code" style={{ width: '140px' }}>
                   Supplier Code . . . .
                 </label>
                 <input
@@ -1165,7 +1093,7 @@ function ItemMaster() {
                   name="supplierCode"
                   type="text"
                   className="input-classic input-readonly"
-                  style={{ width: '130px' }}
+                  style={{ width: '220px' }}
                   value={formData.supplierCode}
                   readOnly
                   placeholder="Auto-populated"
@@ -1175,7 +1103,7 @@ function ItemMaster() {
 
               {/* Row 9: Remark */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-remark" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-remark" style={{ width: '140px' }}>
                   Remark . . . . . . .
                 </label>
                 <input
@@ -1191,10 +1119,10 @@ function ItemMaster() {
 
               {/* Row 10: Color | Round Off (Up / Down) | Discount (%) */}
               <div className="field-row">
-                <label className="field-label" htmlFor="item-color" style={{ width: '120px' }}>
+                <label className="field-label" htmlFor="item-color" style={{ width: '140px' }}>
                   Color . . . . . . . . .
                 </label>
-                <div className="field-control-group color-field-group" ref={colorPaletteRef} style={{ width: '170px', position: 'relative' }}>
+                <div className="field-control-group color-field-group" ref={colorPaletteRef} style={{ width: '210px', position: 'relative' }}>
                   <input
                     id="item-color"
                     name="color"

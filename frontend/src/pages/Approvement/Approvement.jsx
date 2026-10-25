@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import MainMenu from '../../components/navigation/MainMenu';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
@@ -400,26 +400,31 @@ function Approvement({ defaultSection }) {
 
   return (
     <div className="approvement-page-container">
-      {/* 1. Window Header Bar */}
-      <header className="approvement-window-header">
-        <div className="approvement-header-left">
-          <img src={windowIcon} alt="" className="approvement-header-icon" />
-          <span className="approvement-header-title">SOFAST MOTORS - Approvement Workflow System</span>
-          <span className="approvement-badge">Approvals</span>
+      {/* 1. Classic Windows Top Title Bar matching Customer Details */}
+      <header className="cust-titlebar">
+        <div className="titlebar-brand">
+          <svg className="titlebar-car-icon" viewBox="0 0 24 24">
+            <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+          </svg>
+          <span className="titlebar-heading">SOFAST MOTORS - Management System</span>
         </div>
-        <div>
+        <div className="cust-titlebar-controls">
+          <button type="button" className="control-btn" aria-label="Minimize">&#8212;</button>
+          <button type="button" className="control-btn" aria-label="Maximize">&#9633;</button>
           <button
             type="button"
-            className="approvement-back-btn"
+            className="control-btn close"
+            aria-label="Close"
             onClick={() => navigate('/management')}
+            title="Exit to Management System"
           >
-            &larr; Management System
+            &#x2715;
           </button>
         </div>
       </header>
 
-      {/* 2. Top Application Menu Bar */}
-      <MainMenu />
+      {/* 2. Top Classic Menu Bar */}
+      <ClassicNavbar activeMenu="approvement" />
 
       {/* Toast Notification */}
       {notification && (
@@ -442,63 +447,98 @@ function Approvement({ defaultSection }) {
         </div>
       )}
 
-      {/* 3. Main Workspace Canvas */}
-      <main className="approvement-workspace">
-        {/* Navigation Tabs Bar */}
-        <div className="approvement-tabs-bar">
-          <button
-            type="button"
-            className={`approvement-tab-btn ${activeTab === 'payment-voucher' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('payment-voucher');
-              navigate('/payment-voucher');
-            }}
-          >
-            <span>💳 Payment Voucher</span>
-            {pendingPvCount > 0 && <span className="tab-pill-count">{pendingPvCount} pending</span>}
-          </button>
+      {/* 3. Main Workspace Canvas matching Customer Details */}
+      <main className="approvement-main-canvas">
+        <div className="approvement-panel-container">
+          {/* Classic Window Title Bar matching Customer Details */}
+          <div className="cust-window-titlebar">
+            <div className="cust-window-title-left">
+              <svg className="cust-window-logo-svg" viewBox="0 0 24 24" width="16" height="16">
+                <path d="M3 3h8v8H3z" fill="#f25022"/>
+                <path d="M13 3h8v8h-8z" fill="#7fba00"/>
+                <path d="M3 13h8v8H3z" fill="#00a4ef"/>
+                <path d="M13 13h8v8h-8z" fill="#ffb900"/>
+              </svg>
+              <span className="cust-window-title-text">Approvement System - Authorization &amp; Workflow Manager</span>
+            </div>
+            <div className="cust-window-controls">
+              <button
+                type="button"
+                className="cust-window-close-btn"
+                aria-label="Close"
+                onClick={() => navigate('/management')}
+                title="Close to Management System"
+              >
+                &#x2715;
+              </button>
+            </div>
+          </div>
 
-          <button
-            type="button"
-            className={`approvement-tab-btn ${activeTab === 'petty-cash' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('petty-cash');
-              navigate('/petty-cash');
-            }}
-          >
-            <span>💵 Petty Cash</span>
-            {pendingPcCount > 0 && <span className="tab-pill-count">{pendingPcCount} pending</span>}
-          </button>
-
-          <button
-            type="button"
-            className={`approvement-tab-btn ${activeTab === 'leave-request' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('leave-request');
-              navigate('/leave-request');
-            }}
-          >
-            <span>📅 Leave Request</span>
-            {pendingLrCount > 0 && <span className="tab-pill-count">{pendingLrCount} pending</span>}
-          </button>
-
-          {/* ADMIN ONLY RECEIVE INBOX TAB */}
-          {isAdmin && (
+          {/* Classic Windows Bevelled Tab Strip */}
+          <div className="cust-tabs-strip">
             <button
               type="button"
-              className={`approvement-tab-btn admin-inbox-tab ${activeTab === 'receive-inbox' ? 'active' : ''}`}
-              onClick={() => setActiveTab('receive-inbox')}
-              title="Admin Inbox: Receive and authorize submitted expense vouchers"
+              className={`cust-tab-btn ${activeTab === 'payment-voucher' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('payment-voucher');
+                navigate('/payment-voucher');
+              }}
             >
-              <span>📥 Receive Inbox</span>
-              {pendingPvCount > 0 ? (
-                <span className="tab-pill-count badge-urgent">{pendingPvCount} PENDING</span>
-              ) : (
-                <span className="tab-pill-count" style={{ background: '#22c55e', color: '#fff' }}>0</span>
-              )}
+              <span>💳</span>
+              <span>Payment Voucher</span>
+              {pendingPvCount > 0 && <span className="tab-pill-count">{pendingPvCount} pending</span>}
             </button>
-          )}
-        </div>
+
+            <button
+              type="button"
+              className={`cust-tab-btn ${activeTab === 'petty-cash' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('petty-cash');
+                navigate('/petty-cash');
+              }}
+            >
+              <span>💵</span>
+              <span>Petty Cash</span>
+              {pendingPcCount > 0 && <span className="tab-pill-count">{pendingPcCount} pending</span>}
+            </button>
+
+            <button
+              type="button"
+              className={`cust-tab-btn ${activeTab === 'leave-request' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('leave-request');
+                navigate('/leave-request');
+              }}
+            >
+              <span>📝</span>
+              <span>Leave Request</span>
+              {pendingLrCount > 0 && <span className="tab-pill-count">{pendingLrCount} pending</span>}
+            </button>
+
+            {/* ADMIN ONLY RECEIVE INBOX TAB */}
+            {isAdmin && (
+              <button
+                type="button"
+                className={`cust-tab-btn ${activeTab === 'receive-inbox' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab('receive-inbox');
+                  navigate('/receive-inbox');
+                }}
+                title="Admin Inbox: Receive and authorize submitted expense vouchers"
+              >
+                <span>📥</span>
+                <span>Receive Inbox</span>
+                {totalInboxPendingCount > 0 ? (
+                  <span className="tab-pill-count badge-urgent">{totalInboxPendingCount} PENDING</span>
+                ) : (
+                  <span className="tab-pill-count" style={{ background: '#22c55e', color: '#fff' }}>0</span>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Panel Body */}
+          <div className="approvement-panel-body">
 
         {/* HERO BANNER SECTION */}
         {activeTab === 'receive-inbox' && isAdmin ? (
@@ -1291,6 +1331,8 @@ function Approvement({ defaultSection }) {
             </table>
           </div>
         )}
+          </div>
+        </div>
       </main>
 
       {/* =========================================================================

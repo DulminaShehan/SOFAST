@@ -193,11 +193,11 @@
 
 /* Classic Dialog Window: "Data Entry for Master File" */
 .item-master-window {
-  width: 920px;
-  max-width: 96vw;
+  width: 1400px;
+  max-width: 97vw;
   background-color: #ece9d8;
   border: 2px solid #808080;
-  box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: 2px 2px 14px rgba(0, 0, 0, 0.28);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -210,11 +210,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
-  min-height: 28px;
+  height: 32px;
+  min-height: 32px;
   background: linear-gradient(to right, #005bb7, #0078d7);
   color: #ffffff;
-  padding: 0 4px 0 6px;
+  padding: 0 6px 0 8px;
   box-sizing: border-box;
   flex-shrink: 0;
 }
@@ -222,19 +222,19 @@
 .titlebar-left {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
 }
 
 .window-icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .window-title {
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #ffffff;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -268,10 +268,10 @@
 
 /* Window Body */
 .item-window-body {
-  padding: 12px 16px 14px 16px;
+  padding: 16px 22px 18px 22px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   background-color: #ece9d8;
   box-sizing: border-box;
 }
@@ -335,24 +335,24 @@
 /* Top Block: Rows 1 & 2 matching reference layout */
 .form-top-block {
   display: grid;
-  grid-template-columns: 120px 150px 1fr auto auto auto;
-  grid-template-rows: 25px 25px;
+  grid-template-columns: 140px 180px 1fr auto auto auto;
+  grid-template-rows: 28px 28px;
   align-items: center;
-  row-gap: 6px;
-  column-gap: 6px;
+  row-gap: 8px;
+  column-gap: 8px;
   width: 100%;
 }
 
 .top-label-code {
   grid-column: 1;
   grid-row: 1;
-  width: 120px;
+  width: 140px;
 }
 
 .top-input-code {
   grid-column: 2;
   grid-row: 1;
-  width: 150px;
+  width: 180px;
 }
 
 .top-label-image {
@@ -365,8 +365,8 @@
 .top-image-box {
   grid-column: 5;
   grid-row: 1 / span 2;
-  width: 180px;
-  height: 56px;
+  width: 220px;
+  height: 64px;
   border: 1px solid #7a7a7a;
   background-color: #ffffff;
   display: flex;
@@ -386,7 +386,7 @@
   grid-row: 1 / span 2;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   align-items: flex-start;
   justify-content: center;
 }
@@ -394,7 +394,7 @@
 .top-label-desc {
   grid-column: 1;
   grid-row: 2;
-  width: 120px;
+  width: 140px;
 }
 
 .top-input-desc {
@@ -442,12 +442,13 @@
   display: flex;
   align-items: center;
   width: 100%;
-  font-size: 11px;
+  font-size: 13.5px;
+  gap: 8px;
 }
 
 /* Dotted Blue Labels matching Visual Basic Screenshot */
 .field-label {
-  font-size: 11.5px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #002D62; /* Classic Visual Basic Deep Blue */
   white-space: nowrap;
@@ -458,9 +459,9 @@
 
 /* Inputs with Classic Windows Look */
 .input-classic {
-  height: 22px;
-  padding: 1px 5px;
-  font-size: 11.5px;
+  height: 28px;
+  padding: 2px 8px;
+  font-size: 13.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   border: 1px solid #7a7a7a;
   background-color: #ffffff;
@@ -472,10 +473,11 @@
 .input-classic:focus,
 .select-classic:focus {
   border-color: #005bb7;
+  background-color: #ffffea;
 }
 
 .input-item-code {
-  width: 150px;
+  width: 170px;
 }
 
 .input-description {
@@ -483,20 +485,20 @@
 }
 
 .input-num-small {
-  width: 95px;
+  width: 110px;
 }
 
 .input-selling-price {
-  width: 110px;
+  width: 120px;
   font-weight: 600;
 }
 
 .input-barcode {
-  width: 220px;
+  width: 250px;
 }
 
 .input-color {
-  width: 170px;
+  width: 190px;
 }
 
 .input-full-width {
@@ -505,15 +507,16 @@
 
 .input-readonly {
   background-color: #e5e5e5;
-  color: #4b5563;
+  color: #2e3440;
+  font-weight: 600;
   cursor: not-allowed;
 }
 
 /* Select Dropdown */
 .select-classic {
-  height: 22px;
-  padding: 1px 4px;
-  font-size: 11.5px;
+  height: 28px;
+  padding: 2px 6px;
+  font-size: 13.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   border: 1px solid #7a7a7a;
   background-color: #ffffff;
@@ -526,18 +529,18 @@
 .field-control-group {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 /* Small Lookup Button [...] */
 .btn-lookup {
-  min-width: 22px;
-  width: 22px;
-  height: 22px;
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
   background: linear-gradient(to bottom, #ffffff, #dcd8cc);
   border: 1px solid #716f64;
-  border-radius: 1px;
-  font-size: 11.5px;
+  border-radius: 2px;
+  font-size: 13px;
   font-weight: bold;
   color: #000000;
   cursor: pointer;
@@ -585,8 +588,8 @@
 .radio-label {
   display: flex;
   align-items: center;
-  gap: 3px;
-  font-size: 11.5px;
+  gap: 6px;
+  font-size: 13.5px;
   font-weight: 500;
   color: #000000;
   cursor: pointer;
@@ -597,34 +600,37 @@
   margin: 0;
   cursor: pointer;
   accent-color: #002D62;
+  width: 16px;
+  height: 16px;
 }
 
 /* 6. Buttons Row: New, Delete, Save, Link, Excel */
 .buttons-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
-  margin-top: 6px;
-  margin-bottom: 6px;
+  margin-top: 8px;
+  margin-bottom: 8px;
   padding-left: 2px;
 }
 
 .btn-classic {
-  min-width: 72px;
-  height: 25px;
+  min-width: 90px;
+  height: 32px;
   background: linear-gradient(to bottom, #ffffff, #dcd8cc);
   border: 1px solid #716f64;
   border-radius: 2px;
-  font-size: 11.5px;
+  font-size: 13.5px;
+  font-weight: 600;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   color: #000000;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 14px;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+  padding: 0 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   transition: background 0.1s ease, border-color 0.1s ease;
 }
 
@@ -657,7 +663,7 @@
 
 .item-grid-table-wrapper {
   width: 100%;
-  height: 255px;
+  height: 290px;
   overflow-y: auto;
   overflow-x: auto;
   background-color: #ffffff;
@@ -666,7 +672,7 @@
 .item-records-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 13px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   table-layout: fixed;
 }
@@ -676,7 +682,7 @@
   color: #002D62;
   font-weight: 700;
   text-align: left;
-  padding: 4px 6px;
+  padding: 7px 10px;
   border: 1px solid #b5b5b5;
   border-top: none;
   position: sticky;
@@ -686,13 +692,13 @@
 }
 
 .item-records-table td {
-  padding: 3px 6px;
+  padding: 6px 10px;
   border: 1px solid #e5e5e5;
   color: #000000;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 16px;
+  line-height: 20px;
 }
 
 .col-code {
@@ -730,25 +736,25 @@
   text-align: center;
   color: #6b7280;
   padding: 60px 0;
-  font-size: 11.5px;
+  font-size: 13px;
 }
 
 /* Badges */
 .badge-active {
   background-color: #dcfce7;
   color: #15803d;
-  padding: 1px 5px;
+  padding: 2px 7px;
   border-radius: 2px;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: bold;
 }
 
 .badge-inactive {
   background-color: #fee2e2;
   color: #b91c1c;
-  padding: 1px 5px;
+  padding: 2px 7px;
   border-radius: 2px;
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: bold;
 }
 
@@ -759,23 +765,27 @@
   justify-content: space-between;
   background-color: #ece9d8;
   border-top: 1px solid #b5b5b5;
-  padding: 3px 8px;
-  font-size: 11px;
+  padding: 6px 12px;
+  font-size: 13px;
 }
 
 .grid-footer-count {
   font-weight: bold;
   color: #002D62;
+  font-size: 13px;
 }
 
 .grid-search-control {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
 }
 
 .input-table-search {
-  width: 240px;
+  width: 290px;
+  height: 28px;
+  font-size: 13px;
+  padding: 2px 8px;
 }
 
 /* 8. Bottom Management Status Bar */

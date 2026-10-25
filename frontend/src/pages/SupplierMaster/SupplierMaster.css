@@ -198,8 +198,8 @@
 
 /* Classic Dialog Window Container */
 .supplier-master-window {
-  width: 660px;
-  max-width: 95vw;
+  width: 1200px;
+  max-width: 97vw;
   max-height: calc(100vh - 110px);
   background-color: #EAF3FF;
   border: 1px solid #7FA7D8;
@@ -217,11 +217,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 28px;
-  min-height: 28px;
+  height: 32px;
+  min-height: 32px;
   background-color: #D4E5F9;
   border-bottom: 1px solid #B0CCEC;
-  padding: 0 4px 0 8px;
+  padding: 0 6px 0 8px;
   box-sizing: border-box;
   flex-shrink: 0;
   position: sticky;
@@ -232,20 +232,20 @@
 .titlebar-left {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   overflow: hidden;
 }
 
 .window-icon {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
   image-rendering: pixelated;
   flex-shrink: 0;
 }
 
 .window-title {
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #10335C;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
@@ -256,9 +256,9 @@
 .titlebar-close-btn {
   background: transparent;
   border: none;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1;
-  width: 26px;
+  width: 28px;
   height: 22px;
   display: flex;
   align-items: center;
@@ -348,6 +348,7 @@
   display: flex;
   align-items: center;
   width: 100%;
+  gap: 8px;
 }
 
 .field-row-address {
@@ -356,8 +357,8 @@
 
 /* Labels: Deep Blue with Dotted Lines */
 .field-label {
-  width: 110px;
-  font-size: 12.5px;
+  width: 140px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #002D62; /* Classic dark blue label */
   white-space: nowrap;
@@ -368,10 +369,10 @@
 
 /* Inputs with Pure White Background and Subtle Blue Borders */
 .input-code {
-  width: 100px;
-  height: 25px;
-  padding: 3px 6px;
-  font-size: 12px;
+  width: 130px;
+  height: 28px;
+  padding: 3px 8px;
+  font-size: 13.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   border: 1px solid #99BBE0;
   background-color: #FFFFFF;
@@ -382,9 +383,9 @@
 
 .input-name {
   flex: 1;
-  height: 25px;
-  padding: 3px 6px;
-  font-size: 12px;
+  height: 28px;
+  padding: 3px 8px;
+  font-size: 13.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   border: 1px solid #99BBE0;
   background-color: #FFFFFF;
@@ -395,9 +396,9 @@
 
 .textarea-address {
   flex: 1;
-  height: 85px;
-  padding: 5px 6px;
-  font-size: 12px;
+  height: 88px;
+  padding: 6px 8px;
+  font-size: 13.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   border: 1px solid #99BBE0;
   background-color: #FFFFFF;
@@ -409,19 +410,20 @@
 
 .textarea-address:focus {
   border-color: #1A60B0;
+  background-color: #FFFFEA;
 }
 
 .phone-inputs-container {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   flex: 1;
 }
 
 .input-phone {
   flex: 1;
-  height: 25px;
-  padding: 3px 6px;
-  font-size: 12px;
+  height: 28px;
+  padding: 3px 8px;
+  font-size: 13.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   border: 1px solid #99BBE0;
   background-color: #FFFFFF;
@@ -434,32 +436,34 @@
 .input-name:focus,
 .input-phone:focus {
   border-color: #1A60B0;
+  background-color: #FFFFEA;
 }
 
 /* Button Group Row: Centered (New, Save, Delete, Cancel) */
 .buttons-row {
   display: flex;
   justify-content: center;
-  gap: 14px;
+  gap: 16px;
   width: 100%;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  margin-top: 14px;
+  margin-bottom: 14px;
 }
 
 .btn-classic {
-  width: 78px;
-  height: 26px;
+  min-width: 95px;
+  height: 32px;
   background-color: #F0F4FA;
   border: 1px solid #98B8DE;
   border-radius: 2px;
-  font-size: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   color: #000000;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  padding: 0 16px;
   box-shadow: 0 1px 2px rgba(18, 48, 86, 0.08);
   transition: background-color 0.1s ease, border-color 0.1s ease;
 }
@@ -485,8 +489,8 @@
 /* Lower Panel: Larger Table Area with Subtle Blue Borders */
 .lower-panel {
   width: 100%;
-  height: 260px;
-  min-height: 220px;
+  height: 300px;
+  min-height: 250px;
   background-color: #FFFFFF;
   border: 1px solid #99BBE0;
   box-sizing: border-box;
@@ -507,7 +511,7 @@
 .lower-panel-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 13px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   table-layout: fixed;
 }
@@ -517,7 +521,7 @@
   color: #0A2B55;
   font-weight: 700;
   text-align: left;
-  padding: 5px 8px;
+  padding: 7px 10px;
   border: 1px solid #ADC7E6;
   border-top: none;
   position: sticky;
@@ -527,13 +531,13 @@
 }
 
 .lower-panel-table td {
-  padding: 4px 8px;
+  padding: 6px 10px;
   border: 1px solid #E1ECF7;
   color: #000000;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 16px;
+  line-height: 20px;
 }
 
 .col-code {

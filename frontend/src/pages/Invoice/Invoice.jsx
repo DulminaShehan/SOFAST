@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import './Invoice.css';
 
@@ -1993,96 +1994,7 @@ function Invoice() {
       </header>
 
       {/* 2. Top Classic Menu Bar */}
-      <nav className="invoice-menubar-container" ref={menuRef}>
-        <ul className="invoice-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="invoice-menubar-item">
-              <button
-                type="button"
-                className={`invoice-menubar-button ${
-                  (item.id === 'sales-service' && activeDropdown === 'sales-service') ||
-                  (item.id === 'sales-service') ||
-                  (activeDropdown === item.id)
-                    ? 'active'
-                    : ''
-                }`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                  } else if (item.path) {
-                    navigate(item.path);
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {/* Master Files Dropdown */}
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="invoice-dropdown-menu">
-                  {masterFilesDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="invoice-dropdown-entry">
-                      <button
-                        type="button"
-                        className="invoice-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        {dropItem.renderIcon()}
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="invoice-dropdown-menu">
-                  {stockControlDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="invoice-dropdown-entry">
-                      <button
-                        type="button"
-                        className="invoice-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        {dropItem.renderIcon()}
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="invoice-dropdown-menu">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="invoice-dropdown-entry">
-                      <button
-                        type="button"
-                        className="invoice-dropdown-item-btn selected"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        {dropItem.renderIcon()}
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="sales-service" />
 
       {/* Main Canvas */}
       <main className="invoice-main-canvas">

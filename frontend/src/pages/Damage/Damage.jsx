@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import './Damage.css';
 
@@ -662,127 +663,7 @@ function Damage() {
       </div>
 
       {/* 2. Top Navigation Menubar (SOFAST Standard ERP Nav) */}
-      <nav className="damage-menubar-container" ref={menuRef}>
-        <ul className="damage-menubar">
-          <li className="damage-menubar-item">
-            <button
-              type="button"
-              className={`damage-menubar-btn ${activeDropdown === 'master-files' ? 'active' : ''}`}
-              onClick={() => setActiveDropdown(activeDropdown === 'master-files' ? null : 'master-files')}
-            >
-              Master Files
-            </button>
-            {activeDropdown === 'master-files' && (
-              <ul className="damage-dropdown-menu">
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/item-master')}>
-                    Item Master
-                  </button>
-                </li>
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/supplier-master')}>
-                    Supplier Master
-                  </button>
-                </li>
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/customer-details')}>
-                    Customer Details
-                  </button>
-                </li>
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/alternative-product')}>
-                    Alternative Product
-                  </button>
-                </li>
-              </ul>
-            )}
-          </li>
-
-          <li className="damage-menubar-item">
-            <button
-              type="button"
-              className={`damage-menubar-btn active ${activeDropdown === 'stock-control' ? 'active' : ''}`}
-              onClick={() => setActiveDropdown(activeDropdown === 'stock-control' ? null : 'stock-control')}
-            >
-              Stock Control System
-            </button>
-            {activeDropdown === 'stock-control' && (
-              <ul className="damage-dropdown-menu">
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/grn')}>
-                    Good Receive Note (GRN)
-                  </button>
-                </li>
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/good-return-note')}>
-                    Good Return Note (GREN)
-                  </button>
-                </li>
-                <li className="damage-dropdown-entry">
-                  <button
-                    type="button"
-                    className="damage-dropdown-item-btn"
-                    style={{ fontWeight: 700, color: '#1d4ed8' }}
-                    onClick={() => setActiveDropdown(null)}
-                  >
-                    Damage
-                  </button>
-                </li>
-              </ul>
-            )}
-          </li>
-
-          <li className="damage-menubar-item">
-            <button
-              type="button"
-              className={`damage-menubar-btn ${activeDropdown === 'sales-service' ? 'active' : ''}`}
-              onClick={() => setActiveDropdown(activeDropdown === 'sales-service' ? null : 'sales-service')}
-            >
-              Sales and Service
-            </button>
-            {activeDropdown === 'sales-service' && (
-              <ul className="damage-dropdown-menu">
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/invoice')}>
-                    Create Invoice
-                  </button>
-                </li>
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/settlement-invoice')}>
-                    Settlement Invoice
-                  </button>
-                </li>
-                <li className="damage-dropdown-entry">
-                  <button type="button" className="damage-dropdown-item-btn" onClick={() => navigate('/remaining-balance')}>
-                    Remaining Balance
-                  </button>
-                </li>
-              </ul>
-            )}
-          </li>
-
-          <li className="damage-menubar-item">
-            <button type="button" className="damage-menubar-btn" onClick={() => navigate('/approvement')}>
-              Approvement
-            </button>
-          </li>
-          <li className="damage-menubar-item">
-            <button type="button" className="damage-menubar-btn" onClick={() => navigate('/reports')}>
-              Reports
-            </button>
-          </li>
-          <li className="damage-menubar-item">
-            <button type="button" className="damage-menubar-btn" onClick={() => navigate('/management')}>
-              Accounting
-            </button>
-          </li>
-          <li className="damage-menubar-item">
-            <button type="button" className="damage-menubar-btn" onClick={() => navigate('/printer-setup')}>
-              Administration
-            </button>
-          </li>
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="stock-control" />
 
       {/* 3. Main Form Area */}
       <main className="damage-main-content">

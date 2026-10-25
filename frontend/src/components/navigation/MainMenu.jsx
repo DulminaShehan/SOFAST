@@ -26,13 +26,13 @@ function MainMenu({ onMenuSelect }) {
   const { currentUser, isAdmin, logout } = useAuth();
 
   const topMenuItems = [
-    { id: 'master-files', label: 'Master Files', hasDropdown: true },
-    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
-    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
-    { id: 'approvement', label: 'Approvement', hasDropdown: true },
+    { id: 'master-files', label: 'Master Files', hasDropdown: true, defaultPath: '/management' },
+    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, defaultPath: '/grn' },
+    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true, defaultPath: '/invoice' },
+    { id: 'approvement', label: 'Approvement', hasDropdown: true, defaultPath: '/approvement' },
     { id: 'reports', label: 'Reports', path: '/reports' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
-    { id: 'administration', label: 'Administration', hasDropdown: true },
+    { id: 'administration', label: 'Administration', hasDropdown: true, defaultPath: '/printer-setup' },
   ];
 
   // Close dropdown when clicking outside
@@ -60,7 +60,14 @@ function MainMenu({ onMenuSelect }) {
 
   const handleTopItemClick = (item) => {
     if (item.hasDropdown) {
-      setOpenDropdown((prev) => (prev === item.id ? null : item.id));
+      if (openDropdown === item.id) {
+        setOpenDropdown(null);
+        if (item.defaultPath) {
+          navigate(item.defaultPath);
+        }
+      } else {
+        setOpenDropdown(item.id);
+      }
     } else {
       setOpenDropdown(null);
       if (onMenuSelect) {

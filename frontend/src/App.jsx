@@ -92,6 +92,13 @@ function App() {
       <Route path="/sales-service/customer-damage-return" element={<Navigate to="/damage" replace />} />
       <Route path="/sales-service/damage-return" element={<Navigate to="/damage" replace />} />
       <Route path="/master-file" element={<ManagementSystem />} />
+      <Route path="/master-files" element={<ManagementSystem />} />
+      <Route path="/masterfiles" element={<ManagementSystem />} />
+      <Route path="/category-master" element={<ManagementSystem defaultModule="Category Master" />} />
+      <Route path="/sub-category-master" element={<ManagementSystem defaultModule="Sub Category Master" />} />
+      <Route path="/accounting" element={<ManagementSystem defaultModule="Accounting" />} />
+      <Route path="/stock-control" element={<Navigate to="/grn" replace />} />
+      <Route path="/sales-service" element={<Navigate to="/invoice" replace />} />
       <Route path="/selection" element={<SelectionScreen />} />
       <Route path="/invoice" element={<Invoice />} />
       <Route path="/sales-service/invoice" element={<Invoice />} />

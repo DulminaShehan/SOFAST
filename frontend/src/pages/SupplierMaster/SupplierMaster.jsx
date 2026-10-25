@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
 import { useAuth } from '../../context/AuthContext';
@@ -315,130 +316,7 @@ function SupplierMaster() {
       </header>
 
       {/* 2. Top Classic Menu Bar */}
-      <nav className="management-menubar-container" ref={menuRef}>
-        <ul className="management-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="menubar-item">
-              <button
-                type="button"
-                className={`menubar-button ${
-                  (activeDropdown === item.id) || (item.id === 'master-files' && activeDropdown === 'master-files') ? 'active' : ''
-                }`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown((prev) => (prev === item.id ? null : item.id));
-                  } else {
-                    setActiveDropdown(null);
-                    navigate(item.path || '/management');
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {/* Master Files Dropdown */}
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="masterfiles-dropdown">
-                  {masterFilesDropdownItems.map((masterItem) => (
-                    <li key={masterItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className={`dropdown-item-btn ${masterItem.id === 'supplier-master' ? 'selected' : ''}`}
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(masterItem.path);
-                        }}
-                      >
-                        <span>{masterItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="masterfiles-dropdown">
-                  {stockControlDropdownItems.map((scItem) => (
-                    <li key={scItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(scItem.path);
-                        }}
-                      >
-                        <span>{scItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="masterfiles-dropdown">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Approvement Dropdown */}
-              {item.id === 'approvement' && activeDropdown === 'approvement' && (
-                <ul className="masterfiles-dropdown">
-                  {approvementDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Administration Dropdown */}
-              {item.id === 'administration' && activeDropdown === 'administration' && (
-                <ul className="masterfiles-dropdown">
-                  {administrationDropdownItems.map((admItem) => (
-                    <li key={admItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(admItem.path);
-                        }}
-                      >
-                        <span>{admItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="master-files" />
 
       {/* 3. Main Desktop Workspace centering the Supplier Master Window */}
       <main className="supplier-master-workspace">

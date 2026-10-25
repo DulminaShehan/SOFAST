@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './AlternativeProduct.css';
@@ -546,131 +547,7 @@ function AlternativeProduct() {
       </header>
 
       {/* 2. Top Classic Menu Bar */}
-      <nav className="alt-prod-menubar-container" ref={menuRef}>
-        <ul className="alt-prod-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="alt-prod-menubar-item">
-              <button
-                type="button"
-                className={`alt-prod-menubar-button ${
-                  item.id === 'master-files' || activeDropdown === item.id ? 'active' : ''
-                }`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                  } else if (item.path) {
-                    navigate(item.path);
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {/* Master Files Dropdown */}
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="alt-prod-dropdown-menu">
-                  {masterFilesDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="alt-prod-dropdown-entry">
-                      <button
-                        type="button"
-                        className={`alt-prod-dropdown-item-btn ${
-                          dropItem.id === 'alternative-product' ? 'selected' : ''
-                        }`}
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="alt-prod-dropdown-menu">
-                  {stockControlDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="alt-prod-dropdown-entry">
-                      <button
-                        type="button"
-                        className="alt-prod-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="alt-prod-dropdown-menu">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="alt-prod-dropdown-entry">
-                      <button
-                        type="button"
-                        className="alt-prod-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Approvement Dropdown */}
-              {item.id === 'approvement' && activeDropdown === 'approvement' && (
-                <ul className="alt-prod-dropdown-menu">
-                  {approvementDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="alt-prod-dropdown-entry">
-                      <button
-                        type="button"
-                        className="alt-prod-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Administration Dropdown */}
-              {item.id === 'administration' && activeDropdown === 'administration' && (
-                <ul className="alt-prod-dropdown-menu">
-                  {administrationDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="alt-prod-dropdown-entry">
-                      <button
-                        type="button"
-                        className="alt-prod-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="master-files" />
 
       {/* 3. Main Form Canvas */}
       <main className="alt-prod-main-canvas">
