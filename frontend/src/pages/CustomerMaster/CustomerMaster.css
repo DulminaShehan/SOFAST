@@ -308,16 +308,16 @@
 .cust-left-col {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 530px;
+  gap: 10px;
+  width: 600px;
   flex-shrink: 0;
 }
 
 .cust-right-col {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 320px;
+  gap: 10px;
+  width: 360px;
   flex-shrink: 0;
 }
 
@@ -336,19 +336,19 @@
 /* Dotted Blue Labels */
 .dotted-label-blue {
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #000080;
   white-space: nowrap;
   user-select: none;
-  width: 140px;
+  width: 150px;
   flex-shrink: 0;
   letter-spacing: 0.1px;
 }
 
 .credit-period-days {
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #000080;
   user-select: none;
@@ -356,8 +356,8 @@
 
 /* Checkboxes */
 .cust-checkbox {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   margin: 0;
   cursor: pointer;
   accent-color: #000080;
@@ -366,13 +366,13 @@
 /* Inputs & Selects */
 .cust-input,
 .cust-select {
-  height: 23px;
+  height: 28px;
   border: 1px solid #7f9db9;
   background-color: #ffffff;
   color: #000000;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  padding: 2px 6px;
+  font-size: 13.5px;
+  padding: 3px 8px;
   box-sizing: border-box;
   outline: none;
 }
@@ -380,6 +380,7 @@
 .cust-input.read-only {
   background-color: #f0f0f0;
   color: #000080;
+  font-weight: 600;
   cursor: default;
 }
 
@@ -395,8 +396,8 @@
   background-color: #ffffff;
   color: #000000;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  padding: 4px 6px;
+  font-size: 13.5px;
+  padding: 6px 8px;
   box-sizing: border-box;
   outline: none;
 }
@@ -405,18 +406,18 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .cust-btn-lookup {
-  height: 23px;
-  min-width: 25px;
+  height: 28px;
+  min-width: 28px;
   padding: 0 4px;
   background: #ece9d8;
   border: 1px solid #7f9db9;
   color: #000000;
   font-family: Tahoma, Arial, sans-serif;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: bold;
   cursor: pointer;
   display: inline-flex;
@@ -439,9 +440,9 @@
 }
 
 .cust-btn-classic {
-  height: 26px;
-  min-width: 70px;
-  padding: 0 12px;
+  height: 32px;
+  min-width: 85px;
+  padding: 0 16px;
   background: linear-gradient(180deg, #fbfbf9 0%, #ece9d8 100%);
   border-top: 1px solid #ffffff;
   border-left: 1px solid #ffffff;
@@ -449,8 +450,8 @@
   border-bottom: 1px solid #707070;
   color: #000000;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -487,7 +488,7 @@
   padding: 0 10px 10px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .cust-table-filter-bar {
@@ -495,10 +496,11 @@
   justify-content: space-between;
   align-items: center;
   padding: 2px 4px;
+  font-size: 13px;
 }
 
 .cust-table-viewport {
-  max-height: 280px;
+  max-height: 310px;
   overflow-y: auto;
   border: 1px solid #7f9db9;
   background-color: #ffffff;
@@ -508,7 +510,7 @@
 .cust-data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   background-color: #ffffff;
 }
@@ -521,8 +523,8 @@
   border-bottom: 1px solid #aca899;
   color: #000080;
   font-weight: 700;
-  font-size: 11px;
-  padding: 4px 6px;
+  font-size: 13px;
+  padding: 7px 10px;
   text-align: left;
   white-space: nowrap;
   z-index: 5;
@@ -532,10 +534,11 @@
 .cust-data-table td {
   border-right: 1px solid #e0ded4;
   border-bottom: 1px solid #e0ded4;
-  padding: 4px 6px;
+  padding: 6px 10px;
   color: #000000;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .cust-data-table tbody tr:hover {

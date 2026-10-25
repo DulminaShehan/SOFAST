@@ -241,7 +241,7 @@
 /* Dotted Blue Labels */
 .dotted-label-blue {
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #000080;
   white-space: nowrap;
@@ -250,13 +250,13 @@
 
 /* Inputs */
 .alt-prod-input {
-  height: 24px;
+  height: 28px;
   border: 1px solid #7f9db9;
   background-color: #ffffff;
   color: #000000;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  padding: 2px 6px;
+  font-size: 13.5px;
+  padding: 3px 8px;
   box-sizing: border-box;
   outline: none;
 }
@@ -270,14 +270,14 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 /* Classic ERP Action Buttons */
 .alt-prod-btn-classic {
-  height: 25px;
-  min-width: 65px;
-  padding: 0 10px;
+  height: 32px;
+  min-width: 85px;
+  padding: 0 16px;
   background: linear-gradient(180deg, #fbfbf9 0%, #ece9d8 100%);
   border-top: 1px solid #ffffff;
   border-left: 1px solid #ffffff;
@@ -285,8 +285,8 @@
   border-bottom: 1px solid #707070;
   color: #000000;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -320,22 +320,22 @@
 }
 
 .alt-prod-btn-classic.add-alt-btn {
-  height: 23px;
-  font-size: 11px;
+  height: 28px;
+  font-size: 13px;
   font-weight: 600;
   background: linear-gradient(180deg, #f0f7ff 0%, #d8e8f8 100%);
   color: #003366;
 }
 
 .alt-prod-btn-lookup {
-  height: 24px;
-  min-width: 26px;
+  height: 28px;
+  min-width: 28px;
   padding: 0 4px;
   background: #ece9d8;
   border: 1px solid #7f9db9;
   color: #000000;
   font-family: Tahoma, Arial, sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: bold;
   cursor: pointer;
   display: inline-flex;
@@ -525,7 +525,7 @@
 .alt-prod-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   background-color: #ffffff;
 }
@@ -538,8 +538,8 @@
   border-bottom: 1px solid #aca899;
   color: #000080;
   font-weight: 700;
-  font-size: 11px;
-  padding: 4px 6px;
+  font-size: 13px;
+  padding: 7px 10px;
   text-align: left;
   white-space: nowrap;
   z-index: 5;
@@ -549,10 +549,11 @@
 .alt-prod-table td {
   border-right: 1px solid #e0ded4;
   border-bottom: 1px solid #e0ded4;
-  padding: 4px 6px;
+  padding: 6px 10px;
   color: #000000;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .alt-prod-table tbody tr:hover {
