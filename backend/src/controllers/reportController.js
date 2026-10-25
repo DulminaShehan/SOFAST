@@ -20,7 +20,7 @@ const COMPANY_HEADER = {
   phones: '034-2210680, 074-0295088',
 };
 
-const SOFTWARE_FOOTER = 'Software by S.L.M.D.Chinthana-0777722076';
+const SOFTWARE_FOOTER = '';
 
 /**
  * Helper to construct date range filters that work with both Date objects and ISO strings.

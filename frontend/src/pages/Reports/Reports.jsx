@@ -1837,9 +1837,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    Software by S.L.M.D.Chinthana-0777722076
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     Total: {displayAltProducts.length} Mappings
                   </div>
@@ -2336,9 +2334,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {dsdReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     Page {dsdPage} of {dsdReportData?.pagination?.totalPages || 1}
                   </div>
@@ -2827,9 +2823,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {grnReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     1
                   </div>
@@ -3265,9 +3259,7 @@ function Reports() {
 
                 {/* Footer matching PDF */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {irReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     1
                   </div>
@@ -3900,9 +3892,7 @@ function Reports() {
 
                 {/* Footer */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {dsReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
                     {dsReportData?.pagination?.page || 1}
                   </div>
@@ -4474,10 +4464,7 @@ function Reports() {
                   </div>
                 </div>
 
-                {/* Software Footer matching PDF */}
-                <div className="cs-software-footer">
-                  {csReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                </div>
+
               </div>
             ) : (
               /* MODERN TABLE VIEW FOR CLOSING STOCK */
@@ -4922,10 +4909,7 @@ function Reports() {
                   </tbody>
                 </table>
 
-                {/* Software Footer */}
-                <div className="cs-report-footer" style={{ marginTop: '24px', borderTop: 'none', textAlign: 'left', fontSize: '11px', fontFamily: 'Courier New, monospace' }}>
-                  {spReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                </div>
+
               </div>
             ) : (
               /* =========================================================================
@@ -5929,9 +5913,7 @@ function Reports() {
 
                 {/* Footer matching PDF Scan */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {nmReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
                     Page {nmPage} of {nmReportData?.pagination?.totalPages || 1}
                   </div>
@@ -6463,9 +6445,7 @@ function Reports() {
 
                 {/* Footer matching PDF Scan */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '6px' }}>
-                  <div className="cs-software-footer">
-                    {grenReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
-                  </div>
+                  <div></div>
                   <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
                     Page 1 of 1
                   </div>
@@ -6578,11 +6558,11 @@ function Reports() {
 
           {/* Bottom Software Footer Bar matching Customer Details */}
           <div className="cust-report-statusbar no-print">
-            <span style={{ fontWeight: '700', color: '#000080' }}>
-              Software by S.L.M.D.Chinthana-0777722076
+            <span>
+              Active Report: {reportTabsList.find(t => t.id === activeReportTab)?.label || activeReportTab}
             </span>
             <span>
-              Active Report: {reportTabsList.find(t => t.id === activeReportTab)?.label || activeReportTab} &bull; Ready
+              Ready
             </span>
           </div>
         </div>

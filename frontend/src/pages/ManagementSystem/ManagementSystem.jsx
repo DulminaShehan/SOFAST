@@ -985,9 +985,6 @@ function ManagementSystem({ defaultModule }) {
                 borderTop: '1px solid #d0d0d0',
                 marginTop: '4px',
               }}>
-                <span style={{ fontWeight: '600', color: '#000080' }}>
-                  Software by S.L.M.D.Chinthana-0777722076
-                </span>
                 <span>
                   Showing {filteredReports.length} of {reportsDirectoryList.length} Total Registered Reports &bull; Ready
                 </span>
