@@ -4,32 +4,69 @@ import Item from '../models/Item.js';
 import Customer from '../models/Customer.js';
 import Settlement from '../models/Settlement.js';
 import { syncCustomerOutstandingBalance } from './customerController.js';
+import { findItemMasterRecord } from './grnController.js';
 
 /**
- * Get next sequential invoice number from MongoDB docnumbers and invoices
+ * Helper to compute the next sequential 4-digit invoice number starting from 0001 (e.g. 0001, 0002, ...)
+ */
+export const computeNextInvoiceNumber = async (db) => {
+  const docNum = await db.collection('docnumbers').findOne({ docType: 'INV' });
+
+  // Find all existing 4-digit invoices in collection
+  const existing4Digit = await Invoice.find(
+    { invoiceNumber: { $regex: /^\d{4}$/ } },
+    { invoiceNumber: 1, no: 1 }
+  ).lean();
+
+  const maxExisting = existing4Digit.length > 0
+    ? Math.max(
+        ...existing4Digit
+          .map((i) => parseInt(i.invoiceNumber || i.no, 10))
+          .filter((n) => !isNaN(n))
+      )
+    : 0;
+
+  let docCurrent =
+    docNum && Number(docNum.currentNumber) !== undefined && Number(docNum.currentNumber) < 10000
+      ? Number(docNum.currentNumber)
+      : maxExisting;
+
+  // Reset docnumbers if old legacy/test number was >= 10000
+  if (docNum && Number(docNum.currentNumber) >= 10000) {
+    await db.collection('docnumbers').updateOne(
+      { docType: 'INV' },
+      { $set: { currentNumber: maxExisting, padding: 4 } },
+      { upsert: true }
+    );
+  }
+
+  let nextNo = Math.max(docCurrent, maxExisting) + 1;
+  if (nextNo < 1) nextNo = 1;
+
+  let candidateInvoiceNumber = String(nextNo).padStart(4, '0');
+  while (await Invoice.findOne({ invoiceNumber: candidateInvoiceNumber })) {
+    nextNo++;
+    candidateInvoiceNumber = String(nextNo).padStart(4, '0');
+  }
+
+  return {
+    no: nextNo,
+    invoiceNumber: candidateInvoiceNumber,
+  };
+};
+
+/**
+ * Get next sequential invoice number from MongoDB docnumbers and invoices (0001, 0002, ...)
  */
 export const getNextInvoiceNumber = async (req, res, next) => {
   try {
     const db = mongoose.connection.db;
-
-    let nextNo = 1;
-    const docNum = await db.collection('docnumbers').findOne({ docType: 'INV' });
-    const latestInv = await Invoice.findOne({ no: { $exists: true, $ne: null } })
-      .sort({ no: -1, createdAt: -1 })
-      .lean();
-
-    const docCurrent = docNum && Number(docNum.currentNumber) ? Number(docNum.currentNumber) : 0;
-    const invCurrent = latestInv && Number(latestInv.no) ? Number(latestInv.no) : 0;
-
-    nextNo = Math.max(docCurrent, invCurrent) + 1;
-    if (nextNo < 1) nextNo = 1;
-
-    const invoiceNumber = String(nextNo);
+    const { no, invoiceNumber } = await computeNextInvoiceNumber(db);
 
     return res.status(200).json({
       success: true,
       data: {
-        no: nextNo,
+        no,
         invoiceNumber,
       },
     });
@@ -73,7 +110,7 @@ export const getInvoices = async (req, res, next) => {
     const skip = (parsedPage - 1) * parsedLimit;
 
     const [invoices, total] = await Promise.all([
-      Invoice.find(query).sort({ no: -1, createdAt: -1 }).skip(skip).limit(parsedLimit).lean(),
+      Invoice.find(query).sort({ createdAt: -1, no: -1 }).skip(skip).limit(parsedLimit).lean(),
       Invoice.countDocuments(query),
     ]);
 
@@ -101,7 +138,17 @@ export const getInvoiceById = async (req, res, next) => {
       invoice = await Invoice.findById(id).lean();
     }
     if (!invoice) {
-      invoice = await Invoice.findOne({ invoiceNumber: id.trim() }).lean();
+      const trimmed = id.trim();
+      const padded = /^\d{1,4}$/.test(trimmed) ? trimmed.padStart(4, '0') : trimmed;
+      const numVal = parseInt(trimmed, 10);
+
+      invoice = await Invoice.findOne({
+        $or: [
+          { invoiceNumber: trimmed },
+          { invoiceNumber: padded },
+          ...(isNaN(numVal) ? [] : [{ no: numVal }]),
+        ],
+      }).lean();
     }
 
     if (!invoice) {
@@ -177,21 +224,22 @@ export const createInvoice = async (req, res, next) => {
       });
     }
 
-    // Determine sequential invoice number
+    // Determine sequential invoice number (starting at 0001, 0002, ...)
     let finalNo = providedNo;
     let finalInvoiceNumber = providedInvoiceNumber;
 
     if (!finalNo || !finalInvoiceNumber) {
-      const docNum = await db.collection('docnumbers').findOne({ docType: 'INV' });
-      const latestInv = await Invoice.findOne({ no: { $exists: true, $ne: null } })
-        .sort({ no: -1, createdAt: -1 })
-        .lean();
-
-      const docCurrent = docNum && Number(docNum.currentNumber) ? Number(docNum.currentNumber) : 0;
-      const invCurrent = latestInv && Number(latestInv.no) ? Number(latestInv.no) : 0;
-
-      finalNo = Math.max(docCurrent, invCurrent) + 1;
-      finalInvoiceNumber = String(finalNo);
+      const nextData = await computeNextInvoiceNumber(db);
+      finalNo = nextData.no;
+      finalInvoiceNumber = nextData.invoiceNumber;
+    } else {
+      finalInvoiceNumber = String(finalInvoiceNumber).trim();
+      if (/^\d{1,4}$/.test(finalInvoiceNumber)) {
+        finalInvoiceNumber = finalInvoiceNumber.padStart(4, '0');
+      }
+      if (!finalNo) {
+        finalNo = parseInt(finalInvoiceNumber, 10) || 1;
+      }
     }
 
     // Lookup customer name/address/telephone if not provided
@@ -302,7 +350,7 @@ export const createInvoice = async (req, res, next) => {
 
       // Pre-validation: Verify sufficient stock for all items
       for (const [code, { quantity: requiredQty }] of itemsMap.entries()) {
-        const item = await Item.findOne({ code });
+        const item = await findItemMasterRecord(code);
         if (!item) {
           return res.status(400).json({
             success: false,
@@ -320,14 +368,15 @@ export const createInvoice = async (req, res, next) => {
 
       // Atomic deduction with rollback on failure
       for (const [code, { quantity: qtyToDeduct }] of itemsMap.entries()) {
+        const item = await findItemMasterRecord(code);
         const updateRes = await Item.updateOne(
-          { code, quantity: { $gte: qtyToDeduct } },
+          { _id: item._id, quantity: { $gte: qtyToDeduct } },
           { $inc: { quantity: -qtyToDeduct, stockInHand: -qtyToDeduct } }
         );
         if (updateRes.matchedCount === 0 || updateRes.modifiedCount === 0) {
           for (const rolled of appliedDeductions) {
             await Item.updateOne(
-              { code: rolled.code },
+              { _id: rolled.id },
               { $inc: { quantity: rolled.qty, stockInHand: rolled.qty } }
             );
           }
@@ -337,7 +386,7 @@ export const createInvoice = async (req, res, next) => {
             message: `Concurrent stock change detected for item '${code}'. Insufficient stock to complete sale.`,
           });
         }
-        appliedDeductions.push({ code, qty: qtyToDeduct });
+        appliedDeductions.push({ id: item._id, code: item.code, qty: qtyToDeduct });
       }
     }
 
@@ -376,6 +425,8 @@ export const createInvoice = async (req, res, next) => {
       dueAmount: Math.round(calculatedDueAmount * 100) / 100,
       paymentStatus,
       isSettled: calculatedDueAmount === 0,
+      settlementRef: req.body.settlementRef || '',
+      settlementStatus: req.body.settlementStatus || '',
       isStockUpdated,
       isCompleted,
     });
@@ -386,19 +437,31 @@ export const createInvoice = async (req, res, next) => {
       // Rollback applied stock deductions if database save fails
       for (const rolled of appliedDeductions) {
         await Item.updateOne(
-          { code: rolled.code },
+          { _id: rolled.id },
           { $inc: { quantity: rolled.qty, stockInHand: rolled.qty } }
         );
       }
       throw saveError;
     }
 
-    // Update docnumbers sequence
-    await db.collection('docnumbers').updateOne(
-      { docType: 'INV' },
-      { $set: { currentNumber: Number(finalNo) } },
-      { upsert: true }
-    );
+    // Update docnumbers sequence for 4-digit sequential invoice numbers
+    const numericInvNo = parseInt(finalInvoiceNumber, 10);
+    if (!isNaN(numericInvNo) && numericInvNo > 0 && numericInvNo < 10000) {
+      const docNum = await db.collection('docnumbers').findOne({ docType: 'INV' });
+      if (docNum && Number(docNum.currentNumber) >= 10000) {
+        await db.collection('docnumbers').updateOne(
+          { docType: 'INV' },
+          { $set: { currentNumber: numericInvNo, padding: 4 } },
+          { upsert: true }
+        );
+      } else {
+        await db.collection('docnumbers').updateOne(
+          { docType: 'INV' },
+          { $max: { currentNumber: numericInvNo }, $set: { padding: 4 } },
+          { upsert: true }
+        );
+      }
+    }
 
     // Sync customer outstanding balance for credit / partial payments
     if (customerCode && customerCode.trim()) {
@@ -433,7 +496,11 @@ export const updateInvoice = async (req, res, next) => {
       invoice = await Invoice.findById(id);
     }
     if (!invoice) {
-      invoice = await Invoice.findOne({ invoiceNumber: id.trim() });
+      const trimmed = id.trim();
+      const padded = /^\d{1,4}$/.test(trimmed) ? trimmed.padStart(4, '0') : trimmed;
+      invoice = await Invoice.findOne({
+        $or: [{ invoiceNumber: trimmed }, { invoiceNumber: padded }],
+      });
     }
 
     if (!invoice) {
@@ -565,14 +632,14 @@ export const updateInvoice = async (req, res, next) => {
 
       // Pre-validation
       for (const [code, { quantity: requiredQty }] of newMap.entries()) {
-        const item = await Item.findOne({ code });
-        if (!item) {
+        const itemDoc = await findItemMasterRecord(code);
+        if (!itemDoc) {
           return res.status(400).json({
             success: false,
             message: `Item code '${code}' not found in Item Master`,
           });
         }
-        const available = Number(item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)) || 0;
+        const available = Number(itemDoc.quantity !== undefined ? itemDoc.quantity : (itemDoc.stockInHand || 0)) || 0;
         if (available < requiredQty) {
           return res.status(400).json({
             success: false,
@@ -582,20 +649,26 @@ export const updateInvoice = async (req, res, next) => {
       }
 
       for (const [code, { quantity: requiredQty }] of newMap.entries()) {
-        await Item.updateOne(
-          { code },
-          { $inc: { quantity: -requiredQty, stockInHand: -requiredQty } }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            { $inc: { quantity: -requiredQty, stockInHand: -requiredQty } }
+          );
+        }
       }
       invoice.isStockUpdated = true;
     } else if (wasStockUpdated && !targetStockUpdated) {
       // Case B: Transition from Completed to Draft/Hold/Cancelled -> Revert stock
       const oldMap = aggregateItemsByCode(invoice.lineItems);
       for (const [code, { quantity: oldQty }] of oldMap.entries()) {
-        await Item.updateOne(
-          { code },
-          { $inc: { quantity: oldQty, stockInHand: oldQty } }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            { $inc: { quantity: oldQty, stockInHand: oldQty } }
+          );
+        }
       }
       invoice.isStockUpdated = false;
     } else if (wasStockUpdated && targetStockUpdated) {
@@ -610,8 +683,8 @@ export const updateInvoice = async (req, res, next) => {
         const newQty = newMap.get(code)?.quantity || 0;
         const delta = newQty - oldQty;
         if (delta > 0) {
-          const item = await Item.findOne({ code });
-          const available = Number(item ? (item.quantity !== undefined ? item.quantity : item.stockInHand) : 0) || 0;
+          const itemDoc = await findItemMasterRecord(code);
+          const available = Number(itemDoc ? (itemDoc.quantity !== undefined ? itemDoc.quantity : itemDoc.stockInHand) : 0) || 0;
           if (available < delta) {
             return res.status(400).json({
               success: false,
@@ -629,10 +702,13 @@ export const updateInvoice = async (req, res, next) => {
         if (delta !== 0) {
           // If delta > 0: reduce stock by delta (-delta)
           // If delta < 0: return stock by |delta| (+(-delta))
-          await Item.updateOne(
-            { code },
-            { $inc: { quantity: -delta, stockInHand: -delta } }
-          );
+          const itemDoc = await findItemMasterRecord(code);
+          if (itemDoc) {
+            await Item.updateOne(
+              { _id: itemDoc._id },
+              { $inc: { quantity: -delta, stockInHand: -delta } }
+            );
+          }
         }
       }
       invoice.isStockUpdated = true;
@@ -674,6 +750,8 @@ export const updateInvoice = async (req, res, next) => {
     if (chequeNo !== undefined) invoice.chequeNo = chequeNo;
     if (bank !== undefined) invoice.bank = bank;
     if (dateRealized !== undefined) invoice.dateRealized = dateRealized;
+    if (req.body.settlementRef !== undefined) invoice.settlementRef = req.body.settlementRef;
+    if (req.body.settlementStatus !== undefined) invoice.settlementStatus = req.body.settlementStatus;
     invoice.dueAmount = Math.round(calculatedDueAmount * 100) / 100;
     invoice.paymentStatus = paymentStatus;
     invoice.isSettled = calculatedDueAmount === 0;
@@ -710,7 +788,11 @@ export const cancelInvoice = async (req, res, next) => {
       invoice = await Invoice.findById(id);
     }
     if (!invoice) {
-      invoice = await Invoice.findOne({ invoiceNumber: id.trim() });
+      const trimmed = id.trim();
+      const padded = /^\d{1,4}$/.test(trimmed) ? trimmed.padStart(4, '0') : trimmed;
+      invoice = await Invoice.findOne({
+        $or: [{ invoiceNumber: trimmed }, { invoiceNumber: padded }],
+      });
     }
 
     if (!invoice) {
@@ -729,7 +811,14 @@ export const cancelInvoice = async (req, res, next) => {
       });
     }
 
-    // Prevent cancelling an invoice that has linked settlement payments
+    // Prevent cancelling an invoice that has linked settlement payments or settlement reference
+    if (Boolean(invoice.settlementRef)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel Invoice '${invoice.invoiceNumber}' because it is linked to settlement transaction '${invoice.settlementRef}'. Please cancel through Settlement module.`,
+      });
+    }
+
     const linkedSettlements = await Settlement.find({
       $or: [
         { invoiceNumber: invoice.invoiceNumber },
@@ -741,7 +830,7 @@ export const cancelInvoice = async (req, res, next) => {
     if (linkedSettlements && linkedSettlements.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `Cannot cancel Invoice '${invoice.invoiceNumber}' because it is linked to ${linkedSettlements.length} settlement payment record(s). Reverse or remove settlements first.`,
+        message: `Cannot cancel Invoice '${invoice.invoiceNumber}' because it is linked to ${linkedSettlements.length} settlement payment record(s). Reverse or remove settlements first in Settlement module.`,
       });
     }
 
@@ -749,16 +838,20 @@ export const cancelInvoice = async (req, res, next) => {
     if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
       const itemsMap = aggregateItemsByCode(invoice.lineItems);
       for (const [code, { quantity: oldQty }] of itemsMap.entries()) {
-        await Item.updateOne(
-          { code },
-          { $inc: { quantity: oldQty, stockInHand: oldQty } }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            { $inc: { quantity: oldQty, stockInHand: oldQty } }
+          );
+        }
       }
       invoice.isStockUpdated = false;
     }
 
     invoice.status = 'cancelled';
     invoice.dueAmount = 0;
+    invoice.isSettled = false;
     await invoice.save();
 
     const customerCode = invoice.customerCode || invoice.cuscode;
@@ -788,7 +881,11 @@ export const deleteInvoice = async (req, res, next) => {
       invoice = await Invoice.findById(id);
     }
     if (!invoice) {
-      invoice = await Invoice.findOne({ invoiceNumber: id.trim() });
+      const trimmed = id.trim();
+      const padded = /^\d{1,4}$/.test(trimmed) ? trimmed.padStart(4, '0') : trimmed;
+      invoice = await Invoice.findOne({
+        $or: [{ invoiceNumber: trimmed }, { invoiceNumber: padded }],
+      });
     }
 
     if (!invoice) {
@@ -798,7 +895,14 @@ export const deleteInvoice = async (req, res, next) => {
       });
     }
 
-    // Prevent deleting an invoice that has linked settlement payments
+    // Prevent deleting an invoice that is linked to financial settlement records
+    if (Boolean(invoice.settlementRef)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete Invoice '${invoice.invoiceNumber}' because it is linked to settlement transaction '${invoice.settlementRef}'. Please cancel through Settlement module.`,
+      });
+    }
+
     const linkedSettlements = await Settlement.find({
       $or: [
         { invoiceNumber: invoice.invoiceNumber },
@@ -810,7 +914,7 @@ export const deleteInvoice = async (req, res, next) => {
     if (linkedSettlements && linkedSettlements.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `Cannot delete Invoice '${invoice.invoiceNumber}' because it is linked to ${linkedSettlements.length} settlement payment record(s). Reverse or remove settlements first.`,
+        message: `Cannot delete Invoice '${invoice.invoiceNumber}' because it is linked to ${linkedSettlements.length} settlement payment record(s). Reverse or remove settlements first in Settlement module.`,
       });
     }
 
@@ -818,20 +922,24 @@ export const deleteInvoice = async (req, res, next) => {
     if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
       const itemsMap = aggregateItemsByCode(invoice.lineItems);
       for (const [code, { quantity: oldQty }] of itemsMap.entries()) {
-        await Item.updateOne(
-          { code },
-          { $inc: { quantity: oldQty, stockInHand: oldQty } }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            { $inc: { quantity: oldQty, stockInHand: oldQty } }
+          );
+        }
       }
       invoice.isStockUpdated = false;
     }
 
     const customerCode = invoice.customerCode || invoice.cuscode;
 
-    // For finalized/completed invoices, cancel and preserve audit history
-    if (invoice.status === 'completed' || invoice.status === 'partial' || invoice.status === 'paid' || invoice.isCompleted) {
+    // Follow cancellation/void rules rather than silently deleting financial history
+    if (invoice.status === 'completed' || invoice.status === 'partial' || invoice.status === 'paid' || invoice.isCompleted || invoice.isSettled) {
       invoice.status = 'cancelled';
       invoice.dueAmount = 0;
+      invoice.isSettled = false;
       await invoice.save();
     } else {
       await Invoice.findByIdAndDelete(invoice._id);

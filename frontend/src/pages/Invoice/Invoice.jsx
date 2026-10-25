@@ -67,10 +67,12 @@ function Invoice() {
     description: '',
     secondDesc: '',
     location: 'Main Store',
+    storedLocation: 'Main Store',
+    totalStoredStock: '',
     rackBin: '',
     availableQty: '',
-    quantity: '',
-    rate: '',
+    quantity: '1',
+    rate: '0',
     standardRate: '',
     discountPercentage: '',
     discountAmount: '',
@@ -85,12 +87,28 @@ function Invoice() {
     mpCost: '',
     roundOffOption: 'No Round Off',
     roundOffStep: 10,
-    value: '',
+    value: '0.00',
     due: '',
     balance: '',
     disc: '',
+    total: '0.00',
     note: '',
   });
+
+  // Locations State for Stock Location dropdown
+  const [locationsList, setLocationsList] = useState([
+    'Main Store',
+    'Main Warehouse',
+    'Store 2',
+    'Shop Floor',
+    'Front Shop',
+    'Warehouse',
+    'Rack B',
+  ]);
+
+  // Anti double-click refs
+  const isAddingRef = useRef(false);
+  const isSavingRef = useRef(false);
 
   // Customer Outstanding Due Balance
   const [customerDue, setCustomerDue] = useState('0.00');
@@ -318,14 +336,11 @@ function Invoice() {
       ]);
 
       if (nextNumRes?.data?.data) {
-        const rawNum = nextNumRes.data.data.invoiceNumber || nextNumRes.data.data.no;
-        const formattedNum = String(rawNum).startsWith('INV-')
-          ? String(rawNum)
-          : `INV-${String(rawNum).padStart(6, '0')}`;
+        const invNum = nextNumRes.data.data.invoiceNumber || String(nextNumRes.data.data.no || 1).padStart(4, '0');
         setInvoiceHeader((prev) => ({
           ...prev,
           no: nextNumRes.data.data.no,
-          invoiceNumber: formattedNum,
+          invoiceNumber: invNum,
         }));
       }
       if (custRes?.data?.data) {
@@ -337,6 +352,13 @@ function Invoice() {
       if (invsRes?.data?.data) {
         setInvoicesList(invsRes.data.data);
       }
+
+      // Fetch dynamic locations list from Item Master metadata
+      api.get('/items/meta/dropdowns').then((mRes) => {
+        if (mRes.data?.data?.locations && Array.isArray(mRes.data.data.locations)) {
+          setLocationsList((prev) => Array.from(new Set([...prev, ...mRes.data.data.locations])).filter(Boolean));
+        }
+      }).catch(() => null);
     } catch (e) {
       showNotification('Failed to initialize Sales Invoice data', 'error');
     } finally {
@@ -762,24 +784,61 @@ function Invoice() {
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
   };
 
-  // Select Item from Lookup Modal
-  const handleSelectItemFromLookup = async (item) => {
-    if (!item) return;
+  // =========================================================================
+  // ITEM SELECTION & STOCK MANAGEMENT
+  // =========================================================================
+
+  // Central function: Load item into entry draft with real stock, location, price, cost, and discount
+  const loadItemIntoEntry = async (itemOrCode, requestedQty = '1') => {
+    if (!itemOrCode) return;
+    const code = typeof itemOrCode === 'string' ? itemOrCode.trim() : (itemOrCode.code || '').trim();
+    if (!code) return;
+
+    let item = typeof itemOrCode === 'object' && itemOrCode.description ? itemOrCode : null;
+    if (!item || item.quantity === undefined) {
+      item = itemsList.find(
+        (i) =>
+          i.code?.toLowerCase() === code.toLowerCase() ||
+          i.barcode?.toLowerCase() === code.toLowerCase() ||
+          i.barCode?.toLowerCase() === code.toLowerCase()
+      );
+    }
+
+    // Always fetch latest data from backend API to guarantee real-time stock and GRN cost
+    try {
+      const res = await api.get(`/items/${encodeURIComponent(code)}`);
+      if (res.data?.success && res.data?.data) {
+        item = res.data.data;
+      }
+    } catch (e) {
+      // fallback to preloaded item if network call fails
+    }
+
+    if (!item) {
+      showNotification(`Item '${code}' not found in Item Master`, 'error');
+      return;
+    }
+
     setSelectedItemPreview(item);
 
-    const sellingPrice =
-      item.sellingPrice !== undefined && Number(item.sellingPrice) >= 0
-        ? Number(item.sellingPrice)
-        : (item.finalSellingPrice !== undefined ? Number(item.finalSellingPrice) : 0);
+    // 1. Location: Selected item's actual stock location from database
+    const actualLocation = item.location || 'Main Store';
 
-    const available =
+    // 2. Stock: Actual available quantity for selected item and location
+    const storedStock = Number(
       item.quantity !== undefined
         ? item.quantity
-        : (item.stockInHand !== undefined ? item.stockInHand : 0);
+        : (item.stockInHand !== undefined ? item.stockInHand : 0)
+    );
 
-    const roundOpt = item.roundOffOption || 'No Round Off';
-    const roundStp = item.roundOffStep || 10;
+    // 3. Selling Price: From Item Master
+    const sellingPrice = Number(
+      item.sellingPrice !== undefined && Number(item.sellingPrice) >= 0
+        ? item.sellingPrice
+        : (item.finalSellingPrice !== undefined ? item.finalSellingPrice : 0)
+    );
 
+    // 4. Discount: Customer discount configured in Item Master / Customer Details
     let initDiscPct = '';
     if (invoiceHeader.customerCode) {
       const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
@@ -791,12 +850,14 @@ function Invoice() {
       initDiscPct = String(item.discountPercentage);
     }
 
-    // Requirement 2: Quantity field represents customer purchase quantity, default 1 (never available stock)
-    const initQty = '1';
+    const roundOpt = item.roundOffOption || 'No Round Off';
+    const roundStp = item.roundOffStep || 10;
 
+    // 5. Quantity & Value: Default customer purchase quantity (editable, default 1)
+    const validQty = requestedQty && !isNaN(parseFloat(requestedQty)) && parseFloat(requestedQty) > 0 ? String(requestedQty) : '1';
     const comp = computeLinePricing(
       sellingPrice,
-      initQty,
+      validQty,
       initDiscPct,
       '',
       'percentage',
@@ -804,13 +865,14 @@ function Invoice() {
       roundStp
     );
 
+    // 6. Cost: Last GRN purchase cost from supplier
     const grnHistory = await fetchItemGrnHistory(item.code);
     const hasHistory = Boolean(grnHistory?.summary?.hasGrnHistory);
     const latestCost = grnHistory?.summary?.latestGrnCost;
     const costDisplay =
       hasHistory && latestCost !== null && latestCost !== undefined
         ? Number(latestCost).toFixed(2)
-        : '-';
+        : (item.lastGrnPrice ? Number(item.lastGrnPrice).toFixed(2) : (item.averageCost ? Number(item.averageCost).toFixed(2) : '0.00'));
 
     const lastGrnFormatted = grnHistory?.summary?.lastGrnFormatted || item.lastGrn || '-';
     const grnNum = grnHistory?.summary?.latestGrnNumber || item.lastGrn || '';
@@ -818,12 +880,16 @@ function Invoice() {
       ? new Date(grnHistory.summary.latestGrnDate).toISOString().split('T')[0]
       : (item.lastGrnDate ? String(item.lastGrnDate).split('T')[0] : '');
 
+    // Populate draft item entry
     setItemEntry({
-      code: item.code || '',
+      code: item.code,
       description: item.description || '',
-      location: item.location || 'Main Store',
-      availableQty: available,
-      quantity: initQty,
+      secondDesc: item.secondDesc || '',
+      location: actualLocation,
+      storedLocation: actualLocation,
+      totalStoredStock: storedStock,
+      availableQty: storedStock, // actual database stock!
+      quantity: validQty, // customer purchase quantity (editable)
       price: sellingPrice,
       rate: '0',
       itemCost: costDisplay,
@@ -839,15 +905,70 @@ function Invoice() {
       rateType: 'Retail',
       mpCost: item.averageCost || 0,
       value: comp.finalPrice,
-      balance: available,
+      balance: storedStock,
       total: comp.finalPrice,
       note: '',
     });
+
+    // Make sure locationsList has this item's location
+    if (actualLocation) {
+      setLocationsList((prev) => {
+        if (!prev.includes(actualLocation)) {
+          return [...prev, actualLocation];
+        }
+        return prev;
+      });
+    }
+
+    // Stock display rules: Warn if out of stock
+    if (storedStock <= 0) {
+      showNotification(`Warning: Item '${item.code}' has NO available stock (Available: 0) in ${actualLocation}`, 'error');
+    }
 
     fetchAlternativeProducts(item.code);
     setItemDropdownOpen(false);
     setHighlightedItemIndex(-1);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+  };
+
+  // Change location for selected item & refresh available stock
+  const handleItemLocationChange = (newLocation) => {
+    setItemEntry((prev) => {
+      if (!prev.code) {
+        return { ...prev, location: newLocation };
+      }
+
+      const storedLoc = prev.storedLocation || 'Main Store';
+      const storedQty = prev.totalStoredStock !== undefined ? Number(prev.totalStoredStock) : Number(prev.availableQty || 0);
+
+      if (newLocation.toLowerCase() === storedLoc.toLowerCase()) {
+        showNotification(`Location switched to '${newLocation}'. Available stock: ${storedQty}`, 'info');
+        return {
+          ...prev,
+          location: newLocation,
+          availableQty: storedQty,
+          balance: storedQty,
+        };
+      } else {
+        showNotification(
+          `Warning: Item '${prev.code}' is not stored in '${newLocation}' (Available: 0). Stored in: '${storedLoc}' (${storedQty})`,
+          'error'
+        );
+        return {
+          ...prev,
+          location: newLocation,
+          availableQty: 0,
+          balance: 0,
+        };
+      }
+    });
+  };
+
+  // Select Item from Lookup Modal
+  const handleSelectItemFromLookup = async (item) => {
+    if (!item) return;
+    setSelectedItemPreview(item);
+    await loadItemIntoEntry(item, itemEntry.quantity || '1');
   };
 
   // Handle Keyboard navigation on Item Code input
@@ -890,7 +1011,7 @@ function Invoice() {
         highlightedItemIndex >= 0 &&
         filteredDropdownItems[highlightedItemIndex]
       ) {
-        handleSelectItemFromLookup(filteredDropdownItems[highlightedItemIndex]);
+        loadItemIntoEntry(filteredDropdownItems[highlightedItemIndex], itemEntry.quantity || '1');
         setItemDropdownOpen(false);
         setHighlightedItemIndex(-1);
         return;
@@ -918,37 +1039,33 @@ function Invoice() {
       );
 
       if (match) {
-        handleSelectItemFromLookup(match);
+        loadItemIntoEntry(match, itemEntry.quantity || '1');
         setItemDropdownOpen(false);
         setHighlightedItemIndex(-1);
       } else if (filteredDropdownItems.length > 0) {
-        handleSelectItemFromLookup(filteredDropdownItems[0]);
+        loadItemIntoEntry(filteredDropdownItems[0], itemEntry.quantity || '1');
         setItemDropdownOpen(false);
         setHighlightedItemIndex(-1);
       } else {
-        // Fallback: Query backend directly in case item wasn't preloaded
-        api.get(`/items?search=${encodeURIComponent(query)}&limit=10`)
+        // Query backend directly in case item wasn't preloaded
+        api.get(`/items/${encodeURIComponent(query)}`)
           .then((res) => {
-            if (res.data?.data && res.data.data.length > 0) {
-              handleSelectItemFromLookup(res.data.data[0]);
+            if (res.data?.success && res.data.data) {
+              loadItemIntoEntry(res.data.data, itemEntry.quantity || '1');
             } else {
-              setLookupModal({
-                isOpen: true,
-                type: 'item',
-                title: 'Select Item from Item Master',
-                search: itemEntry.code,
-              });
-              setLookupPage(1);
+              api.get(`/items?search=${encodeURIComponent(query)}&limit=10`)
+                .then((sRes) => {
+                  if (sRes.data?.data && sRes.data.data.length > 0) {
+                    loadItemIntoEntry(sRes.data.data[0], itemEntry.quantity || '1');
+                  } else {
+                    showNotification(`Item '${query}' not found in Item Master`, 'error');
+                  }
+                })
+                .catch(() => null);
             }
           })
           .catch(() => {
-            setLookupModal({
-              isOpen: true,
-              type: 'item',
-              title: 'Select Item from Item Master',
-              search: itemEntry.code,
-            });
-            setLookupPage(1);
+            showNotification(`Item '${query}' not found in Item Master`, 'error');
           });
         setItemDropdownOpen(false);
       }
@@ -973,94 +1090,8 @@ function Invoice() {
       );
 
       if (match) {
-        const sellingPrice =
-          match.sellingPrice !== undefined && Number(match.sellingPrice) >= 0
-            ? Number(match.sellingPrice)
-            : (match.finalSellingPrice !== undefined ? Number(match.finalSellingPrice) : 0);
-
-        const available =
-          match.quantity !== undefined
-            ? match.quantity
-            : (match.stockInHand !== undefined ? match.stockInHand : 0);
-
-        const roundOpt = match.roundOffOption || 'No Round Off';
-        const roundStp = match.roundOffStep || 10;
-
-        let initDiscPct = '';
-        if (invoiceHeader.customerCode) {
-          const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
-          if (cust && cust.discount && Number(cust.discount) > 0) {
-            initDiscPct = String(cust.discount);
-          }
-        }
-        if (!initDiscPct && match.discountPercentage && Number(match.discountPercentage) > 0) {
-          initDiscPct = String(match.discountPercentage);
-        }
-
-        // Requirement 2: Quantity field represents customer purchase quantity, default 1 (never available stock)
-        const initQty = '1';
-
-        const comp = computeLinePricing(
-          sellingPrice,
-          initQty,
-          initDiscPct,
-          '',
-          'percentage',
-          roundOpt,
-          roundStp
-        );
-
-        updated.code = match.code;
-        updated.description = match.description || '';
-        updated.location = match.location || 'Main Store';
-        updated.availableQty = available;
-        updated.quantity = initQty;
-        updated.price = sellingPrice;
-        updated.rate = '0';
-        updated.itemCost = '-';
-        updated.lastGrn = match.lastGrn || '';
-        updated.lastGrnDate = match.lastGrnDate ? String(match.lastGrnDate).split('T')[0] : '';
-        updated.lastGrnFormatted = match.lastGrn || '-';
-        updated.roundOffOption = roundOpt;
-        updated.roundOffStep = roundStp;
-        updated.discountPercentage = comp.discountPercentage;
-        updated.discountAmount = comp.discountAmount;
-        updated.finalPrice = comp.finalPrice;
-        updated.value = comp.finalPrice;
-        updated.balance = available;
-        updated.total = comp.finalPrice;
-
-        fetchItemGrnHistory(match.code).then((grnData) => {
-          if (grnData?.summary) {
-            setItemEntry((curr) => {
-              if (curr.code.toLowerCase() === match.code.toLowerCase()) {
-                const dateStr = grnData.summary.latestGrnDate
-                  ? new Date(grnData.summary.latestGrnDate).toISOString().split('T')[0]
-                  : curr.lastGrnDate;
-                const costDisp =
-                  grnData.summary.hasGrnHistory &&
-                  grnData.summary.latestGrnCost !== null &&
-                  grnData.summary.latestGrnCost !== undefined
-                    ? Number(grnData.summary.latestGrnCost).toFixed(2)
-                    : '-';
-                return {
-                  ...curr,
-                  itemCost: costDisp,
-                  lastGrn: grnData.summary.latestGrnNumber || curr.lastGrn,
-                  lastGrnDate: dateStr,
-                  lastGrnFormatted: grnData.summary.lastGrnFormatted || curr.lastGrnFormatted,
-                  availableQty:
-                    grnData.summary.closingStock !== undefined
-                      ? grnData.summary.closingStock
-                      : curr.availableQty,
-                };
-              }
-              return curr;
-            });
-          }
-        });
-
-        fetchAlternativeProducts(match.code);
+        loadItemIntoEntry(match, itemEntry.quantity || '1');
+        return;
       } else {
         setAlternativeProducts([]);
       }
@@ -1070,23 +1101,24 @@ function Invoice() {
     if (name === 'quantity') {
       let qtyVal = value;
       const numQty = parseFloat(qtyVal);
-      const avail = parseFloat(updated.availableQty);
+      const avail = parseFloat(itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0);
 
       if (!isNaN(numQty) && !isNaN(avail) && avail > 0 && numQty > avail) {
-        showNotification(`Requested purchase quantity (${numQty}) cannot exceed available stock (${avail})`, 'error');
+        showNotification(`Warning: Requested purchase quantity (${numQty}) exceeds available stock (${avail})!`, 'error');
       } else if (!isNaN(numQty) && numQty <= 0) {
         showNotification('Purchase quantity must be greater than 0', 'error');
       }
 
       const comp = computeLinePricing(
-        updated.price,
+        itemEntry.price,
         qtyVal,
-        updated.discountPercentage,
-        updated.discountAmount,
+        itemEntry.discountPercentage,
+        itemEntry.discountAmount,
         'percentage',
-        updated.roundOffOption,
-        updated.roundOffStep
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
       );
+      updated.quantity = qtyVal;
       updated.discountPercentage = comp.discountPercentage;
       updated.discountAmount = comp.discountAmount;
       updated.finalPrice = comp.finalPrice;
@@ -1095,13 +1127,14 @@ function Invoice() {
     } else if (name === 'price') {
       const comp = computeLinePricing(
         value,
-        updated.quantity,
-        updated.discountPercentage,
-        updated.discountAmount,
+        itemEntry.quantity,
+        itemEntry.discountPercentage,
+        itemEntry.discountAmount,
         'percentage',
-        updated.roundOffOption,
-        updated.roundOffStep
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
       );
+      updated.price = value;
       updated.discountPercentage = comp.discountPercentage;
       updated.discountAmount = comp.discountAmount;
       updated.finalPrice = comp.finalPrice;
@@ -1109,13 +1142,13 @@ function Invoice() {
       updated.total = comp.finalPrice;
     } else if (name === 'discountPercentage') {
       const comp = computeLinePricing(
-        updated.price,
-        updated.quantity,
+        itemEntry.price,
+        itemEntry.quantity,
         value,
-        updated.discountAmount,
+        itemEntry.discountAmount,
         'percentage',
-        updated.roundOffOption,
-        updated.roundOffStep
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
       );
       updated.discountPercentage = comp.discountPercentage;
       updated.discountAmount = comp.discountAmount;
@@ -1124,13 +1157,13 @@ function Invoice() {
       updated.total = comp.finalPrice;
     } else if (name === 'discountAmount') {
       const comp = computeLinePricing(
-        updated.price,
-        updated.quantity,
-        updated.discountPercentage,
+        itemEntry.price,
+        itemEntry.quantity,
+        itemEntry.discountPercentage,
         value,
         'amount',
-        updated.roundOffOption,
-        updated.roundOffStep
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
       );
       updated.discountPercentage = comp.discountPercentage;
       updated.discountAmount = comp.discountAmount;
@@ -1145,139 +1178,80 @@ function Invoice() {
   // Select an Alternative Product to load into item entry
   const handleSelectAlternativeProduct = async (alt) => {
     if (!alt || !alt.code) return;
-
-    let match = itemsList.find((i) => i.code?.toLowerCase() === alt.code.toLowerCase());
-
-    const stock = Number(
-      match
-        ? (match.quantity !== undefined
-            ? match.quantity
-            : (match.stockInHand !== undefined ? match.stockInHand : 0))
-        : (alt.stock !== undefined
-            ? alt.stock
-            : (alt.quantity !== undefined ? alt.quantity : (alt.availableQty || 0)))
-    );
-
-    if (stock <= 0) {
-      showNotification(`Note: Alternative item '${alt.code}' currently has 0 available stock.`, 'info');
-    }
-
-    const sellingPrice = match
-      ? (match.sellingPrice !== undefined ? Number(match.sellingPrice) : (match.finalSellingPrice || alt.sellingPrice || alt.price || 0))
-      : (alt.sellingPrice || alt.price || 0);
-
-    const roundOpt = match?.roundOffOption || alt.roundOffOption || 'No Round Off';
-    const roundStp = match?.roundOffStep || alt.roundOffStep || 10;
-
-    let initDiscPct = '';
-    if (invoiceHeader.customerCode) {
-      const cust = customersList.find((c) => (c.code || c.customerCode) === invoiceHeader.customerCode);
-      if (cust && cust.discount && Number(cust.discount) > 0) {
-        initDiscPct = String(cust.discount);
-      }
-    }
-    if (!initDiscPct) {
-      const disc = match?.discountPercentage || alt.discountPercentage;
-      if (disc && Number(disc) > 0) {
-        initDiscPct = String(disc);
-      }
-    }
-
-    // Requirement 2: Quantity field represents customer purchase quantity, default 1 (never available stock)
-    const initQty = '1';
-
-    const comp = computeLinePricing(
-      sellingPrice,
-      initQty,
-      initDiscPct,
-      '',
-      'percentage',
-      roundOpt,
-      roundStp
-    );
-
-    const grnHistory = await fetchItemGrnHistory(alt.code);
-    const hasHistory = Boolean(grnHistory?.summary?.hasGrnHistory);
-    const latestCost = grnHistory?.summary?.latestGrnCost;
-    const costDisplay =
-      hasHistory && latestCost !== null && latestCost !== undefined
-        ? Number(latestCost).toFixed(2)
-        : '-';
-
-    const lastGrnFormatted = grnHistory?.summary?.lastGrnFormatted || match?.lastGrn || alt.lastGrn || '-';
-    const grnNum = grnHistory?.summary?.latestGrnNumber || match?.lastGrn || alt.lastGrn || '';
-    const grnDate = grnHistory?.summary?.latestGrnDate
-      ? new Date(grnHistory.summary.latestGrnDate).toISOString().split('T')[0]
-      : (match?.lastGrnDate ? String(match.lastGrnDate).split('T')[0] : '');
-
-    // Requirement 4: Load the selected alternative's own code, description, available qty, price, discount, location, GRN cost
-    setItemEntry({
-      code: alt.code,
-      description: alt.description || match?.description || '',
-      location: alt.location || match?.location || 'Main Store',
-      availableQty: stock,
-      quantity: initQty,
-      price: sellingPrice,
-      rate: '0',
-      itemCost: costDisplay,
-      lastGrn: grnNum,
-      lastGrnDate: grnDate,
-      lastGrnFormatted: lastGrnFormatted,
-      roundOffOption: roundOpt,
-      roundOffStep: roundStp,
-      discountPercentage: comp.discountPercentage,
-      discountAmount: comp.discountAmount,
-      finalPrice: comp.finalPrice,
-      masterPack: match?.masterPack || '1',
-      rateType: 'Retail',
-      mpCost: match?.averageCost || 0,
-      value: comp.finalPrice,
-      balance: stock,
-      total: comp.finalPrice,
-      note: '',
-    });
-
-    fetchAlternativeProducts(alt.code);
+    await loadItemIntoEntry(alt.code, '1');
   };
 
-  // Add or Update Line Item in Table
+  // Add or Update Line Item in Table (Add Item Button or Enter key)
   const handleAddOrUpdateItem = () => {
+    if (isAddingRef.current) return;
+    isAddingRef.current = true;
+    setTimeout(() => {
+      isAddingRef.current = false;
+    }, 350);
+
+    // 1. Validate that an item is selected
     if (!itemEntry.code || itemEntry.code.trim() === '') {
-      showNotification('Please enter or select an Item Code', 'error');
+      showNotification('Please enter or select an Item Code first', 'error');
       itemCodeInputRef.current?.focus();
       return;
     }
 
+    // 2. Validate the entered quantity and selling price
     const saleQty = parseFloat(itemEntry.quantity);
     if (isNaN(saleQty) || saleQty <= 0) {
       showNotification('Please enter a valid purchase quantity greater than 0', 'error');
       return;
     }
 
-    const avail = parseFloat(itemEntry.availableQty);
-    if (!isNaN(avail) && avail > 0 && saleQty > avail) {
-      showNotification(`Requested purchase quantity (${saleQty}) cannot exceed available stock (${avail})`, 'error');
+    const price = parseFloat(itemEntry.price);
+    if (isNaN(price) || price < 0) {
+      showNotification('Please enter a valid selling price', 'error');
       return;
     }
 
-    const price = parseFloat(itemEntry.price) || 0;
+    // 3. Check the available stock according to the existing stock rules
+    const avail = parseFloat(itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0);
+    if (isNaN(avail) || avail <= 0) {
+      showNotification(
+        `Cannot add item '${itemEntry.code}' — No stock available in location '${itemEntry.location || 'Main Store'}' (Available: 0)`,
+        'error'
+      );
+      return;
+    }
+
+    if (saleQty > avail) {
+      showNotification(
+        `Cannot add item '${itemEntry.code}' — Requested purchase quantity (${saleQty}) exceeds available stock (${avail})`,
+        'error'
+      );
+      return;
+    }
+
     const discPct = parseFloat(itemEntry.discountPercentage) || 0;
     const discAmt = parseFloat(itemEntry.discountAmount) || 0;
-    const finalPrice = parseFloat(itemEntry.value !== undefined ? itemEntry.value : itemEntry.finalPrice) || Math.max(0, (price * saleQty) - discAmt);
+    const comp = computeLinePricing(
+      price,
+      saleQty,
+      discPct,
+      discAmt,
+      'percentage',
+      itemEntry.roundOffOption,
+      itemEntry.roundOffStep
+    );
+    const finalPrice = parseFloat(comp.finalPrice) || Math.max(0, (price * saleQty) - discAmt);
 
-    // Requirement 5: Bottom Invoice Grid uses actual selected item and the user's sale quantity
     const newLineItem = {
       code: itemEntry.code.trim().toUpperCase(),
       description: itemEntry.description || '',
       location: itemEntry.location || 'Main Store',
-      availableQty: itemEntry.availableQty !== '' ? itemEntry.availableQty : avail,
-      quantity: saleQty, // user's sale quantity!
+      availableQty: avail,
+      quantity: saleQty, // customer purchase quantity
       sellingPrice: price,
       price: price,
       rate: itemEntry.rate || '0',
       discountPercentage: discPct,
-      discountAmount: discAmt,
-      discount: discPct > 0 ? `${discPct}%` : (discAmt > 0 ? discAmt.toFixed(2) : '0'),
+      discountAmount: parseFloat(comp.discountAmount) || 0,
+      discount: discPct > 0 ? `${discPct}%` : (discAmt > 0 ? discAmt.toFixed(2) : '0%'),
       value: finalPrice,
       finalPrice: finalPrice,
       itemCost: itemEntry.itemCost || '-',
@@ -1287,24 +1261,72 @@ function Invoice() {
     };
 
     if (selectedLineIndex >= 0) {
+      // Editing an existing line item in the table
       const updated = [...lineItems];
       updated[selectedLineIndex] = newLineItem;
       setLineItems(updated);
       setSelectedLineIndex(-1);
-      showNotification(`Updated item ${newLineItem.code}`);
+      showNotification(`Updated item ${newLineItem.code} in invoice`, 'success');
     } else {
-      setLineItems([...lineItems, newLineItem]);
-      showNotification(`Added item ${newLineItem.code} to invoice`);
+      // Adding new item: check if item with same code & location is already present
+      const existingIdx = lineItems.findIndex(
+        (li) => li.code?.toUpperCase() === newLineItem.code && (li.location || 'Main Store') === newLineItem.location
+      );
+
+      if (existingIdx >= 0) {
+        const existingLine = lineItems[existingIdx];
+        const combinedQty = (parseFloat(existingLine.quantity) || 0) + saleQty;
+        if (combinedQty > avail) {
+          showNotification(
+            `Cannot add ${saleQty} more of '${newLineItem.code}'. Already in invoice: ${existingLine.quantity}. Total (${combinedQty}) would exceed available stock (${avail}).`,
+            'error'
+          );
+          return;
+        }
+
+        const combinedComp = computeLinePricing(
+          price,
+          combinedQty,
+          discPct,
+          discAmt,
+          'percentage',
+          itemEntry.roundOffOption,
+          itemEntry.roundOffStep
+        );
+
+        const updated = [...lineItems];
+        updated[existingIdx] = {
+          ...existingLine,
+          quantity: combinedQty,
+          sellingPrice: price,
+          price: price,
+          discountPercentage: discPct,
+          discountAmount: parseFloat(combinedComp.discountAmount) || 0,
+          discount: discPct > 0 ? `${discPct}%` : '0%',
+          value: parseFloat(combinedComp.finalPrice) || 0,
+          finalPrice: parseFloat(combinedComp.finalPrice) || 0,
+        };
+        setLineItems(updated);
+        showNotification(`Updated item ${newLineItem.code} quantity to ${combinedQty} in invoice`, 'success');
+      } else {
+        setLineItems([...lineItems, newLineItem]);
+        showNotification(`Added item ${newLineItem.code} to invoice`, 'success');
+      }
     }
 
-    // Reset item entry row
+    // Clear item-entry fields ready for next item
     setItemEntry({
       code: '',
       description: '',
+      secondDesc: '',
       location: 'Main Store',
+      storedLocation: 'Main Store',
+      totalStoredStock: '',
+      rackBin: '',
       availableQty: '',
       quantity: '1',
       rate: '0',
+      standardRate: '',
       discountPercentage: '',
       discountAmount: '',
       finalPrice: '',
@@ -1319,7 +1341,9 @@ function Invoice() {
       roundOffOption: 'No Round Off',
       roundOffStep: 10,
       value: '0.00',
+      due: '',
       balance: '',
+      disc: '',
       total: '0.00',
       note: '',
     });
@@ -1338,10 +1362,15 @@ function Invoice() {
       setItemEntry({
         code: item.code,
         description: item.description,
+        secondDesc: '',
         location: item.location || 'Main Store',
+        storedLocation: item.location || 'Main Store',
+        totalStoredStock: item.availableQty !== undefined ? item.availableQty : '',
+        rackBin: '',
         availableQty: item.availableQty !== undefined ? item.availableQty : '',
         quantity: String(item.quantity),
         rate: item.rate || '0',
+        standardRate: '',
         discountPercentage: item.discountPercentage !== undefined && item.discountPercentage !== '' ? String(item.discountPercentage) : '',
         discountAmount: item.discountAmount !== undefined && item.discountAmount !== '' ? String(item.discountAmount) : '',
         finalPrice: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
@@ -1356,7 +1385,9 @@ function Invoice() {
         roundOffOption: 'No Round Off',
         roundOffStep: 10,
         value: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
+        due: '',
         balance: item.availableQty || '',
+        disc: '',
         total: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
         note: item.note || '',
       });
@@ -1378,7 +1409,7 @@ function Invoice() {
   const handleNew = async (force = false) => {
     if (!force && lineItems.length > 0 && !activeInvoiceId) {
       const confirmClear = window.confirm(
-        'Invoice contains unsaved items. Would you like to discard them and create a New invoice?'
+        'Current invoice contains unsaved items. Would you like to discard them and create a New invoice?'
       );
       if (!confirmClear) return;
     }
@@ -1392,10 +1423,15 @@ function Invoice() {
     setItemEntry({
       code: '',
       description: '',
+      secondDesc: '',
       location: 'Main Store',
+      storedLocation: 'Main Store',
+      totalStoredStock: '',
+      rackBin: '',
       availableQty: '',
       quantity: '1',
       rate: '0',
+      standardRate: '',
       discountPercentage: '',
       discountAmount: '',
       finalPrice: '',
@@ -1410,7 +1446,9 @@ function Invoice() {
       roundOffOption: 'No Round Off',
       roundOffStep: 10,
       value: '0.00',
+      due: '',
       balance: '',
+      disc: '',
       total: '0.00',
       note: '',
     });
@@ -1425,15 +1463,13 @@ function Invoice() {
     });
 
     try {
+      setLoading(true);
       const nextNumRes = await api.get('/invoices/next-number');
       if (nextNumRes?.data?.data) {
-        const rawNum = nextNumRes.data.data.invoiceNumber || nextNumRes.data.data.no;
-        const formattedNum = String(rawNum).startsWith('INV-')
-          ? String(rawNum)
-          : `INV-${String(rawNum).padStart(6, '0')}`;
+        const invNum = nextNumRes.data.data.invoiceNumber || String(nextNumRes.data.data.no || 1).padStart(4, '0');
         setInvoiceHeader({
           no: nextNumRes.data.data.no,
-          invoiceNumber: formattedNum,
+          invoiceNumber: invNum,
           date: new Date().toISOString().split('T')[0],
           customerCode: '',
           customerName: 'Walk In Customer',
@@ -1449,8 +1485,8 @@ function Invoice() {
       }
     } catch (e) {
       setInvoiceHeader({
-        no: '',
-        invoiceNumber: 'INV-000123',
+        no: 1,
+        invoiceNumber: '0001',
         date: new Date().toISOString().split('T')[0],
         customerCode: '',
         customerName: 'Walk In Customer',
@@ -1463,6 +1499,8 @@ function Invoice() {
         isManualInvoice: false,
         remark: '',
       });
+    } finally {
+      setLoading(false);
     }
 
     showNotification('Prepared New Invoice', 'info');
@@ -1521,9 +1559,22 @@ function Invoice() {
 
   // BUTTON: SAVE / COMPLETE INVOICE
   const handleSaveInvoice = async (forceHold = false) => {
+    if (isSavingRef.current) return null;
+    isSavingRef.current = true;
+
+    // 1. Validation
     if (lineItems.length === 0) {
-      showNotification('Please add at least one item to the invoice', 'error');
-      return;
+      showNotification('Please add at least one item before saving the invoice', 'error');
+      isSavingRef.current = false;
+      return null;
+    }
+
+    for (const li of lineItems) {
+      if (!li.quantity || Number(li.quantity) <= 0) {
+        showNotification(`Invalid quantity for item '${li.code}'`, 'error');
+        isSavingRef.current = false;
+        return null;
+      }
     }
 
     const isHoldVal = forceHold || invoiceHeader.isHold;
@@ -1533,36 +1584,36 @@ function Invoice() {
       invoiceNumber: invoiceHeader.invoiceNumber,
       date: invoiceHeader.date,
       customerCode: invoiceHeader.customerCode,
-      customerName: invoiceHeader.customerName,
-      customerAddress: invoiceHeader.customerAddress,
-      customerTelephone: invoiceHeader.customerTelephone,
-      jobType: invoiceHeader.jobType,
-      jd: invoiceHeader.jd,
+      customerName: invoiceHeader.customerName || 'Walk In Customer',
+      customerAddress: invoiceHeader.customerAddress || '',
+      customerTelephone: invoiceHeader.customerTelephone || '',
+      jobType: invoiceHeader.jobType || 'Material',
+      jd: invoiceHeader.jd || 'Invoice',
       isHold: isHoldVal,
       status: isHoldVal ? 'hold' : 'completed',
-      remark: invoiceHeader.remark,
+      remark: invoiceHeader.remark || '',
       lineItems: lineItems.map((li) => ({
         code: li.code,
         itemCode: li.code,
         description: li.description,
-        location: li.location,
-        quantity: li.quantity,
-        qty: li.quantity,
-        masterPack: li.masterPack,
-        rateType: li.rateType,
-        price: li.price,
-        unitPrice: li.price,
-        itemCost: li.itemCost,
-        mpCost: li.mpCost,
-        discountPercentage: li.discountPercentage,
-        discountAmount: li.discountAmount,
-        finalPrice: li.finalPrice !== undefined ? li.finalPrice : li.value,
-        availableQty: li.availableQty !== undefined ? li.availableQty : li.balance,
+        location: li.location || 'Main Store',
+        quantity: Number(li.quantity),
+        qty: Number(li.quantity),
+        masterPack: li.masterPack || '1',
+        rateType: li.rateType || 'Retail',
+        price: Number(li.sellingPrice !== undefined ? li.sellingPrice : li.price),
+        unitPrice: Number(li.sellingPrice !== undefined ? li.sellingPrice : li.price),
+        itemCost: Number(li.itemCost || 0),
+        mpCost: Number(li.mpCost || 0),
+        discountPercentage: Number(li.discountPercentage || 0),
+        discountAmount: Number(li.discountAmount || 0),
+        finalPrice: Number(li.finalPrice !== undefined ? li.finalPrice : li.value),
+        availableQty: Number(li.availableQty !== undefined ? li.availableQty : 0),
         lastGrn: li.lastGrn || '',
         lastGrnDate: li.lastGrnDate || '',
-        value: li.value,
-        total: li.total || li.value,
-        balance: li.balance,
+        value: Number(li.value !== undefined ? li.value : li.finalPrice),
+        total: Number(li.total || li.value || li.finalPrice),
+        balance: Number(li.balance || 0),
       })),
       subTotal: invoiceSubTotal,
       specialDiscount: specialDiscVal,
@@ -1580,50 +1631,40 @@ function Invoice() {
       setLoading(true);
       let res;
       if (activeInvoiceId) {
+        // Prevent duplicate creation: update existing invoice
         res = await api.put(`/invoices/${activeInvoiceId}`, payload);
       } else {
         res = await api.post('/invoices', payload);
       }
 
       if (res.data && res.data.success) {
+        const savedData = res.data.data;
+        const savedId = savedData?._id || activeInvoiceId;
+        const savedInvNum = savedData?.invoiceNumber || invoiceHeader.invoiceNumber;
+
+        // Preserve invoice on screen: set activeInvoiceId and keep lineItems
+        setActiveInvoiceId(savedId);
+        setInvoiceHeader((prev) => ({
+          ...prev,
+          invoiceNumber: savedInvNum,
+          no: savedData?.no || prev.no,
+        }));
+
         showNotification(
-          `Invoice '${res.data.data?.invoiceNumber || invoiceHeader.invoiceNumber}' ${isHoldVal ? 'saved on HOLD' : 'completed & stock updated'} successfully!`,
+          `Invoice '${savedInvNum}' ${isHoldVal ? 'saved on HOLD' : 'saved successfully! Stock updated.'}`,
           'success'
         );
 
-        // Refresh and prepare next invoice
-        const [nextNumRes, invsRes] = await Promise.all([
-          api.get('/invoices/next-number').catch(() => null),
+        // Refresh invoices list and items in background
+        Promise.all([
           api.get('/invoices?limit=50').catch(() => null),
-        ]);
-        if (invsRes?.data?.data) setInvoicesList(invsRes.data.data);
-        if (nextNumRes?.data?.data) {
-          setActiveInvoiceId(null);
-          setLineItems([]);
-          setInvoiceHeader({
-            no: nextNumRes.data.data.no,
-            invoiceNumber: nextNumRes.data.data.invoiceNumber,
-            date: new Date().toISOString().split('T')[0],
-            customerCode: '',
-            customerName: '',
-            customerAddress: '',
-            customerTelephone: '',
-            jd: 'Invoice',
-            isHold: false,
-            jobType: 'Material',
-            remark: '',
-          });
-          setPayment({
-            paymentMethod: 'Cash',
-            customerPaidAmount: '',
-            amountReceived: '',
-            specialDiscount: '0.00',
-            chequeNo: '',
-            bank: '',
-            dateRealized: '',
-          });
-        }
-        return res.data?.data || { invoiceNumber: invoiceHeader.invoiceNumber };
+          api.get('/items?limit=all').catch(() => null),
+        ]).then(([invsRes, itemsRes]) => {
+          if (invsRes?.data?.data) setInvoicesList(invsRes.data.data);
+          if (itemsRes?.data?.data) setItemsList(itemsRes.data.data);
+        });
+
+        return savedData || { _id: savedId, invoiceNumber: savedInvNum };
       }
       return null;
     } catch (err) {
@@ -1632,6 +1673,9 @@ function Invoice() {
       return null;
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        isSavingRef.current = false;
+      }, 350);
     }
   };
 
@@ -1659,7 +1703,7 @@ function Invoice() {
     // 1. If an active saved invoice is loaded
     if (activeInvoiceId) {
       const confirmDel = window.confirm(
-        `Are you sure you want to delete / cancel Invoice '${invoiceHeader.invoiceNumber}'? This will restore any deducted stock and update customer outstanding balance!`
+        `Are you sure you want to delete / cancel Invoice '${invoiceHeader.invoiceNumber}'?\n\nThis will restore deducted inventory stock and update customer outstanding balance.`
       );
       if (!confirmDel) return;
 
@@ -1667,7 +1711,14 @@ function Invoice() {
         setLoading(true);
         const res = await api.delete(`/invoices/${activeInvoiceId}`);
         if (res.data && res.data.success) {
-          showNotification(res.data.message || `Invoice '${invoiceHeader.invoiceNumber}' cancelled and stock restored`, 'success');
+          showNotification(
+            res.data.message || `Invoice '${invoiceHeader.invoiceNumber}' cancelled and stock restored`,
+            'success'
+          );
+          // Refresh background items to show restored stock
+          api.get('/items?limit=all').then((r) => {
+            if (r.data?.data) setItemsList(r.data.data);
+          }).catch(() => null);
           await handleNew(true);
         }
       } catch (err) {
@@ -1680,10 +1731,10 @@ function Invoice() {
     }
 
     // 2. If a line item is selected in the bottom table
-    if (selectedLineIndex >= 0) {
+    if (selectedLineIndex >= 0 && selectedLineIndex < lineItems.length) {
       const itemToDelete = lineItems[selectedLineIndex];
       const confirmItem = window.confirm(
-        `Remove item '${itemToDelete?.code || 'selected'}' from the invoice?`
+        `Remove item '${itemToDelete?.code || 'selected'}' from invoice?`
       );
       if (confirmItem) {
         handleRemoveLineItem(selectedLineIndex);
@@ -1707,25 +1758,25 @@ function Invoice() {
 
   // BUTTON: BILL PRINT
   const handleBillPrint = async () => {
+    // 1. If invoice is already saved, print directly without creating duplicates
     if (activeInvoiceId) {
       handlePrint();
       return;
     }
 
+    // 2. If invoice has unsaved items, save first!
     if (lineItems.length > 0) {
-      const confirmSave = window.confirm(
-        'Invoice contains unsaved items. Invoices must be saved before printing a finalized bill. Would you like to save now?'
-      );
-      if (confirmSave) {
-        const saved = await handleSaveInvoice(false);
-        if (saved) {
-          handlePrint();
-        }
+      showNotification('Saving invoice before printing bill...', 'info');
+      const saved = await handleSaveInvoice(false);
+      if (saved) {
+        handlePrint();
+      } else {
+        showNotification('Bill print aborted: Could not save invoice.', 'error');
       }
       return;
     }
 
-    showNotification('Please select or create an invoice before printing', 'error');
+    showNotification('Please add items to invoice before printing', 'error');
   };
 
   // Print Invoice (Thermal Receipt)
@@ -2585,7 +2636,7 @@ function Invoice() {
                   />
                 </div>
 
-                {/* Form Row 6: Value, Location, Available Stock */}
+                {/* Form Row 6: Value, Location, Available Stock, Add Item */}
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Value . . . . . . . .</span>
                   <input
@@ -2600,23 +2651,37 @@ function Invoice() {
                     <select
                       className="sofast-select"
                       value={itemEntry.location || 'Main Store'}
-                      onChange={(e) => setItemEntry({ ...itemEntry, location: e.target.value })}
+                      onChange={(e) => handleItemLocationChange(e.target.value)}
                     >
-                      <option value="Main Store">Main Store</option>
-                      <option value="Front Shop">Front Shop</option>
-                      <option value="Rack B">Rack B</option>
-                      <option value="Warehouse">Warehouse</option>
+                      {locationsList.map((loc) => (
+                        <option key={loc} value={loc}>{loc}</option>
+                      ))}
                     </select>
                   </div>
                   <span className="sofast-navy-label" style={{ width: '45px' }}>Stock . .</span>
                   <input
                     type="text"
                     className="sofast-input"
-                    style={{ width: '95px', backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'center' }}
+                    style={{ width: '80px', backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'center', marginRight: '8px' }}
                     readOnly
                     value={itemEntry.availableQty !== '' && itemEntry.availableQty !== undefined && itemEntry.availableQty !== null ? itemEntry.availableQty : ''}
-                    title="Available Stock in Inventory"
+                    title="Available Stock in Inventory for Selected Item and Location"
                   />
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    style={{
+                      height: '20px',
+                      padding: '0 8px',
+                      fontWeight: 'bold',
+                      color: '#000080',
+                      cursor: 'pointer',
+                    }}
+                    onClick={handleAddOrUpdateItem}
+                    title="Add selected item to invoice table (or press Enter)"
+                  >
+                    Add Item
+                  </button>
                 </div>
               </div>
             </div>
@@ -2850,6 +2915,70 @@ function Invoice() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* BOTTOM ACTIONS BAR (New | Bill Print | Save | Delete) & Summary Totals */}
+          <div className="sofast-bottom-action-bar">
+            <div className="sofast-bottom-buttons-group">
+              <button
+                type="button"
+                className="sofast-bottom-btn sofast-btn-new"
+                onClick={() => handleNew(false)}
+                title="Start a new invoice (clears unsaved items with confirmation)"
+              >
+                New
+              </button>
+              <button
+                type="button"
+                className="sofast-bottom-btn sofast-btn-print"
+                onClick={handleBillPrint}
+                title="Save invoice (if unsaved) and print thermal bill receipt"
+              >
+                Bill Print
+              </button>
+              <button
+                type="button"
+                className="sofast-bottom-btn sofast-btn-save"
+                onClick={() => handleSaveInvoice(false)}
+                disabled={loading}
+                title="Save invoice to database and update stock"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="sofast-bottom-btn sofast-btn-delete"
+                onClick={handleDeleteInvoice}
+                disabled={loading}
+                title="Delete or cancel invoice and restore stock"
+              >
+                Delete
+              </button>
+            </div>
+
+            {/* Quick summary totals on the right of the bottom bar */}
+            <div className="sofast-bottom-summary">
+              <span className="sofast-bottom-summary-item">
+                <span className="summary-label">Items:</span>
+                <span className="summary-value">{lineItems.length}</span>
+              </span>
+              <span className="sofast-bottom-summary-item">
+                <span className="summary-label">Sub Total:</span>
+                <span className="summary-value">{invoiceSubTotal.toFixed(2)}</span>
+              </span>
+              {specialDiscVal > 0 && (
+                <span className="sofast-bottom-summary-item">
+                  <span className="summary-label">Discount:</span>
+                  <span className="summary-value">{specialDiscVal.toFixed(2)}</span>
+                </span>
+              )}
+              <span className="sofast-bottom-summary-item grand-total-item">
+                <span className="summary-label">Net Total:</span>
+                <span className="summary-value grand-total-value">
+                  {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </span>
+            </div>
           </div>
         </div>
       </main>

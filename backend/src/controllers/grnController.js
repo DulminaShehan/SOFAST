@@ -29,6 +29,29 @@ export const aggregateGrnItemsByCode = (lines) => {
 };
 
 /**
+ * Find Item Master record by Code, Barcode, or ID robustly
+ */
+export const findItemMasterRecord = async (codeOrId) => {
+  if (!codeOrId) return null;
+  const str = String(codeOrId).trim();
+  if (mongoose.Types.ObjectId.isValid(str)) {
+    const item = await Item.findById(str);
+    if (item) return item;
+  }
+  let item = await Item.findOne({ code: str });
+  if (item) return item;
+
+  const escaped = str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  item = await Item.findOne({ code: new RegExp(`^${escaped}$`, 'i') });
+  if (item) return item;
+
+  item = await Item.findOne({
+    $or: [{ barcode: str }, { barCode: str }, { description: new RegExp(`^${escaped}$`, 'i') }],
+  });
+  return item;
+};
+
+/**
  * Get next available GRN Number and sequence number.
  * Requirement:
  * - Automatically generate a unique, sequential GRN number.
@@ -267,7 +290,7 @@ export const createGrn = async (req, res, next) => {
           message: `Line item #${i + 1} is missing an Item Code`,
         });
       }
-      const itemExists = await Item.findOne({ code: itemCode });
+      const itemExists = await findItemMasterRecord(itemCode);
       if (!itemExists) {
         return res.status(400).json({
           success: false,
@@ -298,11 +321,15 @@ export const createGrn = async (req, res, next) => {
     // Discount Amount = Line Gross * Discount Percentage / 100
     // Line Value = Line Gross - Discount Amount
     let totalGrnValue = 0;
-    const processedLineItems = lineItems.map((item) => {
-      const code = (item.code || item.itemCode || '').trim();
+    const processedLineItems = [];
+    for (const item of lineItems) {
+      const rawCode = (item.code || item.itemCode || '').trim();
+      const itemDoc = await findItemMasterRecord(rawCode);
+      const code = itemDoc ? itemDoc.code : rawCode;
+      const desc = itemDoc ? itemDoc.description : (item.description || '');
       const qty = parseFloat(item.quantity !== undefined ? item.quantity : item.qty) || 0;
       const unitPrice = parseFloat(item.unitPrice !== undefined ? item.unitPrice : (item.price || item.rate || 0));
-      const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (item.sellPrice || 0));
+      const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (itemDoc?.sellingPrice || item.sellPrice || 0));
       const discountPct = Math.min(100, Math.max(0, parseFloat(item.discount !== undefined ? item.discount : (item.discountPercentage || 0))));
 
       const lineGross = Math.round(qty * unitPrice * 100) / 100;
@@ -311,10 +338,12 @@ export const createGrn = async (req, res, next) => {
 
       totalGrnValue = Math.round((totalGrnValue + value) * 100) / 100;
 
-      return {
+      const locCode = item.locationCode || item.location || itemDoc?.location || 'Main Store';
+
+      processedLineItems.push({
         code,
         itemCode: code,
-        description: item.description || '',
+        description: desc,
         quantity: qty,
         qty,
         unitPrice,
@@ -323,9 +352,9 @@ export const createGrn = async (req, res, next) => {
         discount: discountPct,
         totalValue: value,
         value,
-        locationCode: item.locationCode || item.location || 'MAIN',
-      };
-    });
+        locationCode: locCode,
+      });
+    }
 
     const grnDate = date ? new Date(date) : new Date();
     const formattedDateStr = grnDate.toISOString().split('T')[0];
@@ -350,6 +379,7 @@ export const createGrn = async (req, res, next) => {
       returnValue: 0,
       isPosted: willPost,
       paymentStatus: 'pending',
+      status: willPost ? 'active' : 'draft',
       date: grnDate,
       remark,
     });
@@ -368,17 +398,22 @@ export const createGrn = async (req, res, next) => {
     if (willPost) {
       const itemsMap = aggregateGrnItemsByCode(processedLineItems);
       for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
-        await Item.updateOne(
-          { code },
-          {
-            $inc: { quantity: qty, stockInHand: qty },
-            $set: {
-              lastGrnPrice: line.unitPrice,
-              lastGrn: formattedDateStr,
-              lastGrnDate: formattedDateStr,
-            },
-          }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          const locToSet = line.locationCode || line.location || itemDoc.location || 'Main Store';
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            {
+              $inc: { quantity: qty, stockInHand: qty },
+              $set: {
+                lastGrnPrice: line.unitPrice,
+                lastGrn: formattedDateStr,
+                lastGrnDate: formattedDateStr,
+                location: itemDoc.location && itemDoc.location !== '' ? itemDoc.location : locToSet,
+              },
+            }
+          );
+        }
       }
     }
 
@@ -477,7 +512,7 @@ export const updateGrn = async (req, res, next) => {
             message: `Line item #${i + 1} is missing an Item Code`,
           });
         }
-        const itemExists = await Item.findOne({ code: itemCode });
+        const itemExists = await findItemMasterRecord(itemCode);
         if (!itemExists) {
           return res.status(400).json({
             success: false,
@@ -487,11 +522,15 @@ export const updateGrn = async (req, res, next) => {
       }
 
       totalGrnValue = 0;
-      processedLineItems = lineItems.map((item) => {
-        const code = (item.code || item.itemCode || '').trim();
+      processedLineItems = [];
+      for (const item of lineItems) {
+        const rawCode = (item.code || item.itemCode || '').trim();
+        const itemDoc = await findItemMasterRecord(rawCode);
+        const code = itemDoc ? itemDoc.code : rawCode;
+        const desc = itemDoc ? itemDoc.description : (item.description || '');
         const qty = parseFloat(item.quantity !== undefined ? item.quantity : item.qty) || 0;
         const unitPrice = parseFloat(item.unitPrice !== undefined ? item.unitPrice : (item.price || item.rate || 0));
-        const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (item.sellPrice || 0));
+        const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (itemDoc?.sellingPrice || item.sellPrice || 0));
         const discountPct = Math.min(100, Math.max(0, parseFloat(item.discount !== undefined ? item.discount : (item.discountPercentage || 0))));
 
         const lineGross = Math.round(qty * unitPrice * 100) / 100;
@@ -500,10 +539,12 @@ export const updateGrn = async (req, res, next) => {
 
         totalGrnValue = Math.round((totalGrnValue + value) * 100) / 100;
 
-        return {
+        const locCode = item.locationCode || item.location || itemDoc?.location || 'Main Store';
+
+        processedLineItems.push({
           code,
           itemCode: code,
-          description: item.description || '',
+          description: desc,
           quantity: qty,
           qty,
           unitPrice,
@@ -512,9 +553,9 @@ export const updateGrn = async (req, res, next) => {
           discount: discountPct,
           totalValue: value,
           value,
-          locationCode: item.locationCode || item.location || 'MAIN',
-        };
-      });
+          locationCode: locCode,
+        });
+      }
     }
 
     const grnDate = date ? new Date(date) : grn.date;
@@ -534,26 +575,34 @@ export const updateGrn = async (req, res, next) => {
       // First time posting this GRN: update stock atomically
       const itemsMap = aggregateGrnItemsByCode(processedLineItems);
       for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
-        await Item.updateOne(
-          { code },
-          {
-            $inc: { quantity: qty, stockInHand: qty },
-            $set: {
-              lastGrnPrice: line.unitPrice,
-              lastGrn: formattedDateStr,
-              lastGrnDate: formattedDateStr,
-            },
-          }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          const locToSet = line.locationCode || line.location || itemDoc.location || 'Main Store';
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            {
+              $inc: { quantity: qty, stockInHand: qty },
+              $set: {
+                lastGrnPrice: line.unitPrice,
+                lastGrn: formattedDateStr,
+                lastGrnDate: formattedDateStr,
+                location: itemDoc.location && itemDoc.location !== '' ? itemDoc.location : locToSet,
+              },
+            }
+          );
+        }
       }
     } else if (wasPosted && !targetPosted) {
       // Revert previous stock movements if explicitly unposting
       const oldMap = aggregateGrnItemsByCode(grn.lineItems);
       for (const [code, { quantity: oldQty }] of oldMap.entries()) {
-        await Item.updateOne(
-          { code },
-          { $inc: { quantity: -oldQty, stockInHand: -oldQty } }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            { $inc: { quantity: -oldQty, stockInHand: -oldQty } }
+          );
+        }
       }
     } else if (wasPosted && targetPosted) {
       // Already posted GRN being updated: apply only the delta
@@ -566,10 +615,13 @@ export const updateGrn = async (req, res, next) => {
         const newQty = newMap.get(code)?.quantity || 0;
         const delta = newQty - oldQty;
         if (delta !== 0) {
-          await Item.updateOne(
-            { code },
-            { $inc: { quantity: delta, stockInHand: delta } }
-          );
+          const itemDoc = await findItemMasterRecord(code);
+          if (itemDoc) {
+            await Item.updateOne(
+              { _id: itemDoc._id },
+              { $inc: { quantity: delta, stockInHand: delta } }
+            );
+          }
         }
       }
     }
@@ -592,6 +644,7 @@ export const updateGrn = async (req, res, next) => {
     grn.grnValue = totalGrnValue;
     grn.totalValue = totalGrnValue;
     grn.isPosted = targetPosted;
+    grn.status = targetPosted ? 'active' : 'draft';
 
     await grn.save();
 
@@ -637,8 +690,8 @@ export const postGrn = async (req, res, next) => {
 
     // Idempotency: Prevent duplicate stock additions
     if (grn.isPosted) {
-      return res.status(200).json({
-        success: true,
+      return res.status(400).json({
+        success: false,
         message: `GRN '${grn.grnNumber}' is already posted. Stock was not modified.`,
         data: grn,
       });
@@ -648,20 +701,26 @@ export const postGrn = async (req, res, next) => {
     const formattedDateStr = new Date(grn.date || Date.now()).toISOString().split('T')[0];
     const itemsMap = aggregateGrnItemsByCode(grn.lineItems);
     for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
-      await Item.updateOne(
-        { code },
-        {
-          $inc: { quantity: qty, stockInHand: qty },
-          $set: {
-            lastGrnPrice: line.unitPrice,
-            lastGrn: formattedDateStr,
-            lastGrnDate: formattedDateStr,
-          },
-        }
-      );
+      const itemDoc = await findItemMasterRecord(code);
+      if (itemDoc) {
+        const locToSet = line.locationCode || line.location || itemDoc.location || 'Main Store';
+        await Item.updateOne(
+          { _id: itemDoc._id },
+          {
+            $inc: { quantity: qty, stockInHand: qty },
+            $set: {
+              lastGrnPrice: line.unitPrice,
+              lastGrn: formattedDateStr,
+              lastGrnDate: formattedDateStr,
+              location: itemDoc.location && itemDoc.location !== '' ? itemDoc.location : locToSet,
+            },
+          }
+        );
+      }
     }
 
     grn.isPosted = true;
+    grn.status = 'active';
     await grn.save();
 
     return res.status(200).json({
@@ -708,10 +767,13 @@ export const reverseGrn = async (req, res, next) => {
     if (grn.isPosted && Array.isArray(grn.lineItems)) {
       const itemsMap = aggregateGrnItemsByCode(grn.lineItems);
       for (const [code, { quantity: qty }] of itemsMap.entries()) {
-        await Item.updateOne(
-          { code },
-          { $inc: { quantity: -qty, stockInHand: -qty } }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            { $inc: { quantity: -qty, stockInHand: -qty } }
+          );
+        }
       }
       grn.isPosted = false;
     }
@@ -755,10 +817,13 @@ export const deleteGrn = async (req, res, next) => {
     if (grn.isPosted && Array.isArray(grn.lineItems)) {
       const itemsMap = aggregateGrnItemsByCode(grn.lineItems);
       for (const [code, { quantity: qty }] of itemsMap.entries()) {
-        await Item.updateOne(
-          { code },
-          { $inc: { quantity: -qty, stockInHand: -qty } }
-        );
+        const itemDoc = await findItemMasterRecord(code);
+        if (itemDoc) {
+          await Item.updateOne(
+            { _id: itemDoc._id },
+            { $inc: { quantity: -qty, stockInHand: -qty } }
+          );
+        }
       }
       grn.isPosted = false;
     }
@@ -882,10 +947,17 @@ export const getItemGrnHistory = async (req, res, next) => {
 
     // 4. Compute summary values for bottom fields
     const latestRecord = history[0] || null;
-    const currentStock = itemDoc
+    const currentLocation = itemDoc?.location || 'Main Store';
+    let currentStock = itemDoc
       ? (itemDoc.quantity !== undefined ? itemDoc.quantity : (itemDoc.stockInHand || 0))
       : 0;
-    const currentLocation = itemDoc?.location || 'Main Store';
+
+    // Location-specific stock rule: if a specific location is filtered, stock is only available if item is at that location
+    if (location && location.trim() && location.trim().toLowerCase() !== 'all') {
+      if (location.trim().toLowerCase() !== currentLocation.toLowerCase()) {
+        currentStock = 0;
+      }
+    }
     const latestCost = latestRecord
       ? (latestRecord.purchasePrice !== undefined ? Number(latestRecord.purchasePrice) : Number(latestRecord.price))
       : null;
