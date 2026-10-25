@@ -879,7 +879,7 @@ function Reports() {
       {/* =========================================================================
           REPORT TYPE TABS SELECTOR (All 6 Reports)
           ========================================================================= */}
-      <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '16px' }} className="no-print">
+      <div className="reports-tabs-wrapper no-print">
         <div className="reports-type-tabs">
           <button
             type="button"
