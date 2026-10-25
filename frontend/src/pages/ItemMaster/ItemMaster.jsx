@@ -1043,16 +1043,17 @@ function ItemMaster() {
                 </div>
               </div>
 
-              {/* Row 8: Supplier & Supplier Code */}
+              {/* Row 8: Supplier */}
               <div className="field-row">
                 <label className="field-label" htmlFor="item-supplier" style={{ width: '120px' }}>
                   Supplier . . . . . . .
                 </label>
-                <div className="field-control-group" style={{ width: '200px' }}>
+                <div className="field-control-group" style={{ width: '280px' }}>
                   <select
                     id="item-supplier"
                     name="supplier"
                     className="select-classic"
+                    style={{ flex: 1, minWidth: 0 }}
                     value={formData.supplier}
                     onChange={handleSupplierChange}
                   >
@@ -1079,8 +1080,11 @@ function ItemMaster() {
                     ...
                   </button>
                 </div>
+              </div>
 
-                <label className="field-label" htmlFor="item-supplier-code" style={{ marginLeft: '12px', width: '115px' }}>
+              {/* Row 8b: Supplier Code (placed below Supplier) */}
+              <div className="field-row">
+                <label className="field-label" htmlFor="item-supplier-code" style={{ width: '120px' }}>
                   Supplier Code . . . .
                 </label>
                 <input
@@ -1088,7 +1092,7 @@ function ItemMaster() {
                   name="supplierCode"
                   type="text"
                   className="input-classic input-readonly"
-                  style={{ width: '130px' }}
+                  style={{ width: '180px' }}
                   value={formData.supplierCode}
                   readOnly
                   placeholder="Auto-populated"
