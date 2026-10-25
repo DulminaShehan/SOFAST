@@ -478,6 +478,36 @@ function Reports() {
     return [];
   }, [csReportData]);
 
+  // Grouped Invoice Returns by invoice for PDF Paper View
+  const displayInvoiceReturnGroups = useMemo(() => {
+    if (irReportData?.invoiceGroups && irReportData.invoiceGroups.length > 0) {
+      return irReportData.invoiceGroups;
+    }
+    if (irReportData?.data && irReportData.data.length > 0) {
+      const map = new Map();
+      irReportData.data.forEach((item) => {
+        const invNo = item.invoiceNumber || 'INV-GENERAL';
+        if (!map.has(invNo)) {
+          map.set(invNo, {
+            invoiceNumber: invNo,
+            invoiceDate: item.invoiceDate || item.returnDate || '',
+            customerName: item.customerName || 'CUSTOMER',
+            items: [],
+            subTotal: 0,
+          });
+        }
+        const grp = map.get(invNo);
+        grp.items.push(item);
+        grp.subTotal += Number(item.value || 0);
+      });
+      return Array.from(map.values()).map((grp) => ({
+        ...grp,
+        subTotal: Number(grp.subTotal.toFixed(2)),
+      }));
+    }
+    return [];
+  }, [irReportData]);
+
   // Fetch Daily Settlements Report (Daily Setelments Deatils - )
   const fetchDailySettlements = async () => {
     try {
@@ -2948,7 +2978,7 @@ function Reports() {
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">TOTAL REFUND VALUE</span>
                   <span className="reports-kpi-val" style={{ color: '#dc2626' }}>
-                    Rs. {Number(irReportData?.summary?.totalRefundValue || -1990).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    Rs. {Number(irReportData?.summary?.totalRefundValue ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                   <span className="reports-kpi-sub">
                     Reversed from Gross Daily Sales
@@ -2958,30 +2988,30 @@ function Reports() {
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">RETURNED ITEMS COUNT</span>
                   <span className="reports-kpi-val">
-                    {Math.abs(Number(irReportData?.summary?.totalReturnedQty || 3))} Units
+                    {Math.abs(Number(irReportData?.summary?.totalReturnedQty || 0))} Units
                   </span>
                   <span className="reports-kpi-sub">
-                    {irReportData?.summary?.itemsCount || 3} Return Line Entries
+                    {irReportData?.summary?.itemsCount || 0} Return Line Entries
                   </span>
                 </div>
 
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">INVOICES AFFECTED</span>
                   <span className="reports-kpi-val">
-                    {irReportData?.summary?.invoiceCount || 3}
+                    {irReportData?.summary?.invoiceCount || 0}
                   </span>
                   <span className="reports-kpi-sub">
-                    Invoices: 47530, 47568, 47588
+                    {irReportData?.summary?.invoicesList ? `Invoices: ${irReportData.summary.invoicesList}` : 'No invoices affected'}
                   </span>
                 </div>
 
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">TOP RETURNED ITEM</span>
                   <span className="reports-kpi-val" style={{ fontSize: '13px', whiteSpace: 'normal', lineHeight: '1.3' }}>
-                    REVERSE GEAR CABLE COMPLETE (CMUAZ161212)
+                    {irReportData?.summary?.topReturnedItem || 'None'}
                   </span>
                   <span className="reports-kpi-sub" style={{ color: '#dc2626', fontWeight: 'bold' }}>
-                    Refund Value: Rs. -1,110.00
+                    Refund Value: Rs. {Number(irReportData?.summary?.topReturnedValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -3221,8 +3251,8 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {irReportData?.invoiceGroups && irReportData.invoiceGroups.length > 0 ? (
-                      irReportData.invoiceGroups.map((grp, gIdx) => (
+                    {displayInvoiceReturnGroups && displayInvoiceReturnGroups.length > 0 ? (
+                      displayInvoiceReturnGroups.map((grp, gIdx) => (
                         <Fragment key={`inv-grp-${gIdx}`}>
                           {/* Invoice Meta Row matching PDF: Inv.  47530   Inv. Date: 05/08/2026   Customer   DAILY SALES */}
                           <tr className="ir-invoice-header-row">
@@ -3271,14 +3301,14 @@ function Reports() {
                       </tr>
                     )}
 
-                    {/* Final Grand Total Row matching PDF: Total   -1,990.00 */}
+                    {/* Final Grand Total Row matching PDF: Total */}
                     {irReportData?.summary && (
                       <tr className="ir-total-row">
                         <td colSpan={4} style={{ textAlign: 'right', fontWeight: '900', fontSize: '12px' }}>
                           Total
                         </td>
                         <td className="cs-val" style={{ fontWeight: '900', color: '#dc2626', fontSize: '12px' }}>
-                          {Number(irReportData.summary.totalRefundValue || -1990).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {Number(irReportData?.summary?.totalRefundValue ?? irReportData?.summary?.totalReturnAmount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                         <td></td>
                       </tr>

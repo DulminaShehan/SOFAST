@@ -637,9 +637,13 @@ export const getInvoiceReturnsReport = async (req, res, next) => {
     if (isDbConnected()) {
       try {
         const dateQuery = buildDateRangeQuery(startDate, endDate, 'date');
+        const createdQuery = buildDateRangeQuery(startDate, endDate, 'createdAt');
+        const combinedDateQuery = Object.keys(dateQuery).length === 0 ? {} : {
+          $or: [dateQuery, createdQuery]
+        };
 
         // 1. Fetch from CustomerDamageReturn collection
-        const custReturns = await CustomerDamageReturn.find(dateQuery).lean();
+        const custReturns = await CustomerDamageReturn.find(combinedDateQuery).lean();
         custReturns.forEach((cdr) => {
           const rawDate = cdr.date || cdr.createdAt;
           const dateStr = rawDate ? new Date(rawDate).toLocaleDateString('en-GB') : '';
@@ -671,7 +675,7 @@ export const getInvoiceReturnsReport = async (req, res, next) => {
         // 2. Fetch from returnnotes collection
         const returnNotes = await mongoose.connection.db
           .collection('returnnotes')
-          .find(dateQuery)
+          .find(combinedDateQuery)
           .toArray();
 
         returnNotes.forEach((rn) => {
@@ -707,7 +711,7 @@ export const getInvoiceReturnsReport = async (req, res, next) => {
 
         // 3. Invoices with negative line item amounts or negative paidAmount
         const returnedInvoices = await Invoice.find({
-          ...dateQuery,
+          ...combinedDateQuery,
           status: { $ne: 'cancelled' },
           $or: [{ 'lineItems.quantity': { $lt: 0 } }, { paidAmount: { $lt: 0 } }],
         }).lean();
@@ -783,6 +787,31 @@ export const getInvoiceReturnsReport = async (req, res, next) => {
     const totalPages = limitNum === 0 ? 1 : Math.ceil(totalRecords / limitNum);
     const paginatedItems = limitNum === 0 ? returnItems : returnItems.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
+    // Group return items by invoiceNumber for the PDF paper report view
+    const groupMap = new Map();
+    paginatedItems.forEach((item) => {
+      const invNo = item.invoiceNumber || 'INV-GENERAL';
+      if (!groupMap.has(invNo)) {
+        groupMap.set(invNo, {
+          invoiceNumber: invNo,
+          invoiceDate: item.invoiceDate || item.returnDate || '',
+          customerName: item.customerName || 'CUSTOMER',
+          items: [],
+          subTotal: 0,
+        });
+      }
+      const grp = groupMap.get(invNo);
+      grp.items.push(item);
+      grp.subTotal += Number(item.value || 0);
+    });
+
+    const invoiceGroups = Array.from(groupMap.values()).map((grp) => ({
+      ...grp,
+      subTotal: Number(grp.subTotal.toFixed(2)),
+    }));
+
+    const topItem = [...returnItems].sort((a, b) => Math.abs(b.value || 0) - Math.abs(a.value || 0))[0];
+
     return res.status(200).json({
       success: true,
       reportType: 'invoice_returns',
@@ -790,9 +819,15 @@ export const getInvoiceReturnsReport = async (req, res, next) => {
       company: COMPANY_HEADER,
       summary: {
         totalReturnAmount: Number(totalReturnAmount.toFixed(2)),
+        totalRefundValue: Number(totalReturnAmount.toFixed(2)),
+        totalReturnedQty: Math.abs(totalQuantity),
         totalReturnCount: totalRecords,
         totalItemsCount: totalRecords,
-        totalQuantity: Math.abs(totalQuantity),
+        itemsCount: totalRecords,
+        invoiceCount: invoiceGroups.length,
+        invoicesList: invoiceGroups.map((g) => g.invoiceNumber).slice(0, 5).join(', '),
+        topReturnedItem: topItem ? `${topItem.description} (${topItem.itemCode})` : 'None',
+        topReturnedValue: topItem ? topItem.value : 0,
       },
       pagination: {
         totalRecords,
@@ -801,6 +836,8 @@ export const getInvoiceReturnsReport = async (req, res, next) => {
         totalPages,
       },
       data: paginatedItems,
+      invoiceGroups,
+      reportPeriod: startDate && endDate ? `For the period of ${startDate} to ${endDate}` : 'All Recorded Dates',
       softwareFooter: SOFTWARE_FOOTER,
     });
   } catch (error) {
