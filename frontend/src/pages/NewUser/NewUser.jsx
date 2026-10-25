@@ -41,7 +41,7 @@ function NewUser() {
   const permissionCategories = [
     {
       name: 'Master Files',
-      keys: ['item-master', 'supplier-master', 'customer-details', 'alternative-product', 'category-master', 'sub-category-master'],
+      keys: ['item-master', 'supplier-master', 'customer-details', 'alternative-product'],
     },
     {
       name: 'Stock Control System',
