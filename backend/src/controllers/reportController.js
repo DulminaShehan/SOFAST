@@ -260,6 +260,30 @@ export const getClosingStockReport = async (req, res, next) => {
     const totalPages = limitNum === 0 ? 1 : Math.ceil(totalRecords / limitNum);
     const paginatedItems = limitNum === 0 ? filtered : filtered.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
+    // Group paginated items by category for the PDF paper report view
+    const groupedMap = new Map();
+    paginatedItems.forEach((item) => {
+      const cat = item.category || 'GENERAL';
+      if (!groupedMap.has(cat)) {
+        groupedMap.set(cat, {
+          categoryName: cat,
+          items: [],
+          subtotalQty: 0,
+          subtotalValue: 0,
+        });
+      }
+      const g = groupedMap.get(cat);
+      g.items.push(item);
+      g.subtotalQty += Number(item.quantity) || 0;
+      g.subtotalValue += Number(item.value) || 0;
+    });
+
+    const grouped = Array.from(groupedMap.values()).map((g) => ({
+      ...g,
+      subtotalQty: Math.round(g.subtotalQty * 100) / 100,
+      subtotalValue: Math.round(g.subtotalValue * 100) / 100,
+    }));
+
     return res.status(200).json({
       success: true,
       reportType: 'closing_stock',
@@ -283,6 +307,7 @@ export const getClosingStockReport = async (req, res, next) => {
         totalPages,
       },
       data: paginatedItems,
+      grouped,
       softwareFooter: SOFTWARE_FOOTER,
     });
   } catch (error) {

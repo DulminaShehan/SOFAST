@@ -447,6 +447,37 @@ function Reports() {
     return list;
   }, [altReportData, altSearch, altStatusFilter, altStockFilter, altSortBy]);
 
+  // Grouped Closing Stock items by category for the PDF Paper View
+  const displayClosingStockGroups = useMemo(() => {
+    if (csReportData?.grouped && csReportData.grouped.length > 0) {
+      return csReportData.grouped;
+    }
+    if (csReportData?.data && csReportData.data.length > 0) {
+      const map = new Map();
+      csReportData.data.forEach((item) => {
+        const cat = item.category || 'GENERAL';
+        if (!map.has(cat)) {
+          map.set(cat, {
+            categoryName: cat,
+            items: [],
+            subtotalQty: 0,
+            subtotalValue: 0,
+          });
+        }
+        const g = map.get(cat);
+        g.items.push(item);
+        g.subtotalQty += Number(item.quantity) || 0;
+        g.subtotalValue += Number(item.value) || 0;
+      });
+      return Array.from(map.values()).map((g) => ({
+        ...g,
+        subtotalQty: Math.round(g.subtotalQty * 100) / 100,
+        subtotalValue: Math.round(g.subtotalValue * 100) / 100,
+      }));
+    }
+    return [];
+  }, [csReportData]);
+
   // Fetch Daily Settlements Report (Daily Setelments Deatils - )
   const fetchDailySettlements = async () => {
     try {
@@ -4361,8 +4392,8 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {csReportData?.grouped && csReportData.grouped.length > 0 ? (
-                      csReportData.grouped.map((group, gIdx) => (
+                    {displayClosingStockGroups && displayClosingStockGroups.length > 0 ? (
+                      displayClosingStockGroups.map((group, gIdx) => (
                         <Fragment key={`group-${gIdx}`}>
                           {/* Category Section Header */}
                           <tr className="cs-category-row">
