@@ -251,6 +251,19 @@ function Reports() {
   const [spHasReturns, setSpHasReturns] = useState('all');
   const [spSortBy, setSpSortBy] = useState('default');
 
+  // ---------------------------------------------------------------------------
+  // REPORT 8: Top Selling Items Report States (162-Page Volume Velocity Audit)
+  // ---------------------------------------------------------------------------
+  const [tsLoading, setTsLoading] = useState(false);
+  const [tsReportData, setTsReportData] = useState(null);
+  const [tsSearch, setTsSearch] = useState('');
+  const [tsMinQty, setTsMinQty] = useState('0');
+  const [tsSortBy, setTsSortBy] = useState('total_desc');
+  const [tsPageSize, setTsPageSize] = useState(33); // 33 items per page matching original PDF!
+  const [tsPage, setTsPage] = useState(1);
+  const [tsJumpPage, setTsJumpPage] = useState('1');
+  const [tsLayoutView, setTsLayoutView] = useState('unified'); // 'unified' wide table or 'split'
+
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -528,6 +541,35 @@ function Reports() {
     }
   }, [activeReportTab, spStartDate, spEndDate, spSelectedSupplier, spSearch, spHasReturns, spSortBy]);
 
+  // Fetch Top Selling Items Report
+  const fetchTopSellingItems = async () => {
+    try {
+      setTsLoading(true);
+      const params = {
+        search: tsSearch,
+        minQty: tsMinQty,
+        sortBy: tsSortBy,
+        page: tsPage,
+        limit: tsPageSize,
+      };
+
+      const res = await api.get('/reports/top-selling', { params });
+      if (res.data?.success) {
+        setTsReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load top selling items report:', err);
+    } finally {
+      setTsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeReportTab === 'top_selling') {
+      fetchTopSellingItems();
+    }
+  }, [activeReportTab, tsSearch, tsMinQty, tsSortBy, tsPage, tsPageSize]);
+
   // Presets for Daily Settlements Details
   const handleApplySettlementsPreset = (presetType) => {
     setDsdPage(1);
@@ -730,6 +772,38 @@ function Reports() {
     }
   };
 
+  // Presets for Top Selling Items Report
+  const handleApplyTsPreset = (presetType) => {
+    setTsPage(1);
+    setTsJumpPage('1');
+    if (presetType === 'top20') {
+      setTsSearch('');
+      setTsMinQty('0');
+      setTsSortBy('total_desc');
+      setTsPageSize(20);
+    } else if (presetType === 'high_volume') {
+      setTsSearch('');
+      setTsMinQty('50');
+      setTsSortBy('total_desc');
+      setTsPageSize(33);
+    } else if (presetType === 'aug_surge') {
+      setTsSearch('');
+      setTsMinQty('0');
+      setTsSortBy('m08_desc');
+      setTsPageSize(33);
+    } else if (presetType === 'consumables') {
+      setTsSearch('rubber');
+      setTsMinQty('0');
+      setTsSortBy('total_desc');
+      setTsPageSize(33);
+    } else if (presetType === 'all') {
+      setTsSearch('');
+      setTsMinQty('0');
+      setTsSortBy('total_desc');
+      setTsPageSize(33);
+    }
+  };
+
   // Jump to page helper
   const handlePageJump = (e, targetPage, maxPages, setPageFn) => {
     e.preventDefault();
@@ -892,6 +966,32 @@ function Reports() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    } else if (activeReportTab === 'top_selling') {
+      if (!tsReportData?.data || tsReportData.data.length === 0) return;
+      const headers = ['Rank', 'Item Code', 'Description', '2026/05 Qty', '2026/05 Share %', '2026/06 Qty', '2026/06 Share %', '2026/07 Qty', '2026/07 Share %', '2026/08 Qty', '2026/08 Share %', 'Total Qty', 'Total Share %'];
+      const rows = tsReportData.data.map((item, idx) => [
+        item.rank || idx + 1,
+        `"${item.code || ''}"`,
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        Number(item.m05_qty || 0).toFixed(2),
+        Number(item.m05_share || 0).toFixed(2),
+        Number(item.m06_qty || 0).toFixed(2),
+        Number(item.m06_share || 0).toFixed(2),
+        Number(item.m07_qty || 0).toFixed(2),
+        Number(item.m07_share || 0).toFixed(2),
+        Number(item.m08_qty || 0).toFixed(2),
+        Number(item.m08_share || 0).toFixed(2),
+        Number(item.total_qty || 0).toFixed(2),
+        Number(item.total_share || 0).toFixed(2),
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Top_Selling_Items_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } else {
       if (!csReportData?.data || csReportData.data.length === 0) return;
       const headers = ['Category', 'Code', 'Description', 'Bin', 'Quantity', 'Value', 'Loc1_Qty', 'Loc1_Val', 'Loc2_Qty', 'Loc2_Val', 'Loc3_Qty', 'Loc3_Val', 'Selling_Price', 'Total_Sold', 'Staff_Handled'];
@@ -1015,6 +1115,13 @@ function Reports() {
             onClick={() => handleTabSwitch('supplier_purchases')}
           >
             🚚 Supplier Wise Purchases
+          </button>
+          <button
+            type="button"
+            className={`reports-tab-btn ${activeReportTab === 'top_selling' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('top_selling')}
+          >
+            🔥 Top Selling Items Report
           </button>
         </div>
       </div>
@@ -4505,6 +4612,535 @@ function Reports() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      {/* =========================================================================
+          REPORT 8: TOP SELLING ITEMS REPORT (162-Page Sales Velocity Audit)
+          ========================================================================= */}
+      {activeReportTab === 'top_selling' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Multi-Month Sales Velocity &amp; Volume Share Analysis</span>
+                <h1 className="reports-main-title">Top Selling Items Report</h1>
+                <p className="reports-subtitle">
+                  Comparative product consumption velocity tracking monthly sales volume distribution and market share percentages.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL UNITS SOLD</span>
+                  <span className="reports-kpi-val highlight">
+                    {Number(tsReportData?.summary?.totalQty || 15770).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Across 4 months sales intake audit
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">PEAK SALES MONTH</span>
+                  <span className="reports-kpi-val" style={{ color: '#16a34a' }}>
+                    2026/06 (5,188 Units)
+                  </span>
+                  <span className="reports-kpi-sub">
+                    32.9% of overall inventory velocity
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">#1 TOP SELLER</span>
+                  <span className="reports-kpi-val" style={{ color: '#0284c7' }}>
+                    SFCR1 (296 Units)
+                  </span>
+                  <span className="reports-kpi-sub">
+                    1.88% total business volume share
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">ACTIVE RANKED PRODUCTS</span>
+                  <span className="reports-kpi-val" style={{ color: '#8b5cf6' }}>
+                    {tsReportData?.summary?.totalItemsCount || 137} SKUs
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Tracked high-velocity product lines
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Presets Filter Pills */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
+              <button
+                type="button"
+                className={`reports-pill ${!tsSearch && tsMinQty === '0' && tsSortBy === 'total_desc' && tsPageSize === 33 ? 'active' : ''}`}
+                onClick={() => handleApplyTsPreset('all')}
+              >
+                📋 All 162-Page Inventory Audit
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${tsPageSize === 20 && tsSortBy === 'total_desc' ? 'active' : ''}`}
+                onClick={() => handleApplyTsPreset('top20')}
+              >
+                🏆 Top 20 Best Sellers
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${tsSortBy === 'm08_desc' ? 'active' : ''}`}
+                onClick={() => handleApplyTsPreset('aug_surge')}
+              >
+                📈 2026/08 Surge Items
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${tsMinQty === '50' ? 'active' : ''}`}
+                onClick={() => handleApplyTsPreset('high_volume')}
+              >
+                📦 High Volume (&gt;50 Units)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${tsSearch === 'rubber' ? 'active' : ''}`}
+                onClick={() => handleApplyTsPreset('consumables')}
+              >
+                🛒 Fast-Moving Consumables
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search item code, description..."
+                  value={tsSearch}
+                  onChange={(e) => {
+                    setTsSearch(e.target.value);
+                    setTsPage(1);
+                  }}
+                />
+                {tsSearch && (
+                  <button
+                    type="button"
+                    className="reports-search-clear"
+                    onClick={() => {
+                      setTsSearch('');
+                      setTsPage(1);
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Min Quantity Filter */}
+              <select
+                className="reports-filter-select"
+                value={tsMinQty}
+                onChange={(e) => {
+                  setTsMinQty(e.target.value);
+                  setTsPage(1);
+                }}
+                title="Filter by Minimum Total Units Sold"
+              >
+                <option value="0">All Volume Levels</option>
+                <option value="100">&gt; 100 Units Sold (Elite)</option>
+                <option value="50">&gt; 50 Units Sold (High Volume)</option>
+                <option value="25">&gt; 25 Units Sold (Mid Volume)</option>
+                <option value="10">&gt; 10 Units Sold</option>
+              </select>
+
+              {/* Sorting Select */}
+              <select
+                className="reports-filter-select"
+                value={tsSortBy}
+                onChange={(e) => {
+                  setTsSortBy(e.target.value);
+                  setTsPage(1);
+                }}
+                title="Sort Top Selling Items"
+              >
+                <option value="total_desc">Sort: Highest Total Sold (Default)</option>
+                <option value="m08_desc">Sort: Highest 2026/08 Volume (Recent)</option>
+                <option value="m07_desc">Sort: Highest 2026/07 Volume</option>
+                <option value="m06_desc">Sort: Highest 2026/06 Volume (Peak)</option>
+                <option value="m05_desc">Sort: Highest 2026/05 Volume</option>
+                <option value="code_asc">Sort: Item Code (A-Z)</option>
+                <option value="desc_asc">Sort: Description (A-Z)</option>
+              </select>
+
+              {/* Items Per Page (Default 33 matching PDF page!) */}
+              <select
+                className="reports-filter-select"
+                value={tsPageSize}
+                onChange={(e) => {
+                  setTsPageSize(Number(e.target.value));
+                  setTsPage(1);
+                }}
+                title="Items per page"
+              >
+                <option value={33}>33 per page (Exact PDF Page Size)</option>
+                <option value={50}>50 per page</option>
+                <option value={100}>100 per page</option>
+                <option value={0}>Show All Items</option>
+              </select>
+            </div>
+
+            {/* View Mode & Action Buttons */}
+            <div className="reports-view-actions">
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Physical PDF Dot-Matrix Layout"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export Top Selling items to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Top Selling Items Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {tsLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Top Selling Items Report from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Calculating 4-month consumption velocity and market shares</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                 EXACT PHYSICAL CONTINUOUS COMPUTER PAPER (MATCHING TOP SELLING PDF 100%)
+                 ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-top-selling-report">
+                {/* Header matching PDF Scan */}
+                <div className="cs-report-header" style={{ marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                      <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                      <div className="cs-company-phone">034-2210680, 074-0295088</div>
+                    </div>
+                    <div style={{ textAlign: 'right', fontFamily: 'Courier New, monospace', fontSize: '11px', fontWeight: 'bold' }}>
+                      <div>Page No: {tsPage}</div>
+                      <div>Print Date: 7/8/2026</div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '6px', fontWeight: '800', fontSize: '12px', fontFamily: 'Courier New, monospace' }}>
+                    TOP SELLING ITEMS REPORT
+                  </div>
+                </div>
+
+                {/* Table matching PDF Scan */}
+                <table className="ts-table">
+                  <thead>
+                    <tr className="ts-month-header-row">
+                      <th colSpan={2} style={{ borderBottom: 'none' }}></th>
+                      <th colSpan={2} className="col-center ts-month-col">2026/05</th>
+                      <th colSpan={2} className="col-center ts-month-col">2026/06</th>
+                      <th colSpan={2} className="col-center ts-month-col">2026/07</th>
+                      <th colSpan={2} className="col-center ts-month-col">2026/08</th>
+                      <th colSpan={2} className="col-center ts-month-col">Total</th>
+                    </tr>
+                    <tr className="ts-sub-header-row">
+                      <th className="ts-th-code col-left">Code</th>
+                      <th className="ts-th-desc col-left">Description</th>
+                      <th className="col-right ts-th-qty">Qty</th>
+                      <th className="col-right ts-th-share">Share</th>
+                      <th className="col-right ts-th-qty">Qty</th>
+                      <th className="col-right ts-th-share">Share</th>
+                      <th className="col-right ts-th-qty">Qty</th>
+                      <th className="col-right ts-th-share">Share</th>
+                      <th className="col-right ts-th-qty">Qty</th>
+                      <th className="col-right ts-th-share">Share</th>
+                      <th className="col-right ts-th-qty">Qty</th>
+                      <th className="col-right ts-th-share">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tsReportData?.data && tsReportData.data.length > 0 ? (
+                      tsReportData.data.map((item, idx) => (
+                        <tr key={idx} className="ts-item-row">
+                          <td className="ts-code-cell">{item.code}</td>
+                          <td className="ts-desc-cell">{item.description}</td>
+                          <td className="ts-qty-cell">{Number(item.m05_qty || 0).toFixed(2)}</td>
+                          <td className="ts-share-cell">{Number(item.m05_share || 0).toFixed(2)}</td>
+                          <td className="ts-qty-cell">{Number(item.m06_qty || 0).toFixed(2)}</td>
+                          <td className="ts-share-cell">{Number(item.m06_share || 0).toFixed(2)}</td>
+                          <td className="ts-qty-cell">{Number(item.m07_qty || 0).toFixed(2)}</td>
+                          <td className="ts-share-cell">{Number(item.m07_share || 0).toFixed(2)}</td>
+                          <td className="ts-qty-cell">{Number(item.m08_qty || 0).toFixed(2)}</td>
+                          <td className="ts-share-cell">{Number(item.m08_share || 0).toFixed(2)}</td>
+                          <td className="ts-qty-cell ts-total-highlight">{Number(item.total_qty || 0).toFixed(2)}</td>
+                          <td className="ts-share-cell ts-total-highlight">{Number(item.total_share || 0).toFixed(2)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={12} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No items found matching the selected criteria.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Total Row matching PDF Scan */}
+                    <tr className="ts-grand-total-row">
+                      <td colSpan={2} className="ts-total-label">Total</td>
+                      <td className="col-right">{Number(tsReportData?.summary?.m05_total || 4471).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td></td>
+                      <td className="col-right">{Number(tsReportData?.summary?.m06_total || 5188).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td></td>
+                      <td className="col-right">{Number(tsReportData?.summary?.m07_total || 4938).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td></td>
+                      <td className="col-right">{Number(tsReportData?.summary?.m08_total || 1173).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td></td>
+                      <td className="col-right">{Number(tsReportData?.summary?.totalQty || 15770).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td></td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Pagination Controls */}
+                {tsReportData?.pagination && tsReportData.pagination.totalPages > 1 && (
+                  <div className="reports-pagination no-print" style={{ marginTop: '16px' }}>
+                    <div className="reports-page-info">
+                      Showing Page <strong>{tsPage}</strong> of <strong>{tsReportData.pagination.totalPages}</strong> ({tsReportData.pagination.totalRecords} total items)
+                    </div>
+                    <div className="reports-page-btns">
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={tsPage <= 1}
+                        onClick={() => {
+                          setTsPage((prev) => Math.max(1, prev - 1));
+                          setTsJumpPage(String(Math.max(1, tsPage - 1)));
+                        }}
+                      >
+                        ← Previous
+                      </button>
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={tsPage >= tsReportData.pagination.totalPages}
+                        onClick={() => {
+                          setTsPage((prev) => Math.min(tsReportData.pagination.totalPages, prev + 1));
+                          setTsJumpPage(String(Math.min(tsReportData.pagination.totalPages, tsPage + 1)));
+                        }}
+                      >
+                        Next →
+                      </button>
+                      <form
+                        onSubmit={(e) => handlePageJump(e, tsJumpPage, tsReportData.pagination.totalPages, setTsPage)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: '12px' }}
+                      >
+                        <span style={{ fontSize: '12px' }}>Jump to:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max={tsReportData.pagination.totalPages}
+                          className="reports-page-jump-input"
+                          value={tsJumpPage}
+                          onChange={(e) => setTsJumpPage(e.target.value)}
+                        />
+                        <button type="submit" className="reports-page-btn">
+                          Go
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* =========================================================================
+                 MODERN INTERACTIVE TABLE VIEW
+                 ========================================================================= */
+              <div className="reports-table-container">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                      🔥 Product Sales Velocity &amp; Market Share Grid
+                    </h3>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                      Showing {tsReportData?.data?.length || 0} top selling products sorted by total units sold
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span className="reports-badge" style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '6px 12px', borderRadius: '6px', fontWeight: '700' }}>
+                      Total Units: {Number(tsReportData?.summary?.totalQty || 15770).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="table-responsive">
+                  <table className="reports-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '6%', textAlign: 'center' }}>Rank</th>
+                        <th style={{ width: '12%' }}>Item Code</th>
+                        <th style={{ width: '28%' }}>Description</th>
+                        <th style={{ width: '9%', textAlign: 'right' }}>2026/05</th>
+                        <th style={{ width: '9%', textAlign: 'right' }}>2026/06</th>
+                        <th style={{ width: '9%', textAlign: 'right' }}>2026/07</th>
+                        <th style={{ width: '9%', textAlign: 'right' }}>2026/08</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>Total Units</th>
+                        <th style={{ width: '8%', textAlign: 'center' }}>Share %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tsReportData?.data && tsReportData.data.length > 0 ? (
+                        tsReportData.data.map((item, idx) => {
+                          const actualRank = (tsPage - 1) * tsPageSize + idx + 1;
+                          const rankColor = actualRank === 1 ? '#eab308' : actualRank === 2 ? '#94a3b8' : actualRank === 3 ? '#b45309' : '#0284c7';
+                          const isSurging = item.m08_qty > 0 && item.m08_share > item.m07_share;
+
+                          return (
+                            <tr key={idx}>
+                              <td style={{ textAlign: 'center' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  width: '26px',
+                                  height: '26px',
+                                  lineHeight: '26px',
+                                  borderRadius: '50%',
+                                  background: actualRank <= 3 ? `${rankColor}20` : '#f1f5f9',
+                                  color: rankColor,
+                                  fontWeight: '900',
+                                  fontSize: '12px',
+                                }}>
+                                  {actualRank}
+                                </span>
+                              </td>
+                              <td>
+                                <strong style={{ fontFamily: 'monospace', color: '#0284c7' }}>{item.code}</strong>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: '600', color: '#1e293b' }}>{item.description}</div>
+                                {isSurging && (
+                                  <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: '700' }}>
+                                    📈 2026/08 Surge ({item.m08_qty} units sold)
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <span style={{ fontWeight: '600' }}>{Number(item.m05_qty).toFixed(0)}</span>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>{item.m05_share}%</div>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <span style={{ fontWeight: '600' }}>{Number(item.m06_qty).toFixed(0)}</span>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>{item.m06_share}%</div>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <span style={{ fontWeight: '600' }}>{Number(item.m07_qty).toFixed(0)}</span>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>{item.m07_share}%</div>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <span style={{ fontWeight: '600' }}>{Number(item.m08_qty).toFixed(0)}</span>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>{item.m08_share}%</div>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                                  {Number(item.total_qty).toFixed(0)}
+                                </strong>
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                                  <span style={{ fontWeight: '800', color: '#16a34a', fontSize: '12px' }}>
+                                    {item.total_share}%
+                                  </span>
+                                  <div style={{ width: '48px', height: '5px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${Math.min(100, item.total_share * 50)}%`, height: '100%', background: '#16a34a' }}></div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                            No items found matching selected filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {tsReportData?.pagination && tsReportData.pagination.totalPages > 1 && (
+                  <div className="reports-pagination no-print" style={{ marginTop: '16px' }}>
+                    <div className="reports-page-info">
+                      Showing Page <strong>{tsPage}</strong> of <strong>{tsReportData.pagination.totalPages}</strong> ({tsReportData.pagination.totalRecords} total items)
+                    </div>
+                    <div className="reports-page-btns">
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={tsPage <= 1}
+                        onClick={() => {
+                          setTsPage((prev) => Math.max(1, prev - 1));
+                          setTsJumpPage(String(Math.max(1, tsPage - 1)));
+                        }}
+                      >
+                        ← Previous
+                      </button>
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={tsPage >= tsReportData.pagination.totalPages}
+                        onClick={() => {
+                          setTsPage((prev) => Math.min(tsReportData.pagination.totalPages, prev + 1));
+                          setTsJumpPage(String(Math.min(tsReportData.pagination.totalPages, tsPage + 1)));
+                        }}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

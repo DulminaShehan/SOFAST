@@ -2208,4 +2208,249 @@ export const getSupplierWisePurchasesReport = async (req, res, next) => {
   }
 };
 
+/**
+ * REPORT 8: TOP SELLING ITEMS REPORT (162-Page Multi-Month Sales Velocity Audit)
+ * Exact replica from the user's TOP SELLING ITEMS REPORT PDF scan:
+ * 4 Months: 2026/05 (4,471 units), 2026/06 (5,188 units), 2026/07 (4,938 units), 2026/08 (1,173 units)
+ * Grand Total: 15,770.00 Units Sold
+ */
+export const TOP_SELLING_ITEMS_BASELINE = [
+  // Page 1 & 2
+  { rank: 1, code: 'SFCR1', description: 'COUPLING RUBBER LARGE GREEN', m05_qty: 78.0, m05_share: 1.74, m06_qty: 95.0, m06_share: 1.83, m07_qty: 93.0, m07_share: 1.88, m08_qty: 30.0, m08_share: 2.56, total_qty: 296.0, total_share: 1.88 },
+  { rank: 2, code: 'SFCR2', description: 'COUPLING RUBBER SMALL BLACK', m05_qty: 36.0, m05_share: 0.81, m06_qty: 98.0, m06_share: 1.89, m07_qty: 84.0, m07_share: 1.70, m08_qty: 4.0, m08_share: 0.34, total_qty: 222.0, total_share: 1.41 },
+  { rank: 3, code: 'SFZL', description: 'POLITHENE BAG LARGE', m05_qty: 43.0, m05_share: 0.96, m06_qty: 57.0, m06_share: 1.10, m07_qty: 65.0, m07_share: 1.32, m08_qty: 27.0, m08_share: 2.30, total_qty: 192.0, total_share: 1.22 },
+  { rank: 4, code: 'SFPF10', description: 'PLUG IN FUSE 10AMP RED (PATHURU)', m05_qty: 50.0, m05_share: 1.12, m06_qty: 62.0, m06_share: 1.20, m07_qty: 36.0, m07_share: 0.73, m08_qty: 19.0, m08_share: 1.62, total_qty: 167.0, total_share: 1.06 },
+  { rank: 5, code: 'SFZS', description: 'POLITHENE BAG SMALL', m05_qty: 51.0, m05_share: 1.14, m06_qty: 43.0, m06_share: 0.83, m07_qty: 58.0, m07_share: 1.17, m08_qty: 13.0, m08_share: 1.11, total_qty: 165.0, total_share: 1.05 },
+  { rank: 6, code: 'BGO20W50C', description: 'BAJAJ GENUINE OIL 20W 50 CAN 1L', m05_qty: 46.0, m05_share: 1.03, m06_qty: 45.0, m06_share: 0.87, m07_qty: 51.0, m07_share: 1.03, m08_qty: 14.0, m08_share: 1.19, total_qty: 156.0, total_share: 0.99 },
+  { rank: 7, code: 'SFPW', description: 'PLAY WASHER', m05_qty: 36.0, m05_share: 0.81, m06_qty: 46.0, m06_share: 0.89, m07_qty: 36.0, m07_share: 0.73, m08_qty: 26.0, m08_share: 2.22, total_qty: 144.0, total_share: 0.91 },
+  { rank: 8, code: 'SFSSB8', description: 'STAINLESS STEEL BOLT 8MM SUN', m05_qty: 35.0, m05_share: 0.78, m06_qty: 59.0, m06_share: 1.14, m07_qty: 45.0, m07_share: 0.91, m08_qty: 1.0, m08_share: 0.09, total_qty: 140.0, total_share: 0.89 },
+  { rank: 9, code: 'AA101472', description: 'PLATE CLUTCH (1 PCS)(PRESSURE PLATE', m05_qty: 36.0, m05_share: 0.81, m06_qty: 24.0, m06_share: 0.46, m07_qty: 54.0, m07_share: 1.09, m08_qty: 24.0, m08_share: 2.05, total_qty: 138.0, total_share: 0.88 },
+  { rank: 10, code: 'SFBO4WD', description: 'BRAKE OIL 250ML DOT -3 CLEAR (DIL)', m05_qty: 39.0, m05_share: 0.87, m06_qty: 47.0, m06_share: 0.91, m07_qty: 33.0, m07_share: 0.67, m08_qty: 13.0, m08_share: 1.11, total_qty: 132.0, total_share: 0.84 },
+  { rank: 11, code: 'LM00301004', description: 'AXLE BOOT', m05_qty: 38.0, m05_share: 0.85, m06_qty: 54.0, m06_share: 1.04, m07_qty: 22.0, m07_share: 0.45, m08_qty: 5.0, m08_share: 0.43, total_qty: 119.0, total_share: 0.75 },
+  { rank: 12, code: 'CMUAA191026', description: 'CABLE INNER CLUTCH', m05_qty: 24.0, m05_share: 0.54, m06_qty: 39.0, m06_share: 0.75, m07_qty: 36.0, m07_share: 0.73, m08_qty: 17.0, m08_share: 1.45, total_qty: 116.0, total_share: 0.74 },
+  { rank: 13, code: 'SF39100006', description: 'E.HOUSING BUSH 4S (DUPLICATE PART)', m05_qty: 22.0, m05_share: 0.49, m06_qty: 60.0, m06_share: 1.16, m07_qty: 30.0, m07_share: 0.61, m08_qty: 0.0, m08_share: 0.00, total_qty: 112.0, total_share: 0.71 },
+  { rank: 14, code: 'SFFP2', description: 'FUEL PIPE ASH COLOUR', m05_qty: 2.0, m05_share: 0.04, m06_qty: 52.0, m06_share: 1.00, m07_qty: 41.0, m07_share: 0.83, m08_qty: 12.0, m08_share: 1.02, total_qty: 107.0, total_share: 0.68 },
+  { rank: 15, code: 'BGO20W50E', description: 'BAJAJ GENUINE OIL 20W 50 CAN 1.2L', m05_qty: 31.0, m05_share: 0.69, m06_qty: 51.0, m06_share: 0.98, m07_qty: 13.0, m07_share: 0.26, m08_qty: 7.0, m08_share: 0.60, total_qty: 102.0, total_share: 0.65 },
+  { rank: 16, code: 'SFSM3W1', description: 'SIDE MIRROR 3W 1PCS BOSS', m05_qty: 32.0, m05_share: 0.72, m06_qty: 27.0, m06_share: 0.52, m07_qty: 30.0, m07_share: 0.61, m08_qty: 11.0, m08_share: 0.94, total_qty: 100.0, total_share: 0.63 },
+  { rank: 17, code: 'SFBB12V1', description: 'BRAKE BULB 12V 12V/5W MINDA', m05_qty: 21.0, m05_share: 0.47, m06_qty: 28.0, m06_share: 0.54, m07_qty: 24.0, m07_share: 0.49, m08_qty: 10.0, m08_share: 0.85, total_qty: 83.0, total_share: 0.53 },
+  { rank: 18, code: 'SFCA2', description: 'CABL ADJUSTMENT SMALL', m05_qty: 26.0, m05_share: 0.58, m06_qty: 31.0, m06_share: 0.60, m07_qty: 21.0, m07_share: 0.43, m08_qty: 4.0, m08_share: 0.34, total_qty: 82.0, total_share: 0.52 },
+  { rank: 19, code: '39103519', description: 'OIL SEAL VALVE', m05_qty: 20.0, m05_share: 0.45, m06_qty: 36.0, m06_share: 0.69, m07_qty: 20.0, m07_share: 0.41, m08_qty: 2.0, m08_share: 0.17, total_qty: 78.0, total_share: 0.49 },
+  { rank: 20, code: 'SFBBNSS', description: 'BODY BOLT W/NUT STAINLESS STEEL (CHASSIS BOLT', m05_qty: 0.0, m05_share: 0.00, m06_qty: 16.0, m06_share: 0.31, m07_qty: 62.0, m07_share: 1.26, m08_qty: 0.0, m08_share: 0.00, total_qty: 78.0, total_share: 0.49 },
+  { rank: 21, code: 'AA101210', description: 'PLATE FRICTION (CLUTCH PLATE)', m05_qty: 21.0, m05_share: 0.47, m06_qty: 14.0, m06_share: 0.27, m07_qty: 35.0, m07_share: 0.71, m08_qty: 7.0, m08_share: 0.60, total_qty: 77.0, total_share: 0.49 },
+  { rank: 22, code: 'SFBWR', description: 'BRAKE WASHER REAR 2S ARC (W.C.COM', m05_qty: 34.0, m05_share: 0.76, m06_qty: 30.0, m06_share: 0.58, m07_qty: 6.0, m07_share: 0.12, m08_qty: 2.0, m08_share: 0.17, total_qty: 72.0, total_share: 0.46 },
+  { rank: 23, code: 'SFFW6', description: 'FLAT WASHER 10MM', m05_qty: 15.0, m05_share: 0.34, m06_qty: 35.0, m06_share: 0.67, m07_qty: 17.0, m07_share: 0.34, m08_qty: 4.0, m08_share: 0.34, total_qty: 71.0, total_share: 0.45 },
+  { rank: 24, code: 'SFBO2WD', description: 'BRAKE OIL 100ML DOT -3 CLEAR (DIL)', m05_qty: 15.0, m05_share: 0.34, m06_qty: 23.0, m06_share: 0.44, m07_qty: 26.0, m07_share: 0.53, m08_qty: 5.0, m08_share: 0.43, total_qty: 69.0, total_share: 0.44 },
+  { rank: 25, code: 'SFCT4200', description: 'CABLE TIES 4*200MM (YDS-200M)', m05_qty: 26.0, m05_share: 0.58, m06_qty: 18.0, m06_share: 0.35, m07_qty: 19.0, m07_share: 0.38, m08_qty: 2.0, m08_share: 0.17, total_qty: 65.0, total_share: 0.41 },
+  { rank: 26, code: '39201719', description: 'OIL SEAL VALVE (SMALL)', m05_qty: 22.0, m05_share: 0.49, m06_qty: 24.0, m06_share: 0.46, m07_qty: 14.0, m07_share: 0.28, m08_qty: 4.0, m08_share: 0.34, total_qty: 64.0, total_share: 0.41 },
+  { rank: 27, code: 'SFDN', description: 'DOOR KNOB BLACK SUN', m05_qty: 30.0, m05_share: 0.67, m06_qty: 10.0, m06_share: 0.19, m07_qty: 20.0, m07_share: 0.41, m08_qty: 2.0, m08_share: 0.17, total_qty: 62.0, total_share: 0.39 },
+  { rank: 28, code: 'SFFP1', description: 'FUEL PIPE BLACK COLOUR (1 FT)', m05_qty: 55.0, m05_share: 1.23, m06_qty: 2.0, m06_share: 0.04, m07_qty: 2.0, m07_share: 0.04, m08_qty: 0.0, m08_share: 0.00, total_qty: 59.0, total_share: 0.37 },
+  { rank: 29, code: 'AA101364', description: 'SPRING - CLUTCH', m05_qty: 22.0, m05_share: 0.49, m06_qty: 12.0, m06_share: 0.23, m07_qty: 12.0, m07_share: 0.24, m08_qty: 12.0, m08_share: 1.02, total_qty: 58.0, total_share: 0.37 },
+  { rank: 30, code: 'CMUBA191050', description: 'CABLE - INNER :- GEAR', m05_qty: 7.0, m05_share: 0.16, m06_qty: 23.0, m06_share: 0.44, m07_qty: 12.0, m07_share: 0.24, m08_qty: 14.0, m08_share: 1.19, total_qty: 56.0, total_share: 0.36 },
+  { rank: 31, code: '39101321', description: 'RING-"O"', m05_qty: 12.0, m05_share: 0.27, m06_qty: 15.0, m06_share: 0.29, m07_qty: 17.0, m07_share: 0.34, m08_qty: 10.0, m08_share: 0.85, total_qty: 54.0, total_share: 0.34 },
+  { rank: 32, code: 'SFRL', description: 'R LOCK', m05_qty: 29.0, m05_share: 0.65, m06_qty: 11.0, m06_share: 0.21, m07_qty: 10.0, m07_share: 0.20, m08_qty: 4.0, m08_share: 0.34, total_qty: 54.0, total_share: 0.34 },
+  { rank: 33, code: 'SFSW17', description: 'SPRING WASHER 17MM', m05_qty: 17.0, m05_share: 0.38, m06_qty: 11.0, m06_share: 0.21, m07_qty: 25.0, m07_share: 0.51, m08_qty: 0.0, m08_share: 0.00, total_qty: 53.0, total_share: 0.34 },
+
+  // Page 3 & 4
+  { rank: 34, code: 'SFWN', description: 'WHEEL NUT 17MM (JOGINDRA)', m05_qty: 19.0, m05_share: 0.42, m06_qty: 21.0, m06_share: 0.40, m07_qty: 9.0, m07_share: 0.18, m08_qty: 4.0, m08_share: 0.34, total_qty: 53.0, total_share: 0.34 },
+  { rank: 35, code: 'DD121181', description: 'OIL FILTER WITH SPRING', m05_qty: 20.0, m05_share: 0.45, m06_qty: 14.0, m06_share: 0.27, m07_qty: 13.0, m07_share: 0.26, m08_qty: 4.0, m08_share: 0.34, total_qty: 51.0, total_share: 0.32 },
+  { rank: 36, code: 'SFN5', description: 'NUT 5MM', m05_qty: 21.0, m05_share: 0.47, m06_qty: 11.0, m06_share: 0.21, m07_qty: 16.0, m07_share: 0.32, m08_qty: 0.0, m08_share: 0.00, total_qty: 48.0, total_share: 0.30 },
+  { rank: 37, code: 'AA111058', description: 'PLUG - SPARK : - WR7BC4', m05_qty: 16.0, m05_share: 0.36, m06_qty: 14.0, m06_share: 0.27, m07_qty: 14.0, m07_share: 0.28, m08_qty: 3.0, m08_share: 0.26, total_qty: 47.0, total_share: 0.30 },
+  { rank: 38, code: 'SFABB2', description: 'AXEL BOOT BIG 3W BACKBONE (WITH COLLER', m05_qty: 7.0, m05_share: 0.16, m06_qty: 14.0, m06_share: 0.27, m07_qty: 18.0, m07_share: 0.36, m08_qty: 8.0, m08_share: 0.68, total_qty: 47.0, total_share: 0.30 },
+  { rank: 39, code: '30101096', description: 'PLATE-CLUTCH ( STEEL)', m05_qty: 18.0, m05_share: 0.40, m06_qty: 20.0, m06_share: 0.39, m07_qty: 8.0, m07_share: 0.16, m08_qty: 0.0, m08_share: 0.00, total_qty: 46.0, total_share: 0.29 },
+  { rank: 40, code: 'SFFW5', description: 'FLAT WASHER 8MM', m05_qty: 6.0, m05_share: 0.13, m06_qty: 9.0, m06_share: 0.17, m07_qty: 23.0, m07_share: 0.47, m08_qty: 8.0, m08_share: 0.68, total_qty: 46.0, total_share: 0.29 },
+  { rank: 41, code: 'SFRW', description: 'ROD WASHER (THIN) JOGINDRA', m05_qty: 0.0, m05_share: 0.00, m06_qty: 34.0, m06_share: 0.66, m07_qty: 8.0, m07_share: 0.16, m08_qty: 4.0, m08_share: 0.34, total_qty: 46.0, total_share: 0.29 },
+  { rank: 42, code: 'SFPF', description: 'PETROL FILTER 2 WAY', m05_qty: 5.0, m05_share: 0.11, m06_qty: 18.0, m06_share: 0.35, m07_qty: 17.0, m07_share: 0.34, m08_qty: 5.0, m08_share: 0.43, total_qty: 45.0, total_share: 0.29 },
+  { rank: 43, code: 'SFSB12', description: 'SIGNAL BULB 12V/10W (MOTOVIN)', m05_qty: 0.0, m05_share: 0.00, m06_qty: 21.0, m06_share: 0.40, m07_qty: 20.0, m07_share: 0.41, m08_qty: 4.0, m08_share: 0.34, total_qty: 45.0, total_share: 0.29 },
+  { rank: 44, code: 'SFSB3601V', description: 'SLIDER BLOCK SET VARROC AL02 16CUT', m05_qty: 13.0, m05_share: 0.29, m06_qty: 16.0, m06_share: 0.31, m07_qty: 12.0, m07_share: 0.24, m08_qty: 4.0, m08_share: 0.34, total_qty: 45.0, total_share: 0.29 },
+  { rank: 45, code: 'AF121612', description: 'OIL FILTER ASSY BSIV NEW ARRIVED 3W', m05_qty: 22.0, m05_share: 0.49, m06_qty: 18.0, m06_share: 0.35, m07_qty: 4.0, m07_share: 0.08, m08_qty: 0.0, m08_share: 0.00, total_qty: 44.0, total_share: 0.28 },
+  { rank: 46, code: 'CMUAA191092', description: 'CLUTCH CABLE COMPLETE', m05_qty: 15.0, m05_share: 0.34, m06_qty: 16.0, m06_share: 0.31, m07_qty: 8.0, m07_share: 0.16, m08_qty: 5.0, m08_share: 0.43, total_qty: 44.0, total_share: 0.28 },
+  { rank: 47, code: 'DL181010', description: 'WELL NUT', m05_qty: 5.0, m05_share: 0.11, m06_qty: 24.0, m06_share: 0.46, m07_qty: 15.0, m07_share: 0.30, m08_qty: 0.0, m08_share: 0.00, total_qty: 44.0, total_share: 0.28 },
+  { rank: 48, code: 'SF39029615', description: 'WHEEL NUT ASSY 4S (DUPLICATE PART)', m05_qty: 17.0, m05_share: 0.38, m06_qty: 5.0, m06_share: 0.10, m07_qty: 22.0, m07_share: 0.45, m08_qty: 0.0, m08_share: 0.00, total_qty: 44.0, total_share: 0.28 },
+  { rank: 49, code: '31151060', description: 'SHOE-BRAKE', m05_qty: 7.0, m05_share: 0.16, m06_qty: 18.0, m06_share: 0.35, m07_qty: 16.0, m07_share: 0.32, m08_qty: 2.0, m08_share: 0.17, total_qty: 43.0, total_share: 0.27 },
+  { rank: 50, code: 'AB181017', description: 'STEL BAL/NYLN CAG UP', m05_qty: 8.0, m05_share: 0.18, m06_qty: 12.0, m06_share: 0.23, m07_qty: 19.0, m07_share: 0.38, m08_qty: 4.0, m08_share: 0.34, total_qty: 43.0, total_share: 0.27 },
+  { rank: 51, code: 'DD111018', description: 'SPARK PLUG', m05_qty: 18.0, m05_share: 0.40, m06_qty: 12.0, m06_share: 0.23, m07_qty: 9.0, m07_share: 0.18, m08_qty: 4.0, m08_share: 0.34, total_qty: 43.0, total_share: 0.27 },
+  { rank: 52, code: 'DF181098', description: 'SCREW', m05_qty: 11.0, m05_share: 0.25, m06_qty: 18.0, m06_share: 0.35, m07_qty: 13.0, m07_share: 0.26, m08_qty: 0.0, m08_share: 0.00, total_qty: 42.0, total_share: 0.27 },
+  { rank: 53, code: 'SFRAC4S', description: 'REAR AXEL COMPLETE SET 4S WITH BEARING ISK', m05_qty: 15.0, m05_share: 0.34, m06_qty: 20.0, m06_share: 0.39, m07_qty: 5.0, m07_share: 0.10, m08_qty: 2.0, m08_share: 0.17, total_qty: 42.0, total_share: 0.27 },
+  { rank: 54, code: 'SFWS3', description: 'WHEEL STUD FR/RE TVS TY: HAZAR', m05_qty: 22.0, m05_share: 0.49, m06_qty: 8.0, m06_share: 0.15, m07_qty: 12.0, m07_share: 0.24, m08_qty: 0.0, m08_share: 0.00, total_qty: 42.0, total_share: 0.27 },
+  { rank: 55, code: '24151171', description: 'KIT SHOE BRAKE', m05_qty: 16.0, m05_share: 0.36, m06_qty: 12.0, m06_share: 0.23, m07_qty: 6.0, m07_share: 0.12, m08_qty: 7.0, m08_share: 0.60, total_qty: 41.0, total_share: 0.26 },
+  { rank: 56, code: 'SFB6*20', description: 'BOLT & NUT ISO 6*20', m05_qty: 7.0, m05_share: 0.16, m06_qty: 13.0, m06_share: 0.25, m07_qty: 18.0, m07_share: 0.36, m08_qty: 3.0, m08_share: 0.26, total_qty: 41.0, total_share: 0.26 },
+  { rank: 57, code: 'SFCLS2SL', description: 'CLUTCH SPRING ASSY 2S PURE', m05_qty: 21.0, m05_share: 0.47, m06_qty: 20.0, m06_share: 0.39, m07_qty: 0.0, m07_share: 0.00, m08_qty: 0.0, m08_share: 0.00, total_qty: 41.0, total_share: 0.26 },
+  { rank: 58, code: 'SFEOC50L', description: 'ENGINE OIL CALTEX HAV.SUPER 4T 1LTR LOOSE', m05_qty: 2.0, m05_share: 0.04, m06_qty: 15.0, m06_share: 0.29, m07_qty: 21.0, m07_share: 0.43, m08_qty: 3.0, m08_share: 0.26, total_qty: 41.0, total_share: 0.26 },
+  { rank: 59, code: 'SFSIP2H', description: 'SILENCER PACKING 2H SMALL', m05_qty: 10.0, m05_share: 0.22, m06_qty: 23.0, m06_share: 0.44, m07_qty: 6.0, m07_share: 0.12, m08_qty: 2.0, m08_share: 0.17, total_qty: 41.0, total_share: 0.26 },
+  { rank: 60, code: 'SFTC4S', description: 'FUEL TANK CAP 3W 4S', m05_qty: 19.0, m05_share: 0.42, m06_qty: 13.0, m06_share: 0.25, m07_qty: 8.0, m07_share: 0.16, m08_qty: 1.0, m08_share: 0.09, total_qty: 41.0, total_share: 0.26 },
+  { rank: 61, code: 'AB181012', description: 'STL BALL WITH CAGE L', m05_qty: 7.0, m05_share: 0.16, m06_qty: 11.0, m06_share: 0.21, m07_qty: 18.0, m07_share: 0.36, m08_qty: 4.0, m08_share: 0.34, total_qty: 40.0, total_share: 0.25 },
+  { rank: 62, code: 'SF24151171', description: 'KIT SHOE BRAKE 4S (DUPLICATE PART)', m05_qty: 18.0, m05_share: 0.40, m06_qty: 16.0, m06_share: 0.31, m07_qty: 4.0, m07_share: 0.08, m08_qty: 2.0, m08_share: 0.17, total_qty: 40.0, total_share: 0.25 },
+  { rank: 63, code: 'SFBO1WD', description: 'BRAKE OIL 50ML DOT -3 CLEAR (DIL)', m05_qty: 11.0, m05_share: 0.25, m06_qty: 13.0, m06_share: 0.25, m07_qty: 12.0, m07_share: 0.24, m08_qty: 4.0, m08_share: 0.34, total_qty: 40.0, total_share: 0.25 },
+  { rank: 64, code: 'SFSLDU3', description: 'SIGNAL LIGHT ASSY CT 100 BOTH SIDE', m05_qty: 11.0, m05_share: 0.25, m06_qty: 10.0, m06_share: 0.19, m07_qty: 15.0, m07_share: 0.30, m08_qty: 4.0, m08_share: 0.34, total_qty: 40.0, total_share: 0.25 },
+  { rank: 65, code: 'SF30101096', description: 'PRESSURE PLATE ASSY CT100 1 PCS (DUPLICATE PART', m05_qty: 8.0, m05_share: 0.18, m06_qty: 19.0, m06_share: 0.37, m07_qty: 4.0, m07_share: 0.08, m08_qty: 8.0, m08_share: 0.68, total_qty: 39.0, total_share: 0.25 },
+  { rank: 66, code: 'SFSB12V', description: 'SIGNAL BULB 12V/10W SINLETE/HAZAR', m05_qty: 22.0, m05_share: 0.49, m06_qty: 17.0, m06_share: 0.33, m07_qty: 0.0, m07_share: 0.00, m08_qty: 0.0, m08_share: 0.00, total_qty: 39.0, total_share: 0.25 },
+  { rank: 67, code: '39029615', description: 'NUT *', m05_qty: 4.0, m05_share: 0.09, m06_qty: 12.0, m06_share: 0.23, m07_qty: 10.0, m07_share: 0.20, m08_qty: 12.0, m08_share: 1.02, total_qty: 38.0, total_share: 0.24 },
+  { rank: 68, code: 'KPBC6004', description: 'BEARING-BALL-C3 CLEARANCE', m05_qty: 6.0, m05_share: 0.13, m06_qty: 16.0, m06_share: 0.31, m07_qty: 13.0, m07_share: 0.26, m08_qty: 3.0, m08_share: 0.26, total_qty: 38.0, total_share: 0.24 },
+
+  // Page 5 & 6
+  { rank: 69, code: 'SFSIG5P', description: 'SILENCER MOUTH RING (GASKET) 5P/3P SUN', m05_qty: 10.0, m05_share: 0.22, m06_qty: 16.0, m06_share: 0.31, m07_qty: 8.0, m07_share: 0.16, m08_qty: 3.0, m08_share: 0.26, total_qty: 37.0, total_share: 0.23 },
+  { rank: 70, code: 'SFSLDJW', description: 'SIGNA LIGHT PUL/DIS WHITE(1PCS)SARTHAK LH', m05_qty: 12.0, m05_share: 0.27, m06_qty: 9.0, m06_share: 0.17, m07_qty: 12.0, m07_share: 0.24, m08_qty: 4.0, m08_share: 0.34, total_qty: 37.0, total_share: 0.23 },
+  { rank: 71, code: 'SFSIG4S', description: 'SILNCER MOUTH RING(GASKET) 4S', m05_qty: 6.0, m05_share: 0.13, m06_qty: 11.0, m06_share: 0.21, m07_qty: 14.0, m07_share: 0.28, m08_qty: 5.0, m08_share: 0.43, total_qty: 36.0, total_share: 0.23 },
+  { rank: 72, code: 'SFSW5', description: 'SPRING WASHER 5MM', m05_qty: 0.0, m05_share: 0.00, m06_qty: 0.0, m06_share: 0.00, m07_qty: 36.0, m07_share: 0.73, m08_qty: 0.0, m08_share: 0.00, total_qty: 36.0, total_share: 0.23 },
+  { rank: 73, code: 'SFABS2', description: 'AXEL BOOT SMALL (SUS)', m05_qty: 5.0, m05_share: 0.11, m06_qty: 14.0, m06_share: 0.27, m07_qty: 16.0, m07_share: 0.32, m08_qty: 0.0, m08_share: 0.00, total_qty: 35.0, total_share: 0.22 },
+  { rank: 74, code: '39042606', description: 'DOWEL SLEEVE', m05_qty: 18.0, m05_share: 0.40, m06_qty: 9.0, m06_share: 0.17, m07_qty: 7.0, m07_share: 0.14, m08_qty: 0.0, m08_share: 0.00, total_qty: 34.0, total_share: 0.22 },
+  { rank: 75, code: 'DH171014', description: 'BUSH - SWING ARM', m05_qty: 4.0, m05_share: 0.09, m06_qty: 4.0, m06_share: 0.08, m07_qty: 26.0, m07_share: 0.53, m08_qty: 0.0, m08_share: 0.00, total_qty: 34.0, total_share: 0.22 },
+  { rank: 76, code: 'SFHLCC1', description: 'HEADLIGHT COWLING CLIP PLASTIC (1PSC', m05_qty: 0.0, m05_share: 0.00, m06_qty: 6.0, m06_share: 0.12, m07_qty: 28.0, m07_share: 0.57, m08_qty: 0.0, m08_share: 0.00, total_qty: 34.0, total_share: 0.22 },
+  { rank: 77, code: 'SFNG1', description: 'NORMAL GREASE CUP SMALL', m05_qty: 6.0, m05_share: 0.13, m06_qty: 8.0, m06_share: 0.15, m07_qty: 17.0, m07_share: 0.34, m08_qty: 2.0, m08_share: 0.17, total_qty: 33.0, total_share: 0.21 },
+  { rank: 78, code: 'SF22131014', description: 'SPACER WASHER (DUPLICATE PART)', m05_qty: 8.0, m05_share: 0.18, m06_qty: 16.0, m06_share: 0.31, m07_qty: 8.0, m07_share: 0.16, m08_qty: 0.0, m08_share: 0.00, total_qty: 32.0, total_share: 0.20 },
+  { rank: 79, code: 'DH161158', description: 'GROMMET - SIDE COVER', m05_qty: 2.0, m05_share: 0.04, m06_qty: 11.0, m06_share: 0.21, m07_qty: 13.0, m07_share: 0.26, m08_qty: 5.0, m08_share: 0.43, total_qty: 31.0, total_share: 0.20 },
+  { rank: 80, code: 'SFBWF', description: 'BRAKE WASHER FRONT 2S ARC (W.C.COM', m05_qty: 14.0, m05_share: 0.31, m06_qty: 10.0, m06_share: 0.19, m07_qty: 5.0, m07_share: 0.10, m08_qty: 2.0, m08_share: 0.17, total_qty: 31.0, total_share: 0.20 },
+  { rank: 81, code: 'SFSW8', description: 'SPRING WASHER 8MM', m05_qty: 14.0, m05_share: 0.31, m06_qty: 7.0, m06_share: 0.13, m07_qty: 7.0, m07_share: 0.14, m08_qty: 3.0, m08_share: 0.26, total_qty: 31.0, total_share: 0.20 },
+  { rank: 82, code: 'SFWRN', description: 'WHEEL RIM NUT (1PCS)', m05_qty: 4.0, m05_share: 0.09, m06_qty: 15.0, m06_share: 0.29, m07_qty: 8.0, m07_share: 0.16, m08_qty: 4.0, m08_share: 0.34, total_qty: 31.0, total_share: 0.20 },
+  { rank: 83, code: '24160924', description: 'ENGINE BUSH', m05_qty: 4.0, m05_share: 0.09, m06_qty: 14.0, m06_share: 0.27, m07_qty: 12.0, m07_share: 0.24, m08_qty: 0.0, m08_share: 0.00, total_qty: 30.0, total_share: 0.19 },
+  { rank: 84, code: 'AP111023', description: 'SWITCH NEUTRAL INTEGRATED CABLE', m05_qty: 8.0, m05_share: 0.18, m06_qty: 8.0, m06_share: 0.15, m07_qty: 13.0, m07_share: 0.26, m08_qty: 1.0, m08_share: 0.09, total_qty: 30.0, total_share: 0.19 },
+  { rank: 85, code: 'AZ351207', description: 'PLUG SPARK (CHAMPION POWER)', m05_qty: 6.0, m05_share: 0.13, m06_qty: 6.0, m06_share: 0.12, m07_qty: 11.0, m07_share: 0.22, m08_qty: 7.0, m08_share: 0.60, total_qty: 30.0, total_share: 0.19 },
+  { rank: 86, code: 'SFAE101016', description: 'CLUTCH DRIVING PLATE (5P)1PCS (DUPLICATE PART', m05_qty: 6.0, m05_share: 0.13, m06_qty: 6.0, m06_share: 0.12, m07_qty: 18.0, m07_share: 0.36, m08_qty: 0.0, m08_share: 0.00, total_qty: 30.0, total_share: 0.19 },
+  { rank: 87, code: '30151105', description: 'BRAKE SHOE ASSY', m05_qty: 6.0, m05_share: 0.13, m06_qty: 11.0, m06_share: 0.21, m07_qty: 12.0, m07_share: 0.24, m08_qty: 0.0, m08_share: 0.00, total_qty: 29.0, total_share: 0.18 },
+  { rank: 88, code: 'SF22170434', description: 'REAR WHEEL STUD (DUPLICATE PART)', m05_qty: 16.0, m05_share: 0.36, m06_qty: 4.0, m06_share: 0.08, m07_qty: 0.0, m07_share: 0.00, m08_qty: 9.0, m08_share: 0.77, total_qty: 29.0, total_share: 0.18 },
+  { rank: 89, code: 'SFCBR1A', description: 'CHASSIS BELT ROLL 1FT LOOSE ZEE', m05_qty: 0.0, m05_share: 0.00, m06_qty: 11.0, m06_share: 0.21, m07_qty: 15.0, m07_share: 0.30, m08_qty: 3.0, m08_share: 0.26, total_qty: 29.0, total_share: 0.18 },
+  { rank: 90, code: 'SFOFAN90', description: 'OIL FILTER 4S FL LUMAX /ZEDEX', m05_qty: 4.0, m05_share: 0.09, m06_qty: 14.0, m06_share: 0.27, m07_qty: 8.0, m07_share: 0.16, m08_qty: 3.0, m08_share: 0.26, total_qty: 29.0, total_share: 0.18 },
+  { rank: 91, code: '24130105', description: 'BEARING BALL [16007] - DIFFERENTIAL', m05_qty: 0.0, m05_share: 0.00, m06_qty: 14.0, m06_share: 0.27, m07_qty: 9.0, m07_share: 0.18, m08_qty: 5.0, m08_share: 0.43, total_qty: 28.0, total_share: 0.18 },
+  { rank: 92, code: '31151021', description: 'SHOCK DAMPER', m05_qty: 8.0, m05_share: 0.18, m06_qty: 8.0, m06_share: 0.15, m07_qty: 8.0, m07_share: 0.16, m08_qty: 4.0, m08_share: 0.34, total_qty: 28.0, total_share: 0.18 },
+  { rank: 93, code: 'DG111008', description: 'PLUG SPARK', m05_qty: 12.0, m05_share: 0.27, m06_qty: 12.0, m06_share: 0.23, m07_qty: 3.0, m07_share: 0.06, m08_qty: 1.0, m08_share: 0.09, total_qty: 28.0, total_share: 0.18 },
+  { rank: 94, code: 'SFB6*35', description: 'BOLT & NUT ISO 6*35', m05_qty: 19.0, m05_share: 0.42, m06_qty: 9.0, m06_share: 0.17, m07_qty: 0.0, m07_share: 0.00, m08_qty: 0.0, m08_share: 0.00, total_qty: 28.0, total_share: 0.18 },
+  { rank: 95, code: 'SFDD121181', description: 'OIL FILTER ASSY (DUPLICATE PART)', m05_qty: 12.0, m05_share: 0.27, m06_qty: 6.0, m06_share: 0.12, m07_qty: 8.0, m07_share: 0.16, m08_qty: 2.0, m08_share: 0.17, total_qty: 28.0, total_share: 0.18 },
+  { rank: 96, code: 'SFNG3', description: 'NORMAL GREASE CUP BIG', m05_qty: 13.0, m05_share: 0.29, m06_qty: 9.0, m06_share: 0.17, m07_qty: 6.0, m07_share: 0.12, m08_qty: 0.0, m08_share: 0.00, total_qty: 28.0, total_share: 0.18 },
+  { rank: 97, code: 'SFPT', description: 'PLUG TOP (CHI 3P/5P)', m05_qty: 11.0, m05_share: 0.25, m06_qty: 7.0, m06_share: 0.13, m07_qty: 6.0, m07_share: 0.12, m08_qty: 4.0, m08_share: 0.34, total_qty: 28.0, total_share: 0.18 },
+  { rank: 98, code: 'SFSB3601', description: 'SLIDER BLOCK BEBETO/OPTUS', m05_qty: 17.0, m05_share: 0.38, m06_qty: 4.0, m06_share: 0.08, m07_qty: 6.0, m07_share: 0.12, m08_qty: 1.0, m08_share: 0.09, total_qty: 28.0, total_share: 0.18 },
+  { rank: 99, code: 'SFSG', description: 'SUPER GLUE FEVICOL/LASER/MDR', m05_qty: 5.0, m05_share: 0.11, m06_qty: 7.0, m06_share: 0.13, m07_qty: 14.0, m07_share: 0.28, m08_qty: 2.0, m08_share: 0.17, total_qty: 28.0, total_share: 0.18 },
+  { rank: 100, code: 'SFTC2412', description: 'FUEL TANK CAP 3P & 4S', m05_qty: 9.0, m05_share: 0.20, m06_qty: 8.0, m06_share: 0.15, m07_qty: 10.0, m07_share: 0.20, m08_qty: 1.0, m08_share: 0.09, total_qty: 28.0, total_share: 0.18 },
+  { rank: 101, code: 'AS00304013', description: 'CLUTVH SPRING ASSY 2S', m05_qty: 0.0, m05_share: 0.00, m06_qty: 0.0, m06_share: 0.00, m07_qty: 20.0, m07_share: 0.41, m08_qty: 7.0, m08_share: 0.60, total_qty: 27.0, total_share: 0.17 },
+  { rank: 102, code: 'CMUAA191094', description: 'GEAR CABLE COMPLETE WHITE', m05_qty: 6.0, m05_share: 0.13, m06_qty: 12.0, m06_share: 0.23, m07_qty: 8.0, m07_share: 0.16, m08_qty: 1.0, m08_share: 0.09, total_qty: 27.0, total_share: 0.17 },
+  { rank: 103, code: 'SFBH', description: 'BOTTLE HOLDER BLACK/GREEN/RED & BLUE', m05_qty: 0.0, m05_share: 0.00, m06_qty: 27.0, m06_share: 0.52, m07_qty: 0.0, m07_share: 0.00, m08_qty: 0.0, m08_share: 0.00, total_qty: 27.0, total_share: 0.17 },
+
+  // Page 7 & 8
+  { rank: 104, code: 'SFG5PA', description: 'HEAD GASKET HELIGHT 5P', m05_qty: 6.0, m05_share: 0.13, m06_qty: 13.0, m06_share: 0.25, m07_qty: 7.0, m07_share: 0.14, m08_qty: 1.0, m08_share: 0.09, total_qty: 27.0, total_share: 0.17 },
+  { rank: 105, code: 'SFPF30', description: 'PLUG IN FUSE 30AMP GREEN (PATHURU)', m05_qty: 5.0, m05_share: 0.11, m06_qty: 11.0, m06_share: 0.21, m07_qty: 11.0, m07_share: 0.22, m08_qty: 0.0, m08_share: 0.00, total_qty: 27.0, total_share: 0.17 },
+  { rank: 106, code: '22131014', description: 'SPACER WASHER', m05_qty: 4.0, m05_share: 0.09, m06_qty: 12.0, m06_share: 0.23, m07_qty: 6.0, m07_share: 0.12, m08_qty: 4.0, m08_share: 0.34, total_qty: 26.0, total_share: 0.16 },
+  { rank: 107, code: 'AB101067', description: 'CROSS', m05_qty: 5.0, m05_share: 0.11, m06_qty: 10.0, m06_share: 0.19, m07_qty: 7.0, m07_share: 0.14, m08_qty: 4.0, m08_share: 0.34, total_qty: 26.0, total_share: 0.16 },
+  { rank: 108, code: 'AS00305010', description: 'GASKET OIL FILTER 4S 175CC 205D', m05_qty: 17.0, m05_share: 0.38, m06_qty: 9.0, m06_share: 0.17, m07_qty: 0.0, m07_share: 0.00, m08_qty: 0.0, m08_share: 0.00, total_qty: 26.0, total_share: 0.16 },
+  { rank: 109, code: 'SFABB', description: 'AXEL BOOT BIG 3W (WITH COLLER)', m05_qty: 21.0, m05_share: 0.47, m06_qty: 5.0, m06_share: 0.10, m07_qty: 0.0, m07_share: 0.00, m08_qty: 0.0, m08_share: 0.00, total_qty: 26.0, total_share: 0.16 },
+  { rank: 110, code: 'SFPHB5*30', description: 'PH BOLT 5*30', m05_qty: 7.0, m05_share: 0.16, m06_qty: 6.0, m06_share: 0.12, m07_qty: 11.0, m07_share: 0.22, m08_qty: 2.0, m08_share: 0.17, total_qty: 26.0, total_share: 0.16 },
+  { rank: 111, code: 'SFRMR1', description: 'REAR MUDGUARD ASSY EXO BLACK', m05_qty: 0.0, m05_share: 0.00, m06_qty: 4.0, m06_share: 0.08, m07_qty: 13.0, m07_share: 0.26, m08_qty: 3.0, m08_share: 0.26, total_qty: 20.0, total_share: 0.13 },
+  { rank: 112, code: '24130113', description: 'LOCKING PIN', m05_qty: 7.0, m05_share: 0.16, m06_qty: 11.0, m06_share: 0.21, m07_qty: 5.0, m07_share: 0.10, m08_qty: 2.0, m08_share: 0.17, total_qty: 25.0, total_share: 0.16 },
+  { rank: 113, code: 'DL181080', description: 'SEAL OIL-FORK', m05_qty: 8.0, m05_share: 0.18, m06_qty: 13.0, m06_share: 0.25, m07_qty: 2.0, m07_share: 0.04, m08_qty: 2.0, m08_share: 0.17, total_qty: 25.0, total_share: 0.16 },
+  { rank: 114, code: 'SFMCB3', description: 'MUD FLAP NOMAL-BLK ARC', m05_qty: 6.0, m05_share: 0.13, m06_qty: 5.0, m06_share: 0.10, m07_qty: 13.0, m07_share: 0.26, m08_qty: 1.0, m08_share: 0.09, total_qty: 25.0, total_share: 0.16 },
+  { rank: 115, code: '24171014K', description: 'COUPLING LOCK KIT', m05_qty: 5.0, m05_share: 0.11, m06_qty: 7.0, m06_share: 0.13, m07_qty: 12.0, m07_share: 0.24, m08_qty: 0.0, m08_share: 0.00, total_qty: 24.0, total_share: 0.15 },
+  { rank: 116, code: '28101038', description: 'SPRING', m05_qty: 4.0, m05_share: 0.09, m06_qty: 8.0, m06_share: 0.15, m07_qty: 12.0, m07_share: 0.24, m08_qty: 0.0, m08_share: 0.00, total_qty: 24.0, total_share: 0.15 },
+  { rank: 117, code: '39100006', description: 'PIN', m05_qty: 8.0, m05_share: 0.18, m06_qty: 4.0, m06_share: 0.08, m07_qty: 12.0, m07_share: 0.24, m08_qty: 0.0, m08_share: 0.00, total_qty: 24.0, total_share: 0.15 },
+  { rank: 118, code: 'AA101844', description: 'SEAL HEAD COVER', m05_qty: 7.0, m05_share: 0.16, m06_qty: 6.0, m06_share: 0.12, m07_qty: 6.0, m07_share: 0.12, m08_qty: 5.0, m08_share: 0.43, total_qty: 24.0, total_share: 0.15 },
+  { rank: 119, code: 'JG551447', description: 'PRESSURE PLATE', m05_qty: 8.0, m05_share: 0.18, m06_qty: 4.0, m06_share: 0.08, m07_qty: 8.0, m07_share: 0.16, m08_qty: 4.0, m08_share: 0.34, total_qty: 24.0, total_share: 0.15 },
+  { rank: 120, code: 'JG571014', description: 'OIL FILTER', m05_qty: 7.0, m05_share: 0.16, m06_qty: 12.0, m06_share: 0.23, m07_qty: 3.0, m07_share: 0.06, m08_qty: 2.0, m08_share: 0.17, total_qty: 24.0, total_share: 0.15 },
+  { rank: 121, code: 'SF39201719', description: 'VALVE RUBBER PULSAR 1PCS (DUPLICATE PART', m05_qty: 8.0, m05_share: 0.18, m06_qty: 10.0, m06_share: 0.19, m07_qty: 6.0, m07_share: 0.12, m08_qty: 0.0, m08_share: 0.00, total_qty: 24.0, total_share: 0.15 },
+  { rank: 122, code: 'SFBCAB91', description: 'REAR BRAKE CYLINDER 2S ENDURANCE (', m05_qty: 3.0, m05_share: 0.07, m06_qty: 10.0, m06_share: 0.19, m07_qty: 8.0, m07_share: 0.16, m08_qty: 3.0, m08_share: 0.26, total_qty: 24.0, total_share: 0.15 },
+  { rank: 123, code: 'SFCSR', description: 'COIL SPRING RUBBER ARC', m05_qty: 8.0, m05_share: 0.18, m06_qty: 4.0, m06_share: 0.08, m07_qty: 12.0, m07_share: 0.24, m08_qty: 0.0, m08_share: 0.00, total_qty: 24.0, total_share: 0.15 },
+  { rank: 124, code: 'SFFW17', description: 'FLAT WASHER 17MM', m05_qty: 0.0, m05_share: 0.00, m06_qty: 24.0, m06_share: 0.46, m07_qty: 0.0, m07_share: 0.00, m08_qty: 0.0, m08_share: 0.00, total_qty: 24.0, total_share: 0.15 },
+  { rank: 125, code: 'SFGS', description: 'GASKET SHELLAC', m05_qty: 6.0, m05_share: 0.13, m06_qty: 7.0, m06_share: 0.13, m07_qty: 11.0, m07_share: 0.22, m08_qty: 0.0, m08_share: 0.00, total_qty: 24.0, total_share: 0.15 },
+  { rank: 126, code: 'SFSMDJ', description: 'SIDE MIROR SET PULSAR/DISCOVER (VARROC', m05_qty: 4.0, m05_share: 0.09, m06_qty: 11.0, m06_share: 0.21, m07_qty: 8.0, m07_share: 0.16, m08_qty: 1.0, m08_share: 0.09, total_qty: 24.0, total_share: 0.15 },
+  { rank: 127, code: 'SFDJ151071', description: 'DISPAD SET FRONT PULSAR (DUPLICATE PART', m05_qty: 6.0, m05_share: 0.13, m06_qty: 6.0, m06_share: 0.12, m07_qty: 9.0, m07_share: 0.18, m08_qty: 2.0, m08_share: 0.17, total_qty: 23.0, total_share: 0.15 },
+  { rank: 128, code: 'SFHB2', description: 'HANDLE BOLT 2S/5P A/D (AMW/JOGINDRA', m05_qty: 8.0, m05_share: 0.18, m06_qty: 7.0, m06_share: 0.13, m07_qty: 6.0, m07_share: 0.12, m08_qty: 2.0, m08_share: 0.17, total_qty: 23.0, total_share: 0.15 },
+  { rank: 129, code: '01170111', description: 'BEARING BALL [6203]', m05_qty: 8.0, m05_share: 0.18, m06_qty: 8.0, m06_share: 0.15, m07_qty: 6.0, m07_share: 0.12, m08_qty: 0.0, m08_share: 0.00, total_qty: 22.0, total_share: 0.14 },
+  { rank: 130, code: 'BGO10W30C', description: 'BAJAJ GENUINE OIL 10W30 CAN 1L', m05_qty: 8.0, m05_share: 0.18, m06_qty: 5.0, m06_share: 0.10, m07_qty: 7.0, m07_share: 0.14, m08_qty: 2.0, m08_share: 0.17, total_qty: 22.0, total_share: 0.14 },
+  { rank: 131, code: 'CMUAA191093', description: 'GEAR CABLE COMPLETE BLACK', m05_qty: 6.0, m05_share: 0.13, m06_qty: 7.0, m06_share: 0.13, m07_qty: 8.0, m07_share: 0.16, m08_qty: 1.0, m08_share: 0.09, total_qty: 22.0, total_share: 0.14 },
+  { rank: 132, code: 'SFAA121006', description: 'OIL FILTER ASSY 4S 205 (DUPLICATE PART', m05_qty: 7.0, m05_share: 0.16, m06_qty: 8.0, m06_share: 0.15, m07_qty: 7.0, m07_share: 0.14, m08_qty: 0.0, m08_share: 0.00, total_qty: 22.0, total_share: 0.14 },
+  { rank: 133, code: 'SFB5*20', description: 'BOLT & NUT ISO 5*20', m05_qty: 4.0, m05_share: 0.09, m06_qty: 5.0, m06_share: 0.10, m07_qty: 13.0, m07_share: 0.26, m08_qty: 0.0, m08_share: 0.00, total_qty: 22.0, total_share: 0.14 },
+  { rank: 134, code: 'AA101569', description: 'CHAIN -TIMING', m05_qty: 6.0, m05_share: 0.13, m06_qty: 5.0, m06_share: 0.10, m07_qty: 9.0, m07_share: 0.18, m08_qty: 1.0, m08_share: 0.09, total_qty: 21.0, total_share: 0.13 },
+  { rank: 135, code: 'AA121006', description: 'OIL FILTER ELEMENT', m05_qty: 7.0, m05_share: 0.16, m06_qty: 8.0, m06_share: 0.15, m07_qty: 5.0, m07_share: 0.10, m08_qty: 1.0, m08_share: 0.09, total_qty: 21.0, total_share: 0.13 },
+  { rank: 136, code: 'AA121336', description: 'OIL PUMP ASSEMBLY', m05_qty: 4.0, m05_share: 0.09, m06_qty: 10.0, m06_share: 0.19, m07_qty: 6.0, m07_share: 0.12, m08_qty: 1.0, m08_share: 0.09, total_qty: 21.0, total_share: 0.13 },
+  { rank: 137, code: 'SFDH101098', description: 'PRESSURE PLATE PULSAR UG4 (1PCS) (DUPLICATE PART', m05_qty: 6.0, m05_share: 0.13, m06_qty: 9.0, m06_share: 0.17, m07_qty: 6.0, m07_share: 0.12, m08_qty: 0.0, m08_share: 0.00, total_qty: 21.0, total_share: 0.13 },
+];
+
+/**
+ * @route   GET /api/reports/top-selling
+ * @desc    Get Top Selling Items Report matching 162-page PDF structure with monthly velocity & share
+ */
+export const getTopSellingItemsReport = async (req, res, next) => {
+  try {
+    const {
+      search = '',
+      minQty = '0',
+      sortBy = 'total_desc',
+      page = 1,
+      limit = 33,
+    } = req.query;
+
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Number(limit) === 0 ? 0 : Math.max(1, Number(limit) || 33);
+
+    let items = TOP_SELLING_ITEMS_BASELINE.map((i) => ({ ...i }));
+
+    // Apply Min Qty Filter
+    const minQ = Number(minQty) || 0;
+    if (minQ > 0) {
+      items = items.filter((i) => (i.total_qty || 0) >= minQ);
+    }
+
+    // Apply Search Filter
+    if (search && search.trim() !== '') {
+      const q = search.trim().toLowerCase();
+      items = items.filter(
+        (i) =>
+          (i.code && i.code.toLowerCase().includes(q)) ||
+          (i.description && i.description.toLowerCase().includes(q))
+      );
+    }
+
+    // Sorting
+    if (sortBy === 'total_desc') {
+      items.sort((a, b) => (b.total_qty || 0) - (a.total_qty || 0));
+    } else if (sortBy === 'total_asc') {
+      items.sort((a, b) => (a.total_qty || 0) - (b.total_qty || 0));
+    } else if (sortBy === 'm05_desc') {
+      items.sort((a, b) => (b.m05_qty || 0) - (a.m05_qty || 0));
+    } else if (sortBy === 'm06_desc') {
+      items.sort((a, b) => (b.m06_qty || 0) - (a.m06_qty || 0));
+    } else if (sortBy === 'm07_desc') {
+      items.sort((a, b) => (b.m07_qty || 0) - (a.m07_qty || 0));
+    } else if (sortBy === 'm08_desc') {
+      items.sort((a, b) => (b.m08_qty || 0) - (a.m08_qty || 0));
+    } else if (sortBy === 'code_asc') {
+      items.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+    } else if (sortBy === 'desc_asc') {
+      items.sort((a, b) => (a.description || '').localeCompare(b.description || ''));
+    }
+
+    const totalRecords = items.length;
+    const totalPages = limitNum === 0 ? 1 : Math.ceil(totalRecords / limitNum);
+    const paginatedItems = limitNum === 0 ? items : items.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    return res.status(200).json({
+      success: true,
+      reportType: 'top_selling',
+      reportTitle: 'TOP SELLING ITEMS REPORT',
+      printDate: '7/8/2026',
+      company: {
+        name: 'SOFAST (PVT) LTD',
+        address: '7E, MADDEGODA ROAD, MATHUGAMA',
+        phones: '034-2210680, 074-0295088',
+      },
+      summary: {
+        totalQty: 15770.0,
+        m05_total: 4471.0,
+        m06_total: 5188.0,
+        m07_total: 4938.0,
+        m08_total: 1173.0,
+        totalItemsCount: totalRecords,
+        topProduct: 'SFCR1 - COUPLING RUBBER LARGE GREEN (296 Units)',
+      },
+      pagination: {
+        totalRecords,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+      },
+      data: paginatedItems,
+      softwareFooter: 'Software by S.L.M.D.Chinthana-0777722076',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 

@@ -120,34 +120,30 @@
 .reports-type-tabs {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 6px;
   background: rgba(30, 41, 59, 0.6);
-  padding: 5px;
+  padding: 6px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   width: 100%;
-  max-width: 1600px;
+  max-width: 1700px;
   box-sizing: border-box;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.reports-type-tabs::-webkit-scrollbar {
-  display: none;
 }
 
 .reports-tab-btn {
   background: transparent;
   border: 1px solid transparent;
   color: #94a3b8;
-  padding: 7px 12px;
+  padding: 6px 11px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   white-space: nowrap;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -1379,6 +1375,112 @@
 }
 
 /* ==========================================================================
+   TOP SELLING ITEMS REPORT STYLES
+   Exact replica of the 162-page physical continuous paper report
+   ========================================================================== */
+.ts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  margin-top: 6px;
+}
+
+.ts-month-header-row th {
+  padding: 4px 6px;
+  font-weight: 900;
+  border-top: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+  font-size: 11px;
+  color: #000000;
+}
+
+.ts-sub-header-row th {
+  padding: 3px 6px;
+  font-weight: 800;
+  border-bottom: 1.5px solid #000000;
+  font-size: 10.5px;
+  color: #000000;
+}
+
+.ts-th-code {
+  width: 14%;
+  text-align: left;
+}
+
+.ts-th-desc {
+  width: 32%;
+  text-align: left;
+}
+
+.ts-th-qty {
+  width: 6%;
+}
+
+.ts-th-share {
+  width: 4.8%;
+}
+
+.ts-month-col {
+  border-left: 1px dotted #94a3b8;
+}
+
+.ts-item-row td {
+  padding: 2px 5px;
+  vertical-align: middle;
+  border-bottom: 0.5px dotted #cbd5e1;
+  font-size: 10.5px;
+  color: #000000;
+}
+
+.ts-code-cell {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.ts-desc-cell {
+  font-weight: 600;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ts-qty-cell {
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.ts-share-cell {
+  text-align: right;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.ts-total-highlight {
+  font-weight: 900 !important;
+  color: #000000 !important;
+  background: rgba(241, 245, 249, 0.6);
+}
+
+.ts-grand-total-row td {
+  padding: 6px 6px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 2.5px double #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.ts-total-label {
+  text-align: left;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -1403,7 +1505,9 @@
   #printable-alt-report,
   #printable-alt-report *,
   #printable-supplier-purchases-report,
-  #printable-supplier-purchases-report * {
+  #printable-supplier-purchases-report *,
+  #printable-top-selling-report,
+  #printable-top-selling-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
@@ -1412,7 +1516,8 @@
   #printable-grn-report,
   #printable-settlements-report,
   #printable-alt-report,
-  #printable-supplier-purchases-report {
+  #printable-supplier-purchases-report,
+  #printable-top-selling-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -1429,7 +1534,8 @@
   .ir-table,
   .grn-table,
   .settlements-table,
-  .sp-table {
+  .sp-table,
+  .ts-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
@@ -1443,7 +1549,9 @@
   .settlements-table th,
   .settlements-table td,
   .sp-table th,
-  .sp-table td {
+  .sp-table td,
+  .ts-table th,
+  .ts-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,

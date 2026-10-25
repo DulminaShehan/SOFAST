@@ -8,6 +8,7 @@ import {
   getGrnReport,
   getDailySettlementsReport,
   getSupplierWisePurchasesReport,
+  getTopSellingItemsReport,
 } from '../controllers/reportController.js';
 
 const router = Router();
@@ -20,6 +21,7 @@ const router = Router();
  * - GET /api/reports/grn
  * - GET /api/reports/daily-settlements
  * - GET /api/reports/supplier-purchases
+ * - GET /api/reports/top-selling
  * - GET /api/reports/filter-options
  * - GET /api/reports/most-used-products
  */
@@ -35,6 +37,8 @@ router.get('/daily-settlements', getDailySettlementsReport);
 router.get('/settlements', getDailySettlementsReport);
 router.get('/supplier-purchases', getSupplierWisePurchasesReport);
 router.get('/supplier-wise-purchases', getSupplierWisePurchasesReport);
+router.get('/top-selling', getTopSellingItemsReport);
+router.get('/top-selling-items', getTopSellingItemsReport);
 router.get('/filter-options', getReportFilterOptions);
 router.get('/most-used-products', getMostUsedProducts);
 
