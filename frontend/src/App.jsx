@@ -17,7 +17,7 @@ import GoodReturnNote from './pages/GoodReturnNote/GoodReturnNote';
 import PrinterSetup from './pages/PrinterSetup/PrinterSetup';
 import NewUser from './pages/NewUser/NewUser';
 import Approvement from './pages/Approvement/Approvement';
-import ReportsPlaceholder from './components/ReportsPlaceholder';
+import Reports from './pages/Reports/Reports';
 
 
 /**
@@ -122,7 +122,8 @@ function App() {
       <Route path="/receive-inbox" element={<Approvement defaultSection="receive-inbox" />} />
       <Route path="/approvement/receive-inbox" element={<Approvement defaultSection="receive-inbox" />} />
 
-      <Route path="/reports" element={<ReportsPlaceholder />} />
+      <Route path="/reports" element={<Reports />} />
+      <Route path="/reports/closing-stock" element={<Reports />} />
       <Route path="*" element={<Navigate to="/management" replace />} />
     </Routes>
   );
