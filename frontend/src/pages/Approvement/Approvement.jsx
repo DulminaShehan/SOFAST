@@ -1497,18 +1497,26 @@ function Approvement({ defaultSection }) {
       )}
 
       {/* =========================================================================
-          MODAL FOR LEAVE REQUEST
+      {/* =========================================================================
+          MODAL FOR LEAVE REQUEST (CLASSIC ERP WINDOW)
           ========================================================================= */}
       {isModalOpen && activeTab === 'leave-request' && (
         <div className="appr-modal-overlay" onClick={() => !isSubmitting && setIsModalOpen(false)}>
           <div className="appr-modal-window" onClick={(e) => e.stopPropagation()}>
             <div className="appr-modal-header">
-              <h2>New Leave Request</h2>
+              <div className="appr-modal-title-wrap">
+                <span className="appr-modal-icon">📅</span>
+                <div>
+                  <h2 className="appr-modal-title">New Leave Request</h2>
+                  <div className="appr-modal-subtitle">Submit employee leave application for management authorization</div>
+                </div>
+              </div>
               <button
                 type="button"
                 className="appr-modal-close-btn"
                 onClick={() => setIsModalOpen(false)}
                 disabled={isSubmitting}
+                title="Close"
               >
                 ✕
               </button>
@@ -1516,102 +1524,159 @@ function Approvement({ defaultSection }) {
 
             {/* Leave Request Form */}
             <form onSubmit={handleSubmitLr}>
-                <div className="appr-modal-body">
+              <div className="appr-modal-body">
+                <div className="appr-form-field">
+                  <label htmlFor="lr-emp-name">
+                    Employee Name <span className="appr-req-star">*</span>
+                  </label>
+                  <input
+                    id="lr-emp-name"
+                    type="text"
+                    className="appr-input"
+                    placeholder="e.g. Kasun Silva"
+                    value={lrForm.employeeName}
+                    onChange={(e) => setLrForm({ ...lrForm, employeeName: e.target.value })}
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div className="appr-form-row">
                   <div className="appr-form-field">
-                    <label>Employee Name *</label>
+                    <label htmlFor="lr-leave-type">Leave Type</label>
+                    <select
+                      id="lr-leave-type"
+                      className="appr-input"
+                      value={lrForm.leaveType}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLrForm((prev) => ({
+                          ...prev,
+                          leaveType: val,
+                          numberOfDays: val === 'Half-Day' ? 0.5 : prev.numberOfDays === 0.5 ? 1 : prev.numberOfDays,
+                        }));
+                      }}
+                    >
+                      <option value="Annual">Annual Leave</option>
+                      <option value="Casual">Casual Leave</option>
+                      <option value="Medical">Medical Leave</option>
+                      <option value="Half-Day">Half-Day</option>
+                    </select>
+                  </div>
+
+                  <div className="appr-form-field">
+                    <label htmlFor="lr-days">
+                      Number of Days <span className="appr-req-star">*</span>
+                    </label>
                     <input
-                      type="text"
+                      id="lr-days"
+                      type="number"
                       className="appr-input"
-                      placeholder="e.g. Kasun Silva"
-                      value={lrForm.employeeName}
-                      onChange={(e) => setLrForm({ ...lrForm, employeeName: e.target.value })}
+                      min="0.5"
+                      step="0.5"
+                      value={lrForm.numberOfDays}
+                      onChange={(e) => setLrForm({ ...lrForm, numberOfDays: parseFloat(e.target.value) || 0 })}
                       required
-                      autoFocus
                     />
                   </div>
+                </div>
 
-                  <div className="appr-form-row">
-                    <div className="appr-form-field">
-                      <label>Leave Type</label>
-                      <select
-                        className="appr-input"
-                        value={lrForm.leaveType}
-                        onChange={(e) => setLrForm({ ...lrForm, leaveType: e.target.value })}
-                      >
-                        <option value="Annual">Annual Leave</option>
-                        <option value="Casual">Casual Leave</option>
-                        <option value="Medical">Medical Leave</option>
-                        <option value="Half-Day">Half-Day</option>
-                      </select>
-                    </div>
-
-                    <div className="appr-form-field">
-                      <label>Number of Days</label>
-                      <input
-                        type="number"
-                        className="appr-input"
-                        min="0.5"
-                        step="0.5"
-                        value={lrForm.numberOfDays}
-                        onChange={(e) => setLrForm({ ...lrForm, numberOfDays: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="appr-form-row">
-                    <div className="appr-form-field">
-                      <label>Start Date *</label>
-                      <input
-                        type="date"
-                        className="appr-input"
-                        value={lrForm.startDate}
-                        onChange={(e) => setLrForm({ ...lrForm, startDate: e.target.value })}
-                        required
-                      />
-                    </div>
-
-                    <div className="appr-form-field">
-                      <label>End Date *</label>
-                      <input
-                        type="date"
-                        className="appr-input"
-                        value={lrForm.endDate}
-                        onChange={(e) => setLrForm({ ...lrForm, endDate: e.target.value })}
-                        required
-                      />
-                    </div>
+                <div className="appr-form-row">
+                  <div className="appr-form-field">
+                    <label htmlFor="lr-start-date">
+                      Start Date <span className="appr-req-star">*</span>
+                    </label>
+                    <input
+                      id="lr-start-date"
+                      type="date"
+                      className="appr-input"
+                      value={lrForm.startDate}
+                      onChange={(e) => {
+                        const startVal = e.target.value;
+                        setLrForm((prev) => {
+                          let days = prev.numberOfDays;
+                          if (startVal && prev.endDate && prev.leaveType !== 'Half-Day') {
+                            const d1 = new Date(startVal);
+                            const d2 = new Date(prev.endDate);
+                            const diff = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+                            if (diff > 0) days = diff;
+                          }
+                          return {
+                            ...prev,
+                            startDate: startVal,
+                            numberOfDays: days,
+                          };
+                        });
+                      }}
+                      required
+                    />
                   </div>
 
                   <div className="appr-form-field">
-                    <label>Reason for Leave *</label>
-                    <textarea
+                    <label htmlFor="lr-end-date">
+                      End Date <span className="appr-req-star">*</span>
+                    </label>
+                    <input
+                      id="lr-end-date"
+                      type="date"
                       className="appr-input"
-                      rows="2"
-                      placeholder="e.g. Family commitment / personal travel"
-                      value={lrForm.reason}
-                      onChange={(e) => setLrForm({ ...lrForm, reason: e.target.value })}
+                      value={lrForm.endDate}
+                      min={lrForm.startDate}
+                      onChange={(e) => {
+                        const endVal = e.target.value;
+                        setLrForm((prev) => {
+                          let days = prev.numberOfDays;
+                          if (prev.startDate && endVal && prev.leaveType !== 'Half-Day') {
+                            const d1 = new Date(prev.startDate);
+                            const d2 = new Date(endVal);
+                            const diff = Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+                            if (diff > 0) days = diff;
+                          }
+                          return {
+                            ...prev,
+                            endDate: endVal,
+                            numberOfDays: days,
+                          };
+                        });
+                      }}
                       required
                     />
                   </div>
                 </div>
 
-                <div className="appr-modal-footer">
-                  <button
-                    type="button"
-                    className="modal-btn secondary"
-                    onClick={() => setIsModalOpen(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="modal-btn primary" disabled={isSubmitting}>
-                    {isSubmitting ? 'Saving...' : 'Submit Leave Request'}
-                  </button>
+                <div className="appr-form-field">
+                  <label htmlFor="lr-reason">
+                    Reason for Leave <span className="appr-req-star">*</span>
+                  </label>
+                  <textarea
+                    id="lr-reason"
+                    className="appr-input"
+                    rows="3"
+                    placeholder="e.g. Family commitment / personal travel / urgent personal matters"
+                    value={lrForm.reason}
+                    onChange={(e) => setLrForm({ ...lrForm, reason: e.target.value })}
+                    required
+                  />
                 </div>
-              </form>
-            </div>
+              </div>
+
+              <div className="appr-modal-footer">
+                <button
+                  type="button"
+                  className="modal-btn secondary"
+                  onClick={() => setIsModalOpen(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="modal-btn primary" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving...' : '✓ Submit Leave Request'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }
