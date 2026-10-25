@@ -151,7 +151,7 @@ function Invoice() {
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
-    { id: 'production', label: 'Production', path: '/management' },
+    { id: 'approvement', label: 'Approvement', path: '/approvement' },
     { id: 'reports', label: 'Reports', path: '/management' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', path: '/management' },

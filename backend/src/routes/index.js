@@ -13,11 +13,18 @@ import supplierClaimRoutes from './supplierClaim.routes.js';
 import damageStockRoutes from './damageStock.routes.js';
 import damageRoutes from './damage.routes.js';
 import goodReturnRoutes from './goodReturn.routes.js';
+import userRoutes from './user.routes.js';
+import approvementRoutes from './approvement.routes.js';
+import reportRoutes from './report.routes.js';
 
 const router = Router();
 
 // Mount API routes
 router.use('/health', healthRoutes);
+router.use('/users', userRoutes);
+router.use('/user', userRoutes);
+router.use('/approvement', approvementRoutes);
+router.use('/approvements', approvementRoutes);
 router.use('/suppliers', supplierRoutes);
 router.use('/items', itemRoutes);
 router.use('/grn', grnRoutes);
@@ -50,6 +57,10 @@ router.use('/good-returns', goodReturnRoutes);
 router.use('/good-return-notes', goodReturnRoutes);
 router.use('/gren', goodReturnRoutes);
 router.use('/supplier-returns', goodReturnRoutes);
+
+// Reports Module routes
+router.use('/reports', reportRoutes);
+router.use('/report', reportRoutes);
 
 export default router;
 

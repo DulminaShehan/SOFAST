@@ -1,0 +1,868 @@
+/* ==========================================================================
+   SOFAST Desktop ERP - Approvement Module Stylesheet
+   Payment Voucher, Petty Cash, and Leave Request approval workflow
+   ========================================================================== */
+
+.approvement-page-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: #f0f2f5;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  color: #1e293b;
+}
+
+/* Window Header */
+.approvement-window-header {
+  height: 38px;
+  background: linear-gradient(180deg, #1e3a8a 0%, #172554 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  color: #ffffff;
+  border-bottom: 1px solid #0f172a;
+}
+
+.approvement-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.approvement-header-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.approvement-header-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.approvement-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: #10b981;
+  color: #ffffff;
+  padding: 1px 7px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.approvement-back-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.approvement-back-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Workspace Canvas */
+.approvement-workspace {
+  flex: 1;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1380px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Section Navigation Tabs */
+.approvement-tabs-bar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #cbd5e1;
+  background: #ffffff;
+  padding: 6px 10px 0 10px;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid #cbd5e1;
+  border-bottom: 2px solid #2563eb;
+}
+
+.approvement-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+  transition: all 0.15s ease;
+  position: relative;
+  bottom: -2px;
+}
+
+.approvement-tab-btn:hover {
+  color: #1e3a8a;
+  background: #f8fafc;
+}
+
+.approvement-tab-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #1d4ed8;
+}
+
+.tab-pill-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 700;
+}
+
+.approvement-tab-btn.active .tab-pill-count {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+/* Overview Banner */
+.approvement-banner {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.approvement-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.approvement-banner-icon {
+  width: 44px;
+  height: 44px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+.approvement-banner-titles h1 {
+  font-size: 16px;
+  margin: 0 0 4px 0;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.approvement-banner-titles p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+}
+
+.approvement-stats-group {
+  display: flex;
+  gap: 10px;
+}
+
+.appr-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 6px 14px;
+  min-width: 85px;
+}
+
+.appr-stat-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.appr-stat-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* Toolbar */
+.approvement-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fdfdfd;
+  border: 1px solid #cbd5e1;
+  padding: 8px 14px;
+  border-radius: 4px;
+  gap: 12px;
+}
+
+.appr-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.appr-add-btn {
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  color: #ffffff;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+  transition: all 0.15s ease;
+}
+
+.appr-add-btn:hover {
+  background: #1d4ed8;
+}
+
+.appr-search-wrapper {
+  position: relative;
+  max-width: 280px;
+  width: 100%;
+}
+
+.appr-search-input {
+  width: 100%;
+  padding: 5px 10px 5px 28px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.appr-search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.appr-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.appr-filter-select {
+  padding: 5px 10px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  background: #ffffff;
+}
+
+.appr-refresh-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #475569;
+}
+
+.appr-refresh-btn:hover {
+  background: #f1f5f9;
+}
+
+/* Table Container */
+.approvement-table-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.appr-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+
+.appr-table th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  padding: 9px 12px;
+  border-bottom: 2px solid #cbd5e1;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.appr-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+
+.appr-table tr:hover {
+  background-color: #f8fafc;
+}
+
+/* Status Badges */
+.appr-status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.appr-status-badge.pending {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.appr-status-badge.approved {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.appr-status-badge.rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+/* Action Buttons */
+.appr-actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-approve {
+  background: #10b981;
+  border: 1px solid #059669;
+  color: #ffffff;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-approve:hover {
+  background: #059669;
+}
+
+.btn-reject {
+  background: #ffffff;
+  border: 1px solid #ef4444;
+  color: #dc2626;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-reject:hover {
+  background: #fee2e2;
+}
+
+/* Modal */
+.appr-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  backdrop-filter: blur(2px);
+}
+
+.appr-modal-window {
+  background: #ffffff;
+  border-radius: 6px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #94a3b8;
+  overflow: hidden;
+}
+
+.appr-modal-header {
+  height: 40px;
+  background: #1e3a8a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+.appr-modal-header h2 {
+  font-size: 13.5px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.appr-modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.appr-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.appr-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.appr-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.appr-form-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  text-transform: uppercase;
+}
+
+.appr-input {
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  outline: none;
+}
+
+.appr-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.appr-modal-footer {
+  background: #f8fafc;
+  border-top: 1px solid #cbd5e1;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ==========================================================================
+   Admin Receive Inbox & Enhanced Action Styles
+   ========================================================================== */
+
+.approvement-tab-btn.admin-inbox-tab {
+  background: #f8fafc;
+  color: #4338ca;
+  border-color: #cbd5e1;
+  margin-left: auto;
+}
+
+.approvement-tab-btn.admin-inbox-tab.active {
+  background: #4338ca;
+  color: #ffffff;
+  border-color: #3730a3;
+}
+
+.tab-pill-count.badge-urgent {
+  background: #dc2626;
+  color: #ffffff;
+  animation: pulseBadge 1.5s infinite;
+}
+
+@keyframes pulseBadge {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.appr-bill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.appr-bill-badge.none {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+}
+
+.appr-view-btn {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.appr-view-btn:hover {
+  background: #0369a1;
+}
+
+.appr-print-btn {
+  background: #475569;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.appr-print-btn:hover {
+  background: #334155;
+}
+
+.inbox-hero-card {
+  background: linear-gradient(135deg, #312e81 0%, #1e1b4b 100%);
+  color: #ffffff;
+  padding: 16px 20px;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(49, 46, 129, 0.25);
+  margin-bottom: 4px;
+}
+
+.inbox-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.inbox-hero-icon {
+  font-size: 36px;
+}
+
+.inbox-hero-titles h2 {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0;
+  color: #ffffff;
+}
+
+.inbox-hero-titles p {
+  font-size: 12px;
+  color: #c7d2fe;
+  margin: 3px 0 0 0;
+}
+
+.inbox-hero-badge {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #fef08a;
+}
+
+.appr-actions-cell {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.btn-review-action {
+  background: #4338ca;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s;
+}
+
+.btn-review-action:hover {
+  background: #3730a3;
+}
+
+/* ==========================================================================
+   Spendable Limit Card & Fund Management Styles
+   ========================================================================== */
+.spendable-limit-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 4px solid #2563eb;
+}
+
+.spendable-limit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.spendable-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spendable-icon {
+  font-size: 26px;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spendable-title-text h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.spendable-title-text p {
+  margin: 2px 0 0 0;
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.spendable-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-set-limit {
+  background: #1e3a8a;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.btn-set-limit:hover {
+  background: #1e40af;
+  box-shadow: 0 2px 6px rgba(30, 58, 138, 0.25);
+}
+
+.user-view-only-badge {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.spendable-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.spendable-stat-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spendable-stat-box.primary {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.spendable-stat-box.spent {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.spendable-stat-box.balance {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.spendable-stat-box.pending {
+  background: #fefce8;
+  border-color: #fef08a;
+}
+
+.spendable-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.spendable-stat-val {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0f172a;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.spendable-stat-box.spent .spendable-stat-val {
+  color: #b91c1c;
+}
+
+.spendable-stat-box.balance .spendable-stat-val {
+  color: #15803d;
+}
+
+.spendable-stat-box.pending .spendable-stat-val {
+  color: #a16207;
+}
+
+.spendable-stat-sub {
+  font-size: 10.5px;
+  color: #64748b;
+}
+
+/* Progress bar */
+.spendable-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.spendable-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.spendable-progress-track {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.spendable-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.spendable-progress-fill.low {
+  background: #10b981;
+}
+
+.spendable-progress-fill.medium {
+  background: #f59e0b;
+}
+
+.spendable-progress-fill.high {
+  background: #ef4444;
+}
+
+

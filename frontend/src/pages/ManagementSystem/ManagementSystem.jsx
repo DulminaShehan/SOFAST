@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import './ManagementSystem.css';
 
 /**
@@ -11,6 +12,7 @@ function ManagementSystem() {
   const [selectedModule, setSelectedModule] = useState('Item Master');
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   // Module data for Master Files and top menus
   const masterFilesItems = [
@@ -226,13 +228,82 @@ function ManagementSystem() {
         </svg>
       ),
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'new-user',
+            label: 'New User',
+            path: '/new-user',
+            iconColor: '#f59e0b',
+            badgeBg: '#fef3c7',
+            description: 'Create user accounts, set login credentials, and configure page access permissions.',
+            renderIcon: (size = 20) => (
+              <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="8.5" cy="7" r="4" />
+                <line x1="20" y1="8" x2="20" y2="14" />
+                <line x1="23" y1="11" x2="17" y2="11" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  const approvementItems = [
+    {
+      id: 'payment-voucher',
+      label: 'Payment Voucher',
+      path: '/payment-voucher',
+      iconColor: '#2563eb',
+      badgeBg: '#dbeafe',
+      description: 'Authorize supplier settlements, check payments, and bank transfers.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <line x1="2" y1="10" x2="22" y2="10" />
+        </svg>
+      ),
+    },
+    {
+      id: 'petty-cash',
+      label: 'Petty Cash',
+      path: '/petty-cash',
+      iconColor: '#10b981',
+      badgeBg: '#d1fae5',
+      description: 'Review and approve store petty cash vouchers and emergency expenditures.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" />
+          <line x1="12" y1="6" x2="12" y2="8" />
+          <line x1="12" y1="16" x2="12" y2="18" />
+        </svg>
+      ),
+    },
+    {
+      id: 'leave-request',
+      label: 'Leave Request',
+      path: '/leave-request',
+      iconColor: '#8b5cf6',
+      badgeBg: '#ede9fe',
+      description: 'Staff leave applications, vacation calendars, and supervisor approval logs.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      ),
+    },
   ];
 
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, description: 'Real-time stock tracking, warehouse transfers and inventory balances.' },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true, description: 'Point of sale, customer billing, and service order management.' },
-    { id: 'production', label: 'Production', description: 'Production planning, work orders, bill of materials and assembly.' },
+    { id: 'approvement', label: 'Approvement', hasDropdown: true, description: 'Payment vouchers, petty cash claims, and employee leave authorization.' },
     { id: 'reports', label: 'Reports', description: 'Financial, inventory, sales and audit analytical reporting.' },
     { id: 'accounting', label: 'Accounting', description: 'General ledger, accounts receivable, payable and banking.' },
     { id: 'administration', label: 'Administration', hasDropdown: true, description: 'System configuration, user permissions, printer setup and audit logs.' },
@@ -361,6 +432,26 @@ function ManagementSystem() {
                           {ssItem.renderIcon(18)}
                         </span>
                         <span>{ssItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Approvement Dropdown */}
+              {item.id === 'approvement' && isDropdownOpen === 'approvement' && (
+                <ul className="masterfiles-dropdown">
+                  {approvementItems.map((apprItem) => (
+                    <li key={apprItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className={`dropdown-item-btn ${selectedModule === apprItem.label ? 'selected' : ''}`}
+                        onClick={() => handleDropdownSelect(apprItem)}
+                      >
+                        <span className="dropdown-item-icon">
+                          {apprItem.renderIcon(18)}
+                        </span>
+                        <span>{apprItem.label}</span>
                       </button>
                     </li>
                   ))}

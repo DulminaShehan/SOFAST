@@ -762,8 +762,8 @@ function Damage() {
           </li>
 
           <li className="damage-menubar-item">
-            <button type="button" className="damage-menubar-btn" onClick={() => navigate('/management')}>
-              Production
+            <button type="button" className="damage-menubar-btn" onClick={() => navigate('/approvement')}>
+              Approvement
             </button>
           </li>
           <li className="damage-menubar-item">

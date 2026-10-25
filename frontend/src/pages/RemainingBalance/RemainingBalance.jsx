@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './RemainingBalance.css';
 
 /**
@@ -12,6 +13,7 @@ import './RemainingBalance.css';
 function RemainingBalance() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin } = useAuth();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -33,7 +35,7 @@ function RemainingBalance() {
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
-    { id: 'production', label: 'Production', path: '/management' },
+    { id: 'approvement', label: 'Approvement', hasDropdown: true },
     { id: 'reports', label: 'Reports', path: '/management' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', hasDropdown: true },
@@ -61,9 +63,15 @@ function RemainingBalance() {
     { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
   ];
 
+  const approvementDropdownItems = [
+    { id: 'payment-voucher', label: 'Payment Voucher', path: '/payment-voucher' },
+    { id: 'petty-cash', label: 'Petty Cash', path: '/petty-cash' },
+    { id: 'leave-request', label: 'Leave Request', path: '/leave-request' },
+  ];
 
   const administrationDropdownItems = [
     { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
+    ...(isAdmin ? [{ id: 'new-user', label: 'New User', path: '/new-user' }] : []),
   ];
 
   // Close dropdown on outside click
@@ -296,6 +304,26 @@ function RemainingBalance() {
                       >
                         <span>{dropItem.label}</span>
                         {dropItem.id === 'remaining-balance' && <span>&#10003;</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Approvement Dropdown */}
+              {item.id === 'approvement' && activeDropdown === 'approvement' && (
+                <ul className="remaining-balance-dropdown-menu">
+                  {approvementDropdownItems.map((dropItem) => (
+                    <li key={dropItem.id} className="remaining-balance-dropdown-entry">
+                      <button
+                        type="button"
+                        className="remaining-balance-dropdown-item-btn"
+                        onClick={() => {
+                          setActiveDropdown(null);
+                          navigate(dropItem.path);
+                        }}
+                      >
+                        <span>{dropItem.label}</span>
                       </button>
                     </li>
                   ))}
