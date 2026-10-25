@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import MainMenu from '../../components/navigation/MainMenu';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import { useAuth, SYSTEM_MODULES } from '../../context/AuthContext';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
@@ -293,7 +293,7 @@ function NewUser() {
             <span className="header-title">SOFAST POS System - Access Control</span>
           </div>
         </header>
-        <MainMenu />
+        <ClassicNavbar activeMenu="administration" />
         <div className="access-denied-container">
           <div className="access-denied-card">
             <div className="denied-icon">🔒</div>
@@ -350,7 +350,7 @@ function NewUser() {
       </header>
 
       {/* 2. Top Application Menu Bar */}
-      <MainMenu />
+      <ClassicNavbar activeMenu="administration" />
 
       {/* 3. Main Workspace */}
       <main className="new-user-workspace">

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import './ItemMaster.css';
 
@@ -704,85 +705,7 @@ function ItemMaster() {
       </header>
 
       {/* 2. Top Classic Menu Bar */}
-      <nav className="management-menubar-container" ref={menuRef}>
-        <ul className="management-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="menubar-item">
-              <button
-                type="button"
-                className={`menubar-button ${activeDropdown === item.id ? 'active' : ''}`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                  } else if (item.path) {
-                    setActiveDropdown(null);
-                    navigate(item.path);
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="masterfiles-dropdown">
-                  {masterFilesDropdownItems.map((masterItem) => (
-                    <li key={masterItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className={`dropdown-item-btn ${masterItem.id === 'item-master' ? 'selected' : ''}`}
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(masterItem.path);
-                        }}
-                      >
-                        <span>{masterItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="masterfiles-dropdown">
-                  {stockControlDropdownItems.map((scItem) => (
-                    <li key={scItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(scItem.path);
-                        }}
-                      >
-                        <span>{scItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="masterfiles-dropdown">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="dropdown-entry">
-                      <button
-                        type="button"
-                        className="dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="master-files" />
 
       {/* 3. Main Desktop Workspace centering the Data Entry for Master File window */}
       <main className="item-master-workspace">

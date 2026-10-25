@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './RemainingBalance.css';
@@ -226,133 +227,7 @@ function RemainingBalance() {
       </header>
 
       {/* 2. Top Classic Menubar */}
-      <nav className="remaining-balance-menubar-container" ref={menuRef}>
-        <ul className="remaining-balance-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="remaining-balance-menu-item-wrapper">
-              <button
-                type="button"
-                className={`remaining-balance-menubar-btn ${
-                  activeDropdown === item.id ? 'active' : ''
-                }`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                  } else if (item.path) {
-                    setActiveDropdown(null);
-                    navigate(item.path);
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {/* Master Files Dropdown */}
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="remaining-balance-dropdown-menu">
-                  {masterFilesDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="remaining-balance-dropdown-entry">
-                      <button
-                        type="button"
-                        className="remaining-balance-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="remaining-balance-dropdown-menu">
-                  {stockControlDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="remaining-balance-dropdown-entry">
-                      <button
-                        type="button"
-                        className="remaining-balance-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="remaining-balance-dropdown-menu">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="remaining-balance-dropdown-entry">
-                      <button
-                        type="button"
-                        className={`remaining-balance-dropdown-item-btn ${
-                          dropItem.id === 'remaining-balance' ? 'selected' : ''
-                        }`}
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                        {dropItem.id === 'remaining-balance' && <span>&#10003;</span>}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Approvement Dropdown */}
-              {item.id === 'approvement' && activeDropdown === 'approvement' && (
-                <ul className="remaining-balance-dropdown-menu">
-                  {approvementDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="remaining-balance-dropdown-entry">
-                      <button
-                        type="button"
-                        className="remaining-balance-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Administration Dropdown */}
-              {item.id === 'administration' && activeDropdown === 'administration' && (
-                <ul className="remaining-balance-dropdown-menu">
-                  {administrationDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="remaining-balance-dropdown-entry">
-                      <button
-                        type="button"
-                        className="remaining-balance-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="sales-service" />
 
       {/* 3. Main Workspace */}
       <main className="remaining-balance-main-container">

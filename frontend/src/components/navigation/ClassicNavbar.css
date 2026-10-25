@@ -1,0 +1,238 @@
+/* ==========================================================================
+   Classic SOFAST ERP Desktop Menubar Navigation Stylesheet
+   Matches exact Visual Basic 6 / Windows 95/XP styling from Customer Details
+   ========================================================================== */
+
+.cust-menubar-container {
+  position: relative;
+  background-color: #f6f6f6;
+  border-bottom: 1px solid #b5b5b5;
+  height: 28px;
+  min-height: 28px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 4px;
+  box-sizing: border-box;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 1000;
+  user-select: none;
+}
+
+.cust-menubar-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 100%;
+}
+
+.cust-menubar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+.cust-menubar-item {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+}
+
+.cust-menubar-button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  padding: 2px 10px;
+  height: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  white-space: nowrap;
+  border-radius: 2px;
+  transition: all 0.1s ease;
+}
+
+.cust-menubar-button:hover {
+  background-color: #e5efff;
+  border-color: #7da2ce;
+  color: #000080;
+}
+
+.cust-menubar-button.active {
+  background-color: #0055ea;
+  border-color: #0044bb;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.cust-menubar-button.dropdown-open {
+  background-color: #316ac5;
+  border-color: #204d96;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* Classic Windows 95/XP Dropdown Menu */
+.cust-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: #ffffff;
+  border: 1px solid #716f64;
+  box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.25);
+  list-style: none;
+  margin: 1px 0 0 0;
+  padding: 3px;
+  min-width: 235px;
+  z-index: 1200;
+  border-radius: 1px;
+}
+
+.cust-dropdown-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.cust-dropdown-divider {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 3px 0;
+}
+
+.cust-dropdown-item-btn {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 2px;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  outline: none;
+  text-decoration: none;
+}
+
+.cust-dropdown-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cust-dropdown-item-btn:hover,
+.cust-dropdown-item-btn.selected {
+  background-color: #2b78e4;
+  color: #ffffff;
+}
+
+.cust-dropdown-item-btn:hover .cust-dropdown-badge,
+.cust-dropdown-item-btn.selected .cust-dropdown-badge {
+  background-color: #ffffff;
+  color: #1e3a8a;
+}
+
+.cust-dropdown-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background-color: #e2e8f0;
+  color: #475569;
+}
+
+.cust-dropdown-badge.admin-badge {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.cust-dropdown-badge.hub-badge {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+/* User Status Info & Logout button on right side */
+.cust-menubar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.cust-user-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background-color: #ece9d8;
+  border: 1px solid #aca899;
+  border-radius: 3px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: #000000;
+}
+
+.cust-user-role-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 2px;
+  color: #ffffff;
+}
+
+.cust-user-role-badge.admin {
+  background-color: #0055ea;
+}
+
+.cust-user-role-badge.user {
+  background-color: #16a34a;
+}
+
+.cust-logout-btn {
+  background: #ece9d8;
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #716f64;
+  border-bottom: 1px solid #716f64;
+  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 11px;
+  padding: 1px 8px;
+  height: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+
+.cust-logout-btn:hover {
+  background-color: #fde8e8;
+  color: #b91c1c;
+}
+
+.cust-logout-btn:active {
+  border-top: 1px solid #716f64;
+  border-left: 1px solid #716f64;
+  border-right: 1px solid #ffffff;
+  border-bottom: 1px solid #ffffff;
+}

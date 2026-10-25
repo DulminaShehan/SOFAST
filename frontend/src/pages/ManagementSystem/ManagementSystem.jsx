@@ -7,9 +7,15 @@ import './ManagementSystem.css';
  * SOFAST MOTORS - Management System
  * Recreates the exact UI from the provided reference image.
  */
-function ManagementSystem() {
+function ManagementSystem({ defaultModule }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(true);
-  const [selectedModule, setSelectedModule] = useState('Item Master');
+  const [selectedModule, setSelectedModule] = useState(defaultModule || 'Item Master');
+
+  useEffect(() => {
+    if (defaultModule) {
+      setSelectedModule(defaultModule);
+    }
+  }, [defaultModule]);
   const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportCategoryFilter, setReportCategoryFilter] = useState('All');
   const [selectedReportRow, setSelectedReportRow] = useState('REP-01');

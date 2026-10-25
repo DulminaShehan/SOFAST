@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import { useAuth } from '../../context/AuthContext';
 import './PrinterSetup.css';
 
@@ -315,129 +316,7 @@ function PrinterSetup() {
       </header>
 
       {/* 2. Top Classic Menu Bar */}
-      <nav className="printer-menubar-container" ref={menuRef}>
-        <ul className="printer-menubar">
-          {topMenuItems.map((item) => (
-            <li key={item.id} className="printer-menubar-item">
-              <button
-                type="button"
-                className={`printer-menubar-button ${
-                  item.id === 'administration' || activeDropdown === item.id ? 'active' : ''
-                }`}
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    setActiveDropdown(activeDropdown === item.id ? null : item.id);
-                  } else if (item.path) {
-                    navigate(item.path);
-                  }
-                }}
-              >
-                {item.label}
-              </button>
-
-              {/* Master Files Dropdown */}
-              {item.id === 'master-files' && activeDropdown === 'master-files' && (
-                <ul className="printer-dropdown-menu">
-                  {masterFilesDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="printer-dropdown-entry">
-                      <button
-                        type="button"
-                        className="printer-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Stock Control System Dropdown */}
-              {item.id === 'stock-control' && activeDropdown === 'stock-control' && (
-                <ul className="printer-dropdown-menu">
-                  {stockControlDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="printer-dropdown-entry">
-                      <button
-                        type="button"
-                        className="printer-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Sales and Service Dropdown */}
-              {item.id === 'sales-service' && activeDropdown === 'sales-service' && (
-                <ul className="printer-dropdown-menu">
-                  {salesServiceDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="printer-dropdown-entry">
-                      <button
-                        type="button"
-                        className="printer-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Approvement Dropdown */}
-              {item.id === 'approvement' && activeDropdown === 'approvement' && (
-                <ul className="printer-dropdown-menu">
-                  {approvementDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="printer-dropdown-entry">
-                      <button
-                        type="button"
-                        className="printer-dropdown-item-btn"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Administration Dropdown */}
-              {item.id === 'administration' && activeDropdown === 'administration' && (
-                <ul className="printer-dropdown-menu">
-                  {administrationDropdownItems.map((dropItem) => (
-                    <li key={dropItem.id} className="printer-dropdown-entry">
-                      <button
-                        type="button"
-                        className="printer-dropdown-item-btn selected"
-                        onClick={() => {
-                          setActiveDropdown(null);
-                          navigate(dropItem.path);
-                        }}
-                      >
-                        <span>{dropItem.label}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <ClassicNavbar activeMenu="administration" />
 
       {/* 3. Main Form Canvas */}
       <main className="printer-main-canvas">

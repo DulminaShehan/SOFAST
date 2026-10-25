@@ -13,6 +13,13 @@ function ApprovementDropdown({ isOpen = true, onItemClick, activePath = '' }) {
 
   const approvementItems = [
     {
+      id: 'approvement-hub',
+      label: '🛡️ Approvement System (Overview)',
+      path: '/approvement',
+      permitted: true,
+      badge: 'Hub',
+    },
+    {
       id: 'payment-voucher',
       label: 'Payment Voucher',
       path: '/payment-voucher',
