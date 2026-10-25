@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import ApprovementDropdown from '../../components/navigation/ApprovementDropdown';
@@ -8,22 +8,38 @@ import './Reports.css';
 /**
  * Reports Module
  * Supports:
- * 1. GOODS RECEIVED NOTES (GRN Report - Exact replica from Report 4 PDF)
- * 2. INVOICE RETURNS REPORT (Exact replica from Report 3 PDF)
- * 3. DAILY SALES & PROFIT REPORT (Exact replica from Report 2 PDF)
- * 4. CLOSING STOCK REPORT (Exact 170-page replica from Report 1 PDF)
+ * 1. DAILY SETTLEMENTS DETAILS (Exact replica from Report 5 PDF)
+ * 2. GOODS RECEIVED NOTES (GRN Report - Exact replica from Report 4 PDF)
+ * 3. INVOICE RETURNS REPORT (Exact replica from Report 3 PDF)
+ * 4. DAILY SALES & PROFIT REPORT (Exact replica from Report 2 PDF)
+ * 5. CLOSING STOCK REPORT (Exact 170-page replica from Report 1 PDF)
+ * 6. ALTERNATIVE PRODUCTS REPORT (Catalog of substitutes and replacement parts)
  * Features quick filters, instant sorting by Most Used/Received Products, Staff, Category, and Profit.
  */
 function Reports() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentUser, isAdmin } = useAuth();
 
   // Navigation Menubar Dropdowns
   const [activeDropdown, setActiveDropdown] = useState(null);
   const menuRef = useRef(null);
 
-  // Active Report Tab: 'settlements', 'grn', 'invoice_returns', 'daily_sales', or 'closing_stock'
-  const [activeReportTab, setActiveReportTab] = useState('settlements');
+  // Active Report Tab: 'settlements', 'grn', 'invoice_returns', 'daily_sales', 'closing_stock', or 'alternative_products'
+  const initialTab = searchParams.get('tab') || 'settlements';
+  const [activeReportTab, setActiveReportTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && tabFromUrl !== activeReportTab) {
+      setActiveReportTab(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  const handleTabSwitch = (newTab) => {
+    setActiveReportTab(newTab);
+    setSearchParams({ tab: newTab });
+  };
 
   // Common View Mode: 'paper' (exact PDF replica) or 'modern' (interactive data table)
   const [viewMode, setViewMode] = useState('paper');
@@ -36,6 +52,119 @@ function Reports() {
     suppliers: ['RAZA AUTO TRADERS', 'BAJAJ GENUINE PARTS', 'DPMC LANKA', 'VENDORS AUTO'],
     customers: ['DAILY SALES', 'GUNAWARDANA GARAJ,PANTHIYA', 'ADVANCE BILL', 'KAVEESHA DEWSHAN,AGALAWATTA'],
   });
+
+  // ---------------------------------------------------------------------------
+  // REPORT 6: Alternative Products Report States & Baseline Data
+  // ---------------------------------------------------------------------------
+  const [altLoading, setAltLoading] = useState(false);
+  const [altReportData, setAltReportData] = useState([]);
+  const [altSearch, setAltSearch] = useState('');
+  const [altStatusFilter, setAltStatusFilter] = useState('All');
+  const [altStockFilter, setAltStockFilter] = useState('all');
+  const [altSortBy, setAltSortBy] = useState('default');
+
+  const FALLBACK_ALT_PRODUCTS = [
+    {
+      _id: 'alt-1',
+      mainItemCode: '01100342',
+      description: 'BEARING BALL [6204]',
+      mainItemDescription: 'BEARING BALL [6204]',
+      mainItemStock: 8,
+      mainItemPrice: 850.0,
+      alternativeCount: 2,
+      alternativeItemCodes: ['01100342K', '01100355'],
+      alternativeItems: [
+        {
+          code: '01100342K',
+          description: 'REAR WHEEL BEARING KIT - 3W',
+          category: '3W-BODY',
+          location: 'Main Store',
+          stock: 3,
+          price: 2144.0,
+        },
+        {
+          code: '01100355',
+          description: 'OIL SEAL [ MAGENTO ]',
+          category: '2W-BODY',
+          location: 'Main Store',
+          stock: 1,
+          price: 424.0,
+        },
+      ],
+      status: 'Active',
+      remark: 'Primary Bajaj substitute',
+      updatedAt: '2026-10-09T18:50:00.007Z',
+    },
+    {
+      _id: 'alt-2',
+      mainItemCode: 'SF24170508',
+      description: 'COIL SPRING (DUPLICATE PART)',
+      mainItemDescription: 'COIL SPRING (DUPLICATE PART)',
+      mainItemStock: 0,
+      mainItemPrice: 2405.0,
+      alternativeCount: 1,
+      alternativeItemCodes: ['SF24170508-O'],
+      alternativeItems: [
+        {
+          code: 'SF24170508-O',
+          description: 'GENUINE COIL SPRING BAJAJ OEM',
+          category: 'SUSPENSION',
+          location: 'Rack 4-B',
+          stock: 5,
+          price: 3200.0,
+        },
+      ],
+      status: 'Active',
+      remark: 'OEM replacement in stock',
+      updatedAt: '2026-10-15T12:00:00.000Z',
+    },
+    {
+      _id: 'alt-3',
+      mainItemCode: 'SF36AA4117',
+      description: 'ASSLY CYL. HEAD_VALVE 4S- 175 (DUPLICATE)',
+      mainItemDescription: 'ASSLY CYL. HEAD_VALVE 4S- 175 (DUPLICATE)',
+      mainItemStock: 1,
+      mainItemPrice: 16058.0,
+      alternativeCount: 1,
+      alternativeItemCodes: ['SF36AA4117-OEM'],
+      alternativeItems: [
+        {
+          code: 'SF36AA4117-OEM',
+          description: 'CYLINDER HEAD VALVE 4S 175cc GENUINE',
+          category: 'ENGINE',
+          location: 'Rack 12-A',
+          stock: 2,
+          price: 18500.0,
+        },
+      ],
+      status: 'Active',
+      remark: 'Compatible valve assembly',
+      updatedAt: '2026-10-18T09:30:00.000Z',
+    },
+    {
+      _id: 'alt-4',
+      mainItemCode: 'SFAA101033',
+      description: 'CRANK SHAFT ASSY 4S (DUPLICATE PART)',
+      mainItemDescription: 'CRANK SHAFT ASSY 4S (DUPLICATE PART)',
+      mainItemStock: 0,
+      mainItemPrice: 14587.0,
+      alternativeCount: 1,
+      alternativeItemCodes: ['SFAA101033-G'],
+      alternativeItems: [
+        {
+          code: 'SFAA101033-G',
+          description: 'CRANK SHAFT ASSY 4S HEAVY DUTY STD',
+          category: 'ENGINE',
+          location: 'Rack 15-C',
+          stock: 4,
+          price: 16200.0,
+        },
+      ],
+      status: 'Active',
+      remark: 'Heavy duty alternative',
+      updatedAt: '2026-10-20T14:15:00.000Z',
+    },
+  ];
 
   // ---------------------------------------------------------------------------
   // REPORT 5: Daily Settlements Details (Daily Setelments Deatils - ) States
@@ -143,6 +272,61 @@ function Reports() {
     };
     fetchOptions();
   }, []);
+
+  // Fetch Alternative Products
+  const fetchAlternativeProducts = async () => {
+    try {
+      setAltLoading(true);
+      const res = await api.get('/alternative-products?limit=500');
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setAltReportData(res.data.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load alternative products:', err);
+    } finally {
+      setAltLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeReportTab === 'alternative_products') {
+      fetchAlternativeProducts();
+    }
+  }, [activeReportTab]);
+
+  // Filtered & Sorted Alternative Products
+  const displayAltProducts = useMemo(() => {
+    let list = altReportData && altReportData.length > 0 ? altReportData : FALLBACK_ALT_PRODUCTS;
+    if (altSearch.trim()) {
+      const q = altSearch.toLowerCase().trim();
+      list = list.filter((r) =>
+        (r.mainItemCode || '').toLowerCase().includes(q) ||
+        (r.mainItemDescription || r.description || '').toLowerCase().includes(q) ||
+        (r.alternativeItemCodes || []).some((c) => c.toLowerCase().includes(q)) ||
+        (r.alternativeItems || []).some((ai) => (ai.description || '').toLowerCase().includes(q))
+      );
+    }
+    if (altStatusFilter !== 'All') {
+      list = list.filter((r) => (r.status || 'Active') === altStatusFilter);
+    }
+    if (altStockFilter === 'in_stock') {
+      list = list.filter((r) => (r.alternativeItems || []).some((ai) => Number(ai.stock) > 0));
+    } else if (altStockFilter === 'main_zero') {
+      list = list.filter((r) => Number(r.mainItemStock || 0) === 0 && (r.alternativeItems || []).some((ai) => Number(ai.stock) > 0));
+    }
+    if (altSortBy === 'code_asc') {
+      list = [...list].sort((a, b) => (a.mainItemCode || '').localeCompare(b.mainItemCode || ''));
+    } else if (altSortBy === 'alt_stock_desc') {
+      list = [...list].sort((a, b) => {
+        const stockA = (a.alternativeItems || []).reduce((sum, ai) => sum + (ai.stock || 0), 0);
+        const stockB = (b.alternativeItems || []).reduce((sum, ai) => sum + (ai.stock || 0), 0);
+        return stockB - stockA;
+      });
+    } else if (altSortBy === 'most_alternatives') {
+      list = [...list].sort((a, b) => (b.alternativeItems?.length || 0) - (a.alternativeItems?.length || 0));
+    }
+    return list;
+  }, [altReportData, altSearch, altStatusFilter, altStockFilter, altSortBy]);
 
   // Fetch Daily Settlements Report (Daily Setelments Deatils - )
   const fetchDailySettlements = async () => {
@@ -487,7 +671,44 @@ function Reports() {
 
   // CSV Export
   const handleExportCSV = () => {
-    if (activeReportTab === 'settlements') {
+    if (activeReportTab === 'alternative_products') {
+      if (!displayAltProducts || displayAltProducts.length === 0) return;
+      const headers = ['Main Item Code', 'Main Description', 'Main Stock', 'Alt Item Code', 'Alt Description', 'Alt Stock', 'Alt Price', 'Category', 'Status'];
+      const rows = [];
+      displayAltProducts.forEach((rel) => {
+        if (rel.alternativeItems && rel.alternativeItems.length > 0) {
+          rel.alternativeItems.forEach((alt) => {
+            rows.push([
+              `"${rel.mainItemCode || ''}"`,
+              `"${(rel.mainItemDescription || rel.description || '').replace(/"/g, '""')}"`,
+              Number(rel.mainItemStock || 0),
+              `"${alt.code || ''}"`,
+              `"${(alt.description || '').replace(/"/g, '""')}"`,
+              Number(alt.stock || 0),
+              Number(alt.price || 0).toFixed(2),
+              `"${alt.category || ''}"`,
+              `"${rel.status || 'Active'}"`,
+            ]);
+          });
+        } else {
+          rows.push([
+            `"${rel.mainItemCode || ''}"`,
+            `"${(rel.mainItemDescription || rel.description || '').replace(/"/g, '""')}"`,
+            Number(rel.mainItemStock || 0),
+            '""', '""', 0, 0, '""',
+            `"${rel.status || 'Active'}"`,
+          ]);
+        }
+      });
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Alternative_Products_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (activeReportTab === 'settlements') {
       if (!dsdReportData?.data || dsdReportData.data.length === 0) return;
       const headers = ['In No', 'Job No', 'Date', 'Customer', 'Inv. Value', 'Cash', 'Cheque', 'Discount', 'Balance'];
       const rows = dsdReportData.data.map((item) => [
@@ -656,47 +877,461 @@ function Reports() {
       </div>
 
       {/* =========================================================================
-          REPORT TYPE TABS SELECTOR (All 5 Reports)
+          REPORT TYPE TABS SELECTOR (All 6 Reports)
           ========================================================================= */}
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%', marginTop: '16px' }} className="no-print">
         <div className="reports-type-tabs">
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'settlements' ? 'active' : ''}`}
-            onClick={() => setActiveReportTab('settlements')}
+            onClick={() => handleTabSwitch('settlements')}
           >
             💰 Daily Settlements Details
           </button>
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'grn' ? 'active' : ''}`}
-            onClick={() => setActiveReportTab('grn')}
+            onClick={() => handleTabSwitch('grn')}
           >
             📥 Goods Received Notes (GRN)
           </button>
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'invoice_returns' ? 'active' : ''}`}
-            onClick={() => setActiveReportTab('invoice_returns')}
+            onClick={() => handleTabSwitch('invoice_returns')}
           >
             🔄 Invoice Returns Report
           </button>
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'daily_sales' ? 'active' : ''}`}
-            onClick={() => setActiveReportTab('daily_sales')}
+            onClick={() => handleTabSwitch('daily_sales')}
           >
             📈 Daily Sales Report (Daily Sales &amp; Profit)
           </button>
           <button
             type="button"
             className={`reports-tab-btn ${activeReportTab === 'closing_stock' ? 'active' : ''}`}
-            onClick={() => setActiveReportTab('closing_stock')}
+            onClick={() => handleTabSwitch('closing_stock')}
           >
             📦 Closing Stock Report (170-Page Full Inventory)
           </button>
+          <button
+            type="button"
+            className={`reports-tab-btn ${activeReportTab === 'alternative_products' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('alternative_products')}
+          >
+            🔄 Alternative Products Report
+          </button>
         </div>
       </div>
+
+      {/* =========================================================================
+          REPORT 6: ALTERNATIVE PRODUCTS & COMPATIBILITY REPORT
+          ========================================================================= */}
+      {activeReportTab === 'alternative_products' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Inventory Compatibility &amp; Substitutes</span>
+                <h1 className="reports-main-title">Alternative Products &amp; Substitutes Report</h1>
+                <p className="reports-subtitle">
+                  Catalog of mapped substitute, compatible, and interchangeable replacement parts. Helps sales and store staff immediately identify alternative items when products are low or out of stock.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">MAPPED MAIN ITEMS</span>
+                  <span className="reports-kpi-val highlight">
+                    {displayAltProducts.length} Products
+                  </span>
+                  <span className="reports-kpi-sub">
+                    With registered alternative parts
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL ALTERNATIVES</span>
+                  <span className="reports-kpi-val" style={{ color: '#0284c7' }}>
+                    {displayAltProducts.reduce((sum, r) => sum + (r.alternativeItems?.length || 0), 0)} Linked Parts
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Substitute items mapped
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">IN-STOCK ALTERNATIVES</span>
+                  <span className="reports-kpi-val" style={{ color: '#16a34a' }}>
+                    {displayAltProducts.reduce((sum, r) => sum + (r.alternativeItems?.filter((a) => Number(a.stock) > 0).length || 0), 0)} Available
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Ready for immediate sale
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">MAIN OUT-OF-STOCK</span>
+                  <span className="reports-kpi-val" style={{ color: '#dc2626' }}>
+                    {displayAltProducts.filter((r) => Number(r.mainItemStock || 0) === 0).length} Items
+                  </span>
+                  <span className="reports-kpi-sub">
+                    With in-stock alternatives!
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Preset Filter Buttons */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
+              <button
+                type="button"
+                className={`reports-pill ${altStockFilter === 'all' && altStatusFilter === 'All' && !altSearch ? 'active' : ''}`}
+                onClick={() => {
+                  setAltSearch('');
+                  setAltStatusFilter('All');
+                  setAltStockFilter('all');
+                  setAltSortBy('default');
+                }}
+              >
+                📋 All Alternative Mappings
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${altStockFilter === 'in_stock' ? 'active' : ''}`}
+                onClick={() => setAltStockFilter('in_stock')}
+              >
+                ⚡ In-Stock Alternatives Available
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${altStockFilter === 'main_zero' ? 'active' : ''}`}
+                onClick={() => setAltStockFilter('main_zero')}
+              >
+                ⚠️ Out-of-Stock Main Items (Substitutes Available)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${altSortBy === 'most_alternatives' ? 'active' : ''}`}
+                onClick={() => setAltSortBy('most_alternatives')}
+              >
+                🔗 Multi-Alternative Mappings
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search main item, alternative code, description..."
+                  value={altSearch}
+                  onChange={(e) => setAltSearch(e.target.value)}
+                />
+                {altSearch && (
+                  <button type="button" className="reports-search-clear" onClick={() => setAltSearch('')}>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter */}
+              <select
+                className="reports-filter-select"
+                value={altStatusFilter}
+                onChange={(e) => setAltStatusFilter(e.target.value)}
+                title="Filter by Status"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Active">Active Only</option>
+                <option value="Inactive">Inactive Only</option>
+              </select>
+
+              {/* Stock Filter */}
+              <select
+                className="reports-filter-select"
+                value={altStockFilter}
+                onChange={(e) => setAltStockFilter(e.target.value)}
+                title="Filter by Stock Condition"
+              >
+                <option value="all">All Stock Statuses</option>
+                <option value="in_stock">In-Stock Substitutes</option>
+                <option value="main_zero">Main Item Stock is 0</option>
+              </select>
+
+              {/* Sorting Select */}
+              <select
+                className="reports-filter-select"
+                value={altSortBy}
+                onChange={(e) => setAltSortBy(e.target.value)}
+                title="Sort alternative items"
+              >
+                <option value="default">Sort: Default (Recently Updated)</option>
+                <option value="code_asc">Sort: Main Item Code (A-Z)</option>
+                <option value="alt_stock_desc">Sort: Highest Substitute Stock</option>
+                <option value="most_alternatives">Sort: Most Alternatives Mapped</option>
+              </select>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                style={{ backgroundColor: '#f1f5f9', color: '#0284c7', borderColor: '#bae6fd' }}
+                onClick={() => navigate('/alternative-product')}
+                title="Open Alternative Product Master to link or edit parts"
+              >
+                ⚙️ Master File
+              </button>
+            </div>
+
+            {/* View Mode & Action Buttons */}
+            <div className="reports-view-actions">
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Physical PDF Dot-Matrix Layout"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export alternative products to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Alternative Products Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {altLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Alternative Products mappings...</strong>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* EXACT PHYSICAL PAPER SHEET FOR ALTERNATIVE PRODUCTS */
+              <div className="closing-stock-paper-sheet" id="printable-alt-report">
+                <div className="cs-report-header" style={{ marginBottom: '8px' }}>
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '6px' }}>
+                    <div className="cs-report-title" style={{ margin: 0 }}>
+                      Alternative Products &amp; Substitute Parts Report
+                    </div>
+                    <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
+                      Date: {new Date().toLocaleDateString('en-GB')}
+                    </div>
+                  </div>
+                </div>
+
+                <table className="settlements-table">
+                  <thead>
+                    <tr>
+                      <th className="col-left" style={{ width: '13%' }}>Main Code</th>
+                      <th className="col-left" style={{ width: '28%' }}>Main Item Description</th>
+                      <th className="col-right" style={{ width: '8%' }}>Main Qty</th>
+                      <th className="col-left" style={{ width: '14%' }}>Alternative Code</th>
+                      <th className="col-left" style={{ width: '25%' }}>Alternative Description</th>
+                      <th className="col-right" style={{ width: '7%' }}>Alt Qty</th>
+                      <th className="col-center" style={{ width: '5%' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayAltProducts.length > 0 ? (
+                      displayAltProducts.map((rel, rIdx) => {
+                        const alts = rel.alternativeItems && rel.alternativeItems.length > 0
+                          ? rel.alternativeItems
+                          : [{ code: '-', description: 'No linked alternatives', stock: 0 }];
+
+                        return alts.map((alt, aIdx) => (
+                          <tr key={`${rIdx}-${aIdx}`}>
+                            {aIdx === 0 ? (
+                              <>
+                                <td rowSpan={alts.length} style={{ fontWeight: '800', verticalAlign: 'top', color: '#0284c7' }}>
+                                  {rel.mainItemCode}
+                                </td>
+                                <td rowSpan={alts.length} style={{ fontWeight: '700', verticalAlign: 'top' }}>
+                                  {rel.mainItemDescription || rel.description}
+                                </td>
+                                <td rowSpan={alts.length} style={{ textAlign: 'right', fontWeight: '800', verticalAlign: 'top', color: Number(rel.mainItemStock || 0) === 0 ? '#dc2626' : 'inherit' }}>
+                                  {Number(rel.mainItemStock || 0).toFixed(2)}
+                                </td>
+                              </>
+                            ) : null}
+                            <td style={{ fontWeight: '800', color: '#16a34a' }}>
+                              {alt.code}
+                            </td>
+                            <td style={{ fontWeight: '600' }}>
+                              {alt.description}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: '800', color: Number(alt.stock) > 0 ? '#16a34a' : '#64748b' }}>
+                              {alt.code !== '-' ? Number(alt.stock || 0).toFixed(2) : '-'}
+                            </td>
+                            {aIdx === 0 ? (
+                              <td rowSpan={alts.length} style={{ textAlign: 'center', verticalAlign: 'top' }}>
+                                <span style={{ fontWeight: '800', fontSize: '10px' }}>
+                                  {rel.status || 'Active'}
+                                </span>
+                              </td>
+                            ) : null}
+                          </tr>
+                        ));
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No alternative product mappings found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Footer matching PDF */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
+                  <div className="cs-software-footer">
+                    Software by S.L.M.D.Chinthana-0777722076
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontWeight: '900', fontSize: '11px' }}>
+                    Total: {displayAltProducts.length} Mappings
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* MODERN TABLE VIEW FOR ALTERNATIVE PRODUCTS */
+              <div className="reports-modern-card">
+                <table className="reports-modern-table">
+                  <thead>
+                    <tr>
+                      <th>Main Product</th>
+                      <th style={{ textAlign: 'right' }}>Main Stock</th>
+                      <th>Mapped Alternatives / Substitutes</th>
+                      <th style={{ textAlign: 'center' }}>Total Options</th>
+                      <th style={{ textAlign: 'center' }}>Status</th>
+                      <th style={{ textAlign: 'center' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayAltProducts.map((rel, idx) => (
+                      <tr key={idx}>
+                        <td>
+                          <div>
+                            <strong style={{ fontFamily: 'monospace', color: '#0284c7', fontSize: '13px' }}>
+                              {rel.mainItemCode}
+                            </strong>
+                            <div style={{ fontWeight: '600', fontSize: '13px', marginTop: '2px' }}>
+                              {rel.mainItemDescription || rel.description}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <span className={`stock-badge ${Number(rel.mainItemStock || 0) > 0 ? 'in-stock' : 'out-of-stock'}`}>
+                            {Number(rel.mainItemStock || 0)} Units
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {rel.alternativeItems && rel.alternativeItems.length > 0 ? (
+                              rel.alternativeItems.map((alt, aIdx) => (
+                                <div
+                                  key={aIdx}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    background: '#f8fafc',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #e2e8f0',
+                                    fontSize: '12px',
+                                  }}
+                                >
+                                  <div>
+                                    <strong style={{ fontFamily: 'monospace', color: '#16a34a' }}>{alt.code}</strong>
+                                    <span style={{ color: '#475569', marginLeft: '6px' }}>{alt.description}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{
+                                      fontWeight: '700',
+                                      color: Number(alt.stock) > 0 ? '#16a34a' : '#94a3b8',
+                                      fontSize: '11px',
+                                    }}>
+                                      {Number(alt.stock) > 0 ? `In Stock: ${alt.stock}` : 'Out of Stock'}
+                                    </span>
+                                    {alt.price ? (
+                                      <span style={{ color: '#64748b', fontSize: '11px' }}>
+                                        Rs. {Number(alt.price).toFixed(2)}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No alternative items mapped</span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: '800' }}>
+                          {rel.alternativeItems?.length || 0}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="stock-badge in-stock">{rel.status || 'Active'}</span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="reports-nav-btn"
+                            style={{ padding: '4px 8px', fontSize: '11px' }}
+                            onClick={() => navigate('/alternative-product')}
+                            title="Edit this mapping in Alternative Product Master"
+                          >
+                            Edit Mapping
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* =========================================================================
           REPORT 5: DAILY SETTLEMENTS DETAILS (Daily Setelments Deatils - )

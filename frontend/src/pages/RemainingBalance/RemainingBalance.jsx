@@ -36,7 +36,7 @@ function RemainingBalance() {
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
     { id: 'approvement', label: 'Approvement', hasDropdown: true },
-    { id: 'reports', label: 'Reports', path: '/management' },
+    { id: 'reports', label: 'Reports', path: '/reports' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', hasDropdown: true },
   ];

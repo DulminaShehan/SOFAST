@@ -1176,14 +1176,17 @@
   #printable-grn-report,
   #printable-grn-report *,
   #printable-settlements-report,
-  #printable-settlements-report * {
+  #printable-settlements-report *,
+  #printable-alt-report,
+  #printable-alt-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
   #printable-daily-sales-report,
   #printable-invoice-returns-report,
   #printable-grn-report,
-  #printable-settlements-report {
+  #printable-settlements-report,
+  #printable-alt-report {
     position: absolute;
     left: 0;
     top: 0;

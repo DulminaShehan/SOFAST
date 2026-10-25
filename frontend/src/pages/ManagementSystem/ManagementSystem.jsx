@@ -299,12 +299,118 @@ function ManagementSystem() {
     },
   ];
 
+  const reportsItems = [
+    {
+      id: 'daily-settlements',
+      label: 'Daily Settlements Details',
+      path: '/reports?tab=settlements',
+      iconColor: '#10b981',
+      badgeBg: '#d1fae5',
+      description: 'Daily cash collections, cheque payments and invoice settlement breakdown.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="1" x2="12" y2="23" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      ),
+    },
+    {
+      id: 'grn-report',
+      label: 'Goods Received Notes (GRN)',
+      path: '/reports?tab=grn',
+      iconColor: '#f59e0b',
+      badgeBg: '#fef3c7',
+      description: 'Inventory intake audit, supplier trade discounts and return quantities.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'invoice-returns',
+      label: 'Invoice Returns Report',
+      path: '/reports?tab=invoice_returns',
+      iconColor: '#ea580c',
+      badgeBg: '#ffedd5',
+      description: 'Customer returns audit, refund values and returned stock items.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+          <path d="M3 21v-5h5" />
+        </svg>
+      ),
+    },
+    {
+      id: 'daily-sales',
+      label: 'Daily Sales & Profit Report',
+      path: '/reports?tab=daily_sales',
+      iconColor: '#2563eb',
+      badgeBg: '#dbeafe',
+      description: 'Daily counter sales, purchase costs, gross margins and profit calculations.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+          <polyline points="17 6 23 6 23 12" />
+        </svg>
+      ),
+    },
+    {
+      id: 'closing-stock',
+      label: 'Closing Stock Report (170-Page Inventory)',
+      path: '/reports?tab=closing_stock',
+      iconColor: '#8b5cf6',
+      badgeBg: '#ede9fe',
+      description: 'Complete warehouse inventory audit with bin locations, quantities and valuations.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
+        </svg>
+      ),
+    },
+    {
+      id: 'alternative-products-rep',
+      label: 'Alternative Products Report',
+      path: '/reports?tab=alternative_products',
+      iconColor: '#0284c7',
+      badgeBg: '#e0f2fe',
+      description: 'Mapped substitute and interchangeable products catalog for fast counter lookup.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+      ),
+    },
+    {
+      id: 'all-reports',
+      label: '📊 Open Reports Center',
+      path: '/reports',
+      iconColor: '#0284c7',
+      badgeBg: '#e0f2fe',
+      description: 'Open full comprehensive reporting suite with PDF dot-matrix paper views.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+      ),
+    },
+  ];
+
   const topMenuItems = [
     { id: 'master-files', label: 'Master Files', hasDropdown: true },
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, description: 'Real-time stock tracking, warehouse transfers and inventory balances.' },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true, description: 'Point of sale, customer billing, and service order management.' },
     { id: 'approvement', label: 'Approvement', hasDropdown: true, description: 'Payment vouchers, petty cash claims, and employee leave authorization.' },
-    { id: 'reports', label: 'Reports', description: 'Financial, inventory, sales and audit analytical reporting.' },
+    { id: 'reports', label: 'Reports', hasDropdown: true, path: '/reports', description: 'Financial, inventory, sales, audit and alternative product reporting.' },
     { id: 'accounting', label: 'Accounting', description: 'General ledger, accounts receivable, payable and banking.' },
     { id: 'administration', label: 'Administration', hasDropdown: true, description: 'System configuration, user permissions, printer setup and audit logs.' },
   ];
@@ -332,6 +438,12 @@ function ManagementSystem() {
   const handleTopMenuClick = (item) => {
     if (item.hasDropdown) {
       setIsDropdownOpen((prev) => (prev === item.id ? null : item.id));
+      if (item.id === 'reports') {
+        setSelectedModule('Reports');
+      }
+    } else if (item.path) {
+      setIsDropdownOpen(null);
+      navigate(item.path);
     } else {
       setIsDropdownOpen(null);
       setSelectedModule(item.label);
@@ -339,7 +451,7 @@ function ManagementSystem() {
   };
 
   // Find active module metadata
-  const currentMasterItem = masterFilesItems.find((m) => m.label === selectedModule) || stockControlItems.find((s) => s.label === selectedModule) || salesServiceItems.find((ss) => ss.label === selectedModule) || administrationItems.find((adm) => adm.label === selectedModule);
+  const currentMasterItem = masterFilesItems.find((m) => m.label === selectedModule) || stockControlItems.find((s) => s.label === selectedModule) || salesServiceItems.find((ss) => ss.label === selectedModule) || administrationItems.find((adm) => adm.label === selectedModule) || reportsItems.find((rep) => rep.label === selectedModule);
   const currentTopMenuItem = topMenuItems.find((t) => t.label === selectedModule);
 
   const activeTitle = selectedModule;
@@ -458,6 +570,26 @@ function ManagementSystem() {
                 </ul>
               )}
 
+              {/* Reports Dropdown */}
+              {item.id === 'reports' && isDropdownOpen === 'reports' && (
+                <ul className="masterfiles-dropdown">
+                  {reportsItems.map((repItem) => (
+                    <li key={repItem.id} className="dropdown-entry">
+                      <button
+                        type="button"
+                        className={`dropdown-item-btn ${selectedModule === repItem.label ? 'selected' : ''}`}
+                        onClick={() => handleDropdownSelect(repItem)}
+                      >
+                        <span className="dropdown-item-icon">
+                          {repItem.renderIcon(18)}
+                        </span>
+                        <span>{repItem.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               {/* Administration Dropdown */}
               {item.id === 'administration' && isDropdownOpen === 'administration' && (
                 <ul className="masterfiles-dropdown">
@@ -500,9 +632,98 @@ function ManagementSystem() {
           <h1 className="workspace-title">{activeTitle}</h1>
           <p className="workspace-description">{activeDescription}</p>
 
-          <div className="coming-soon-badge">
-            Coming Soon...
-          </div>
+          {selectedModule === 'Reports' ? (
+            <div className="management-reports-hub" style={{ marginTop: '20px', width: '100%', maxWidth: '840px' }}>
+              <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => navigate('/reports')}
+                  style={{
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '12px 28px',
+                    fontWeight: '700',
+                    fontSize: '15px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    transition: 'transform 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.03)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                >
+                  <span>📊 Open Full Reports Center (All Reports)</span>
+                  <span>&rarr;</span>
+                </button>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '14px',
+                textAlign: 'left'
+              }}>
+                {reportsItems.filter(r => r.id !== 'all-reports').map(r => (
+                  <div
+                    key={r.id}
+                    onClick={() => navigate(r.path)}
+                    style={{
+                      background: '#ffffff',
+                      border: '1.5px solid #e2e8f0',
+                      borderRadius: '10px',
+                      padding: '16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease',
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#0284c7';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 8px 20px rgba(2, 132, 199, 0.16)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.04)';
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <div style={{
+                          background: r.badgeBg,
+                          borderRadius: '8px',
+                          padding: '7px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          {r.renderIcon(20)}
+                        </div>
+                        <strong style={{ fontSize: '13.5px', color: '#0f172a' }}>{r.label}</strong>
+                      </div>
+                      <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px 0', lineHeight: '1.45' }}>
+                        {r.description}
+                      </p>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      Launch Report &rarr;
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="coming-soon-badge">
+              Coming Soon...
+            </div>
+          )}
         </div>
       </main>
 
