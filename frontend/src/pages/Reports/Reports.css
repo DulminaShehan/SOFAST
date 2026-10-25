@@ -1481,6 +1481,126 @@
 }
 
 /* ==========================================================================
+   Report 9: Non Moving Inventory Report (Dead Stock Audit)
+   Matches SOFAST (PVT) LTD 99-page Non Moving Report
+   ========================================================================== */
+.nm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000000;
+  border: 1.5px solid #000000;
+  margin-top: 6px;
+}
+
+.nm-table th,
+.nm-table td {
+  padding: 3px 6px;
+  border: none;
+}
+
+.nm-header-row th {
+  font-weight: 800;
+  font-size: 11.5px;
+  border-bottom: 1.5px solid #000000;
+  border-top: 1.5px solid #000000;
+  text-transform: uppercase;
+  background: #ffffff;
+  color: #000000;
+}
+
+.nm-th-code {
+  width: 18%;
+  text-align: left;
+}
+
+.nm-th-desc {
+  width: 54%;
+  text-align: left;
+}
+
+.nm-th-qty {
+  width: 12%;
+  text-align: right;
+}
+
+.nm-th-val {
+  width: 16%;
+  text-align: right;
+}
+
+.nm-cat-header-row td {
+  padding-top: 8px;
+  padding-bottom: 2px;
+}
+
+.nm-cat-title {
+  font-weight: 900;
+  font-size: 12px;
+  text-decoration: underline;
+  color: #000000;
+}
+
+.nm-item-row:hover td {
+  background: rgba(241, 245, 249, 0.4);
+}
+
+.nm-code-cell {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nm-desc-cell {
+  color: #111827;
+  word-break: break-word;
+}
+
+.nm-qty-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.nm-val-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.nm-subtotal-row td {
+  padding-top: 4px;
+  padding-bottom: 8px;
+}
+
+.nm-subtotal-val {
+  border-top: 1px solid #000000;
+  font-weight: 800;
+  text-align: right;
+}
+
+.nm-grand-total-row td {
+  padding: 8px 6px;
+  border-top: 1.5px solid #000000;
+  border-bottom: 2.5px double #000000;
+  font-weight: 900;
+  font-size: 12px;
+  color: #000000;
+}
+
+.nm-grand-total-label {
+  text-align: left;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.nm-grand-total-val {
+  text-align: right;
+  font-weight: 900;
+  font-size: 12.5px;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -1507,7 +1627,9 @@
   #printable-supplier-purchases-report,
   #printable-supplier-purchases-report *,
   #printable-top-selling-report,
-  #printable-top-selling-report * {
+  #printable-top-selling-report *,
+  #printable-non-moving-report,
+  #printable-non-moving-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
@@ -1517,7 +1639,8 @@
   #printable-settlements-report,
   #printable-alt-report,
   #printable-supplier-purchases-report,
-  #printable-top-selling-report {
+  #printable-top-selling-report,
+  #printable-non-moving-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -1535,7 +1658,8 @@
   .grn-table,
   .settlements-table,
   .sp-table,
-  .ts-table {
+  .ts-table,
+  .nm-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
@@ -1551,13 +1675,16 @@
   .sp-table th,
   .sp-table td,
   .ts-table th,
-  .ts-table td {
+  .ts-table td,
+  .nm-table th,
+  .nm-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,
   .ds-section-header-row,
   .ir-invoice-header-row,
-  .sp-supplier-header-row {
+  .sp-supplier-header-row,
+  .nm-cat-header-row {
     page-break-inside: avoid;
   }
   .cs-grand-total-section {

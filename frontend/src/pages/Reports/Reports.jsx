@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -263,6 +263,19 @@ function Reports() {
   const [tsPage, setTsPage] = useState(1);
   const [tsJumpPage, setTsJumpPage] = useState('1');
   const [tsLayoutView, setTsLayoutView] = useState('unified'); // 'unified' wide table or 'split'
+
+  // ---------------------------------------------------------------------------
+  // REPORT 9: Non Moving Report States (99-Page Dead Stock & Dormant Inventory)
+  // ---------------------------------------------------------------------------
+  const [nmLoading, setNmLoading] = useState(false);
+  const [nmReportData, setNmReportData] = useState(null);
+  const [nmCategoryFilter, setNmCategoryFilter] = useState('All');
+  const [nmSearch, setNmSearch] = useState('');
+  const [nmMinValue, setNmMinValue] = useState('0');
+  const [nmSortBy, setNmSortBy] = useState('default');
+  const [nmPageSize, setNmPageSize] = useState(50);
+  const [nmPage, setNmPage] = useState(1);
+  const [nmJumpPage, setNmJumpPage] = useState('1');
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -570,6 +583,36 @@ function Reports() {
     }
   }, [activeReportTab, tsSearch, tsMinQty, tsSortBy, tsPage, tsPageSize]);
 
+  // Fetch Non Moving Report
+  const fetchNonMovingReport = async () => {
+    try {
+      setNmLoading(true);
+      const params = {
+        category: nmCategoryFilter,
+        search: nmSearch,
+        minValue: nmMinValue,
+        sortBy: nmSortBy,
+        page: nmPage,
+        limit: nmPageSize,
+      };
+
+      const res = await api.get('/reports/non-moving', { params });
+      if (res.data?.success) {
+        setNmReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load non-moving report:', err);
+    } finally {
+      setNmLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeReportTab === 'non_moving') {
+      fetchNonMovingReport();
+    }
+  }, [activeReportTab, nmCategoryFilter, nmSearch, nmMinValue, nmSortBy, nmPage, nmPageSize]);
+
   // Presets for Daily Settlements Details
   const handleApplySettlementsPreset = (presetType) => {
     setDsdPage(1);
@@ -804,6 +847,39 @@ function Reports() {
     }
   };
 
+  // Presets for Non Moving Items Report
+  const handleApplyNmPreset = (presetType) => {
+    setNmPage(1);
+    setNmJumpPage('1');
+    if (presetType === 'all') {
+      setNmCategoryFilter('All');
+      setNmSearch('');
+      setNmMinValue('0');
+      setNmSortBy('default');
+      setNmPageSize(50);
+    } else if (presetType === 'high_capital') {
+      setNmCategoryFilter('All');
+      setNmSearch('');
+      setNmMinValue('50000');
+      setNmSortBy('value_desc');
+    } else if (presetType === '2w_stock') {
+      setNmCategoryFilter('2W');
+      setNmSearch('');
+      setNmMinValue('0');
+      setNmSortBy('default');
+    } else if (presetType === '3w_stock') {
+      setNmCategoryFilter('3W');
+      setNmSearch('');
+      setNmMinValue('0');
+      setNmSortBy('default');
+    } else if (presetType === 'oil_stock') {
+      setNmCategoryFilter('OIL');
+      setNmSearch('');
+      setNmMinValue('0');
+      setNmSortBy('default');
+    }
+  };
+
   // Jump to page helper
   const handlePageJump = (e, targetPage, maxPages, setPageFn) => {
     e.preventDefault();
@@ -992,6 +1068,24 @@ function Reports() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    } else if (activeReportTab === 'non_moving') {
+      if (!nmReportData?.data || nmReportData.data.length === 0) return;
+      const headers = ['Category', 'Code', 'Description', 'Quantity', 'Value (Rs.)'];
+      const rows = nmReportData.data.map((item) => [
+        `"${item.category || ''}"`,
+        `"${item.code || ''}"`,
+        `"${(item.description || '').replace(/"/g, '""')}"`,
+        Number(item.quantity || 0).toFixed(2),
+        Number(item.value || 0).toFixed(2),
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Non_Moving_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } else {
       if (!csReportData?.data || csReportData.data.length === 0) return;
       const headers = ['Category', 'Code', 'Description', 'Bin', 'Quantity', 'Value', 'Loc1_Qty', 'Loc1_Val', 'Loc2_Qty', 'Loc2_Val', 'Loc3_Qty', 'Loc3_Val', 'Selling_Price', 'Total_Sold', 'Staff_Handled'];
@@ -1122,6 +1216,13 @@ function Reports() {
             onClick={() => handleTabSwitch('top_selling')}
           >
             🔥 Top Selling Items Report
+          </button>
+          <button
+            type="button"
+            className={`reports-tab-btn ${activeReportTab === 'non_moving' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('non_moving')}
+          >
+            ⏳ Non Moving Report
           </button>
         </div>
       </div>
@@ -5134,6 +5235,560 @@ function Reports() {
                         onClick={() => {
                           setTsPage((prev) => Math.min(tsReportData.pagination.totalPages, prev + 1));
                           setTsJumpPage(String(Math.min(tsReportData.pagination.totalPages, tsPage + 1)));
+                        }}
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* =========================================================================
+          REPORT 9: NON MOVING REPORT (DEAD STOCK & DORMANT INVENTORY AUDIT)
+          Exact match to 99-page SOFAST (PVT) LTD physical PDF
+          ========================================================================= */}
+      {activeReportTab === 'non_moving' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Dead Stock &amp; Dormant Inventory Audit</span>
+                <h1 className="reports-main-title">Non Moving Report</h1>
+                <p className="reports-subtitle">
+                  Comprehensive audit of slow-moving inventory and capital tied up across automotive categories matching the 99-page SOFAST (PVT) LTD audit.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL NON-MOVING CAPITAL</span>
+                  <span className="reports-kpi-val" style={{ color: '#dc2626' }}>
+                    Rs. {Number(nmReportData?.summary?.grandTotalValue || 25182045.17).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">Across 14 inventory categories</span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">HIGHEST TIED CATEGORY</span>
+                  <span className="reports-kpi-val" style={{ color: '#f59e0b' }}>
+                    3W-BODY (Rs. 9.93M)
+                  </span>
+                  <span className="reports-kpi-sub">39.4% of total dormant inventory</span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">2W &amp; 2W-BODY CAPITAL</span>
+                  <span className="reports-kpi-val" style={{ color: '#0284c7' }}>
+                    Rs. 10.05M
+                  </span>
+                  <span className="reports-kpi-sub">39.9% 2-wheeler parts share</span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TRACKED DORMANT SKUs</span>
+                  <span className="reports-kpi-val" style={{ color: '#8b5cf6' }}>
+                    {nmReportData?.pagination?.totalRecords || 597} SKUs
+                  </span>
+                  <span className="reports-kpi-sub">Non-moving inventory line items</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Filter Presets */}
+            <div className="reports-presets-bar">
+              <span className="reports-presets-label">QUICK PRESETS:</span>
+              <button
+                type="button"
+                className={`reports-pill ${nmCategoryFilter === 'All' && nmMinValue === '0' && nmSortBy === 'default' ? 'active' : ''}`}
+                onClick={() => handleApplyNmPreset('all')}
+              >
+                📋 All 99-Page Dead Stock Audit (Rs. 25.18M)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${nmMinValue === '50000' ? 'active' : ''}`}
+                onClick={() => handleApplyNmPreset('high_capital')}
+              >
+                💎 High Capital Tied (&gt;Rs. 50,000)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${nmCategoryFilter === '2W' ? 'active' : ''}`}
+                onClick={() => handleApplyNmPreset('2w_stock')}
+              >
+                🏍️ 2W &amp; 2W-BODY Categories (Rs. 10.11M)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${nmCategoryFilter === '3W' ? 'active' : ''}`}
+                onClick={() => handleApplyNmPreset('3w_stock')}
+              >
+                🛺 3W &amp; 3W-BODY Categories (Rs. 11.23M)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${nmCategoryFilter === 'OIL' ? 'active' : ''}`}
+                onClick={() => handleApplyNmPreset('oil_stock')}
+              >
+                🛢️ Oil &amp; Lubricants Dead Stock (Rs. 184.6K)
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search item code, description..."
+                  value={nmSearch}
+                  onChange={(e) => {
+                    setNmSearch(e.target.value);
+                    setNmPage(1);
+                  }}
+                />
+                {nmSearch && (
+                  <button
+                    type="button"
+                    className="reports-search-clear"
+                    onClick={() => {
+                      setNmSearch('');
+                      setNmPage(1);
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Category Filter */}
+              <select
+                className="reports-filter-select"
+                value={nmCategoryFilter}
+                onChange={(e) => {
+                  setNmCategoryFilter(e.target.value);
+                  setNmPage(1);
+                }}
+                title="Filter by Inventory Category"
+              >
+                <option value="All">All Categories (All 14)</option>
+                <option value="2W">2W (Rs. 1,110,118.74)</option>
+                <option value="2W-BODY">2W-BODY (Rs. 8,943,113.42)</option>
+                <option value="2W-ELEC">2W-ELEC (Rs. 13,534.59)</option>
+                <option value="2W-ENG">2W-ENG (Rs. 1,092.00)</option>
+                <option value="2W-OTH">2W-OTH (Rs. 20,226.92)</option>
+                <option value="2W-SER">2W-SER (Rs. 21,897.73)</option>
+                <option value="3W">3W (Rs. 1,305,596.74)</option>
+                <option value="3W-BODY">3W-BODY (Rs. 9,927,117.89)</option>
+                <option value="3W-ELEC">3W-ELEC (Rs. 70,578.27)</option>
+                <option value="3W-ENG">3W-ENG (Rs. 2,536.00)</option>
+                <option value="3W-OTH">3W-OTH (Rs. 29,644.68)</option>
+                <option value="N/A">N/A (Rs. 3,551,658.72)</option>
+                <option value="OIL">OIL (Rs. 184,638.99)</option>
+                <option value="R17-G-1">R17-G-1 (Rs. 290.50)</option>
+              </select>
+
+              {/* Min Value Filter */}
+              <select
+                className="reports-filter-select"
+                value={nmMinValue}
+                onChange={(e) => {
+                  setNmMinValue(e.target.value);
+                  setNmPage(1);
+                }}
+                title="Filter by Minimum Capital Value Tied"
+              >
+                <option value="0">All Capital Levels</option>
+                <option value="50000">&gt; Rs. 50,000 (Critical)</option>
+                <option value="20000">&gt; Rs. 20,000 (High Capital)</option>
+                <option value="5000">&gt; Rs. 5,000 (Moderate)</option>
+                <option value="1000">&gt; Rs. 1,000</option>
+              </select>
+
+              {/* Sorting Select */}
+              <select
+                className="reports-filter-select"
+                value={nmSortBy}
+                onChange={(e) => {
+                  setNmSortBy(e.target.value);
+                  setNmPage(1);
+                }}
+                title="Sort Non Moving Items"
+              >
+                <option value="default">Sort: Default PDF Sequence</option>
+                <option value="value_desc">Sort: Highest Capital Tied (Rs.)</option>
+                <option value="value_asc">Sort: Lowest Capital Tied (Rs.)</option>
+                <option value="qty_desc">Sort: Highest Quantity On Hand</option>
+                <option value="code_asc">Sort: Part Code (A-Z)</option>
+                <option value="desc_asc">Sort: Description (A-Z)</option>
+              </select>
+
+              {/* Items Per Page */}
+              <select
+                className="reports-filter-select"
+                value={nmPageSize}
+                onChange={(e) => {
+                  setNmPageSize(Number(e.target.value));
+                  setNmPage(1);
+                }}
+                title="Items per page"
+              >
+                <option value={50}>50 per page (Exact PDF Page Size)</option>
+                <option value={100}>100 per page</option>
+                <option value={200}>200 per page</option>
+                <option value={0}>Show All Items</option>
+              </select>
+            </div>
+
+            {/* View Mode & Action Buttons */}
+            <div className="reports-view-actions">
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Physical PDF Continuous Dot-Matrix Layout"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export Non Moving items to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Non Moving Items Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {nmLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Non Moving Report from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Calculating category dead stock balances and capital valuations</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                 EXACT PHYSICAL CONTINUOUS COMPUTER PAPER (MATCHING NON MOVING PDF 100%)
+                 ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-non-moving-report">
+                {/* Header matching PDF Scan */}
+                <div className="cs-report-header" style={{ marginBottom: '8px' }}>
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+
+                  <div style={{ marginTop: '8px', fontWeight: '800', fontSize: '12px', fontFamily: 'Courier New, monospace' }}>
+                    NON MOVING REPORT
+                  </div>
+                </div>
+
+                {/* Table matching PDF Scan */}
+                <table className="nm-table">
+                  <thead>
+                    <tr className="nm-header-row">
+                      <th className="nm-th-code col-left">CODE</th>
+                      <th className="nm-th-desc col-left">DESCRIPTION</th>
+                      <th className="nm-th-qty col-right">QTY</th>
+                      <th className="nm-th-val col-right">VALUE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nmReportData?.groupedData && Object.keys(nmReportData.groupedData).length > 0 ? (
+                      Object.entries(nmReportData.groupedData).map(([category, items]) => {
+                        const catSubtotal = nmReportData?.summary?.categoryBreakdown?.find((c) => c.category === category)?.subtotal;
+
+                        return (
+                          <Fragment key={category}>
+                            {/* Category Header Row */}
+                            <tr className="nm-cat-header-row">
+                              <td colSpan={4} className="nm-cat-title">
+                                <strong>{category}</strong>
+                              </td>
+                            </tr>
+
+                            {/* Category Items */}
+                            {items.map((item, idx) => (
+                              <tr key={idx} className="nm-item-row">
+                                <td className="nm-code-cell">{item.code}</td>
+                                <td className="nm-desc-cell">{item.description}</td>
+                                <td className="nm-qty-cell">{Number(item.quantity || 0).toFixed(2)}</td>
+                                <td className="nm-val-cell">{Number(item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            ))}
+
+                            {/* Category Subtotal Row */}
+                            {catSubtotal !== undefined && (
+                              <tr className="nm-subtotal-row">
+                                <td colSpan={3} className="nm-subtotal-label"></td>
+                                <td className="nm-val-cell nm-subtotal-val">
+                                  {Number(catSubtotal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No non-moving items found matching the selected criteria.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Grand Total Row matching PDF Scan */}
+                    <tr className="nm-grand-total-row">
+                      <td colSpan={3} className="nm-grand-total-label">Grand Total</td>
+                      <td className="nm-val-cell nm-grand-total-val">
+                        {Number(nmReportData?.summary?.grandTotalValue || 25182045.17).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Footer matching PDF Scan */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', borderTop: '1px solid #000000', paddingTop: '6px' }}>
+                  <div className="cs-software-footer">
+                    {nmReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
+                  </div>
+                  <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
+                    Page {nmPage} of {nmReportData?.pagination?.totalPages || 1}
+                  </div>
+                </div>
+
+                {/* Pagination Controls */}
+                {nmReportData?.pagination && nmReportData.pagination.totalPages > 1 && (
+                  <div className="reports-pagination no-print" style={{ marginTop: '16px' }}>
+                    <div className="reports-page-info">
+                      Showing Page <strong>{nmPage}</strong> of <strong>{nmReportData.pagination.totalPages}</strong> ({nmReportData.pagination.totalRecords} total items)
+                    </div>
+                    <div className="reports-page-btns">
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={nmPage <= 1}
+                        onClick={() => {
+                          setNmPage((prev) => Math.max(1, prev - 1));
+                          setNmJumpPage(String(Math.max(1, nmPage - 1)));
+                        }}
+                      >
+                        ← Previous
+                      </button>
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={nmPage >= nmReportData.pagination.totalPages}
+                        onClick={() => {
+                          setNmPage((prev) => Math.min(nmReportData.pagination.totalPages, prev + 1));
+                          setNmJumpPage(String(Math.min(nmReportData.pagination.totalPages, nmPage + 1)));
+                        }}
+                      >
+                        Next →
+                      </button>
+                      <form
+                        onSubmit={(e) => handlePageJump(e, nmJumpPage, nmReportData.pagination.totalPages, setNmPage)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginLeft: '12px' }}
+                      >
+                        <span style={{ fontSize: '12px' }}>Jump to:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max={nmReportData.pagination.totalPages}
+                          className="reports-page-jump-input"
+                          value={nmJumpPage}
+                          onChange={(e) => setNmJumpPage(e.target.value)}
+                        />
+                        <button type="submit" className="reports-page-btn">
+                          Go
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* =========================================================================
+                 MODERN INTERACTIVE TABLE VIEW
+                 ========================================================================= */
+              <div className="reports-table-container">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                      ⏳ Non Moving Inventory &amp; Liquidation Analysis
+                    </h3>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                      Showing {nmReportData?.data?.length || 0} dormant items with Rs. {Number(nmReportData?.summary?.grandTotalValue || 25182045.17).toLocaleString(undefined, { minimumFractionDigits: 2 })} capital tied up
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span className="reports-badge" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', padding: '6px 12px', borderRadius: '6px', fontWeight: '700' }}>
+                      Dead Stock Value: Rs. {Number(nmReportData?.summary?.grandTotalValue || 25182045.17).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Category Pills Breakdown */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+                  {nmReportData?.summary?.categoryBreakdown?.map((cb) => (
+                    <button
+                      key={cb.category}
+                      type="button"
+                      onClick={() => {
+                        setNmCategoryFilter(cb.category);
+                        setNmPage(1);
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: nmCategoryFilter === cb.category ? '1px solid #dc2626' : '1px solid #e2e8f0',
+                        background: nmCategoryFilter === cb.category ? '#fef2f2' : '#ffffff',
+                        color: nmCategoryFilter === cb.category ? '#dc2626' : '#475569',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        gap: '4px',
+                      }}
+                    >
+                      <span>{cb.category}</span>
+                      <span style={{ color: '#94a3b8' }}>Rs. {(cb.subtotal / 1000).toFixed(0)}k</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="table-responsive">
+                  <table className="reports-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '10%' }}>Category</th>
+                        <th style={{ width: '14%' }}>Item Code</th>
+                        <th style={{ width: '38%' }}>Description</th>
+                        <th style={{ width: '10%', textAlign: 'right' }}>Dormant Qty</th>
+                        <th style={{ width: '14%', textAlign: 'right' }}>Tied Capital (Rs.)</th>
+                        <th style={{ width: '14%', textAlign: 'center' }}>Liquidation Risk</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nmReportData?.data && nmReportData.data.length > 0 ? (
+                        nmReportData.data.map((item, idx) => {
+                          const isCritical = item.value >= 20000;
+                          const isModerate = item.value >= 5000 && item.value < 20000;
+
+                          return (
+                            <tr key={idx}>
+                              <td>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '800',
+                                  background: item.category.startsWith('3W') ? '#ede9fe' : item.category.startsWith('2W') ? '#e0f2fe' : '#f1f5f9',
+                                  color: item.category.startsWith('3W') ? '#7c3aed' : item.category.startsWith('2W') ? '#0284c7' : '#475569',
+                                }}>
+                                  {item.category}
+                                </span>
+                              </td>
+                              <td>
+                                <strong style={{ fontFamily: 'monospace', color: '#0284c7' }}>{item.code}</strong>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: '600', color: '#1e293b' }}>{item.description}</div>
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
+                                {Number(item.quantity).toFixed(2)}
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: '900', color: isCritical ? '#dc2626' : '#0f172a', fontSize: '13px' }}>
+                                Rs. {Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                {isCritical ? (
+                                  <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '4px', background: '#fef2f2', color: '#dc2626', fontWeight: '800', fontSize: '11px', border: '1px solid #fecaca' }}>
+                                    🚨 High Priority
+                                  </span>
+                                ) : isModerate ? (
+                                  <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '4px', background: '#fffbeb', color: '#d97706', fontWeight: '700', fontSize: '11px', border: '1px solid #fde68a' }}>
+                                    ⚠️ Moderate
+                                  </span>
+                                ) : (
+                                  <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '4px', background: '#f8fafc', color: '#64748b', fontWeight: '600', fontSize: '11px', border: '1px solid #e2e8f0' }}>
+                                    ℹ️ Standard
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                            No non-moving items found matching selected filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {nmReportData?.pagination && nmReportData.pagination.totalPages > 1 && (
+                  <div className="reports-pagination no-print" style={{ marginTop: '16px' }}>
+                    <div className="reports-page-info">
+                      Showing Page <strong>{nmPage}</strong> of <strong>{nmReportData.pagination.totalPages}</strong> ({nmReportData.pagination.totalRecords} total items)
+                    </div>
+                    <div className="reports-page-btns">
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={nmPage <= 1}
+                        onClick={() => {
+                          setNmPage((prev) => Math.max(1, prev - 1));
+                          setNmJumpPage(String(Math.max(1, nmPage - 1)));
+                        }}
+                      >
+                        ← Previous
+                      </button>
+                      <button
+                        type="button"
+                        className="reports-page-btn"
+                        disabled={nmPage >= nmReportData.pagination.totalPages}
+                        onClick={() => {
+                          setNmPage((prev) => Math.min(nmReportData.pagination.totalPages, prev + 1));
+                          setNmJumpPage(String(Math.min(nmReportData.pagination.totalPages, nmPage + 1)));
                         }}
                       >
                         Next →

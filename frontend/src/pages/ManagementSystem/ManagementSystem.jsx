@@ -418,6 +418,20 @@ function ManagementSystem() {
       ),
     },
     {
+      id: 'non-moving-rep',
+      label: 'Non Moving Inventory Report',
+      path: '/reports?tab=non_moving',
+      iconColor: '#e11d48',
+      badgeBg: '#ffe4e6',
+      description: 'Dead stock audit, dormant capital valuation and slow-moving spare parts analysis across 14 categories.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      ),
+    },
+    {
       id: 'all-reports',
       label: '📊 Open Reports Center',
       path: '/reports',
