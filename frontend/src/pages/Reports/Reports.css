@@ -1250,6 +1250,135 @@
 }
 
 /* ==========================================================================
+   REPORT 7: SUPPLIER WISE PURCHASES (Exact PDF continuous paper printout)
+   ========================================================================== */
+.sp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #000000;
+  margin-top: 4px;
+}
+
+.sp-table thead {
+  border-top: 1px dotted #000000;
+  border-bottom: 1px dotted #000000;
+}
+
+.sp-table th {
+  padding: 4px 6px;
+  font-weight: 800;
+  color: #000000;
+  background-color: transparent;
+  white-space: nowrap;
+}
+
+.sp-table th.col-left { text-align: left; }
+.sp-table th.col-center { text-align: center; }
+.sp-table th.col-right { text-align: right; }
+
+.sp-th-grn { width: 10%; text-align: left; }
+.sp-th-date { width: 12%; text-align: center; }
+.sp-th-invoice { width: 28%; text-align: left; }
+.sp-th-val { width: 13%; text-align: right; }
+.sp-th-ret { width: 12%; text-align: right; }
+.sp-th-tot { width: 13%; text-align: right; }
+.sp-th-disc { width: 12%; text-align: right; }
+
+.sp-supplier-header-row td {
+  padding: 6px 4px 2px 4px;
+  font-weight: 800;
+  color: #000000;
+  border-top: 1px dotted #cbd5e1;
+}
+
+.sp-supplier-header-row:first-child td {
+  border-top: none;
+}
+
+.sp-code-cell {
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.sp-name-cell {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.sp-item-row td {
+  padding: 2.5px 6px;
+  color: #000000;
+  vertical-align: middle;
+}
+
+.sp-grn-cell {
+  padding-left: 18px !important;
+  white-space: nowrap;
+}
+
+.sp-date-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sp-invoice-cell {
+  white-space: nowrap;
+}
+
+.sp-val-cell,
+.sp-ret-cell,
+.sp-tot-cell,
+.sp-disc-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sp-subtotal-row td {
+  padding: 4px 6px;
+  border-top: 1px dotted #000000;
+  font-weight: 800;
+  color: #000000;
+}
+
+.sp-subtotal-label {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.sp-subtotal-val,
+.sp-subtotal-ret,
+.sp-subtotal-tot,
+.sp-subtotal-disc {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sp-grand-total-row td {
+  padding: 6px 6px;
+  border-top: 1px solid #000000;
+  border-bottom: 2.5px double #000000;
+  font-weight: 900;
+  font-size: 11.5px;
+  color: #000000;
+}
+
+.sp-grand-total-label {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.sp-grand-total-val,
+.sp-grand-total-ret,
+.sp-grand-total-tot,
+.sp-grand-total-disc {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -1272,7 +1401,9 @@
   #printable-settlements-report,
   #printable-settlements-report *,
   #printable-alt-report,
-  #printable-alt-report * {
+  #printable-alt-report *,
+  #printable-supplier-purchases-report,
+  #printable-supplier-purchases-report * {
     visibility: visible;
   }
   #printable-closing-stock-report,
@@ -1280,7 +1411,8 @@
   #printable-invoice-returns-report,
   #printable-grn-report,
   #printable-settlements-report,
-  #printable-alt-report {
+  #printable-alt-report,
+  #printable-supplier-purchases-report {
     position: absolute;
     left: 0;
     top: 0;
@@ -1296,7 +1428,8 @@
   .ds-table,
   .ir-table,
   .grn-table,
-  .settlements-table {
+  .settlements-table,
+  .sp-table {
     font-size: 9.5px !important;
   }
   .cs-table th,
@@ -1308,12 +1441,15 @@
   .grn-table th,
   .grn-table td,
   .settlements-table th,
-  .settlements-table td {
+  .settlements-table td,
+  .sp-table th,
+  .sp-table td {
     padding: 2px 4px !important;
   }
   .cs-category-row,
   .ds-section-header-row,
-  .ir-invoice-header-row {
+  .ir-invoice-header-row,
+  .sp-supplier-header-row {
     page-break-inside: avoid;
   }
   .cs-grand-total-section {

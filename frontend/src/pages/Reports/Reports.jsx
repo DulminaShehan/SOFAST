@@ -239,6 +239,18 @@ function Reports() {
   const [csPage, setCsPage] = useState(1);
   const [csJumpPage, setCsJumpPage] = useState('1');
 
+  // ---------------------------------------------------------------------------
+  // REPORT 7: Supplier Wise Purchases States
+  // ---------------------------------------------------------------------------
+  const [spLoading, setSpLoading] = useState(false);
+  const [spReportData, setSpReportData] = useState(null);
+  const [spStartDate, setSpStartDate] = useState('2026-08-02');
+  const [spEndDate, setSpEndDate] = useState('2026-08-07');
+  const [spSelectedSupplier, setSpSelectedSupplier] = useState('All');
+  const [spSearch, setSpSearch] = useState('');
+  const [spHasReturns, setSpHasReturns] = useState('all');
+  const [spSortBy, setSpSortBy] = useState('default');
+
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -486,6 +498,36 @@ function Reports() {
     }
   }, [activeReportTab, csSearch, csSelectedCategory, csSelectedStaff, csStockStatus, csSelectedBin, csSortBy, csPage, csPageSize]);
 
+  // Fetch Supplier Wise Purchases Report
+  const fetchSupplierPurchases = async () => {
+    try {
+      setSpLoading(true);
+      const params = {
+        startDate: spStartDate,
+        endDate: spEndDate,
+        supplier: spSelectedSupplier,
+        search: spSearch,
+        hasReturns: spHasReturns,
+        sortBy: spSortBy,
+      };
+
+      const res = await api.get('/reports/supplier-purchases', { params });
+      if (res.data?.success) {
+        setSpReportData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load supplier purchases report:', err);
+    } finally {
+      setSpLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeReportTab === 'supplier_purchases') {
+      fetchSupplierPurchases();
+    }
+  }, [activeReportTab, spStartDate, spEndDate, spSelectedSupplier, spSearch, spHasReturns, spSortBy]);
+
   // Presets for Daily Settlements Details
   const handleApplySettlementsPreset = (presetType) => {
     setDsdPage(1);
@@ -659,6 +701,35 @@ function Reports() {
     }
   };
 
+  // Presets for Supplier Wise Purchases
+  const handleApplySpPreset = (presetType) => {
+    if (presetType === 'audit') {
+      setSpStartDate('2026-08-02');
+      setSpEndDate('2026-08-07');
+      setSpSelectedSupplier('All');
+      setSpSearch('');
+      setSpHasReturns('all');
+      setSpSortBy('default');
+    } else if (presetType === 'highest_volume') {
+      setSpSelectedSupplier('DAVID PIERIS MOTOR CO.PVT.LTD');
+      setSpSearch('');
+      setSpHasReturns('all');
+      setSpSortBy('default');
+    } else if (presetType === 'with_returns') {
+      setSpHasReturns('with_returns');
+      setSpSelectedSupplier('All');
+      setSpSortBy('return_desc');
+    } else if (presetType === 'top_discounts') {
+      setSpSortBy('discount_desc');
+      setSpSelectedSupplier('All');
+    } else if (presetType === 'internal_wh') {
+      setSpSelectedSupplier('CENTRAL WARE HOUSE');
+      setSpSearch('');
+      setSpHasReturns('all');
+      setSpSortBy('default');
+    }
+  };
+
   // Jump to page helper
   const handlePageJump = (e, targetPage, maxPages, setPageFn) => {
     e.preventDefault();
@@ -799,6 +870,28 @@ function Reports() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    } else if (activeReportTab === 'supplier_purchases') {
+      if (!spReportData?.data || spReportData.data.length === 0) return;
+      const headers = ['Supplier Code', 'Supplier Name', 'GRN No', 'Date', 'Invoice No', 'Value', 'Return', 'Total Value', 'Discount'];
+      const rows = spReportData.data.map((item) => [
+        `"${item.supplierCode || ''}"`,
+        `"${(item.supplierName || '').replace(/"/g, '""')}"`,
+        `"${item.grnNo || ''}"`,
+        `"${item.date || ''}"`,
+        `"${item.invoice || ''}"`,
+        Number(item.value || 0).toFixed(2),
+        Number(item.returnVal || 0).toFixed(2),
+        Number(item.totalValue || 0).toFixed(2),
+        Number(item.discount || 0).toFixed(2),
+      ]);
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Supplier_Purchases_${spStartDate}_to_${spEndDate}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } else {
       if (!csReportData?.data || csReportData.data.length === 0) return;
       const headers = ['Category', 'Code', 'Description', 'Bin', 'Quantity', 'Value', 'Loc1_Qty', 'Loc1_Val', 'Loc2_Qty', 'Loc2_Val', 'Loc3_Qty', 'Loc3_Val', 'Selling_Price', 'Total_Sold', 'Staff_Handled'];
@@ -915,6 +1008,13 @@ function Reports() {
             onClick={() => handleTabSwitch('alternative_products')}
           >
             🔄 Alternative Products Report
+          </button>
+          <button
+            type="button"
+            className={`reports-tab-btn ${activeReportTab === 'supplier_purchases' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('supplier_purchases')}
+          >
+            🚚 Supplier Wise Purchases
           </button>
         </div>
       </div>
@@ -3909,6 +4009,502 @@ function Reports() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+      {/* =========================================================================
+          REPORT 7: SUPPLIER WISE PURCHASES REPORT
+          ========================================================================= */}
+      {activeReportTab === 'supplier_purchases' && (
+        <>
+          {/* Header Dashboard Cards */}
+          <div className="reports-header-section no-print">
+            <div className="reports-header-content">
+              <div className="reports-title-area">
+                <span className="reports-eyebrow">Supplier Consignments &amp; Procurement Audit</span>
+                <h1 className="reports-main-title">Supplier Wise Purchases</h1>
+                <p className="reports-subtitle">
+                  Consolidated supplier purchase invoice intake, return debits, net payable valuations, and volume discounts.
+                </p>
+              </div>
+
+              {/* KPI Cards */}
+              <div className="reports-kpi-grid">
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TOTAL PURCHASES VALUE</span>
+                  <span className="reports-kpi-val highlight">
+                    Rs. {Number(spReportData?.summary?.grandTotalValue || 1476559.13).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Across {spReportData?.summary?.totalGrns || 21} GRNs received
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">NET PURCHASE INTAKE</span>
+                  <span className="reports-kpi-val" style={{ color: '#16a34a' }}>
+                    Rs. {Number(spReportData?.summary?.grandTotalNetValue || 1453899.13).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Net after return deductions
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">TRADE DISCOUNTS GAINED</span>
+                  <span className="reports-kpi-val" style={{ color: '#0284c7' }}>
+                    Rs. {Number(spReportData?.summary?.grandTotalDiscount || 260571.84).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Avg {(Number(spReportData?.summary?.grandTotalDiscount || 260571.84) / Number(spReportData?.summary?.grandTotalValue || 1476559.13) * 100).toFixed(1)}% trade discount savings
+                  </span>
+                </div>
+
+                <div className="reports-kpi-card">
+                  <span className="reports-kpi-label">RETURN DEDUCTIONS</span>
+                  <span className="reports-kpi-val" style={{ color: '#dc2626' }}>
+                    Rs. {Number(spReportData?.summary?.grandTotalReturn || 22660).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className="reports-kpi-sub">
+                    Reversed defective goods debited
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Presets Filter Pills */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
+              <button
+                type="button"
+                className={`reports-pill ${spSelectedSupplier === 'All' && spHasReturns === 'all' && !spSearch && spSortBy === 'default' ? 'active' : ''}`}
+                onClick={() => handleApplySpPreset('audit')}
+              >
+                📋 All Suppliers Audit (02/08 - 07/08)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${spSelectedSupplier === 'DAVID PIERIS MOTOR CO.PVT.LTD' ? 'active' : ''}`}
+                onClick={() => handleApplySpPreset('highest_volume')}
+              >
+                🏆 Highest Volume (David Pieris Motor Co.)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${spHasReturns === 'with_returns' ? 'active' : ''}`}
+                onClick={() => handleApplySpPreset('with_returns')}
+              >
+                ⚠️ Suppliers with Returns (Raza Auto Traders)
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${spSortBy === 'discount_desc' ? 'active' : ''}`}
+                onClick={() => handleApplySpPreset('top_discounts')}
+              >
+                💰 Top Discounts Gained
+              </button>
+              <button
+                type="button"
+                className={`reports-pill ${spSelectedSupplier === 'CENTRAL WARE HOUSE' ? 'active' : ''}`}
+                onClick={() => handleApplySpPreset('internal_wh')}
+              >
+                🏬 Internal Warehouse Consignments
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Filter Controls Bar */}
+          <div className="reports-filter-bar no-print">
+            <div className="reports-filter-controls">
+              {/* Date Filters */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>From:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={spStartDate}
+                  onChange={(e) => setSpStartDate(e.target.value)}
+                  title="Filter Purchases from date"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569' }}>To:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={spEndDate}
+                  onChange={(e) => setSpEndDate(e.target.value)}
+                  title="Filter Purchases to date"
+                />
+              </div>
+
+              {/* Search Box */}
+              <div className="reports-search-box">
+                <span className="reports-search-icon">🔍</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  placeholder="Search GRN, Invoice, Supplier..."
+                  value={spSearch}
+                  onChange={(e) => setSpSearch(e.target.value)}
+                />
+                {spSearch && (
+                  <button type="button" className="reports-search-clear" onClick={() => setSpSearch('')}>
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Supplier Select */}
+              <select
+                className="reports-filter-select"
+                value={spSelectedSupplier}
+                onChange={(e) => setSpSelectedSupplier(e.target.value)}
+                title="Filter by Supplier"
+              >
+                <option value="All">All Suppliers (5)</option>
+                <option value="CENTRAL WARE HOUSE">CWH - CENTRAL WARE HOUSE</option>
+                <option value="DAVID PIERIS MOTOR CO.PVT.LTD">DPMCO - DAVID PIERIS MOTOR CO.PVT.LTD</option>
+                <option value="INTER LANKA">IL - INTER LANKA</option>
+                <option value="RAZA AUTO TRADERS">RAT - RAZA AUTO TRADERS</option>
+                <option value="SHONAL ENTERPRISES">SE - SHONAL ENTERPRISES</option>
+              </select>
+
+              {/* Returns Filter */}
+              <select
+                className="reports-filter-select"
+                value={spHasReturns}
+                onChange={(e) => setSpHasReturns(e.target.value)}
+                title="Filter by Returns"
+              >
+                <option value="all">All Intake Statuses</option>
+                <option value="with_returns">⚠️ With Returns Only</option>
+                <option value="no_returns">✅ Clean (No Returns)</option>
+              </select>
+
+              {/* Sorting Select */}
+              <select
+                className="reports-filter-select"
+                value={spSortBy}
+                onChange={(e) => setSpSortBy(e.target.value)}
+                title="Sort supplier purchases"
+              >
+                <option value="default">Sort: Default Order (PDF Scan)</option>
+                <option value="value_desc">Sort: Highest Purchase Value</option>
+                <option value="discount_desc">Sort: Highest Trade Discount</option>
+                <option value="return_desc">Sort: Highest Return Deductions</option>
+                <option value="supplier_asc">Sort: Supplier Name (A-Z)</option>
+                <option value="grn_asc">Sort: GRN Number (Ascending)</option>
+              </select>
+            </div>
+
+            {/* View Mode & Action Buttons */}
+            <div className="reports-view-actions">
+              <div className="reports-view-toggle">
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Physical PDF Dot-Matrix Layout"
+                >
+                  📄 PDF Paper
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
+                  onClick={() => setViewMode('modern')}
+                  title="Modern Interactive Table"
+                >
+                  🖥️ Modern Table
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleExportCSV}
+                title="Export supplier purchases to CSV"
+              >
+                📥 Export CSV
+              </button>
+
+              <button
+                type="button"
+                className="reports-action-btn print-btn"
+                onClick={handlePrint}
+                title="Print Supplier Wise Purchases Report"
+              >
+                🖨️ Print Report
+              </button>
+            </div>
+          </div>
+
+          {/* Report Body */}
+          <div className="reports-content-body">
+            {spLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
+                <strong style={{ fontSize: '15px' }}>Loading Supplier Wise Purchases from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Aggregating GRNs, invoice debits, and trade discounts</p>
+              </div>
+            ) : viewMode === 'paper' ? (
+              /* =========================================================================
+                 EXACT PHYSICAL CONTINUOUS COMPUTER PAPER (MATCHING PDF SCAN 100%)
+                 ========================================================================= */
+              <div className="closing-stock-paper-sheet" id="printable-supplier-purchases-report">
+                {/* Header matching PDF Scan */}
+                <div className="cs-report-header" style={{ marginBottom: '8px' }}>
+                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
+
+                  <div style={{ marginTop: '6px', fontWeight: '800', fontSize: '12px', fontFamily: 'Courier New, monospace' }}>
+                    Supplier Wise Purchases - From {spReportData?.dateRange?.from || '02/08/2026'} To {spReportData?.dateRange?.to || '07/08/2026'}
+                  </div>
+                </div>
+
+                {/* Table matching PDF Scan */}
+                <table className="sp-table">
+                  <thead>
+                    <tr>
+                      <th className="sp-th-grn col-left">GRN. NO</th>
+                      <th className="sp-th-date col-center">DATE</th>
+                      <th className="sp-th-invoice col-left">INVOICE</th>
+                      <th className="sp-th-val col-right">VALUE</th>
+                      <th className="sp-th-ret col-right">RETURN</th>
+                      <th className="sp-th-tot col-right">TOTAL VALUE</th>
+                      <th className="sp-th-disc col-right">DISCOUNT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {spReportData?.supplierGroups && spReportData.supplierGroups.length > 0 ? (
+                      spReportData.supplierGroups.map((group, gIdx) => (
+                        <Fragment key={gIdx}>
+                          {/* Supplier Group Header Row */}
+                          <tr className="sp-supplier-header-row">
+                            <td className="sp-code-cell">{group.supplierCode}</td>
+                            <td colSpan={6} className="sp-name-cell">{group.supplierName}</td>
+                          </tr>
+
+                          {/* Line Items */}
+                          {group.items.map((item, iIdx) => (
+                            <tr key={iIdx} className="sp-item-row">
+                              <td className="sp-grn-cell">{item.grnNo}</td>
+                              <td className="sp-date-cell">{item.date}</td>
+                              <td className="sp-invoice-cell">{item.invoice}</td>
+                              <td className="sp-val-cell">
+                                {item.value !== undefined && item.value !== null
+                                  ? Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                  : '0.00'}
+                              </td>
+                              <td className="sp-ret-cell">
+                                {item.returnVal && item.returnVal > 0
+                                  ? Number(item.returnVal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                  : ''}
+                              </td>
+                              <td className="sp-tot-cell">
+                                {item.totalValue && item.totalValue > 0
+                                  ? Number(item.totalValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                  : ''}
+                              </td>
+                              <td className="sp-disc-cell">
+                                {item.discount && item.discount > 0
+                                  ? Number(item.discount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                  : ''}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {/* Supplier Sub Total Row */}
+                          <tr className="sp-subtotal-row">
+                            <td colSpan={3} className="sp-subtotal-label">Sub Total</td>
+                            <td className="sp-subtotal-val">
+                              {Number(group.subTotalValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="sp-subtotal-ret">
+                              {group.subTotalReturn > 0
+                                ? Number(group.subTotalReturn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                : ''}
+                            </td>
+                            <td className="sp-subtotal-tot">
+                              {Number(group.subTotalNetValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="sp-subtotal-disc">
+                              {Number(group.subTotalDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </Fragment>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No supplier purchases found matching filters.
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Grand Total Row */}
+                    {spReportData?.summary && (
+                      <tr className="sp-grand-total-row">
+                        <td colSpan={3} className="sp-grand-total-label">Total</td>
+                        <td className="sp-grand-total-val">
+                          {Number(spReportData.summary.grandTotalValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="sp-grand-total-ret">
+                          {Number(spReportData.summary.grandTotalReturn).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="sp-grand-total-tot">
+                          {Number(spReportData.summary.grandTotalNetValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="sp-grand-total-disc">
+                          {Number(spReportData.summary.grandTotalDiscount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Software Footer */}
+                <div className="cs-report-footer" style={{ marginTop: '24px', borderTop: 'none', textAlign: 'left', fontSize: '11px', fontFamily: 'Courier New, monospace' }}>
+                  {spReportData?.softwareFooter || 'Software by S.L.M.D.Chinthana-0777722076'}
+                </div>
+              </div>
+            ) : (
+              /* =========================================================================
+                 MODERN INTERACTIVE TABLE VIEW
+                 ========================================================================= */
+              <div className="reports-table-container">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
+                      🚚 Consolidated Supplier Purchases Grid
+                    </h3>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                      Showing {spReportData?.data?.length || 0} purchase orders grouped by {spReportData?.supplierGroups?.length || 0} registered suppliers
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span className="reports-badge" style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '6px 12px', borderRadius: '6px', fontWeight: '700' }}>
+                      Net Payable: Rs. {Number(spReportData?.summary?.grandTotalNetValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="sp-modern-grid">
+                  {spReportData?.supplierGroups && spReportData.supplierGroups.length > 0 ? (
+                    spReportData.supplierGroups.map((group, gIdx) => {
+                      const badgeColorMap = {
+                        CWH: { bg: '#e0f2fe', text: '#0369a1', border: '#bae6fd' },
+                        DPMCO: { bg: '#ede9fe', text: '#6d28d9', border: '#ddd6fe' },
+                        IL: { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' },
+                        RAT: { bg: '#ffedd5', text: '#c2410c', border: '#fed7aa' },
+                        SE: { bg: '#fce7f3', text: '#be185d', border: '#fbcfe8' },
+                      };
+                      const color = badgeColorMap[group.supplierCode] || { bg: '#f1f5f9', text: '#334155', border: '#cbd5e1' };
+
+                      return (
+                        <div key={gIdx} className="sp-supplier-card" style={{ marginBottom: '24px', background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+                          {/* Supplier Card Header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ background: color.bg, color: color.text, border: `1px solid ${color.border}`, padding: '3px 8px', borderRadius: '6px', fontWeight: '800', fontFamily: 'monospace', fontSize: '12px' }}>
+                                {group.supplierCode}
+                              </span>
+                              <strong style={{ fontSize: '14px', color: '#1e293b' }}>
+                                {group.supplierName}
+                              </strong>
+                              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                                ({group.items.length} GRNs)
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+                              <div>
+                                <span style={{ color: '#64748b' }}>Purchases: </span>
+                                <strong style={{ color: '#0f172a' }}>Rs. {Number(group.subTotalValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                              </div>
+                              {group.subTotalReturn > 0 && (
+                                <div>
+                                  <span style={{ color: '#dc2626' }}>Returns: </span>
+                                  <strong style={{ color: '#dc2626' }}>-Rs. {Number(group.subTotalReturn).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                                </div>
+                              )}
+                              <div>
+                                <span style={{ color: '#64748b' }}>Net: </span>
+                                <strong style={{ color: '#16a34a' }}>Rs. {Number(group.subTotalNetValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                              </div>
+                              {group.subTotalDiscount > 0 && (
+                                <div>
+                                  <span style={{ color: '#0284c7' }}>Discount: </span>
+                                  <strong style={{ color: '#0284c7' }}>Rs. {Number(group.subTotalDiscount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Items Table */}
+                          <table className="reports-table" style={{ margin: 0 }}>
+                            <thead>
+                              <tr>
+                                <th style={{ width: '12%' }}>GRN No</th>
+                                <th style={{ width: '12%' }}>Date</th>
+                                <th style={{ width: '24%' }}>Invoice / Ref</th>
+                                <th style={{ width: '13%', textAlign: 'right' }}>Purchases Value</th>
+                                <th style={{ width: '13%', textAlign: 'right' }}>Return Value</th>
+                                <th style={{ width: '13%', textAlign: 'right' }}>Net Total</th>
+                                <th style={{ width: '13%', textAlign: 'right' }}>Trade Discount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.items.map((it, iIdx) => (
+                                <tr key={iIdx}>
+                                  <td>
+                                    <strong style={{ fontFamily: 'monospace', color: '#0284c7' }}>{it.grnNo}</strong>
+                                  </td>
+                                  <td style={{ color: '#475569' }}>{it.date}</td>
+                                  <td>
+                                    <span style={{ fontFamily: 'monospace', fontWeight: '600' }}>{it.invoice || '—'}</span>
+                                  </td>
+                                  <td style={{ textAlign: 'right', fontWeight: '700' }}>
+                                    Rs. {Number(it.value).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    {it.returnVal > 0 ? (
+                                      <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', fontSize: '12px' }}>
+                                        -Rs. {Number(it.returnVal).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8' }}>—</span>
+                                    )}
+                                  </td>
+                                  <td style={{ textAlign: 'right', fontWeight: '800', color: '#16a34a' }}>
+                                    Rs. {Number(it.totalValue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    {it.discount > 0 ? (
+                                      <span style={{ color: '#0284c7', fontWeight: '700' }}>
+                                        Rs. {Number(it.discount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: '#94a3b8' }}>—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                      No supplier purchases found matching selected filters.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
