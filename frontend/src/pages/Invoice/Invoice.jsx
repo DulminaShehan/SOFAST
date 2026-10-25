@@ -139,6 +139,40 @@ function Invoice() {
   const [highlightedItemIndex, setHighlightedItemIndex] = useState(-1);
   const itemDropdownRef = useRef(null);
 
+  // Customer Display - Item Photo Preview State
+  const [selectedItemPreview, setSelectedItemPreview] = useState(null);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+
+  // Active Item Preview for Customer Display Window
+  const activePreviewItem = useMemo(() => {
+    // 1. If explicit selectedItemPreview matches current itemEntry.code
+    if (selectedItemPreview) {
+      if (!itemEntry.code || selectedItemPreview.code?.toLowerCase() === itemEntry.code.trim().toLowerCase()) {
+        return selectedItemPreview;
+      }
+    }
+    // 2. If itemEntry.code matches an item in itemsList
+    const code = String(itemEntry.code || '').trim().toLowerCase();
+    if (code) {
+      const match = itemsList.find(
+        (i) =>
+          i.code?.toLowerCase() === code ||
+          (i.barcode && i.barcode.toLowerCase() === code) ||
+          i.description?.toLowerCase() === code
+      );
+      if (match) return match;
+    }
+    // 3. Fallback to selectedItemPreview if available
+    if (selectedItemPreview) return selectedItemPreview;
+    // 4. Fallback to active lineItem selected in bottom table
+    if (lineItems.length > 0 && selectedLineIndex >= 0 && lineItems[selectedLineIndex]) {
+      const selCode = lineItems[selectedLineIndex].code?.toLowerCase();
+      const match = itemsList.find((i) => i.code?.toLowerCase() === selCode);
+      return match || lineItems[selectedLineIndex];
+    }
+    return null;
+  }, [selectedItemPreview, itemEntry.code, itemsList, lineItems, selectedLineIndex]);
+
   // Receipt Preview Modal
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
@@ -785,6 +819,8 @@ function Invoice() {
       return;
     }
 
+    setSelectedItemPreview(item);
+
     // 1. Location: Selected item's actual stock location from database
     const actualLocation = item.location || 'Main Store';
 
@@ -931,6 +967,7 @@ function Invoice() {
   // Select Item from Lookup Modal
   const handleSelectItemFromLookup = async (item) => {
     if (!item) return;
+    setSelectedItemPreview(item);
     await loadItemIntoEntry(item, itemEntry.quantity || '1');
   };
 
@@ -1310,6 +1347,7 @@ function Invoice() {
       total: '0.00',
       note: '',
     });
+    setSelectedItemPreview(null);
     setAlternativeProducts([]);
     itemCodeInputRef.current?.focus();
   };
@@ -1319,6 +1357,8 @@ function Invoice() {
     setSelectedLineIndex(index);
     const item = lineItems[index];
     if (item) {
+      const matched = itemsList.find((i) => i.code?.toLowerCase() === item.code?.toLowerCase());
+      setSelectedItemPreview(matched || item);
       setItemEntry({
         code: item.code,
         description: item.description,
@@ -1377,6 +1417,7 @@ function Invoice() {
     setActiveInvoiceId(null);
     setLineItems([]);
     setSelectedLineIndex(-1);
+    setSelectedItemPreview(null);
     setAlternativeProducts([]);
     setCustomerDue('0.00');
     setItemEntry({
@@ -2645,9 +2686,10 @@ function Invoice() {
               </div>
             </div>
 
-            {/* Right Side: Single Tall Catalog Items Table */}
+            {/* Right Side: Quick Catalog Lookup Table + Customer Display Item Photo Window */}
             <div className="sofast-right-tables-col">
-              <div className="sofast-table-panel sofast-tall-table-panel">
+              {/* 1. Quick Catalog Items Lookup Table */}
+              <div className="sofast-table-panel sofast-catalog-table-panel">
                 <div className="sofast-table-scroll-container">
                   <table className="sofast-classic-table">
                     <thead>
@@ -2656,7 +2698,7 @@ function Invoice() {
                         <th>
                           Description
                           {itemEntry.code && (
-                            <span style={{ fontSize: '10px', color: '#000080', marginLeft: '6px', fontWeight: 'normal' }}>
+                            <span style={{ fontSize: '11px', color: '#000080', marginLeft: '6px', fontWeight: 'bold' }}>
                               ({filteredDropdownItems.length} found)
                             </span>
                           )}
@@ -2673,13 +2715,15 @@ function Invoice() {
                       ) : (
                         <>
                           {filteredDropdownItems.slice(0, 150).map((item) => {
-                            const isSelected = itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase();
+                            const isSelected =
+                              (activePreviewItem && activePreviewItem.code?.toLowerCase() === item.code?.toLowerCase()) ||
+                              (itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase());
                             return (
                               <tr
                                 key={item._id || item.code}
                                 className={isSelected ? 'selected-row' : ''}
                                 onClick={() => handleSelectItemFromLookup(item)}
-                                title="Click to select this product"
+                                title="Click to select item and display photo to customer"
                               >
                                 <td className="sofast-cell-code">{item.code}</td>
                                 <td className="sofast-cell-desc">{item.description}</td>
@@ -2688,8 +2732,8 @@ function Invoice() {
                           })}
                           {filteredDropdownItems.length > 150 && (
                             <tr>
-                              <td colSpan="2" style={{ padding: '4px', color: '#000080', background: '#ece9d8', textAlign: 'center', fontSize: '10px', fontStyle: 'italic', borderTop: '1px solid #7f9db9' }}>
-                                Showing top 150 of {filteredDropdownItems.length} matching items. Type to refine or click 🔍 / F2 for all.
+                              <td colSpan="2" style={{ padding: '4px', color: '#000080', background: '#ece9d8', textAlign: 'center', fontSize: '11px', fontStyle: 'italic', borderTop: '1px solid #7f9db9' }}>
+                                Showing top 150 of {filteredDropdownItems.length} items. Type to search or press F2 for all.
                               </td>
                             </tr>
                           )}
@@ -2697,6 +2741,113 @@ function Invoice() {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              {/* 2. Customer Display - Selected Item Photo & Specs Window */}
+              <div className="sofast-customer-display-window">
+                <div className="sofast-display-titlebar">
+                  <div className="sofast-display-title">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <span>Customer Display — Item Photo & Details</span>
+                  </div>
+                  {activePreviewItem?.image && (
+                    <button
+                      type="button"
+                      className="sofast-display-enlarge-btn"
+                      onClick={() => setIsImageModalOpen(true)}
+                      title="Enlarge item image for customer"
+                    >
+                      🔍 Enlarge
+                    </button>
+                  )}
+                </div>
+
+                <div className="sofast-display-body">
+                  {activePreviewItem ? (
+                    <div className="sofast-display-item-content">
+                      <div
+                        className={`sofast-display-img-box ${activePreviewItem.image ? 'clickable' : ''}`}
+                        onClick={() => {
+                          if (activePreviewItem.image) setIsImageModalOpen(true);
+                        }}
+                        title={activePreviewItem.image ? 'Click to view full-size photo' : 'No photo uploaded for this item'}
+                      >
+                        {activePreviewItem.image ? (
+                          <img
+                            src={activePreviewItem.image}
+                            alt={activePreviewItem.description}
+                            className="sofast-display-img"
+                          />
+                        ) : (
+                          <div className="sofast-display-no-img">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7f9db9" strokeWidth="1.5">
+                              <rect x="3" y="3" width="18" height="18" rx="2" />
+                              <circle cx="8.5" cy="8.5" r="1.5" />
+                              <path d="M21 15l-5-5L5 21" />
+                            </svg>
+                            <span>No Photo</span>
+                            <small>Item Master</small>
+                          </div>
+                        )}
+                        {activePreviewItem.image && (
+                          <span className="sofast-display-zoom-hint">🔍 Zoom</span>
+                        )}
+                      </div>
+
+                      <div className="sofast-display-info-col">
+                        <div className="sofast-display-code-row">
+                          <span className="sofast-display-code-badge">{activePreviewItem.code}</span>
+                          {activePreviewItem.brand && (
+                            <span className="sofast-display-brand-badge">{activePreviewItem.brand}</span>
+                          )}
+                        </div>
+                        <div className="sofast-display-desc" title={activePreviewItem.description}>
+                          {activePreviewItem.description}
+                        </div>
+                        <div className="sofast-display-price-stock-row">
+                          <div className="sofast-display-price-tag">
+                            <span className="sofast-display-price-lbl">Price:</span>
+                            <span className="sofast-display-price-val">
+                              Rs. {Number(
+                                activePreviewItem.sellingPrice !== undefined && Number(activePreviewItem.sellingPrice) >= 0
+                                  ? activePreviewItem.sellingPrice
+                                  : (activePreviewItem.finalSellingPrice || activePreviewItem.price || 0)
+                              ).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="sofast-display-stock-tag">
+                            <span className="sofast-display-stock-lbl">Stock:</span>
+                            <span className={`sofast-display-stock-val ${Number(activePreviewItem.quantity || activePreviewItem.stockInHand || 0) <= 0 ? 'out' : ''}`}>
+                              {activePreviewItem.quantity !== undefined
+                                ? activePreviewItem.quantity
+                                : (activePreviewItem.stockInHand !== undefined ? activePreviewItem.stockInHand : '0')}
+                            </span>
+                          </div>
+                        </div>
+                        {activePreviewItem.category && (
+                          <div className="sofast-display-cat">
+                            Category: <b>{activePreviewItem.category}</b>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="sofast-display-empty-state">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#7f9db9" strokeWidth="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <path d="M21 15l-5-5L5 21" />
+                      </svg>
+                      <span className="empty-title">Customer Item Photo Display</span>
+                      <span className="empty-subtitle">
+                        Select an item from the catalog or invoice to view photo and details for the customer
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -3122,6 +3273,59 @@ function Invoice() {
                 onClick={() => setPreviewModalOpen(false)}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full-size Product Image Modal for Customer Preview */}
+      {isImageModalOpen && activePreviewItem?.image && (
+        <div className="invoice-modal-overlay" onClick={() => setIsImageModalOpen(false)}>
+          <div
+            className="invoice-modal-window sofast-img-preview-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '560px', maxWidth: '95vw' }}
+          >
+            <div className="invoice-modal-titlebar">
+              <span>📷 Product Photo - {activePreviewItem.code} ({activePreviewItem.description})</span>
+              <button
+                type="button"
+                className="control-btn close"
+                style={{ width: '26px', height: '22px' }}
+                onClick={() => setIsImageModalOpen(false)}
+              >
+                &#x2715;
+              </button>
+            </div>
+            <div className="sofast-modal-img-body">
+              <img
+                src={activePreviewItem.image}
+                alt={activePreviewItem.description}
+                className="sofast-modal-full-img"
+              />
+              <div className="sofast-modal-img-footer-details">
+                <div className="sofast-modal-code-desc">
+                  <span className="sofast-modal-code">{activePreviewItem.code}</span>
+                  <span className="sofast-modal-desc">{activePreviewItem.description}</span>
+                </div>
+                <div className="sofast-modal-price-stock">
+                  <span className="sofast-modal-price">
+                    Price: Rs. {Number(activePreviewItem.sellingPrice || activePreviewItem.finalSellingPrice || activePreviewItem.price || 0).toFixed(2)}
+                  </span>
+                  <span className="sofast-modal-stock">
+                    Available Stock: {activePreviewItem.quantity !== undefined ? activePreviewItem.quantity : (activePreviewItem.stockInHand || '0')}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="invoice-modal-footer">
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={() => setIsImageModalOpen(false)}
+              >
+                Close Preview
               </button>
             </div>
           </div>
