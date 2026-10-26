@@ -23,8 +23,28 @@ function ManagementSystem({ defaultModule }) {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
-  // Directory of all 10 Reports for the Classic ERP Data Grid
+  // Directory of all Reports for the Classic ERP Data Grid
   const reportsDirectoryList = [
+    {
+      code: 'REP-DASH',
+      id: 'dashboard',
+      label: 'Reports Dashboard',
+      category: 'financial',
+      categoryName: 'Financial & Settlements',
+      path: '/reports?tab=dashboard',
+      description: 'Real-time executive summary of stock, sales, bills, GRNs, returns, and daily metrics.',
+      auditScope: 'Live business analytics and KPI overview generated dynamically from real-time database transactions.',
+    },
+    {
+      code: 'REP-STK',
+      id: 'stock_report',
+      label: 'Stock Report',
+      category: 'stock',
+      categoryName: 'Stock & Inventory Audit',
+      path: '/reports?tab=stock_report',
+      description: 'Comprehensive live stock report with available quantities, reorder levels, locations, and costs.',
+      auditScope: 'Authoritative inventory balance across all items in Item Master, low-stock warnings, and warehouse distribution.',
+    },
     {
       code: 'REP-01',
       id: 'settlements',
@@ -403,6 +423,38 @@ function ManagementSystem({ defaultModule }) {
   ];
 
   const reportsItems = [
+    {
+      id: 'reports-dashboard',
+      label: 'Reports Dashboard',
+      path: '/reports?tab=dashboard',
+      iconColor: '#2563eb',
+      badgeBg: '#dbeafe',
+      description: 'Live executive dashboard with 10 key performance metrics, daily sales and stock alerts.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18M9 21V9" />
+        </svg>
+      ),
+    },
+    {
+      id: 'stock-report',
+      label: 'Stock Report',
+      path: '/reports?tab=stock_report',
+      iconColor: '#059669',
+      badgeBg: '#d1fae5',
+      description: 'Comprehensive inventory balances, reorder warnings, valuations and warehouse locations.',
+      renderIcon: (size = 20) => (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+          <polyline points="7.5 4.21 12 6.81 16.5 4.21" />
+          <polyline points="7.5 19.79 7.5 14.6 3 12" />
+          <polyline points="21 12 16.5 14.6 16.5 19.79" />
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+          <line x1="12" y1="22.08" x2="12" y2="12" />
+        </svg>
+      ),
+    },
     {
       id: 'daily-settlements',
       label: 'Daily Settlements Details',

@@ -4,6 +4,8 @@ import Item from '../models/Item.js';
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
+const escapeRegex = (str) => String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * Helper to populate item details for a list of item codes
  */
@@ -11,7 +13,8 @@ const getItemsDetailsByCodes = async (codes) => {
   if (!codes || codes.length === 0) return [];
   const uniqueCodes = [...new Set(codes.map((c) => String(c).trim()))].filter(Boolean);
 
-  const items = await Item.find({ code: { $in: uniqueCodes } }).lean();
+  const regexList = uniqueCodes.map((c) => new RegExp(`^${escapeRegex(c)}$`, 'i'));
+  const items = await Item.find({ code: { $in: regexList } }).lean();
   const itemMap = new Map();
 
   items.forEach((item) => {
@@ -22,7 +25,7 @@ const getItemsDetailsByCodes = async (codes) => {
         ? item.stockInHand
         : 0;
 
-    itemMap.set(item.code, {
+    const data = {
       _id: item._id,
       code: item.code,
       description: item.description || '',
@@ -44,12 +47,16 @@ const getItemsDetailsByCodes = async (codes) => {
       discountPercentage: item.discountPercentage || 0,
       discountAmount: item.discountAmount || 0,
       status: item.status || 'Active',
-    });
+    };
+
+    itemMap.set(String(item.code).toUpperCase(), data);
+    itemMap.set(String(item.code), data);
   });
 
   // Preserve ordering of original codes
   return uniqueCodes.map((c) => {
     return (
+      itemMap.get(String(c).toUpperCase()) ||
       itemMap.get(c) || {
         code: c,
         description: 'Item Not Found in Master',
@@ -193,19 +200,24 @@ export const getAlternativeProductByCode = async (req, res, next) => {
       });
     }
 
+    const isDirectOnly = req.query.direct === 'true';
+
     // Try finding by mainItemCode or ObjectId
     let rel = await AlternativeProduct.findOne({
-      mainItemCode: { $regex: new RegExp(`^${rawCode}$`, 'i') },
+      mainItemCode: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') },
     }).lean();
 
     if (!rel && mongoose.Types.ObjectId.isValid(rawCode)) {
       rel = await AlternativeProduct.findById(rawCode).lean();
     }
 
-    if (!rel) {
+    if (!rel && !isDirectOnly) {
       // Check if this item is listed as an alternative in another product's mapping
       const reverseRel = await AlternativeProduct.findOne({
-        alternativeItemCodes: { $regex: new RegExp(`^${rawCode}$`, 'i') },
+        $or: [
+          { alternativeItemCodes: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') } },
+          { alternativeItemCodes: { $elemMatch: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') } } },
+        ],
       }).lean();
 
       if (reverseRel) {
@@ -218,7 +230,7 @@ export const getAlternativeProductByCode = async (req, res, next) => {
         ];
         const altItems = await getItemsDetailsByCodes(peerCodes);
         const thisItem = await Item.findOne({
-          code: { $regex: new RegExp(`^${rawCode}$`, 'i') },
+          code: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') },
         }).lean();
 
         const stock =
@@ -249,7 +261,7 @@ export const getAlternativeProductByCode = async (req, res, next) => {
 
       // Check if item exists in Item Master to at least return item info
       const item = await Item.findOne({
-        code: { $regex: new RegExp(`^${rawCode}$`, 'i') },
+        code: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') },
       }).lean();
 
       if (!item) {
@@ -283,7 +295,9 @@ export const getAlternativeProductByCode = async (req, res, next) => {
     }
 
     // Fetch main item details
-    const mainItem = await Item.findOne({ code: rel.mainItemCode }).lean();
+    const mainItem = await Item.findOne({
+      code: { $regex: new RegExp(`^${escapeRegex(rel.mainItemCode)}$`, 'i') },
+    }).lean();
     const altItems = await getItemsDetailsByCodes(rel.alternativeItemCodes);
 
     return res.status(200).json({
@@ -323,11 +337,11 @@ export const saveAlternativeProduct = async (req, res, next) => {
       });
     }
 
-    const trimmedMainCode = String(mainItemCode).trim().toUpperCase();
+    const trimmedMainCode = String(mainItemCode).trim();
 
     // Verify main item in Item Master
     const mainItem = await Item.findOne({
-      code: { $regex: new RegExp(`^${trimmedMainCode}$`, 'i') },
+      code: { $regex: new RegExp(`^${escapeRegex(trimmedMainCode)}$`, 'i') },
     });
 
     if (!mainItem) {
@@ -349,21 +363,22 @@ export const saveAlternativeProduct = async (req, res, next) => {
     const cleanAltCodes = [
       ...new Set(
         rawAltCodes
-          .map((c) => (c ? String(c).trim().toUpperCase() : ''))
-          .filter((c) => c && c !== trimmedMainCode)
+          .map((c) => (c ? String(c).trim() : ''))
+          .filter((c) => c && c.toUpperCase() !== trimmedMainCode.toUpperCase())
       ),
     ];
 
     // Find matching ObjectIds for the alternative items from Item Master
     let altObjectIds = [];
     if (cleanAltCodes.length > 0) {
-      const foundAltItems = await Item.find({ code: { $in: cleanAltCodes } }).lean();
+      const regexList = cleanAltCodes.map((c) => new RegExp(`^${escapeRegex(c)}$`, 'i'));
+      const foundAltItems = await Item.find({ code: { $in: regexList } }).lean();
       altObjectIds = foundAltItems.map((i) => i._id);
     }
 
     // Upsert relationship document
     const updatedRel = await AlternativeProduct.findOneAndUpdate(
-      { mainItemCode: mainItem.code },
+      { mainItemCode: { $regex: new RegExp(`^${escapeRegex(mainItem.code)}$`, 'i') } },
       {
         mainItemCode: mainItem.code,
         mainItemId: mainItem._id,
@@ -422,7 +437,7 @@ export const deleteAlternativeProduct = async (req, res, next) => {
 
     // Delete relationship only
     let deleted = await AlternativeProduct.findOneAndDelete({
-      mainItemCode: { $regex: new RegExp(`^${rawCode}$`, 'i') },
+      mainItemCode: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') },
     });
 
     if (!deleted && mongoose.Types.ObjectId.isValid(rawCode)) {

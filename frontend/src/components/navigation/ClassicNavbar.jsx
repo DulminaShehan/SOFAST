@@ -19,9 +19,25 @@ function ClassicNavbar({ activeMenu = '', className = '' }) {
     { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, defaultPath: '/grn' },
     { id: 'sales-service', label: 'Sales and Service', hasDropdown: true, defaultPath: '/invoice' },
     { id: 'approvement', label: 'Approvement', hasDropdown: true, defaultPath: '/approvement' },
-    { id: 'reports', label: 'Reports', path: '/reports' },
+    { id: 'reports', label: 'Reports', hasDropdown: true, defaultPath: '/reports' },
     { id: 'accounting', label: 'Accounting', path: '/management' },
     { id: 'administration', label: 'Administration', hasDropdown: true, defaultPath: '/printer-setup' },
+  ];
+
+  const reportsDropdownItems = [
+    { id: 'reports-dashboard', label: '📊 Reports Dashboard', path: '/reports?tab=dashboard', badge: 'New' },
+    { id: 'stock-report', label: '📋 Stock Report', path: '/reports?tab=stock_report', badge: 'New' },
+    { id: 'daily-settlements', label: '💰 Daily Settlements Details', path: '/reports?tab=settlements' },
+    { id: 'grn-report', label: '📥 Goods Received Notes (GRN)', path: '/reports?tab=grn' },
+    { id: 'invoice-returns', label: '🔄 Invoice Returns Report', path: '/reports?tab=invoice_returns' },
+    { id: 'daily-sales', label: '📈 Daily Sales & Profit Report', path: '/reports?tab=daily_sales' },
+    { id: 'closing-stock', label: '📦 Closing Stock Report (170-Page Inventory)', path: '/reports?tab=closing_stock' },
+    { id: 'alternative-products', label: '🔄 Alternative Products Report', path: '/reports?tab=alternative_products' },
+    { id: 'supplier-purchases', label: '🚚 Supplier Wise Purchases', path: '/reports?tab=supplier_purchases' },
+    { id: 'top-selling', label: '🔥 Top Selling Items Report', path: '/reports?tab=top_selling' },
+    { id: 'non-moving', label: '⏳ Non Moving Inventory Report', path: '/reports?tab=non_moving' },
+    { id: 'goods-return-notes', label: '↩️ Goods Return Notes (G.R.E.N.)', path: '/reports?tab=goods_return_notes' },
+    { id: 'open-reports-center', label: '📊 Open Reports Center', path: '/reports', badge: 'Hub' },
   ];
 
   const masterFilesDropdownItems = [
@@ -228,7 +244,30 @@ function ClassicNavbar({ activeMenu = '', className = '' }) {
                   </ul>
                 )}
 
-                {/* 5. Administration Dropdown */}
+                {/* 5. Reports Dropdown */}
+                {item.id === 'reports' && activeDropdown === 'reports' && (
+                  <ul className="cust-dropdown-menu" role="menu" style={{ minWidth: '320px' }}>
+                    {reportsDropdownItems.map((dropItem) => (
+                      <li key={dropItem.id} className="cust-dropdown-entry" role="none">
+                        <button
+                          type="button"
+                          className="cust-dropdown-item-btn"
+                          role="menuitem"
+                          onClick={() => handleDropdownItemClick(dropItem.path)}
+                        >
+                          <span className="cust-dropdown-item-left">{dropItem.label}</span>
+                          {dropItem.badge && (
+                            <span className={`cust-dropdown-badge ${dropItem.badge === 'New' ? 'admin-badge' : 'hub-badge'}`}>
+                              {dropItem.badge}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* 6. Administration Dropdown */}
                 {item.id === 'administration' && activeDropdown === 'administration' && (
                   <ul className="cust-dropdown-menu" role="menu">
                     {administrationDropdownItems.map((dropItem) => (

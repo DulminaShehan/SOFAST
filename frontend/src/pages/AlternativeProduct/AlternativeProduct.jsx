@@ -49,6 +49,7 @@ function AlternativeProduct() {
   const [mainItemModal, setMainItemModal] = useState({
     isOpen: false,
     search: '',
+    autoOpenAltAfterSelect: false,
   });
 
   // Add Alternative Item Search Modal State
@@ -56,6 +57,15 @@ function AlternativeProduct() {
     isOpen: false,
     search: '',
   });
+
+  // Quick Add Alternative Product Input State
+  const [quickAltCode, setQuickAltCode] = useState('');
+
+  // Fallback live server search results for Modals
+  const [mainServerResults, setMainServerResults] = useState([]);
+  const [isSearchingServerMain, setIsSearchingServerMain] = useState(false);
+  const [altServerResults, setAltServerResults] = useState([]);
+  const [isSearchingServerAlt, setIsSearchingServerAlt] = useState(false);
 
   // Top Navigation Menus
   const topMenuItems = [
@@ -149,8 +159,8 @@ function AlternativeProduct() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Handle Main Item Code Input & Auto-Fill
-  const handleItemCodeInputChange = async (e) => {
+  // Handle Main Item Code Input (as user types)
+  const handleItemCodeInputChange = (e) => {
     const val = e.target.value;
     setFormData((prev) => ({ ...prev, itemCode: val }));
 
@@ -161,7 +171,7 @@ function AlternativeProduct() {
       return;
     }
 
-    // Look up in item list (match code, barcode, or suppCode)
+    // Only auto-fill description if the entered code is an EXACT match
     const matchedItem = itemsList.find(
       (item) =>
         item.code?.toUpperCase() === trimmed ||
@@ -177,51 +187,14 @@ function AlternativeProduct() {
           ? matchedItem.stockInHand
           : 0;
 
-      setFormData({
-        itemCode: matchedItem.code,
+      setFormData((prev) => ({
+        ...prev,
         description: matchedItem.description || '',
         status: 'Active',
         stock: Number(stock),
-      });
+      }));
 
-      // Load existing alternative mapping if already saved
       loadExistingMappingForCode(matchedItem.code);
-    } else if (trimmed.length >= 2) {
-      // Fallback live search from backend to ensure every item in DB is reachable
-      api.get(`/items?search=${encodeURIComponent(trimmed)}&limit=10`)
-        .then((res) => {
-          if (res.data?.data?.length > 0) {
-            const exact =
-              res.data.data.find(
-                (i) =>
-                  i.code?.toUpperCase() === trimmed ||
-                  (i.barcode && String(i.barcode).toUpperCase() === trimmed)
-              ) || res.data.data[0];
-
-            if (exact) {
-              setFormData((prev) => {
-                if (prev.itemCode.trim().toUpperCase() === trimmed) {
-                  const stock =
-                    exact.quantity !== undefined
-                      ? exact.quantity
-                      : exact.stockInHand !== undefined
-                      ? exact.stockInHand
-                      : 0;
-                  return {
-                    ...prev,
-                    itemCode: exact.code,
-                    description: exact.description || '',
-                    status: 'Active',
-                    stock: Number(stock),
-                  };
-                }
-                return prev;
-              });
-              loadExistingMappingForCode(exact.code);
-            }
-          }
-        })
-        .catch(() => {});
     }
   };
 
@@ -241,12 +214,12 @@ function AlternativeProduct() {
       try {
         const res = await api.get(`/items?search=${encodeURIComponent(trimmed)}&limit=10`);
         if (res.data?.data?.length > 0) {
-          matchedItem =
-            res.data.data.find(
-              (i) =>
-                i.code?.toUpperCase() === trimmed ||
-                (i.barcode && String(i.barcode).toUpperCase() === trimmed)
-            ) || res.data.data[0];
+          matchedItem = res.data.data.find(
+            (i) =>
+              i.code?.toUpperCase() === trimmed ||
+              (i.barcode && String(i.barcode).toUpperCase() === trimmed) ||
+              (i.suppCode && String(i.suppCode).toUpperCase() === trimmed)
+          );
         }
       } catch (e) {
         // ignore
@@ -269,20 +242,22 @@ function AlternativeProduct() {
         stock: Number(stock),
       }));
       loadExistingMappingForCode(matchedItem.code);
+    } else {
+      showNotification(`Item '${trimmed}' not found in Item Master`, 'error');
     }
   };
 
   // Load existing relationship for a given main item code
   const loadExistingMappingForCode = async (code) => {
     try {
-      const res = await api.get(`/alternative-products/${encodeURIComponent(code)}`);
-      if (res.data?.data && res.data.data.alternativeItems) {
+      const res = await api.get(`/alternative-products/${encodeURIComponent(code)}?direct=true`);
+      if (res.data?.data && Array.isArray(res.data.data.alternativeItems)) {
         setAlternativeItems(res.data.data.alternativeItems);
         if (res.data.data.description) {
           setFormData((prev) => ({
             ...prev,
             description: res.data.data.description,
-            stock: res.data.data.mainItemStock || prev.stock,
+            stock: res.data.data.mainItemStock !== undefined ? res.data.data.mainItemStock : prev.stock,
           }));
         }
       } else {
@@ -309,10 +284,18 @@ function AlternativeProduct() {
       status: 'Active',
       stock: Number(stock),
     });
-    setMainItemModal({ isOpen: false, search: '' });
+
+    const shouldAutoOpenAlt = Boolean(mainItemModal.autoOpenAltAfterSelect);
+    setMainItemModal({ isOpen: false, search: '', autoOpenAltAfterSelect: false });
 
     // Load any existing alternative mapping for this main item
     loadExistingMappingForCode(item.code);
+
+    if (shouldAutoOpenAlt) {
+      setTimeout(() => {
+        setAddAltModal({ isOpen: true, search: '' });
+      }, 150);
+    }
   };
 
   // Load Record from Lower Section Table
@@ -328,8 +311,8 @@ function AlternativeProduct() {
   };
 
   // Add Alternative Item from Dialog
-  const handleAddAlternativeItem = (item) => {
-    if (!formData.itemCode) {
+  const handleAddAlternativeItem = (item, closeAfter = false) => {
+    if (!formData.itemCode || !formData.itemCode.trim()) {
       showNotification('Please select a Main Item Code first', 'error');
       return;
     }
@@ -370,7 +353,86 @@ function AlternativeProduct() {
     };
 
     setAlternativeItems((prev) => [...prev, newAltEntry]);
-    showNotification(`Added '${item.code} - ${item.description}' to alternative products list`, 'success');
+    showNotification(`Added '${item.code} - ${item.description}' to alternative products list. Remember to click Save.`, 'success');
+
+    if (closeAfter) {
+      setAddAltModal({ isOpen: false, search: '' });
+    }
+  };
+
+  // Quick Add Alternative Item by typing/scanning code directly
+  const handleQuickAddAlternative = async () => {
+    const raw = quickAltCode.trim();
+    if (!raw) {
+      showNotification('Please enter an alternative item code or barcode', 'error');
+      return;
+    }
+
+    if (!formData.itemCode || !formData.itemCode.trim()) {
+      showNotification('Please select or enter a Main Item Code first before adding alternatives.', 'info');
+      setMainItemModal({ isOpen: true, search: '', autoOpenAltAfterSelect: true });
+      return;
+    }
+
+    const mainCode = formData.itemCode.trim().toUpperCase();
+    const targetCode = raw.toUpperCase();
+
+    if (mainCode === targetCode) {
+      showNotification(`Cannot add Main Item '${mainCode}' as its own alternative!`, 'error');
+      return;
+    }
+
+    const exists = alternativeItems.some(
+      (ai) => ai.code?.toUpperCase() === targetCode
+    );
+    if (exists) {
+      showNotification(`Alternative Item '${targetCode}' is already in the list!`, 'error');
+      setQuickAltCode('');
+      return;
+    }
+
+    // Check in itemsList
+    let matched = itemsList.find(
+      (i) =>
+        i.code?.toUpperCase() === targetCode ||
+        (i.barcode && String(i.barcode).toUpperCase() === targetCode) ||
+        (i.suppCode && String(i.suppCode).toUpperCase() === targetCode)
+    );
+
+    // If not found in loaded list, search backend
+    if (!matched) {
+      try {
+        const res = await api.get(`/items?search=${encodeURIComponent(raw)}&limit=10`);
+        if (res.data?.data?.length > 0) {
+          matched = res.data.data.find(
+            (i) =>
+              i.code?.toUpperCase() === targetCode ||
+              (i.barcode && String(i.barcode).toUpperCase() === targetCode) ||
+              (i.suppCode && String(i.suppCode).toUpperCase() === targetCode)
+          );
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!matched) {
+      showNotification(`Item '${raw}' not found in Item Master. Please verify code or create it first.`, 'error');
+      return;
+    }
+
+    handleAddAlternativeItem(matched, false);
+    setQuickAltCode('');
+  };
+
+  // Open Add Alternative Modal with check for main item code
+  const handleOpenAddAltModal = () => {
+    if (!formData.itemCode || !formData.itemCode.trim()) {
+      showNotification('Please select or enter a Main Item Code first before adding alternatives.', 'info');
+      setMainItemModal({ isOpen: true, search: '', autoOpenAltAfterSelect: true });
+      return;
+    }
+    setAddAltModal({ isOpen: true, search: '' });
   };
 
   // Remove Alternative Item from List
@@ -405,25 +467,13 @@ function AlternativeProduct() {
 
     const trimmedCode = formData.itemCode.trim().toUpperCase();
 
-    // Verify main item exists
-    let mainItemObj = itemsList.find(
+    // Verify main item exists (prefer cached code for casing)
+    let finalCode = trimmedCode;
+    const mainItemObj = itemsList.find(
       (i) => i.code?.toUpperCase() === trimmedCode
     );
-
-    if (!mainItemObj) {
-      try {
-        const checkRes = await api.get(`/items?search=${encodeURIComponent(trimmedCode)}&limit=10`);
-        mainItemObj = checkRes.data?.data?.find(
-          (i) => i.code?.toUpperCase() === trimmedCode
-        );
-      } catch (err) {
-        // ignore
-      }
-    }
-
-    if (!mainItemObj && itemsList.length > 0) {
-      showNotification(`Item '${trimmedCode}' does not exist in Item Master. Please create it in Item Master first.`, 'error');
-      return;
+    if (mainItemObj?.code) {
+      finalCode = mainItemObj.code;
     }
 
     try {
@@ -431,7 +481,7 @@ function AlternativeProduct() {
       const altCodes = alternativeItems.map((a) => a.code).filter(Boolean);
 
       const payload = {
-        mainItemCode: trimmedCode,
+        mainItemCode: finalCode,
         alternativeItemCodes: altCodes,
         status: formData.status || 'Active',
       };
@@ -439,7 +489,7 @@ function AlternativeProduct() {
       const res = await api.post('/alternative-products', payload);
       if (res.data?.success) {
         showNotification(
-          `Alternative Product mapping for '${trimmedCode}' saved successfully! (${altCodes.length} alternative items linked)`,
+          `Alternative Product mapping for '${finalCode}' saved successfully! (${altCodes.length} alternative items linked)`,
           'success'
         );
         fetchRelationships();
@@ -479,7 +529,75 @@ function AlternativeProduct() {
     }
   };
 
-  // Filter for Main Item Search Modal (displays every item in Item Master)
+  // Debounced server search fallback for Main Item Modal
+  useEffect(() => {
+    const q = mainItemModal.search?.trim();
+    if (!mainItemModal.isOpen || !q || q.length < 2) {
+      setMainServerResults([]);
+      setIsSearchingServerMain(false);
+      return;
+    }
+
+    if (filteredMainItems.length >= 5) {
+      setMainServerResults([]);
+      setIsSearchingServerMain(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingServerMain(true);
+        const res = await api.get(`/items?search=${encodeURIComponent(q)}&limit=20`);
+        if (res.data?.data) {
+          const existingCodes = new Set(filteredMainItems.map((i) => i.code?.toUpperCase()));
+          const extra = res.data.data.filter((i) => !existingCodes.has(i.code?.toUpperCase()));
+          setMainServerResults(extra);
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        setIsSearchingServerMain(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [mainItemModal.search, mainItemModal.isOpen, filteredMainItems]);
+
+  // Debounced server search fallback for Add Alternative Modal
+  useEffect(() => {
+    const q = addAltModal.search?.trim();
+    if (!addAltModal.isOpen || !q || q.length < 2) {
+      setAltServerResults([]);
+      setIsSearchingServerAlt(false);
+      return;
+    }
+
+    if (filteredAltCandidateItems.length >= 5) {
+      setAltServerResults([]);
+      setIsSearchingServerAlt(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingServerAlt(true);
+        const res = await api.get(`/items?search=${encodeURIComponent(q)}&limit=25`);
+        if (res.data?.data) {
+          const existingCodes = new Set(filteredAltCandidateItems.map((i) => i.code?.toUpperCase()));
+          const extra = res.data.data.filter((i) => !existingCodes.has(i.code?.toUpperCase()));
+          setAltServerResults(extra);
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        setIsSearchingServerAlt(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [addAltModal.search, addAltModal.isOpen, filteredAltCandidateItems]);
+
+  // Filter for Main Item Search Modal
   const filteredMainItems = useMemo(() => {
     const q = mainItemModal.search.toLowerCase().trim();
     if (!q) return itemsList;
@@ -488,11 +606,17 @@ function AlternativeProduct() {
         i.code?.toLowerCase().includes(q) ||
         i.description?.toLowerCase().includes(q) ||
         i.category?.toLowerCase().includes(q) ||
-        (i.barcode && String(i.barcode).toLowerCase().includes(q))
+        (i.barcode && String(i.barcode).toLowerCase().includes(q)) ||
+        (i.suppCode && String(i.suppCode).toLowerCase().includes(q))
     );
   }, [itemsList, mainItemModal.search]);
 
-  // Filter for Add Alternative Item Search Modal (displays every item in Item Master)
+  // Slice to max 100 to prevent React DOM lockup
+  const displayedMainItems = useMemo(() => {
+    return [...filteredMainItems.slice(0, 100), ...mainServerResults];
+  }, [filteredMainItems, mainServerResults]);
+
+  // Filter for Add Alternative Item Search Modal
   const filteredAltCandidateItems = useMemo(() => {
     const q = addAltModal.search.toLowerCase().trim();
 
@@ -502,10 +626,16 @@ function AlternativeProduct() {
       const d = i.description?.toLowerCase() || '';
       const cat = i.category?.toLowerCase() || '';
       const b = i.barcode ? String(i.barcode).toLowerCase() : '';
+      const supp = i.suppCode ? String(i.suppCode).toLowerCase() : '';
 
-      return c.includes(q) || d.includes(q) || cat.includes(q) || b.includes(q);
+      return c.includes(q) || d.includes(q) || cat.includes(q) || b.includes(q) || supp.includes(q);
     });
   }, [itemsList, addAltModal.search]);
+
+  // Slice to max 100 to prevent browser freezing
+  const displayedAltCandidateItems = useMemo(() => {
+    return [...filteredAltCandidateItems.slice(0, 100), ...altServerResults];
+  }, [filteredAltCandidateItems, altServerResults]);
 
   // Filter for Lower Records List
   const filteredRecords = useMemo(() => {
@@ -601,7 +731,7 @@ function AlternativeProduct() {
               </div>
 
               <datalist id="alt-item-code-datalist">
-                {itemsList.map((item) => (
+                {itemsList.slice(0, 50).map((item) => (
                   <option key={item._id || item.code} value={item.code}>
                     {item.description ? `${item.description}` : item.code}
                   </option>
@@ -679,16 +809,52 @@ function AlternativeProduct() {
               <button
                 type="button"
                 className="alt-prod-btn-classic add-alt-btn"
-                onClick={() => {
-                  if (!formData.itemCode) {
-                    showNotification('Please select or enter a Main Item Code first', 'error');
-                    return;
-                  }
-                  setAddAltModal({ isOpen: true, search: '' });
-                }}
+                onClick={handleOpenAddAltModal}
+                title="Search and select from Item Master"
               >
-                + Add Alternative Item
+                + Add Alternative Item (Search Dialog)
               </button>
+            </div>
+
+            {/* Quick Inline Entry for Alternative Products */}
+            <div className="alt-prod-quick-add-bar">
+              <span className="dotted-label-blue" style={{ fontSize: '12px' }}>
+                Quick Add Alternative:
+              </span>
+              <input
+                type="text"
+                className="alt-prod-input"
+                style={{ width: '220px', fontWeight: 'bold', color: '#000080' }}
+                placeholder="Type/Scan Alt Item Code or Barcode..."
+                value={quickAltCode}
+                onChange={(e) => setQuickAltCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleQuickAddAlternative();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="alt-prod-btn-classic"
+                style={{ fontWeight: 'bold' }}
+                onClick={handleQuickAddAlternative}
+                title="Add to alternative list"
+              >
+                + Add
+              </button>
+              <button
+                type="button"
+                className="alt-prod-btn-classic"
+                onClick={handleOpenAddAltModal}
+                title="Browse all items"
+              >
+                🔍 Browse Items...
+              </button>
+              <span style={{ fontSize: '11px', color: '#555', marginLeft: 'auto' }}>
+                Total Linked: <strong>{alternativeItems.length}</strong>
+              </span>
             </div>
 
             <div className="table-viewport upper-table-scroll">
@@ -846,7 +1012,7 @@ function AlternativeProduct() {
                 type="button"
                 className="control-btn close"
                 style={{ width: '24px', height: '20px' }}
-                onClick={() => setMainItemModal({ isOpen: false, search: '' })}
+                onClick={() => setMainItemModal({ isOpen: false, search: '', autoOpenAltAfterSelect: false })}
               >
                 &#x2715;
               </button>
@@ -859,14 +1025,18 @@ function AlternativeProduct() {
                     type="text"
                     className="alt-prod-input"
                     style={{ flex: 1, padding: '4px 8px' }}
-                    placeholder="Search by Item Code, Description, or Category..."
+                    placeholder="Search by Item Code, Description, Category, Barcode..."
                     autoFocus
                     value={mainItemModal.search}
                     onChange={(e) => setMainItemModal({ ...mainItemModal, search: e.target.value })}
                   />
                 </div>
                 <span style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                  {loadingItems ? 'Loading items...' : `Showing ${filteredMainItems.length} of ${itemsList.length} items`}
+                  {loadingItems
+                    ? 'Loading items...'
+                    : isSearchingServerMain
+                    ? 'Searching database...'
+                    : `Showing ${displayedMainItems.length} of ${filteredMainItems.length} items`}
                 </span>
               </div>
 
@@ -884,15 +1054,20 @@ function AlternativeProduct() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredMainItems.length === 0 ? (
+                    {displayedMainItems.length === 0 ? (
                       <tr>
                         <td colSpan="7" style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
                           No matching items found in Item Master
                         </td>
                       </tr>
                     ) : (
-                      filteredMainItems.map((item, idx) => (
-                        <tr key={item._id || item.code} onClick={() => handleSelectMainItem(item)}>
+                      displayedMainItems.map((item, idx) => (
+                        <tr
+                          key={item._id || item.code}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => handleSelectMainItem(item)}
+                          title="Click to select this as Main Item"
+                        >
                           <td style={{ textAlign: 'center', color: '#666' }}>{idx + 1}</td>
                           <td style={{ fontWeight: 'bold', color: '#000080' }}>{item.code}</td>
                           <td>{item.description}</td>
@@ -907,7 +1082,7 @@ function AlternativeProduct() {
                             <button
                               type="button"
                               className="alt-prod-btn-classic"
-                              style={{ height: '20px', minWidth: '50px', padding: '0 4px', fontSize: '11px' }}
+                              style={{ height: '22px', minWidth: '55px', padding: '0 4px', fontSize: '11px' }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleSelectMainItem(item);
@@ -927,7 +1102,7 @@ function AlternativeProduct() {
               <button
                 type="button"
                 className="alt-prod-btn-classic"
-                onClick={() => setMainItemModal({ isOpen: false, search: '' })}
+                onClick={() => setMainItemModal({ isOpen: false, search: '', autoOpenAltAfterSelect: false })}
               >
                 Close
               </button>
@@ -959,14 +1134,18 @@ function AlternativeProduct() {
                     type="text"
                     className="alt-prod-input"
                     style={{ flex: 1, padding: '4px 8px' }}
-                    placeholder="Type code or description to find replacement/alternative product..."
+                    placeholder="Type code, description, or barcode to find replacement/alternative product..."
                     autoFocus
                     value={addAltModal.search}
                     onChange={(e) => setAddAltModal({ ...addAltModal, search: e.target.value })}
                   />
                 </div>
                 <span style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                  {loadingItems ? 'Loading items...' : `Showing ${filteredAltCandidateItems.length} of ${itemsList.length} items`}
+                  {loadingItems
+                    ? 'Loading items...'
+                    : isSearchingServerAlt
+                    ? 'Searching database...'
+                    : `Showing ${displayedAltCandidateItems.length} of ${filteredAltCandidateItems.length} items`}
                 </span>
               </div>
 
@@ -980,27 +1159,37 @@ function AlternativeProduct() {
                       <th style={{ width: '80px', textAlign: 'center' }}>Stock</th>
                       <th style={{ width: '100px' }}>Location</th>
                       <th style={{ width: '90px', textAlign: 'right' }}>Price</th>
-                      <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
+                      <th style={{ width: '130px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAltCandidateItems.length === 0 ? (
+                    {displayedAltCandidateItems.length === 0 ? (
                       <tr>
                         <td colSpan="7" style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
                           No items found in Item Master
                         </td>
                       </tr>
                     ) : (
-                      filteredAltCandidateItems.map((item, idx) => {
-                        const isMain = item.code?.toUpperCase() === formData.itemCode?.toUpperCase();
+                      displayedAltCandidateItems.map((item, idx) => {
+                        const isMain = String(item.code || '').trim().toUpperCase() === String(formData.itemCode || '').trim().toUpperCase();
                         const isAlreadyLinked = alternativeItems.some(
-                          (ai) => ai.code?.toUpperCase() === item.code?.toUpperCase()
+                          (ai) => String(ai.code || '').trim().toUpperCase() === String(item.code || '').trim().toUpperCase()
                         );
 
                         return (
                           <tr
                             key={item._id || item.code}
-                            style={{ opacity: isMain || isAlreadyLinked ? 0.6 : 1 }}
+                            style={{
+                              cursor: isMain || isAlreadyLinked ? 'default' : 'pointer',
+                              opacity: isMain || isAlreadyLinked ? 0.6 : 1,
+                              backgroundColor: isAlreadyLinked ? '#f0fdf4' : undefined,
+                            }}
+                            onClick={() => {
+                              if (!isMain && !isAlreadyLinked) {
+                                handleAddAlternativeItem(item, false);
+                              }
+                            }}
+                            title={isMain ? 'Main Item' : isAlreadyLinked ? 'Already Added' : 'Click to add as alternative product'}
                           >
                             <td style={{ textAlign: 'center', color: '#666' }}>{idx + 1}</td>
                             <td style={{ fontWeight: 'bold', color: '#000080' }}>{item.code}</td>
@@ -1014,22 +1203,40 @@ function AlternativeProduct() {
                             </td>
                             <td style={{ textAlign: 'center' }}>
                               {isMain ? (
-                                <span style={{ fontSize: '10px', color: '#888', fontWeight: 'bold' }}>
+                                <span style={{ fontSize: '11px', color: '#888', fontWeight: 'bold' }}>
                                   Main Item
                                 </span>
                               ) : isAlreadyLinked ? (
-                                <span style={{ fontSize: '10px', color: '#2b78e4', fontWeight: 'bold' }}>
+                                <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 'bold' }}>
                                   Added ✓
                                 </span>
                               ) : (
-                                <button
-                                  type="button"
-                                  className="alt-prod-btn-classic"
-                                  style={{ height: '20px', minWidth: '55px', padding: '0 4px', fontSize: '11px' }}
-                                  onClick={() => handleAddAlternativeItem(item)}
-                                >
-                                  Select
-                                </button>
+                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                  <button
+                                    type="button"
+                                    className="alt-prod-btn-classic"
+                                    style={{ height: '22px', minWidth: '45px', padding: '0 4px', fontSize: '11px' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddAlternativeItem(item, false);
+                                    }}
+                                    title="Add to alternative list"
+                                  >
+                                    + Add
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="alt-prod-btn-classic"
+                                    style={{ height: '22px', minWidth: '65px', padding: '0 4px', fontSize: '11px', backgroundColor: '#e0f2fe' }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddAlternativeItem(item, true);
+                                    }}
+                                    title="Add and close dialog"
+                                  >
+                                    Add & Close
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>

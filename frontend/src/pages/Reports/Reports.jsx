@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import StockReportView from './StockReportView';
+import ReportsDashboardView from './ReportsDashboardView';
 import './Reports.css';
 
 /**
@@ -66,6 +68,8 @@ function Reports() {
   ];
 
   const reportTabsList = [
+    { id: 'dashboard', label: 'Reports Dashboard', icon: '📊' },
+    { id: 'stock_report', label: 'Stock Report', icon: '📋' },
     { id: 'settlements', label: 'Daily Settlements Details', icon: '💰' },
     { id: 'grn', label: 'Goods Received Notes (GRN)', icon: '📥' },
     { id: 'invoice_returns', label: 'Invoice Returns Report', icon: '🔄' },
@@ -88,8 +92,8 @@ function Reports() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Active Report Tab: 'settlements', 'grn', 'invoice_returns', 'daily_sales', 'closing_stock', or 'alternative_products'
-  const initialTab = searchParams.get('tab') || 'settlements';
+  // Active Report Tab: 'dashboard', 'stock_report', 'settlements', 'grn', etc.
+  const initialTab = searchParams.get('tab') || 'dashboard';
   const [activeReportTab, setActiveReportTab] = useState(initialTab);
 
   useEffect(() => {
@@ -1597,6 +1601,20 @@ function Reports() {
 
           {/* Report Workspace Content */}
           <div className="cust-report-workspace">
+
+      {/* =========================================================================
+          FEATURE 1: REPORTS DASHBOARD (Executive KPI & Business Overview)
+          ========================================================================= */}
+      {activeReportTab === 'dashboard' && (
+        <ReportsDashboardView onNavigateTab={handleTabSwitch} />
+      )}
+
+      {/* =========================================================================
+          FEATURE 2: STOCK REPORT (Live Inventory, Reorders, GRN Cost & Selling Price)
+          ========================================================================= */}
+      {activeReportTab === 'stock_report' && (
+        <StockReportView onNavigateTab={handleTabSwitch} />
+      )}
 
       {/* =========================================================================
           REPORT 6: ALTERNATIVE PRODUCTS & COMPATIBILITY REPORT

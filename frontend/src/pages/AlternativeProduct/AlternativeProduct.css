@@ -458,8 +458,8 @@
 }
 
 .alt-prod-section-box.upper {
-  min-height: 200px;
-  max-height: 250px;
+  min-height: 220px;
+  max-height: 320px;
 }
 
 .alt-prod-section-box.lower {
@@ -477,6 +477,19 @@
   padding: 4px 8px;
   box-sizing: border-box;
   flex-shrink: 0;
+}
+
+.alt-prod-quick-add-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  background-color: #f8f7f2;
+  border-bottom: 1px solid #d4d0c8;
+  padding: 5px 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .section-title {

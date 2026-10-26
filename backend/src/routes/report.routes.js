@@ -11,6 +11,8 @@ import {
   getTopSellingItemsReport,
   getNonMovingReport,
   getGoodsReturnNotes,
+  getStockReport,
+  getDashboardMetrics,
 } from '../controllers/reportController.js';
 
 const router = Router();
@@ -61,6 +63,10 @@ router.get('/gren', getGoodsReturnNotes);
 router.get('/goods-returns', getGoodsReturnNotes);
 router.get('/filter-options', getReportFilterOptions);
 router.get('/most-used-products', getMostUsedProducts);
+router.get('/stock-report', getStockReport);
+router.get('/inventory-stock', getStockReport);
+router.get('/dashboard-metrics', getDashboardMetrics);
+router.get('/dashboard', getDashboardMetrics);
 
 export default router;
 

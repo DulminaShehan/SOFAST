@@ -1746,3 +1746,546 @@ export const getGoodsReturnNotes = async (req, res, next) => {
     next(error);
   }
 };
+
+// =============================================================================
+// 12. HELPER: Local Day Range (+05:30 Asia/Colombo)
+// =============================================================================
+const getLocalDayRange = (targetDateStr = '') => {
+  const tzOffsetMs = 5.5 * 60 * 60 * 1000;
+  let baseDate;
+  if (targetDateStr && String(targetDateStr).trim() && !isNaN(new Date(targetDateStr).getTime())) {
+    baseDate = new Date(String(targetDateStr).trim());
+  } else {
+    baseDate = new Date();
+  }
+  const localNow = new Date(baseDate.getTime() + tzOffsetMs);
+  const y = localNow.getUTCFullYear();
+  const m = localNow.getUTCMonth();
+  const d = localNow.getUTCDate();
+  const startOfDay = new Date(Date.UTC(y, m, d) - tzOffsetMs);
+  const endOfDay = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - tzOffsetMs);
+  const localDateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  return { startOfDay, endOfDay, localDateStr };
+};
+
+// =============================================================================
+// 13. STOCK REPORT
+// =============================================================================
+export const getStockReport = async (req, res, next) => {
+  try {
+    const {
+      search = '',
+      category = 'All',
+      subCategory = 'All',
+      location = 'All',
+      status = 'all',
+      sortBy = 'code_asc',
+      page = 1,
+      limit = 50,
+    } = req.query;
+
+    if (!isDbConnected()) {
+      return res.status(200).json({
+        success: false,
+        message: 'Database offline mode',
+        summary: {
+          totalItems: 0,
+          totalAvailableStock: 0,
+          totalValuation: 0,
+          inStockCount: 0,
+          lowStockCount: 0,
+          outOfStockCount: 0,
+        },
+        pagination: { page: 1, limit: 50, totalRecords: 0, totalPages: 0 },
+        items: [],
+        filterOptions: { categories: [], subCategories: [], locations: [] },
+      });
+    }
+
+    const query = {};
+    if (search && search.trim()) {
+      const term = search.trim();
+      query.$or = [
+        { code: { $regex: term, $options: 'i' } },
+        { description: { $regex: term, $options: 'i' } },
+      ];
+    }
+
+    if (category && category.trim() && category !== 'All') {
+      query.category = category.trim();
+    }
+
+    if (subCategory && subCategory.trim() && subCategory !== 'All') {
+      query.subCategory = subCategory.trim();
+    }
+
+    if (location && location.trim() && location !== 'All') {
+      query.location = location.trim();
+    }
+
+    // Fetch items with required fields only for maximum speed
+    const dbItems = await mongoose.connection.db.collection('items').find(query, {
+      projection: {
+        code: 1,
+        description: 1,
+        category: 1,
+        subCategory: 1,
+        location: 1,
+        quantity: 1,
+        stockInHand: 1,
+        damagedStock: 1,
+        reorderLevel: 1,
+        lastGrnDate: 1,
+        lastGrnPrice: 1,
+        averageCost: 1,
+        sellingPrice: 1,
+        finalSellingPrice: 1,
+      },
+    }).toArray();
+
+    // Map and calculate stock metrics
+    let items = dbItems.map((itm) => {
+      const qty = itm.quantity !== undefined ? Number(itm.quantity) : (itm.stockInHand !== undefined ? Number(itm.stockInHand) : 0);
+      const reorder = Number(itm.reorderLevel) || 0;
+      const isOut = qty <= 0;
+      const isLow = !isOut && (reorder > 0 ? qty <= reorder : qty <= 2);
+      const stockStatus = isOut ? 'Out of Stock' : (isLow ? 'Low Stock' : 'In Stock');
+      const cost = Number(itm.averageCost) || Number(itm.lastGrnPrice) || 0;
+      const price = Number(itm.finalSellingPrice) || Number(itm.sellingPrice) || 0;
+      const unitValuation = cost > 0 ? cost : (price > 0 ? price * 0.7 : 0);
+      const valuation = qty > 0 ? Number((qty * unitValuation).toFixed(2)) : 0;
+
+      return {
+        _id: itm._id,
+        code: itm.code || '',
+        description: (itm.description || '').toUpperCase().trim(),
+        category: (itm.category || '').toUpperCase().trim() || 'GENERAL',
+        subCategory: (itm.subCategory || '').trim() || 'N/A',
+        location: (itm.location || '').trim() || 'Main Store',
+        availableStock: qty,
+        damagedStock: Number(itm.damagedStock) || 0,
+        reorderLevel: reorder,
+        stockStatus,
+        isLowStock: isLow,
+        isOutOfStock: isOut,
+        lastGrnDate: itm.lastGrnDate || '',
+        lastGrnPurchaseCost: Number(cost.toFixed(2)),
+        sellingPrice: Number(price.toFixed(2)),
+        valuation,
+      };
+    });
+
+    // In-memory stock status filtering
+    if (status === 'in_stock') {
+      items = items.filter((it) => it.stockStatus === 'In Stock');
+    } else if (status === 'low_stock') {
+      items = items.filter((it) => it.isLowStock);
+    } else if (status === 'out_of_stock') {
+      items = items.filter((it) => it.isOutOfStock);
+    }
+
+    // Summary aggregates
+    const totalItems = items.length;
+    const totalAvailableStock = items.reduce((sum, it) => sum + it.availableStock, 0);
+    const totalValuation = items.reduce((sum, it) => sum + it.valuation, 0);
+    const inStockCount = items.filter((it) => it.stockStatus === 'In Stock').length;
+    const lowStockCount = items.filter((it) => it.isLowStock).length;
+    const outOfStockCount = items.filter((it) => it.isOutOfStock).length;
+
+    // Sorting
+    if (sortBy === 'code_desc') {
+      items.sort((a, b) => b.code.localeCompare(a.code));
+    } else if (sortBy === 'desc_asc') {
+      items.sort((a, b) => a.description.localeCompare(b.description));
+    } else if (sortBy === 'desc_desc') {
+      items.sort((a, b) => b.description.localeCompare(a.description));
+    } else if (sortBy === 'qty_desc') {
+      items.sort((a, b) => b.availableStock - a.availableStock);
+    } else if (sortBy === 'qty_asc') {
+      items.sort((a, b) => a.availableStock - b.availableStock);
+    } else if (sortBy === 'cost_desc') {
+      items.sort((a, b) => b.lastGrnPurchaseCost - a.lastGrnPurchaseCost);
+    } else if (sortBy === 'cost_asc') {
+      items.sort((a, b) => a.lastGrnPurchaseCost - b.lastGrnPurchaseCost);
+    } else if (sortBy === 'price_desc') {
+      items.sort((a, b) => b.sellingPrice - a.sellingPrice);
+    } else if (sortBy === 'price_asc') {
+      items.sort((a, b) => a.sellingPrice - b.sellingPrice);
+    } else {
+      // Default: code_asc
+      items.sort((a, b) => a.code.localeCompare(b.code));
+    }
+
+    // Pagination
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Number(limit) === 0 ? 0 : Math.max(1, Number(limit) || 50);
+    const totalPages = limitNum === 0 ? 1 : Math.ceil(totalItems / limitNum);
+    const paginatedItems = limitNum === 0 ? items : items.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    // Filter options from db
+    const distinctCategories = await mongoose.connection.db.collection('items').distinct('category');
+    const distinctSubCategories = await mongoose.connection.db.collection('items').distinct('subCategory');
+    const distinctLocations = await mongoose.connection.db.collection('items').distinct('location');
+
+    return res.status(200).json({
+      success: true,
+      reportType: 'stock_report',
+      reportTitle: 'STOCK REPORT',
+      company: COMPANY_HEADER,
+      summary: {
+        totalItems,
+        totalAvailableStock,
+        totalValuation: Math.round(totalValuation * 100) / 100,
+        inStockCount,
+        lowStockCount,
+        outOfStockCount,
+      },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalRecords: totalItems,
+        totalPages,
+      },
+      items: paginatedItems,
+      filterOptions: {
+        categories: distinctCategories.filter(Boolean).sort(),
+        subCategories: distinctSubCategories.filter(Boolean).sort(),
+        locations: distinctLocations.filter(Boolean).sort(),
+      },
+      softwareFooter: SOFTWARE_FOOTER,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =============================================================================
+// 14. REPORTS DASHBOARD METRICS
+// =============================================================================
+export const getDashboardMetrics = async (req, res, next) => {
+  try {
+    const { date = '' } = req.query;
+
+    if (!isDbConnected()) {
+      return res.status(200).json({
+        success: false,
+        message: 'Database offline mode',
+        cards: {
+          totalItems: 0,
+          totalAvailableStock: 0,
+          outOfStockCount: 0,
+          lowStockCount: 0,
+          todayBills: 0,
+          todaySales: 0,
+          todayReturns: 0,
+          todayReturnValue: 0,
+          todayGrns: 0,
+          todayGoodsReturns: 0,
+        },
+      });
+    }
+
+    const { startOfDay, endOfDay, localDateStr } = getLocalDayRange(date);
+
+    // 1-4: Stock counts & low/out lists
+    const items = await mongoose.connection.db.collection('items').find({}, {
+      projection: {
+        code: 1,
+        description: 1,
+        category: 1,
+        location: 1,
+        quantity: 1,
+        stockInHand: 1,
+        reorderLevel: 1,
+        sellingPrice: 1,
+        finalSellingPrice: 1,
+        averageCost: 1,
+        lastGrnPrice: 1,
+      },
+    }).toArray();
+
+    let totalAvailableStock = 0;
+    let outOfStockCount = 0;
+    let lowStockCount = 0;
+    let inStockCount = 0;
+    const outOfStockList = [];
+    const lowStockList = [];
+
+    for (const it of items) {
+      const qty = itmStock(it);
+      const reorder = Number(it.reorderLevel) || 0;
+      const isOut = qty <= 0;
+      const isLow = !isOut && (reorder > 0 ? qty <= reorder : qty <= 2);
+      totalAvailableStock += qty;
+
+      if (isOut) {
+        outOfStockCount++;
+        if (outOfStockList.length < 25) {
+          outOfStockList.push({
+            code: it.code,
+            description: (it.description || '').toUpperCase(),
+            category: it.category || 'GENERAL',
+            location: it.location || 'Main Store',
+            availableStock: qty,
+            reorderLevel: reorder,
+            sellingPrice: Number(it.finalSellingPrice) || Number(it.sellingPrice) || 0,
+          });
+        }
+      } else if (isLow) {
+        lowStockCount++;
+        if (lowStockList.length < 25) {
+          lowStockList.push({
+            code: it.code,
+            description: (it.description || '').toUpperCase(),
+            category: it.category || 'GENERAL',
+            location: it.location || 'Main Store',
+            availableStock: qty,
+            reorderLevel: reorder,
+            sellingPrice: Number(it.finalSellingPrice) || Number(it.sellingPrice) || 0,
+          });
+        }
+      } else {
+        inStockCount++;
+      }
+    }
+
+    // Helper for stock extraction
+    function itmStock(it) {
+      return it.quantity !== undefined ? Number(it.quantity) : (it.stockInHand !== undefined ? Number(it.stockInHand) : 0);
+    }
+
+    // 5-6: Today's Finalized Sales Invoices
+    const todayInvoices = await mongoose.connection.db.collection('invoices').find({
+      status: { $nin: ['cancelled', 'draft', 'held'] },
+      isHold: { $ne: true },
+      $or: [
+        { date: { $gte: startOfDay, $lte: endOfDay } },
+        { createdAt: { $gte: startOfDay, $lte: endOfDay } },
+      ],
+    }).toArray();
+
+    const todayBills = todayInvoices.length;
+    const todaySales = todayInvoices.reduce((sum, inv) => sum + (Number(inv.netTotal) || Number(inv.amountToPay) || 0), 0);
+
+    // 7-8: Today's Customer Returns
+    const todayCustReturns = await mongoose.connection.db.collection('customerdamagereturns').find({
+      status: { $ne: 'CANCELLED' },
+      $or: [
+        { date: { $gte: startOfDay, $lte: endOfDay } },
+        { createdAt: { $gte: startOfDay, $lte: endOfDay } },
+      ],
+    }).toArray();
+
+    const todayReturns = todayCustReturns.length;
+    const todayReturnValue = todayCustReturns.reduce((sum, r) => {
+      const itm = r.returnedItem || {};
+      const val = Number(r.refundAmount) || (Number(itm.returnedQuantity || 1) * Number(itm.unitPrice || 0));
+      return sum + val;
+    }, 0);
+
+    // 9: Today's Goods Received Notes (GRN)
+    const todayGrns = await mongoose.connection.db.collection('grns').countDocuments({
+      status: { $ne: 'cancelled' },
+      $or: [
+        { date: { $gte: startOfDay, $lte: endOfDay } },
+        { createdAt: { $gte: startOfDay, $lte: endOfDay } },
+      ],
+    });
+
+    // 10: Today's Goods Return Notes (Supplier Returns)
+    const todayGoodsReturns = await mongoose.connection.db.collection('supplierreturns').countDocuments({
+      $or: [
+        { date: { $gte: startOfDay, $lte: endOfDay } },
+        { createdAt: { $gte: startOfDay, $lte: endOfDay } },
+      ],
+    });
+
+    // Top Selling Items Today (aggregated from today's invoices, or recent)
+    const topItemMap = new Map();
+    todayInvoices.forEach((inv) => {
+      (inv.lineItems || []).forEach((li) => {
+        const c = String(li.code || li.itemCode || '').trim();
+        if (!c) return;
+        const q = Number(li.quantity || li.qty || 1);
+        const v = Number(li.total || (li.unitPrice * q) || 0);
+        if (!topItemMap.has(c)) {
+          topItemMap.set(c, {
+            code: c,
+            description: li.description || 'Sales Item',
+            quantity: 0,
+            revenue: 0,
+            source: 'Today',
+          });
+        }
+        const entry = topItemMap.get(c);
+        entry.quantity += q;
+        entry.revenue += v;
+      });
+    });
+
+    let topSellingToday = Array.from(topItemMap.values()).sort((a, b) => b.quantity - a.quantity);
+
+    // If today has less than 5 items, supplement from recent completed invoices
+    if (topSellingToday.length < 5) {
+      const recentSalesInvoices = await mongoose.connection.db.collection('invoices')
+        .find({ status: { $nin: ['cancelled', 'draft', 'held'] }, isHold: { $ne: true } })
+        .sort({ createdAt: -1, date: -1 })
+        .limit(20)
+        .toArray();
+
+      recentSalesInvoices.forEach((inv) => {
+        (inv.lineItems || []).forEach((li) => {
+          const c = String(li.code || li.itemCode || '').trim();
+          if (!c || topItemMap.has(c)) return;
+          const q = Number(li.quantity || li.qty || 1);
+          const v = Number(li.total || (li.unitPrice * q) || 0);
+          topSellingToday.push({
+            code: c,
+            description: li.description || 'Sales Item',
+            quantity: q,
+            revenue: v,
+            source: 'Recent',
+          });
+        });
+      });
+      topSellingToday = topSellingToday.slice(0, 10);
+    }
+
+    // Past 7 Days Sales Trend
+    const past7Days = [];
+    const tzOffsetMs = 5.5 * 60 * 60 * 1000;
+    for (let i = 6; i >= 0; i--) {
+      const dStart = new Date(startOfDay.getTime() - i * 24 * 60 * 60 * 1000);
+      const dEnd = new Date(endOfDay.getTime() - i * 24 * 60 * 60 * 1000);
+      const dayDate = new Date(dStart.getTime() + tzOffsetMs);
+      const label = `${String(dayDate.getUTCMonth() + 1).padStart(2, '0')}/${String(dayDate.getUTCDate()).padStart(2, '0')}`;
+      const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayDate.getUTCDay()];
+      past7Days.push({
+        dStart,
+        dEnd,
+        label: `${dayName} ${label}`,
+        fullDate: dayDate.toISOString().slice(0, 10),
+        sales: 0,
+        bills: 0,
+      });
+    }
+
+    const past7DaysInvoices = await mongoose.connection.db.collection('invoices').find({
+      status: { $nin: ['cancelled', 'draft', 'held'] },
+      isHold: { $ne: true },
+      $or: [
+        { date: { $gte: past7Days[0].dStart, $lte: endOfDay } },
+        { createdAt: { $gte: past7Days[0].dStart, $lte: endOfDay } },
+      ],
+    }).toArray();
+
+    past7DaysInvoices.forEach((inv) => {
+      const invDate = new Date(inv.date || inv.createdAt);
+      for (const d of past7Days) {
+        if (invDate >= d.dStart && invDate <= d.dEnd) {
+          d.sales += Number(inv.netTotal) || Number(inv.amountToPay) || 0;
+          d.bills += 1;
+          break;
+        }
+      }
+    });
+
+    // Recent Finalized Invoices (up to 8)
+    const recentInvoicesRaw = await mongoose.connection.db.collection('invoices')
+      .find({ status: { $nin: ['cancelled', 'draft'] }, isHold: { $ne: true } })
+      .sort({ createdAt: -1, date: -1 })
+      .limit(8)
+      .toArray();
+
+    const recentInvoices = recentInvoicesRaw.map((inv) => ({
+      _id: inv._id,
+      invoiceNumber: inv.invoiceNumber || String(inv.no || ''),
+      date: inv.date || inv.createdAt,
+      customerName: inv.customerName || inv.cusname || 'Walk-in Customer',
+      amount: Number(inv.netTotal) || Number(inv.amountToPay) || 0,
+      paymentMethod: inv.paymentMethod || inv.paidBy || 'Cash',
+      status: inv.status || 'completed',
+    }));
+
+    // Recent GRNs (up to 8)
+    const recentGrnsRaw = await mongoose.connection.db.collection('grns')
+      .find({ status: { $ne: 'cancelled' } })
+      .sort({ createdAt: -1, date: -1 })
+      .limit(8)
+      .toArray();
+
+    const recentGrns = recentGrnsRaw.map((grn) => ({
+      _id: grn._id,
+      grnNumber: grn.grnNumber || String(grn.no || ''),
+      date: grn.date || grn.createdAt,
+      supplierName: grn.supplierName || grn.supplier || 'N/A',
+      amount: Number(grn.totalValue) || Number(grn.grnValue) || 0,
+      paymentMethod: grn.paidBy || grn.paymentMethod || 'Cash',
+      status: grn.status || 'active',
+    }));
+
+    // Recent Customer Returns (up to 8)
+    const recentCustReturnsRaw = await mongoose.connection.db.collection('customerdamagereturns')
+      .find({ status: { $ne: 'CANCELLED' } })
+      .sort({ createdAt: -1, date: -1 })
+      .limit(8)
+      .toArray();
+
+    const recentCustomerReturns = recentCustReturnsRaw.map((ret) => {
+      const itm = ret.returnedItem || {};
+      const val = Number(ret.refundAmount) || (Number(itm.returnedQuantity || 1) * Number(itm.unitPrice || 0));
+      return {
+        _id: ret._id,
+        returnNumber: ret.returnNumber || String(ret.no || ''),
+        invoiceNumber: ret.invoiceNumber || 'N/A',
+        date: ret.date || ret.createdAt,
+        customerName: ret.customerName || 'Customer',
+        itemCode: itm.itemCode || itm.code || 'ITEM',
+        description: itm.description || 'Returned Item',
+        quantity: Number(itm.returnedQuantity || 1),
+        value: Number(val.toFixed(2)),
+        reason: itm.damageReason || ret.remarks || 'Warranty/Return',
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      reportType: 'dashboard_metrics',
+      company: COMPANY_HEADER,
+      dateInfo: {
+        currentDate: localDateStr,
+        timezone: 'Asia/Colombo (UTC+05:30)',
+        asOfTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Colombo' }),
+      },
+      cards: {
+        totalItems: items.length,
+        totalAvailableStock,
+        stockUnit: 'Pcs',
+        outOfStockCount,
+        lowStockCount,
+        inStockCount,
+        todayBills,
+        todaySales: Number(todaySales.toFixed(2)),
+        todayReturns,
+        todayReturnValue: Number(todayReturnValue.toFixed(2)),
+        todayGrns,
+        todayGoodsReturns,
+      },
+      past7Days: past7Days.map((d) => ({
+        label: d.label,
+        fullDate: d.fullDate,
+        sales: Number(d.sales.toFixed(2)),
+        bills: d.bills,
+      })),
+      topSellingToday,
+      lowStockList,
+      outOfStockList,
+      recentInvoices,
+      recentGrns,
+      recentCustomerReturns,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
