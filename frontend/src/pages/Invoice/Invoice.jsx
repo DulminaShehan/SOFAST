@@ -1084,9 +1084,10 @@ function Invoice() {
       const trimmed = String(value || '').trim().toLowerCase();
       const match = itemsList.find(
         (i) =>
-          i.code?.toLowerCase() === trimmed ||
-          i.barcode?.toLowerCase() === trimmed ||
-          i.barCode?.toLowerCase() === trimmed
+          (i.code && String(i.code).toLowerCase() === trimmed) ||
+          (i.itemCode && String(i.itemCode).toLowerCase() === trimmed) ||
+          (i.barcode && String(i.barcode).toLowerCase() === trimmed) ||
+          (i.barCode && String(i.barCode).toLowerCase() === trimmed)
       );
 
       if (match) {
@@ -1838,16 +1839,19 @@ function Invoice() {
 
   // Filtered items for quick dropdown list (Code field)
   const filteredDropdownItems = useMemo(() => {
-    const q = String(itemEntry.code || '').trim().toLowerCase();
-    if (!q) return itemsList;
-    return itemsList.filter(
-      (i) =>
-        i.code?.toLowerCase().includes(q) ||
-        i.description?.toLowerCase().includes(q) ||
-        i.category?.toLowerCase().includes(q) ||
-        (i.barcode && String(i.barcode).toLowerCase().includes(q)) ||
-        (i.barCode && String(i.barCode).toLowerCase().includes(q))
-    );
+    const raw = String(itemEntry.code || '').trim().toLowerCase();
+    if (!raw) return itemsList;
+    const tokens = raw.split(/\s+/).filter(Boolean);
+    return itemsList.filter((i) => {
+      const codeStr = String(i.code || i.itemCode || '').toLowerCase();
+      const descStr = String(i.description || i.name || i.itemName || '').toLowerCase();
+      const catStr = String(i.category || '').toLowerCase();
+      const subCatStr = String(i.subCategory || '').toLowerCase();
+      const suppStr = String(i.suppCode || i.supplierCode || '').toLowerCase();
+      const barStr = String(i.barcode || i.barCode || '').toLowerCase();
+      const combined = `${codeStr} ${descStr} ${catStr} ${subCatStr} ${suppStr} ${barStr}`;
+      return tokens.every((token) => combined.includes(token));
+    });
   }, [itemsList, itemEntry.code]);
 
   // Filtered customers / items for lookup modal
@@ -1879,16 +1883,19 @@ function Invoice() {
   }, [invoicesList, lookupModal.search]);
 
   const filteredItems = useMemo(() => {
-    const q = lookupModal.search.toLowerCase().trim();
-    if (!q) return itemsList;
-    return itemsList.filter(
-      (i) =>
-        i.code?.toLowerCase().includes(q) ||
-        i.description?.toLowerCase().includes(q) ||
-        i.category?.toLowerCase().includes(q) ||
-        (i.barcode && String(i.barcode).toLowerCase().includes(q)) ||
-        (i.barCode && String(i.barCode).toLowerCase().includes(q))
-    );
+    const raw = lookupModal.search.toLowerCase().trim();
+    if (!raw) return itemsList;
+    const tokens = raw.split(/\s+/).filter(Boolean);
+    return itemsList.filter((i) => {
+      const codeStr = String(i.code || i.itemCode || '').toLowerCase();
+      const descStr = String(i.description || i.name || i.itemName || '').toLowerCase();
+      const catStr = String(i.category || '').toLowerCase();
+      const subCatStr = String(i.subCategory || '').toLowerCase();
+      const suppStr = String(i.suppCode || i.supplierCode || '').toLowerCase();
+      const barStr = String(i.barcode || i.barCode || '').toLowerCase();
+      const combined = `${codeStr} ${descStr} ${catStr} ${subCatStr} ${suppStr} ${barStr}`;
+      return tokens.every((token) => combined.includes(token));
+    });
   }, [itemsList, lookupModal.search]);
 
   const totalLookupPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE) || 1;
@@ -2429,9 +2436,9 @@ function Invoice() {
                   </div>
                 </div>
 
-                {/* Form Row 1: Code - Material & GRN */}
+                {/* Form Row 1: Code & GRN */}
                 <div className="sofast-form-row">
-                  <span className="sofast-navy-label" style={{ width: '95px' }}>Code - Material</span>
+                  <span className="sofast-navy-label" style={{ width: '95px' }}>Code</span>
                   <div
                     className="sofast-code-search-container"
                     ref={itemDropdownRef}

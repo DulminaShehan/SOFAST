@@ -2023,6 +2023,8 @@
   #printable-invoice-returns-report *,
   #printable-grn-report,
   #printable-grn-report *,
+  #printable-single-grn,
+  #printable-single-grn *,
   #printable-settlements-report,
   #printable-settlements-report *,
   #printable-alt-report,
@@ -2041,6 +2043,7 @@
   #printable-daily-sales-report,
   #printable-invoice-returns-report,
   #printable-grn-report,
+  #printable-single-grn,
   #printable-settlements-report,
   #printable-alt-report,
   #printable-supplier-purchases-report,
@@ -2057,6 +2060,7 @@
     border: none !important;
     box-shadow: none !important;
     font-size: 10px !important;
+    background: #ffffff !important;
   }
   .cs-table,
   .ds-table,

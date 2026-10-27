@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import api from '../../services/api';
 import './ReportsNewFeatures.css';
 
 /**
@@ -46,27 +47,36 @@ function ReportsDashboardView({ onNavigateTab }) {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch('/api/reports/dashboard-metrics', {
+
+      const response = await api.get('/reports/dashboard-metrics', {
         headers: {
+          'Accept': 'application/json',
           'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
         },
       });
 
-      if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
+      // Verify HTTP status
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`Server returned HTTP ${response.status}`);
       }
 
-      const json = await res.json();
+      // Check response content type before using
+      const contentType = response.headers?.['content-type'] || '';
+      if (contentType && !contentType.includes('application/json')) {
+        throw new Error(`Expected JSON response but received ${contentType}. Please check backend.`);
+      }
+
+      const json = response.data;
       if (json && json.success) {
         setDashboardData(json);
         setLastRefreshed(new Date());
       } else {
-        throw new Error(json.message || 'Failed to load dashboard metrics');
+        throw new Error(json?.message || 'Failed to load dashboard metrics');
       }
     } catch (err) {
       console.error('Error loading dashboard metrics:', err);
-      setError(err.message || 'Unable to connect to database');
+      const errorMsg = err.response?.data?.message || err.message || 'Unable to connect to database';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

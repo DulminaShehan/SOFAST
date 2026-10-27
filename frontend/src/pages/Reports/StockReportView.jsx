@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import api from '../../services/api';
 import './ReportsNewFeatures.css';
 
 /**
@@ -49,38 +50,45 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
       setLoading(true);
       setError(null);
 
-      const params = new URLSearchParams({
-        search: search.trim(),
-        category,
-        subCategory,
-        location,
-        status: stockStatus,
-        sortBy,
-        page: String(page),
-        limit: String(limit),
-      });
-
-      const res = await fetch(`/api/reports/stock-report?${params.toString()}`, {
+      const response = await api.get('/reports/stock-report', {
+        params: {
+          search: search.trim(),
+          category,
+          subCategory,
+          location,
+          status: stockStatus,
+          sortBy,
+          page,
+          limit,
+        },
         headers: {
+          'Accept': 'application/json',
           'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
         },
       });
 
-      if (!res.ok) {
-        throw new Error(`Server returned HTTP ${res.status}`);
+      // Verify HTTP status
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`Server returned HTTP ${response.status}`);
       }
 
-      const json = await res.json();
+      // Check response content type before using
+      const contentType = response.headers?.['content-type'] || '';
+      if (contentType && !contentType.includes('application/json')) {
+        throw new Error(`Expected JSON response but received ${contentType}. Please check backend.`);
+      }
+
+      const json = response.data;
       if (json && json.success) {
         setData(json);
         setLastRefreshed(new Date());
       } else {
-        throw new Error(json.message || 'Failed to load stock report');
+        throw new Error(json?.message || 'Failed to load stock report');
       }
     } catch (err) {
       console.error('Error loading stock report:', err);
-      setError(err.message || 'Unable to connect to database');
+      const errorMsg = err.response?.data?.message || err.message || 'Unable to connect to database';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -137,20 +145,24 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
     try {
       setLoading(true);
       // Fetch all matching records without pagination for full export
-      const params = new URLSearchParams({
-        search: search.trim(),
-        category,
-        subCategory,
-        location,
-        status: stockStatus,
-        sortBy,
-        page: '1',
-        limit: '0', // 0 = all matching records
+      const response = await api.get('/reports/stock-report', {
+        params: {
+          search: search.trim(),
+          category,
+          subCategory,
+          location,
+          status: stockStatus,
+          sortBy,
+          page: 1,
+          limit: 0, // 0 = all matching records
+        },
+        headers: {
+          'Accept': 'application/json',
+        },
       });
 
-      const res = await fetch(`/api/reports/stock-report?${params.toString()}`);
-      const json = await res.json();
-      const exportItems = json.items || data.items || [];
+      const json = response.data;
+      const exportItems = json?.items || data.items || [];
 
       if (exportItems.length === 0) {
         alert('No stock records to export.');

@@ -324,6 +324,7 @@ export const getReportFilterOptions = async (req, res, next) => {
     let bins = [];
     let staffList = ['admin', 'cashier', 'testcashier', 'admin_new'];
     let suppliersList = [];
+    let supplierMasterList = [];
     let customersList = [];
 
     if (isDbConnected()) {
@@ -339,9 +340,12 @@ export const getReportFilterOptions = async (req, res, next) => {
           staffList = users.map((u) => u.username).filter(Boolean);
         }
 
-        const supNames = await Supplier.distinct('name');
+        const supDocs = await Supplier.find({}, { code: 1, name: 1 }).lean();
+        const supNames = (supDocs || []).map((s) => s.name).filter(Boolean);
         const grnSups = await Grn.distinct('supplier');
-        suppliersList = [...new Set([...(supNames || []), ...(grnSups || [])])].filter(Boolean).sort();
+        const grnSupNames = await Grn.distinct('supplierName');
+        suppliersList = [...new Set([...supNames, ...(grnSups || []), ...(grnSupNames || [])])].filter(Boolean).sort();
+        supplierMasterList = (supDocs || []).map((s) => ({ code: s.code, name: s.name }));
 
         const cusNames = await Customer.distinct('name');
         const invCus = await Invoice.distinct('customerName');
@@ -358,6 +362,7 @@ export const getReportFilterOptions = async (req, res, next) => {
       bins: bins.length > 0 ? bins : ['R1', 'R2', 'R3', 'DISPLAY', 'Main Store'],
       staff: staffList,
       suppliers: suppliersList,
+      supplierMaster: supplierMasterList || [],
       customers: customersList,
     });
   } catch (error) {
@@ -853,6 +858,10 @@ export const getGrnReport = async (req, res, next) => {
     const {
       startDate = '',
       endDate = '',
+      fromDate = '',
+      toDate = '',
+      grnNumber = '',
+      grnNo = '',
       supplier = 'All',
       user = 'All',
       search = '',
@@ -861,113 +870,242 @@ export const getGrnReport = async (req, res, next) => {
       limit = 50,
     } = req.query;
 
+    const start = (startDate || fromDate || '').trim();
+    const end = (endDate || toDate || '').trim();
+    const grnNumQuery = (grnNumber || grnNo || '').trim();
+
+    // Validate that From Date is not later than To Date
+    if (start && end) {
+      const dStart = new Date(start);
+      const dEnd = new Date(end);
+      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dStart > dEnd) {
+        return res.status(400).json({
+          success: false,
+          message: 'From Date cannot be later than To Date. Please correct the selected date range.',
+        });
+      }
+    }
+
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Number(limit) === 0 ? 0 : Math.max(1, Number(limit) || 50);
 
-    let grnItems = [];
+    let allGrnRecords = [];
 
     if (isDbConnected()) {
       try {
-        const dateQuery = buildDateRangeQuery(startDate, endDate, 'date');
+        // Build map of Supplier Master for code-to-name and name-to-code resolution
+        const supDocs = await Supplier.find({}, { code: 1, name: 1 }).lean();
+        const supMap = new Map();
+        (supDocs || []).forEach((s) => {
+          if (s.code) {
+            supMap.set(String(s.code).trim().toUpperCase(), s.name);
+            supMap.set(String(s.code).trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase(), s.name);
+          }
+          if (s.name) {
+            supMap.set(String(s.name).trim().toUpperCase(), s.name);
+          }
+        });
+
+        // 1. Fetch GRNs using receipt date query
+        const dateQuery = buildDateRangeQuery(start, end, 'date');
         const grnDocs = await mongoose.connection.db
           .collection('grns')
           .find(dateQuery)
+          .sort({ date: -1, createdAt: -1 })
           .toArray();
 
-        grnDocs.forEach((doc) => {
-          const grnNo = doc.grnNumber || String(doc.no) || 'GRN-GEN';
+        allGrnRecords = grnDocs.map((doc) => {
+          const rawCode = String(doc.supplierCode || doc.supplier || '').trim();
+          const cleanCode = rawCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const resolvedName =
+            doc.supplierName ||
+            supMap.get(cleanCode) ||
+            supMap.get(rawCode.toUpperCase()) ||
+            rawCode ||
+            'RAZA AUTO TRADERS';
+
+          const grnNoStr = doc.grnNumber || (doc.no !== undefined && doc.no !== null ? String(doc.no) : '') || 'GRN-GEN';
           const rawDate = doc.date || doc.createdAt;
           const grnDate = rawDate ? new Date(rawDate).toLocaleDateString('en-GB') : '';
-          const supName = doc.supplierName || doc.supplier || doc.supplierCode || 'RAZA AUTO TRADERS';
-          const payMethod = doc.paymentMethod || (doc.paidBy === 1 ? 'Cash' : 'Cheque');
+          const isoDate = rawDate ? new Date(rawDate).toISOString().slice(0, 10) : '';
+          const payMethod =
+            doc.paymentMethod ||
+            (doc.paidBy === 1 ? 'Cash' : doc.paidBy === 2 ? 'Cheque' : String(doc.paidBy || 'Cash'));
           const invNo = doc.supplierInvoiceNo || doc.invoice || '';
           const userName = doc.user || doc.createdBy || 'PC004';
+          const location = doc.location || doc.lineItems?.[0]?.locationCode || 'Main Store';
+          const statusStr = doc.status || (doc.isPosted !== false ? 'Posted' : 'Pending');
 
-          (doc.lineItems || []).forEach((li) => {
-            const qty = Number(li.quantity || li.qty || 1);
-            const rate = Number(li.unitPrice || li.rate || 0);
+          let totalQty = 0;
+          let totalDiscVal = 0;
+          let computedVal = 0;
+
+          const lineItems = (doc.lineItems || []).map((li, idx) => {
+            const qty = Number(li.quantity !== undefined ? li.quantity : li.qty || 0);
+            const rate = Number(li.unitPrice !== undefined ? li.unitPrice : li.rate || 0);
             const disc = Number(li.discount || 0);
-            const val = Number(li.totalValue || li.value || (rate * qty * (1 - disc / 100)));
+            const val = Number(
+              li.totalValue !== undefined && li.totalValue !== null
+                ? li.totalValue
+                : li.value !== undefined && li.value !== null
+                ? li.value
+                : rate * qty * (1 - disc / 100)
+            );
+            const sellPrice = Number(li.sellingPrice || 0);
 
-            grnItems.push({
-              _id: li._id || `${doc._id}_${li.code}`,
-              grnId: doc._id,
-              grnNumber: grnNo,
-              date: grnDate,
-              rawDate: rawDate ? new Date(rawDate).toISOString().slice(0, 10) : '',
-              supplier: supName,
-              supplierCode: doc.supplierCode || '',
-              paidBy: payMethod,
-              invoice: invNo,
-              user: userName,
+            totalQty += qty;
+            if (disc > 0) {
+              totalDiscVal += (rate * qty * disc) / 100;
+            }
+            computedVal += val;
+
+            return {
+              _id: li._id || `${doc._id}_${idx}`,
               code: li.code || li.itemCode || 'ITEM-GEN',
+              itemCode: li.itemCode || li.code || 'ITEM-GEN',
               description: li.description || 'Received Part',
               quantity: qty,
+              receivedQuantity: qty,
               returnQty: Number(li.returnQty || 0),
+              unitPrice: rate,
+              purchasePrice: rate,
               rate,
+              sellingPrice: sellPrice,
               discount: disc,
+              totalValue: Number(val.toFixed(2)),
+              lineValue: Number(val.toFixed(2)),
               value: Number(val.toFixed(2)),
-            });
+              locationCode: li.locationCode || location,
+            };
           });
+
+          const finalVal = Number(
+            doc.grnValue !== undefined && doc.grnValue !== null
+              ? doc.grnValue
+              : doc.totalValue !== undefined && doc.totalValue !== null
+              ? doc.totalValue
+              : computedVal
+          );
+
+          return {
+            _id: String(doc._id),
+            grnId: doc._id,
+            grnNumber: grnNoStr,
+            no: doc.no !== undefined ? doc.no : null,
+            date: grnDate,
+            rawDate: isoDate,
+            supplierCode: rawCode,
+            supplierName: resolvedName,
+            supplier: resolvedName,
+            supplierInvoiceNo: invNo,
+            invoice: invNo,
+            paymentMethod: payMethod,
+            paidBy: payMethod,
+            totalQuantity: totalQty,
+            totalDiscount: Number(totalDiscVal.toFixed(2)),
+            totalValue: Number(finalVal.toFixed(2)),
+            status: statusStr,
+            isPosted: doc.isPosted !== false,
+            location,
+            user: userName,
+            remark: doc.remark || '',
+            itemsCount: lineItems.length,
+            lineItems,
+          };
         });
       } catch (err) {
         console.warn('DB GRN query error:', err.message);
       }
     }
 
-    // Filter by Supplier
+    // 2. Filter by GRN Number (exact or partial, case-insensitive)
+    if (grnNumQuery) {
+      const q = grnNumQuery.toLowerCase();
+      allGrnRecords = allGrnRecords.filter((g) => {
+        const numStr = String(g.grnNumber || '').toLowerCase();
+        const noStr = g.no !== null && g.no !== undefined ? String(g.no) : '';
+        return numStr.includes(q) || noStr === q;
+      });
+    }
+
+    // 3. Filter by Supplier (Code or Name, case-insensitive)
     if (supplier && supplier !== 'All') {
-      grnItems = grnItems.filter(
-        (i) => String(i.supplier || '').toLowerCase() === String(supplier).toLowerCase()
-      );
+      const supQuery = String(supplier).trim().toLowerCase();
+      allGrnRecords = allGrnRecords.filter((g) => {
+        const sCode = String(g.supplierCode || '').toLowerCase();
+        const sName = String(g.supplierName || '').toLowerCase();
+        return sCode === supQuery || sName === supQuery || sCode.includes(supQuery) || sName.includes(supQuery);
+      });
     }
 
-    // Filter by User / Staff
+    // 4. Filter by User / Staff
     if (user && user !== 'All') {
-      grnItems = grnItems.filter(
-        (i) => String(i.user || '').toLowerCase() === String(user).toLowerCase()
+      allGrnRecords = allGrnRecords.filter(
+        (g) => String(g.user || '').toLowerCase() === String(user).toLowerCase()
       );
     }
 
-    // Filter by Search Query
+    // 5. General Search (Matches GRN number, supplier code, supplier name, invoice, or line item code/desc)
     if (search && search.trim() !== '') {
       const q = search.trim().toLowerCase();
-      grnItems = grnItems.filter(
-        (i) =>
-          (i.code && i.code.toLowerCase().includes(q)) ||
-          (i.description && i.description.toLowerCase().includes(q)) ||
-          (i.grnNumber && i.grnNumber.toLowerCase().includes(q)) ||
-          (i.supplier && i.supplier.toLowerCase().includes(q)) ||
-          (i.invoice && i.invoice.toLowerCase().includes(q))
-      );
+      allGrnRecords = allGrnRecords.filter((g) => {
+        const matchesHeader =
+          String(g.grnNumber || '').toLowerCase().includes(q) ||
+          String(g.supplierCode || '').toLowerCase().includes(q) ||
+          String(g.supplierName || '').toLowerCase().includes(q) ||
+          String(g.supplierInvoiceNo || '').toLowerCase().includes(q) ||
+          String(g.paymentMethod || '').toLowerCase().includes(q) ||
+          String(g.status || '').toLowerCase().includes(q);
+
+        if (matchesHeader) return true;
+
+        // Check line items
+        return (g.lineItems || []).some(
+          (li) =>
+            String(li.code || '').toLowerCase().includes(q) ||
+            String(li.description || '').toLowerCase().includes(q)
+        );
+      });
     }
 
-    // Sorting
+    // 6. Sorting
     if (sortBy === 'value_desc') {
-      grnItems.sort((a, b) => b.value - a.value);
+      allGrnRecords.sort((a, b) => b.totalValue - a.totalValue);
     } else if (sortBy === 'value_asc') {
-      grnItems.sort((a, b) => a.value - b.value);
+      allGrnRecords.sort((a, b) => a.totalValue - b.totalValue);
     } else if (sortBy === 'qty_desc') {
-      grnItems.sort((a, b) => b.quantity - a.quantity);
-    } else if (sortBy === 'most_received') {
-      grnItems.sort((a, b) => b.quantity - a.quantity || b.value - a.value);
-    } else if (sortBy === 'has_returns') {
-      grnItems.sort((a, b) => (b.returnQty || 0) - (a.returnQty || 0));
-    } else if (sortBy === 'code_asc') {
-      grnItems.sort((a, b) => a.code.localeCompare(b.code));
-    } else if (sortBy === 'desc_asc') {
-      grnItems.sort((a, b) => a.description.localeCompare(b.description));
+      allGrnRecords.sort((a, b) => b.totalQuantity - a.totalQuantity);
+    } else if (sortBy === 'qty_asc') {
+      allGrnRecords.sort((a, b) => a.totalQuantity - b.totalQuantity);
+    } else if (sortBy === 'grn_asc') {
+      allGrnRecords.sort((a, b) => String(a.grnNumber).localeCompare(String(b.grnNumber), undefined, { numeric: true }));
+    } else if (sortBy === 'grn_desc') {
+      allGrnRecords.sort((a, b) => String(b.grnNumber).localeCompare(String(a.grnNumber), undefined, { numeric: true }));
+    } else if (sortBy === 'supplier_asc') {
+      allGrnRecords.sort((a, b) => a.supplierName.localeCompare(b.supplierName));
+    } else if (sortBy === 'date_asc') {
+      allGrnRecords.sort((a, b) => new Date(a.rawDate || 0) - new Date(b.rawDate || 0));
+    } else {
+      // default: date descending (latest first)
+      allGrnRecords.sort((a, b) => new Date(b.rawDate || 0) - new Date(a.rawDate || 0) || (b.no || 0) - (a.no || 0));
     }
 
-    // Summary calculation directly from live GRN records
-    const grandTotalValue = grnItems.reduce((sum, i) => sum + (i.value || 0), 0);
-    const totalQuantity = grnItems.reduce((sum, i) => sum + (i.quantity || 0), 0);
-    const uniqueGrns = new Set(grnItems.map((i) => i.grnNumber));
-    const uniqueSuppliers = new Set(grnItems.map((i) => i.supplier));
+    // 7. Accurate Summary Calculation from filtered results
+    // Exclude cancelled / reversed GRNs from posted totals while preserving them in historical display
+    const postedRecords = allGrnRecords.filter(
+      (g) => !['cancelled', 'reversed'].includes(String(g.status || '').toLowerCase())
+    );
 
-    const totalRecords = grnItems.length;
+    const grandTotalValue = postedRecords.reduce((sum, g) => sum + (g.totalValue || 0), 0);
+    const totalQuantity = postedRecords.reduce((sum, g) => sum + (g.totalQuantity || 0), 0);
+    const totalDiscount = postedRecords.reduce((sum, g) => sum + (g.totalDiscount || 0), 0);
+    const uniqueSuppliers = new Set(allGrnRecords.map((g) => g.supplierName || g.supplierCode));
+    const totalCancelled = allGrnRecords.length - postedRecords.length;
+
+    // 8. Pagination
+    const totalRecords = allGrnRecords.length;
     const totalPages = limitNum === 0 ? 1 : Math.ceil(totalRecords / limitNum);
-    const paginatedItems = limitNum === 0 ? grnItems : grnItems.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+    const paginatedItems = limitNum === 0 ? allGrnRecords : allGrnRecords.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
     return res.status(200).json({
       success: true,
@@ -975,10 +1113,12 @@ export const getGrnReport = async (req, res, next) => {
       reportTitle: 'GOODS RECEIVED NOTES (GRN) REPORT',
       company: COMPANY_HEADER,
       summary: {
-        totalGrns: uniqueGrns.size,
-        totalItemsCount: totalRecords,
+        totalGrns: totalRecords,
+        matchingGrnsCount: totalRecords,
         totalQuantity,
+        totalDiscount: Number(totalDiscount.toFixed(2)),
         grandTotalValue: Number(grandTotalValue.toFixed(2)),
+        totalCancelled,
         totalSuppliers: uniqueSuppliers.size,
       },
       pagination: {
@@ -988,6 +1128,17 @@ export const getGrnReport = async (req, res, next) => {
         totalPages,
       },
       data: paginatedItems,
+      dateRange: {
+        from: start || '',
+        to: end || '',
+      },
+      filters: {
+        grnNumber: grnNumQuery,
+        supplier: supplier || 'All',
+        startDate: start,
+        endDate: end,
+        search,
+      },
       softwareFooter: SOFTWARE_FOOTER,
     });
   } catch (error) {
@@ -1803,62 +1954,112 @@ export const getStockReport = async (req, res, next) => {
     }
 
     const query = {};
+    const andClauses = [];
+
     if (search && search.trim()) {
       const term = search.trim();
-      query.$or = [
-        { code: { $regex: term, $options: 'i' } },
-        { description: { $regex: term, $options: 'i' } },
-      ];
+      andClauses.push({
+        $or: [
+          { code: { $regex: term, $options: 'i' } },
+          { itemCode: { $regex: term, $options: 'i' } },
+          { description: { $regex: term, $options: 'i' } },
+          { name: { $regex: term, $options: 'i' } },
+          { itemName: { $regex: term, $options: 'i' } },
+          { category: { $regex: term, $options: 'i' } },
+        ],
+      });
     }
 
     if (category && category.trim() && category !== 'All') {
-      query.category = category.trim();
+      andClauses.push({
+        category: { $regex: new RegExp(`^${category.trim()}$`, 'i') },
+      });
     }
 
     if (subCategory && subCategory.trim() && subCategory !== 'All') {
-      query.subCategory = subCategory.trim();
+      andClauses.push({
+        subCategory: { $regex: new RegExp(`^${subCategory.trim()}$`, 'i') },
+      });
     }
 
     if (location && location.trim() && location !== 'All') {
-      query.location = location.trim();
+      const loc = location.trim();
+      if (loc.toLowerCase() === 'main store') {
+        andClauses.push({
+          $or: [
+            { location: { $regex: /^main store$/i } },
+            { location: '' },
+            { location: null },
+            { location: { $exists: false } },
+          ],
+        });
+      } else {
+        andClauses.push({
+          location: { $regex: new RegExp(`^${loc}$`, 'i') },
+        });
+      }
     }
 
-    // Fetch items with required fields only for maximum speed
-    const dbItems = await mongoose.connection.db.collection('items').find(query, {
+    const finalQuery = andClauses.length === 0
+      ? {}
+      : andClauses.length === 1
+      ? andClauses[0]
+      : { $and: andClauses };
+
+    // Fetch items from the authoritative 'items' collection in MongoDB Atlas
+    const dbItems = await mongoose.connection.db.collection('items').find(finalQuery, {
       projection: {
         code: 1,
+        itemCode: 1,
         description: 1,
+        name: 1,
+        itemName: 1,
         category: 1,
         subCategory: 1,
         location: 1,
         quantity: 1,
         stockInHand: 1,
+        stock: 1,
         damagedStock: 1,
         reorderLevel: 1,
         lastGrnDate: 1,
+        lastGrn: 1,
         lastGrnPrice: 1,
         averageCost: 1,
+        cost: 1,
         sellingPrice: 1,
         finalSellingPrice: 1,
       },
     }).toArray();
 
-    // Map and calculate stock metrics
-    let items = dbItems.map((itm) => {
-      const qty = itm.quantity !== undefined ? Number(itm.quantity) : (itm.stockInHand !== undefined ? Number(itm.stockInHand) : 0);
+    // Map and calculate stock metrics - preserve all registered items even if stock is 0 or no GRN history
+    const allMatchingItems = dbItems.map((itm) => {
+      const code = String(itm.code || itm.itemCode || '').trim();
+      const desc = String(itm.description || itm.name || itm.itemName || '').toUpperCase().trim();
+      const qty = itm.quantity !== undefined
+        ? Number(itm.quantity)
+        : (itm.stockInHand !== undefined
+          ? Number(itm.stockInHand)
+          : (itm.stock !== undefined ? Number(itm.stock) : 0));
+
       const reorder = Number(itm.reorderLevel) || 0;
       const isOut = qty <= 0;
       const isLow = !isOut && (reorder > 0 ? qty <= reorder : qty <= 2);
       const stockStatus = isOut ? 'Out of Stock' : (isLow ? 'Low Stock' : 'In Stock');
-      const cost = Number(itm.averageCost) || Number(itm.lastGrnPrice) || 0;
-      const price = Number(itm.finalSellingPrice) || Number(itm.sellingPrice) || 0;
+
+      const cost = Number(itm.averageCost) || Number(itm.lastGrnPrice) || Number(itm.cost) || 0;
+      const price = itm.sellingPrice !== undefined && Number(itm.sellingPrice) >= 0
+        ? Number(itm.sellingPrice)
+        : (itm.finalSellingPrice !== undefined ? Number(itm.finalSellingPrice) : 0);
+
       const unitValuation = cost > 0 ? cost : (price > 0 ? price * 0.7 : 0);
       const valuation = qty > 0 ? Number((qty * unitValuation).toFixed(2)) : 0;
+      const grnDate = itm.lastGrnDate || itm.lastGrn || '';
 
       return {
         _id: itm._id,
-        code: itm.code || '',
-        description: (itm.description || '').toUpperCase().trim(),
+        code,
+        description: desc,
         category: (itm.category || '').toUpperCase().trim() || 'GENERAL',
         subCategory: (itm.subCategory || '').trim() || 'N/A',
         location: (itm.location || '').trim() || 'Main Store',
@@ -1868,64 +2069,67 @@ export const getStockReport = async (req, res, next) => {
         stockStatus,
         isLowStock: isLow,
         isOutOfStock: isOut,
-        lastGrnDate: itm.lastGrnDate || '',
+        lastGrnDate: grnDate ? String(grnDate).slice(0, 10) : '',
         lastGrnPurchaseCost: Number(cost.toFixed(2)),
         sellingPrice: Number(price.toFixed(2)),
         valuation,
       };
     });
 
-    // In-memory stock status filtering
-    if (status === 'in_stock') {
-      items = items.filter((it) => it.stockStatus === 'In Stock');
-    } else if (status === 'low_stock') {
-      items = items.filter((it) => it.isLowStock);
-    } else if (status === 'out_of_stock') {
-      items = items.filter((it) => it.isOutOfStock);
-    }
+    // Summary calculations across matching items (before stock status filter)
+    const totalItems = allMatchingItems.length;
+    const totalAvailableStock = allMatchingItems.reduce((sum, it) => sum + it.availableStock, 0);
+    const totalValuation = allMatchingItems.reduce((sum, it) => sum + it.valuation, 0);
+    const inStockCount = allMatchingItems.filter((it) => it.stockStatus === 'In Stock').length;
+    const lowStockCount = allMatchingItems.filter((it) => it.isLowStock).length;
+    const outOfStockCount = allMatchingItems.filter((it) => it.isOutOfStock).length;
 
-    // Summary aggregates
-    const totalItems = items.length;
-    const totalAvailableStock = items.reduce((sum, it) => sum + it.availableStock, 0);
-    const totalValuation = items.reduce((sum, it) => sum + it.valuation, 0);
-    const inStockCount = items.filter((it) => it.stockStatus === 'In Stock').length;
-    const lowStockCount = items.filter((it) => it.isLowStock).length;
-    const outOfStockCount = items.filter((it) => it.isOutOfStock).length;
+    // Filter by stock status for table display & pagination
+    let filteredItems = allMatchingItems;
+    if (status === 'in_stock') {
+      filteredItems = filteredItems.filter((it) => it.stockStatus === 'In Stock');
+    } else if (status === 'low_stock') {
+      filteredItems = filteredItems.filter((it) => it.isLowStock);
+    } else if (status === 'out_of_stock') {
+      filteredItems = filteredItems.filter((it) => it.isOutOfStock);
+    }
 
     // Sorting
     if (sortBy === 'code_desc') {
-      items.sort((a, b) => b.code.localeCompare(a.code));
+      filteredItems.sort((a, b) => b.code.localeCompare(a.code));
     } else if (sortBy === 'desc_asc') {
-      items.sort((a, b) => a.description.localeCompare(b.description));
+      filteredItems.sort((a, b) => a.description.localeCompare(b.description));
     } else if (sortBy === 'desc_desc') {
-      items.sort((a, b) => b.description.localeCompare(a.description));
+      filteredItems.sort((a, b) => b.description.localeCompare(a.description));
     } else if (sortBy === 'qty_desc') {
-      items.sort((a, b) => b.availableStock - a.availableStock);
+      filteredItems.sort((a, b) => b.availableStock - a.availableStock);
     } else if (sortBy === 'qty_asc') {
-      items.sort((a, b) => a.availableStock - b.availableStock);
+      filteredItems.sort((a, b) => a.availableStock - b.availableStock);
     } else if (sortBy === 'cost_desc') {
-      items.sort((a, b) => b.lastGrnPurchaseCost - a.lastGrnPurchaseCost);
+      filteredItems.sort((a, b) => b.lastGrnPurchaseCost - a.lastGrnPurchaseCost);
     } else if (sortBy === 'cost_asc') {
-      items.sort((a, b) => a.lastGrnPurchaseCost - b.lastGrnPurchaseCost);
+      filteredItems.sort((a, b) => a.lastGrnPurchaseCost - b.lastGrnPurchaseCost);
     } else if (sortBy === 'price_desc') {
-      items.sort((a, b) => b.sellingPrice - a.sellingPrice);
+      filteredItems.sort((a, b) => b.sellingPrice - a.sellingPrice);
     } else if (sortBy === 'price_asc') {
-      items.sort((a, b) => a.sellingPrice - b.sellingPrice);
+      filteredItems.sort((a, b) => a.sellingPrice - b.sellingPrice);
     } else {
       // Default: code_asc
-      items.sort((a, b) => a.code.localeCompare(b.code));
+      filteredItems.sort((a, b) => a.code.localeCompare(b.code));
     }
 
     // Pagination
     const pageNum = Math.max(1, Number(page) || 1);
     const limitNum = Number(limit) === 0 ? 0 : Math.max(1, Number(limit) || 50);
-    const totalPages = limitNum === 0 ? 1 : Math.ceil(totalItems / limitNum);
-    const paginatedItems = limitNum === 0 ? items : items.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+    const totalRecords = filteredItems.length;
+    const totalPages = limitNum === 0 ? 1 : Math.ceil(totalRecords / limitNum);
+    const paginatedItems = limitNum === 0 ? filteredItems : filteredItems.slice((pageNum - 1) * limitNum, pageNum * limitNum);
 
-    // Filter options from db
+    // Filter options directly from database collection
     const distinctCategories = await mongoose.connection.db.collection('items').distinct('category');
     const distinctSubCategories = await mongoose.connection.db.collection('items').distinct('subCategory');
-    const distinctLocations = await mongoose.connection.db.collection('items').distinct('location');
+    const rawLocations = await mongoose.connection.db.collection('items').distinct('location');
+    const locationsList = Array.from(new Set(['Main Store', ...rawLocations.filter(Boolean)])).sort();
 
     return res.status(200).json({
       success: true,
@@ -1943,19 +2147,34 @@ export const getStockReport = async (req, res, next) => {
       pagination: {
         page: pageNum,
         limit: limitNum,
-        totalRecords: totalItems,
+        totalRecords,
         totalPages,
       },
       items: paginatedItems,
       filterOptions: {
         categories: distinctCategories.filter(Boolean).sort(),
         subCategories: distinctSubCategories.filter(Boolean).sort(),
-        locations: distinctLocations.filter(Boolean).sort(),
+        locations: locationsList,
       },
       softwareFooter: SOFTWARE_FOOTER,
     });
   } catch (error) {
-    next(error);
+    console.error('[Stock Report Controller Error]:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve stock report from database: ' + error.message,
+      summary: {
+        totalItems: 0,
+        totalAvailableStock: 0,
+        totalValuation: 0,
+        inStockCount: 0,
+        lowStockCount: 0,
+        outOfStockCount: 0,
+      },
+      pagination: { page: 1, limit: 50, totalRecords: 0, totalPages: 0 },
+      items: [],
+      filterOptions: { categories: [], subCategories: [], locations: ['Main Store'] },
+    });
   }
 };
 
@@ -2285,7 +2504,25 @@ export const getDashboardMetrics = async (req, res, next) => {
       recentCustomerReturns,
     });
   } catch (error) {
-    next(error);
+    console.error('[Dashboard Metrics Controller Error]:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve dashboard metrics from database: ' + error.message,
+      cards: {
+        totalItems: 0,
+        totalAvailableStock: 0,
+        stockUnit: 'Pcs',
+        outOfStockCount: 0,
+        lowStockCount: 0,
+        inStockCount: 0,
+        todayBills: 0,
+        todaySales: 0,
+        todayReturns: 0,
+        todayReturnValue: 0,
+        todayGrns: 0,
+        todayGoodsReturns: 0,
+      },
+    });
   }
 };
 
