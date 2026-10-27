@@ -634,6 +634,8 @@
   body * {
     visibility: hidden;
   }
+  #thermal-receipt-print-area,
+  #thermal-receipt-print-area *,
   .di-print-sheet,
   .di-print-sheet * {
     visibility: visible;

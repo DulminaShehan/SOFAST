@@ -489,26 +489,33 @@ function Invoice() {
       remark: inv.remark || '',
     });
 
-    const lines = (inv.lineItems || []).map((li) => ({
-      code: li.code || li.itemCode || '',
-      description: li.description || '',
-      location: li.location || 'Main Store',
-      quantity: Number(li.quantity || li.qty || 1),
-      price: Number(li.price || li.unitPrice || 0),
-      discountPercentage: li.discountPercentage !== undefined ? Number(li.discountPercentage) : 0,
-      discountAmount: li.discountAmount !== undefined ? Number(li.discountAmount) : 0,
-      finalPrice: Number(li.finalPrice !== undefined ? li.finalPrice : (li.value || 0)),
-      itemCost: Number(li.itemCost || 0),
-      lastGrn: li.lastGrn || '',
-      lastGrnDate: li.lastGrnDate || '',
-      masterPack: String(li.masterPack || '1'),
-      rateType: li.rateType || 'Retail',
-      mpCost: Number(li.mpCost || 0),
-      value: Number(li.value || li.finalPrice || 0),
-      total: Number(li.total || li.finalPrice || 0),
-      balance: li.balance !== undefined ? li.balance : (li.availableQty || 0),
-      availableQty: li.availableQty !== undefined ? li.availableQty : (li.balance || 0),
-    }));
+    const lines = (inv.lineItems || []).map((li) => {
+      const isLabour = li.jobType === 'Labour' || li.type === 'Labour' || Boolean(li.isService);
+      return {
+        code: li.code || li.itemCode || (isLabour ? 'DELIVERY' : ''),
+        description: li.description || (isLabour ? 'Delivery Charge' : ''),
+        jobType: isLabour ? 'Labour' : (li.jobType || 'Material'),
+        type: isLabour ? 'Labour' : (li.type || 'Material'),
+        isService: isLabour,
+        location: isLabour ? '-' : (li.location || 'Main Store'),
+        quantity: Number(li.quantity || li.qty || 1),
+        price: Number(li.price || li.unitPrice || 0),
+        rate: li.rate !== undefined && li.rate !== null && li.rate !== '' ? String(li.rate) : String(li.price || li.unitPrice || 0),
+        discountPercentage: li.discountPercentage !== undefined ? Number(li.discountPercentage) : 0,
+        discountAmount: li.discountAmount !== undefined ? Number(li.discountAmount) : 0,
+        finalPrice: Number(li.finalPrice !== undefined ? li.finalPrice : (li.value || 0)),
+        itemCost: isLabour ? '-' : Number(li.itemCost || 0),
+        lastGrn: isLabour ? '-' : (li.lastGrn || ''),
+        lastGrnDate: isLabour ? '-' : (li.lastGrnDate || ''),
+        masterPack: String(li.masterPack || '1'),
+        rateType: li.rateType || 'Retail',
+        mpCost: isLabour ? 0 : Number(li.mpCost || 0),
+        value: Number(li.value || li.finalPrice || 0),
+        total: Number(li.total || li.finalPrice || 0),
+        balance: isLabour ? '-' : (li.balance !== undefined ? li.balance : (li.availableQty || 0)),
+        availableQty: isLabour ? '-' : (li.availableQty !== undefined ? li.availableQty : (li.balance || 0)),
+      };
+    });
     setLineItems(lines);
 
     const loadedMethod = inv.paymentMethod || inv.paidBy || 'Cash';
@@ -964,6 +971,106 @@ function Invoice() {
     });
   };
 
+  // Handle Job Type Change (Material, Labour / Delivery, Group, J.G.)
+  const handleJobTypeChange = (newJobType) => {
+    const prevJobType = invoiceHeader.jobType;
+    setInvoiceHeader((prev) => ({ ...prev, jobType: newJobType }));
+
+    if (newJobType === 'Labour') {
+      // Switching to Labour: pre-populate delivery charge defaults
+      setItemDropdownOpen(false);
+      setAlternativeProducts([]);
+      setSelectedItemPreview(null);
+      setItemEntry((prev) => {
+        const isAlreadyLabour = prev.code === 'DELIVERY' || prev.description === 'Delivery Charge';
+        const currentQty = prev.quantity && parseFloat(prev.quantity) > 0 ? prev.quantity : '1';
+        const currentRate = isAlreadyLabour && prev.rate ? prev.rate : (prev.rate && prev.rate !== '0' && prev.rate !== '0.00' ? prev.rate : '');
+        const currentPrice = currentRate || '';
+        const comp = computeLinePricing(
+          currentPrice || '0',
+          currentQty,
+          prev.discountPercentage || '',
+          prev.discountAmount || '',
+          'percentage',
+          prev.roundOffOption,
+          prev.roundOffStep
+        );
+
+        return {
+          ...prev,
+          code: prev.code && prev.code !== '' && prev.code !== 'DELIVERY' && prevJobType === 'Labour' ? prev.code : 'DELIVERY',
+          description: prev.description && prev.description.trim() !== '' && prevJobType === 'Labour' ? prev.description : 'Delivery Charge',
+          secondDesc: '',
+          location: '-',
+          storedLocation: '-',
+          totalStoredStock: '-',
+          rackBin: '',
+          availableQty: '-',
+          quantity: currentQty,
+          rate: currentRate,
+          price: currentPrice,
+          standardRate: '',
+          discountPercentage: comp.discountPercentage,
+          discountAmount: comp.discountAmount,
+          finalPrice: comp.finalPrice,
+          itemCost: '-',
+          lastGrn: '-',
+          lastGrnDate: '-',
+          lastGrnFormatted: '-',
+          masterPack: '1',
+          rateType: 'Retail',
+          mpCost: '',
+          roundOffOption: 'No Round Off',
+          roundOffStep: 10,
+          value: comp.finalPrice,
+          due: '',
+          balance: '-',
+          disc: '',
+          total: comp.finalPrice,
+          note: prev.note || '',
+        };
+      });
+      showNotification('Switched to Labour mode: Enter delivery charge details', 'info');
+    } else if (newJobType === 'Material' && prevJobType === 'Labour') {
+      // Switching back to Material from Labour: clear delivery entry ready for stock items
+      if (itemEntry.code === 'DELIVERY' || itemEntry.description === 'Delivery Charge') {
+        setItemEntry({
+          code: '',
+          description: '',
+          secondDesc: '',
+          location: 'Main Store',
+          storedLocation: 'Main Store',
+          totalStoredStock: '',
+          rackBin: '',
+          availableQty: '',
+          quantity: '1',
+          rate: '0',
+          standardRate: '',
+          discountPercentage: '',
+          discountAmount: '',
+          finalPrice: '',
+          itemCost: '',
+          lastGrn: '',
+          lastGrnDate: '',
+          lastGrnFormatted: '',
+          price: '',
+          masterPack: '1',
+          rateType: 'Retail',
+          mpCost: '',
+          roundOffOption: 'No Round Off',
+          roundOffStep: 10,
+          value: '0.00',
+          due: '',
+          balance: '',
+          disc: '',
+          total: '0.00',
+          note: '',
+        });
+      }
+      showNotification('Switched to Material mode: Select items from Item Master', 'info');
+    }
+  };
+
   // Select Item from Lookup Modal
   const handleSelectItemFromLookup = async (item) => {
     if (!item) return;
@@ -973,6 +1080,17 @@ function Invoice() {
 
   // Handle Keyboard navigation on Item Code input
   const handleCodeKeyDown = (e) => {
+    if (invoiceHeader.jobType === 'Labour') {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const price = parseFloat(itemEntry.price !== '' ? itemEntry.price : (itemEntry.rate || 0));
+        if (price > 0) {
+          handleAddOrUpdateItem();
+        }
+      }
+      return;
+    }
+
     if (e.key === 'F2' || e.key === 'F4') {
       e.preventDefault();
       e.stopPropagation();
@@ -1076,9 +1194,15 @@ function Invoice() {
   const handleItemEntryChange = (e) => {
     const { name, value } = e.target;
     let updated = { ...itemEntry, [name]: value };
+    const isLabour = invoiceHeader.jobType === 'Labour';
 
-    // Auto-match Item by Code or Barcode
+    // Auto-match Item by Code or Barcode (Material only)
     if (name === 'code') {
+      if (isLabour) {
+        setItemDropdownOpen(false);
+        setItemEntry(updated);
+        return;
+      }
       setItemDropdownOpen(true);
       setHighlightedItemIndex(0);
       const trimmed = String(value || '').trim().toLowerCase();
@@ -1102,16 +1226,18 @@ function Invoice() {
     if (name === 'quantity') {
       let qtyVal = value;
       const numQty = parseFloat(qtyVal);
-      const avail = parseFloat(itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0);
+      if (!isLabour) {
+        const avail = parseFloat(itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0);
 
-      if (!isNaN(numQty) && !isNaN(avail) && avail > 0 && numQty > avail) {
-        showNotification(`Warning: Requested purchase quantity (${numQty}) exceeds available stock (${avail})!`, 'error');
-      } else if (!isNaN(numQty) && numQty <= 0) {
-        showNotification('Purchase quantity must be greater than 0', 'error');
+        if (!isNaN(numQty) && !isNaN(avail) && avail > 0 && numQty > avail) {
+          showNotification(`Warning: Requested purchase quantity (${numQty}) exceeds available stock (${avail})!`, 'error');
+        } else if (!isNaN(numQty) && numQty <= 0) {
+          showNotification('Purchase quantity must be greater than 0', 'error');
+        }
       }
 
       const comp = computeLinePricing(
-        itemEntry.price,
+        itemEntry.price || itemEntry.rate || '0',
         qtyVal,
         itemEntry.discountPercentage,
         itemEntry.discountAmount,
@@ -1128,7 +1254,7 @@ function Invoice() {
     } else if (name === 'rate') {
       const comp = computeLinePricing(
         value,
-        itemEntry.quantity,
+        itemEntry.quantity || '1',
         itemEntry.discountPercentage,
         itemEntry.discountAmount,
         'percentage',
@@ -1145,7 +1271,7 @@ function Invoice() {
     } else if (name === 'price') {
       const comp = computeLinePricing(
         value,
-        itemEntry.quantity,
+        itemEntry.quantity || '1',
         itemEntry.discountPercentage,
         itemEntry.discountAmount,
         'percentage',
@@ -1161,8 +1287,8 @@ function Invoice() {
       updated.total = comp.finalPrice;
     } else if (name === 'discountPercentage') {
       const comp = computeLinePricing(
-        itemEntry.price,
-        itemEntry.quantity,
+        itemEntry.price || itemEntry.rate || '0',
+        itemEntry.quantity || '1',
         value,
         itemEntry.discountAmount,
         'percentage',
@@ -1176,8 +1302,8 @@ function Invoice() {
       updated.total = comp.finalPrice;
     } else if (name === 'discountAmount') {
       const comp = computeLinePricing(
-        itemEntry.price,
-        itemEntry.quantity,
+        itemEntry.price || itemEntry.rate || '0',
+        itemEntry.quantity || '1',
         itemEntry.discountPercentage,
         value,
         'amount',
@@ -1208,42 +1334,54 @@ function Invoice() {
       isAddingRef.current = false;
     }, 350);
 
-    // 1. Validate that an item is selected
-    if (!itemEntry.code || itemEntry.code.trim() === '') {
-      showNotification('Please enter or select an Item Code first', 'error');
-      itemCodeInputRef.current?.focus();
-      return;
+    const isLabour = invoiceHeader.jobType === 'Labour';
+
+    // 1. Validate Item Code / Description
+    if (isLabour) {
+      if (!itemEntry.description || itemEntry.description.trim() === '') {
+        showNotification('Please enter a description for the delivery charge', 'error');
+        return;
+      }
+    } else {
+      if (!itemEntry.code || itemEntry.code.trim() === '') {
+        showNotification('Please enter or select an Item Code first', 'error');
+        itemCodeInputRef.current?.focus();
+        return;
+      }
     }
 
-    // 2. Validate the entered quantity and selling price
+    // 2. Validate quantity and selling price / delivery charge
     const saleQty = parseFloat(itemEntry.quantity);
     if (isNaN(saleQty) || saleQty <= 0) {
       showNotification('Please enter a valid purchase quantity greater than 0', 'error');
       return;
     }
 
-    const price = parseFloat(itemEntry.price);
+    const price = parseFloat(itemEntry.price !== '' ? itemEntry.price : (itemEntry.rate || 0));
     if (isNaN(price) || price < 0) {
-      showNotification('Please enter a valid selling price', 'error');
+      showNotification(isLabour ? 'Please enter a valid delivery charge amount' : 'Please enter a valid selling price', 'error');
       return;
     }
 
-    // 3. Check the available stock according to the existing stock rules
-    const avail = parseFloat(itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0);
-    if (isNaN(avail) || avail <= 0) {
-      showNotification(
-        `Cannot add item '${itemEntry.code}' — No stock available in location '${itemEntry.location || 'Main Store'}' (Available: 0)`,
-        'error'
-      );
-      return;
-    }
+    // 3. Stock validation (Physical Material items only!)
+    let avail = 0;
+    if (!isLabour) {
+      avail = parseFloat(itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0);
+      if (isNaN(avail) || avail <= 0) {
+        showNotification(
+          `Cannot add item '${itemEntry.code}' — No stock available in location '${itemEntry.location || 'Main Store'}' (Available: 0)`,
+          'error'
+        );
+        return;
+      }
 
-    if (saleQty > avail) {
-      showNotification(
-        `Cannot add item '${itemEntry.code}' — Requested purchase quantity (${saleQty}) exceeds available stock (${avail})`,
-        'error'
-      );
-      return;
+      if (saleQty > avail) {
+        showNotification(
+          `Cannot add item '${itemEntry.code}' — Requested purchase quantity (${saleQty}) exceeds available stock (${avail})`,
+          'error'
+        );
+        return;
+      }
     }
 
     const discPct = parseFloat(itemEntry.discountPercentage) || 0;
@@ -1260,22 +1398,29 @@ function Invoice() {
     const finalPrice = parseFloat(comp.finalPrice) || Math.max(0, (price * saleQty) - discAmt);
 
     const newLineItem = {
-      code: itemEntry.code.trim().toUpperCase(),
-      description: itemEntry.description || '',
-      location: itemEntry.location || 'Main Store',
-      availableQty: avail,
-      quantity: saleQty, // customer purchase quantity
+      code: isLabour
+        ? (itemEntry.code ? itemEntry.code.trim().toUpperCase() : 'DELIVERY')
+        : itemEntry.code.trim().toUpperCase(),
+      description: isLabour
+        ? (itemEntry.description?.trim() || 'Delivery Charge')
+        : (itemEntry.description || ''),
+      jobType: isLabour ? 'Labour' : 'Material',
+      type: isLabour ? 'Labour' : 'Material',
+      isService: isLabour,
+      location: isLabour ? '-' : (itemEntry.location || 'Main Store'),
+      availableQty: isLabour ? '-' : avail,
+      quantity: saleQty,
       sellingPrice: price,
       price: price,
-      rate: itemEntry.rate || '0',
+      rate: itemEntry.rate || String(price),
       discountPercentage: discPct,
       discountAmount: parseFloat(comp.discountAmount) || 0,
       discount: discPct > 0 ? `${discPct}%` : (discAmt > 0 ? discAmt.toFixed(2) : '0%'),
       value: finalPrice,
       finalPrice: finalPrice,
-      itemCost: itemEntry.itemCost || '-',
-      lastGrn: itemEntry.lastGrn || '',
-      lastGrnDate: itemEntry.lastGrnDate || '',
+      itemCost: isLabour ? '-' : (itemEntry.itemCost || '-'),
+      lastGrn: isLabour ? '-' : (itemEntry.lastGrn || ''),
+      lastGrnDate: isLabour ? '-' : (itemEntry.lastGrnDate || ''),
       note: itemEntry.note || '',
     };
 
@@ -1285,11 +1430,15 @@ function Invoice() {
       updated[selectedLineIndex] = newLineItem;
       setLineItems(updated);
       setSelectedLineIndex(-1);
-      showNotification(`Updated item ${newLineItem.code} in invoice`, 'success');
+      showNotification(`Updated ${isLabour ? 'delivery charge' : `item ${newLineItem.code}`} in invoice`, 'success');
+    } else if (isLabour) {
+      // Labour delivery charge: always add as a separate line (supports multiple delivery/labour charges)
+      setLineItems([...lineItems, newLineItem]);
+      showNotification(`Added ${newLineItem.description} (Rs. ${finalPrice.toFixed(2)}) to invoice`, 'success');
     } else {
-      // Adding new item: check if item with same code & location is already present
+      // Material items: merge with existing line if same code & location
       const existingIdx = lineItems.findIndex(
-        (li) => li.code?.toUpperCase() === newLineItem.code && (li.location || 'Main Store') === newLineItem.location
+        (li) => !li.isService && li.code?.toUpperCase() === newLineItem.code && (li.location || 'Main Store') === newLineItem.location
       );
 
       if (existingIdx >= 0) {
@@ -1333,39 +1482,74 @@ function Invoice() {
       }
     }
 
-    // Clear item-entry fields ready for next item
-    setItemEntry({
-      code: '',
-      description: '',
-      secondDesc: '',
-      location: 'Main Store',
-      storedLocation: 'Main Store',
-      totalStoredStock: '',
-      rackBin: '',
-      availableQty: '',
-      quantity: '1',
-      rate: '0',
-      standardRate: '',
-      discountPercentage: '',
-      discountAmount: '',
-      finalPrice: '',
-      itemCost: '',
-      lastGrn: '',
-      lastGrnDate: '',
-      lastGrnFormatted: '',
-      price: '',
-      masterPack: '1',
-      rateType: 'Retail',
-      mpCost: '',
-      roundOffOption: 'No Round Off',
-      roundOffStep: 10,
-      value: '0.00',
-      due: '',
-      balance: '',
-      disc: '',
-      total: '0.00',
-      note: '',
-    });
+    // Reset item entry fields
+    if (isLabour) {
+      setItemEntry({
+        code: 'DELIVERY',
+        description: 'Delivery Charge',
+        secondDesc: '',
+        location: '-',
+        storedLocation: '-',
+        totalStoredStock: '-',
+        rackBin: '',
+        availableQty: '-',
+        quantity: '1',
+        rate: '',
+        standardRate: '',
+        discountPercentage: '',
+        discountAmount: '',
+        finalPrice: '0.00',
+        itemCost: '-',
+        lastGrn: '-',
+        lastGrnDate: '-',
+        lastGrnFormatted: '-',
+        price: '',
+        masterPack: '1',
+        rateType: 'Retail',
+        mpCost: '',
+        roundOffOption: 'No Round Off',
+        roundOffStep: 10,
+        value: '0.00',
+        due: '',
+        balance: '-',
+        disc: '',
+        total: '0.00',
+        note: '',
+      });
+    } else {
+      setItemEntry({
+        code: '',
+        description: '',
+        secondDesc: '',
+        location: 'Main Store',
+        storedLocation: 'Main Store',
+        totalStoredStock: '',
+        rackBin: '',
+        availableQty: '',
+        quantity: '1',
+        rate: '0',
+        standardRate: '',
+        discountPercentage: '',
+        discountAmount: '',
+        finalPrice: '',
+        itemCost: '',
+        lastGrn: '',
+        lastGrnDate: '',
+        lastGrnFormatted: '',
+        price: '',
+        masterPack: '1',
+        rateType: 'Retail',
+        mpCost: '',
+        roundOffOption: 'No Round Off',
+        roundOffStep: 10,
+        value: '0.00',
+        due: '',
+        balance: '',
+        disc: '',
+        total: '0.00',
+        note: '',
+      });
+    }
     setSelectedItemPreview(null);
     setAlternativeProducts([]);
     itemCodeInputRef.current?.focus();
@@ -1376,41 +1560,81 @@ function Invoice() {
     setSelectedLineIndex(index);
     const item = lineItems[index];
     if (item) {
-      const matched = itemsList.find((i) => i.code?.toLowerCase() === item.code?.toLowerCase());
-      setSelectedItemPreview(matched || item);
-      setItemEntry({
-        code: item.code,
-        description: item.description,
-        secondDesc: '',
-        location: item.location || 'Main Store',
-        storedLocation: item.location || 'Main Store',
-        totalStoredStock: item.availableQty !== undefined ? item.availableQty : '',
-        rackBin: '',
-        availableQty: item.availableQty !== undefined ? item.availableQty : '',
-        quantity: String(item.quantity),
-        rate: item.rate || '0',
-        standardRate: '',
-        discountPercentage: item.discountPercentage !== undefined && item.discountPercentage !== '' ? String(item.discountPercentage) : '',
-        discountAmount: item.discountAmount !== undefined && item.discountAmount !== '' ? String(item.discountAmount) : '',
-        finalPrice: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
-        itemCost: item.itemCost || '-',
-        lastGrn: item.lastGrn || '',
-        lastGrnDate: item.lastGrnDate || '',
-        lastGrnFormatted: item.lastGrn || '',
-        price: item.sellingPrice !== undefined ? item.sellingPrice : (item.price || 0),
-        masterPack: '1',
-        rateType: item.rateType || 'Retail',
-        mpCost: '',
-        roundOffOption: 'No Round Off',
-        roundOffStep: 10,
-        value: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
-        due: '',
-        balance: item.availableQty || '',
-        disc: '',
-        total: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
-        note: item.note || '',
-      });
-      fetchAlternativeProducts(item.code);
+      const isLabour = item.jobType === 'Labour' || item.isService;
+      if (isLabour) {
+        setInvoiceHeader((prev) => ({ ...prev, jobType: 'Labour' }));
+        setSelectedItemPreview(null);
+        setAlternativeProducts([]);
+        setItemEntry({
+          code: item.code || 'DELIVERY',
+          description: item.description || 'Delivery Charge',
+          secondDesc: '',
+          location: '-',
+          storedLocation: '-',
+          totalStoredStock: '-',
+          rackBin: '',
+          availableQty: '-',
+          quantity: String(item.quantity || 1),
+          rate: item.rate !== undefined && item.rate !== null && item.rate !== '' ? String(item.rate) : String(item.price || 0),
+          price: item.price !== undefined ? item.price : (item.sellingPrice || 0),
+          standardRate: '',
+          discountPercentage: item.discountPercentage !== undefined && item.discountPercentage !== '' ? String(item.discountPercentage) : '',
+          discountAmount: item.discountAmount !== undefined && item.discountAmount !== '' ? String(item.discountAmount) : '',
+          finalPrice: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
+          itemCost: '-',
+          lastGrn: '-',
+          lastGrnDate: '-',
+          lastGrnFormatted: '-',
+          masterPack: '1',
+          rateType: 'Retail',
+          mpCost: '',
+          roundOffOption: 'No Round Off',
+          roundOffStep: 10,
+          value: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
+          due: '',
+          balance: '-',
+          disc: '',
+          total: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
+          note: item.note || '',
+        });
+      } else {
+        setInvoiceHeader((prev) => ({ ...prev, jobType: 'Material' }));
+        const matched = itemsList.find((i) => i.code?.toLowerCase() === item.code?.toLowerCase());
+        setSelectedItemPreview(matched || item);
+        setItemEntry({
+          code: item.code,
+          description: item.description,
+          secondDesc: '',
+          location: item.location || 'Main Store',
+          storedLocation: item.location || 'Main Store',
+          totalStoredStock: item.availableQty !== undefined ? item.availableQty : '',
+          rackBin: '',
+          availableQty: item.availableQty !== undefined ? item.availableQty : '',
+          quantity: String(item.quantity),
+          rate: item.rate || '0',
+          standardRate: '',
+          discountPercentage: item.discountPercentage !== undefined && item.discountPercentage !== '' ? String(item.discountPercentage) : '',
+          discountAmount: item.discountAmount !== undefined && item.discountAmount !== '' ? String(item.discountAmount) : '',
+          finalPrice: Number(item.finalPrice !== undefined ? item.finalPrice : item.value).toFixed(2),
+          itemCost: item.itemCost || '-',
+          lastGrn: item.lastGrn || '',
+          lastGrnDate: item.lastGrnDate || '',
+          lastGrnFormatted: item.lastGrn || '',
+          price: item.sellingPrice !== undefined ? item.sellingPrice : (item.price || 0),
+          masterPack: '1',
+          rateType: item.rateType || 'Retail',
+          mpCost: '',
+          roundOffOption: 'No Round Off',
+          roundOffStep: 10,
+          value: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
+          due: '',
+          balance: item.availableQty || '',
+          disc: '',
+          total: Number(item.value !== undefined ? item.value : item.finalPrice).toFixed(2),
+          note: item.note || '',
+        });
+        fetchAlternativeProducts(item.code);
+      }
     }
   };
 
@@ -1611,29 +1835,36 @@ function Invoice() {
       isHold: isHoldVal,
       status: isHoldVal ? 'hold' : 'completed',
       remark: invoiceHeader.remark || '',
-      lineItems: lineItems.map((li) => ({
-        code: li.code,
-        itemCode: li.code,
-        description: li.description,
-        location: li.location || 'Main Store',
-        quantity: Number(li.quantity),
-        qty: Number(li.quantity),
-        masterPack: li.masterPack || '1',
-        rateType: li.rateType || 'Retail',
-        price: Number(li.sellingPrice !== undefined ? li.sellingPrice : li.price),
-        unitPrice: Number(li.sellingPrice !== undefined ? li.sellingPrice : li.price),
-        itemCost: Number(li.itemCost || 0),
-        mpCost: Number(li.mpCost || 0),
-        discountPercentage: Number(li.discountPercentage || 0),
-        discountAmount: Number(li.discountAmount || 0),
-        finalPrice: Number(li.finalPrice !== undefined ? li.finalPrice : li.value),
-        availableQty: Number(li.availableQty !== undefined ? li.availableQty : 0),
-        lastGrn: li.lastGrn || '',
-        lastGrnDate: li.lastGrnDate || '',
-        value: Number(li.value !== undefined ? li.value : li.finalPrice),
-        total: Number(li.total || li.value || li.finalPrice),
-        balance: Number(li.balance || 0),
-      })),
+      lineItems: lineItems.map((li) => {
+        const isLabour = li.jobType === 'Labour' || li.type === 'Labour' || Boolean(li.isService);
+        return {
+          code: (li.code || (isLabour ? 'DELIVERY' : '')).trim(),
+          itemCode: (li.code || (isLabour ? 'DELIVERY' : '')).trim(),
+          description: li.description || (isLabour ? 'Delivery Charge' : ''),
+          jobType: isLabour ? 'Labour' : (li.jobType || 'Material'),
+          type: isLabour ? 'Labour' : (li.type || 'Material'),
+          isService: isLabour,
+          location: isLabour ? '-' : (li.location || 'Main Store'),
+          quantity: Number(li.quantity),
+          qty: Number(li.quantity),
+          masterPack: li.masterPack || '1',
+          rateType: li.rateType || 'Retail',
+          rate: Number(li.rate !== undefined && !isNaN(Number(li.rate)) ? li.rate : (li.sellingPrice !== undefined ? li.sellingPrice : li.price)),
+          price: Number(li.sellingPrice !== undefined ? li.sellingPrice : li.price),
+          unitPrice: Number(li.sellingPrice !== undefined ? li.sellingPrice : li.price),
+          itemCost: isLabour ? 0 : Number(li.itemCost || 0),
+          mpCost: isLabour ? 0 : Number(li.mpCost || 0),
+          discountPercentage: Number(li.discountPercentage || 0),
+          discountAmount: Number(li.discountAmount || 0),
+          finalPrice: Number(li.finalPrice !== undefined ? li.finalPrice : li.value),
+          availableQty: isLabour ? 0 : Number(li.availableQty !== undefined && !isNaN(Number(li.availableQty)) ? li.availableQty : 0),
+          lastGrn: isLabour ? '' : (li.lastGrn || ''),
+          lastGrnDate: isLabour ? '' : (li.lastGrnDate || ''),
+          value: Number(li.value !== undefined ? li.value : li.finalPrice),
+          total: Number(li.total || li.value || li.finalPrice),
+          balance: isLabour ? 0 : Number(li.balance || 0),
+        };
+      }),
       subTotal: invoiceSubTotal,
       specialDiscount: specialDiscVal,
       amountToPay: totalAmount,
@@ -1777,25 +2008,34 @@ function Invoice() {
 
   // BUTTON: BILL PRINT
   const handleBillPrint = async () => {
-    // 1. If invoice is already saved, print directly without creating duplicates
+    if (lineItems.length === 0) {
+      showNotification('Please add items to invoice before printing', 'error');
+      return;
+    }
+
+    // 1. Always open the Receipt Preview modal immediately so user sees the bill on screen
+    setPreviewModalOpen(true);
+
+    // 2. If invoice is already saved, trigger print directly
     if (activeInvoiceId) {
       handlePrint();
       return;
     }
 
-    // 2. If invoice has unsaved items, save first!
-    if (lineItems.length > 0) {
-      showNotification('Saving invoice before printing bill...', 'info');
+    // 3. If invoice has unsaved items, save it to assign sequential invoice number and deduct stock
+    showNotification('Saving invoice and preparing bill...', 'info');
+    try {
       const saved = await handleSaveInvoice(false);
       if (saved) {
+        showNotification(`Invoice #${saved.invoiceNumber || invoiceHeader.invoiceNumber} saved. Printing bill...`, 'success');
         handlePrint();
       } else {
-        showNotification('Bill print aborted: Could not save invoice.', 'error');
+        showNotification('Invoice preview loaded. You can print directly from the preview window.', 'info');
       }
-      return;
+    } catch (err) {
+      console.error('Error during bill print save:', err);
+      showNotification('Invoice preview loaded. Click Print to proceed.', 'info');
     }
-
-    showNotification('Please add items to invoice before printing', 'error');
   };
 
   // Print Invoice (Thermal Receipt)
@@ -1804,10 +2044,11 @@ function Invoice() {
       showNotification('Please add items or select an invoice first before printing', 'error');
       return;
     }
+    setPreviewModalOpen(true);
     requestAnimationFrame(() => {
       setTimeout(() => {
         window.print();
-      }, 50);
+      }, 100);
     });
   };
 
@@ -1823,10 +2064,8 @@ function Invoice() {
         handleCreateInvoiceButtonClick();
       } else if (e.key === 'F3') {
         e.preventDefault();
-        setInvoiceHeader((prev) => ({
-          ...prev,
-          jobType: prev.jobType === 'Material' ? 'Labour' : 'Material',
-        }));
+        const nextJob = invoiceHeader.jobType === 'Material' ? 'Labour' : 'Material';
+        handleJobTypeChange(nextJob);
       } else if (e.key === 'F4') {
         e.preventDefault();
         setLookupModal({
@@ -1928,10 +2167,11 @@ function Invoice() {
 
   // Reusable Compact Thermal Receipt component for both Print and Preview
   const renderThermalReceiptContent = () => {
-    const grossTotal = lineItems.reduce(
-      (acc, item) => acc + ((parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 1)),
-      0
-    );
+    const grossTotal = lineItems.reduce((acc, item) => {
+      const p = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
+      const q = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
+      return acc + (p * q);
+    }, 0);
     const calculatedDiscount = (grossTotal - amountToPay) > 0 ? (grossTotal - amountToPay) : specialDiscVal;
 
     return (
@@ -1980,19 +2220,26 @@ function Invoice() {
                 </td>
               </tr>
             ) : (
-              lineItems.map((item, idx) => (
-                <tr key={idx} className="thermal-tr-item">
-                  <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
-                    {item.code ? `${item.code} - ` : ''}{item.description || ''}
-                  </td>
-                  <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {Number(item.quantity || 1).toFixed(2)} x {Number(item.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="thermal-td-amount" style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                    {Number(item.value || (item.price * item.quantity) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))
+              lineItems.map((item, idx) => {
+                const itemQty = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
+                const itemRate = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
+                const itemTotal = parseFloat(item.value !== undefined && item.value !== '' ? item.value : (item.finalPrice !== undefined ? item.finalPrice : itemRate * itemQty)) || 0;
+                return (
+                  <tr key={idx} className="thermal-tr-item">
+                    <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
+                      {item.jobType === 'Labour' || item.isService
+                        ? (item.description || 'Delivery Charge')
+                        : `${item.code ? `${item.code} - ` : ''}${item.description || ''}`}
+                    </td>
+                    <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {itemQty.toFixed(2)} x {itemRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="thermal-td-amount" style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                      {itemTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -2004,13 +2251,13 @@ function Invoice() {
           <div className="thermal-receipt-total-row thermal-receipt-total-main">
             <span>Amount to Be Paid:</span>
             <span>
-              {amountToPay.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {Number(amountToPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
           <div className="thermal-receipt-total-row">
             <span>Total Discount:</span>
             <span>
-              {calculatedDiscount.toLocaleString('en-US', {
+              {Number(calculatedDiscount || 0).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -2019,13 +2266,13 @@ function Invoice() {
           <div className="thermal-receipt-total-row">
             <span>Amount Received:</span>
             <span style={{ fontWeight: 'bold' }}>
-              {amountReceivedVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {Number(amountReceivedVal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
           <div className="thermal-receipt-total-row">
             <span>Balance:</span>
             <span style={{ fontWeight: 'bold' }}>
-              {dueAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {Number(dueAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>
@@ -2398,7 +2645,7 @@ function Invoice() {
                         name="jobType"
                         value="Material"
                         checked={invoiceHeader.jobType === 'Material'}
-                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                        onChange={(e) => handleJobTypeChange(e.target.value)}
                       />
                       Material
                     </label>
@@ -2408,7 +2655,7 @@ function Invoice() {
                         name="jobType"
                         value="Labour"
                         checked={invoiceHeader.jobType === 'Labour'}
-                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                        onChange={(e) => handleJobTypeChange(e.target.value)}
                       />
                       Labour
                     </label>
@@ -2418,7 +2665,7 @@ function Invoice() {
                         name="jobType"
                         value="Group"
                         checked={invoiceHeader.jobType === 'Group'}
-                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                        onChange={(e) => handleJobTypeChange(e.target.value)}
                       />
                       Group
                     </label>
@@ -2428,7 +2675,7 @@ function Invoice() {
                         name="jobType"
                         value="J.G."
                         checked={invoiceHeader.jobType === 'J.G.'}
-                        onChange={(e) => setInvoiceHeader({ ...invoiceHeader, jobType: e.target.value })}
+                        onChange={(e) => handleJobTypeChange(e.target.value)}
                       />
                       J.G.
                     </label>
@@ -2487,6 +2734,10 @@ function Invoice() {
                       type="button"
                       className="sofast-item-search-btn"
                       onClick={() => {
+                        if (invoiceHeader.jobType === 'Labour') {
+                          showNotification('Labour delivery charge does not require Item Master search', 'info');
+                          return;
+                        }
                         setLookupModal({
                           isOpen: true,
                           type: 'item',
@@ -2495,7 +2746,7 @@ function Invoice() {
                         });
                         setLookupPage(1);
                       }}
-                      title="Search all 5,993+ items in Item Master (F2 / F4)"
+                      title={invoiceHeader.jobType === 'Labour' ? 'Labour delivery charge (no Item Master needed)' : 'Search all 5,993+ items in Item Master (F2 / F4)'}
                     >
                       &#128269;
                     </button>
@@ -2557,11 +2808,13 @@ function Invoice() {
                     className="sofast-input coupon-green-input"
                     style={{ width: '210px', marginRight: '8px' }}
                     value={
-                      itemEntry.code
-                        ? (alternativeProducts.length > 0
-                            ? `${alternativeProducts.length} Alternative(s) Available`
-                            : 'No Product Available')
-                        : ''
+                      invoiceHeader.jobType === 'Labour'
+                        ? '-'
+                        : (itemEntry.code
+                            ? (alternativeProducts.length > 0
+                                ? `${alternativeProducts.length} Alternative(s) Available`
+                                : 'No Product Available')
+                            : '')
                     }
                     readOnly
                   />
@@ -2585,6 +2838,7 @@ function Invoice() {
                     style={{ flex: 1 }}
                     value={itemEntry.description}
                     onChange={handleItemEntryChange}
+                    placeholder={invoiceHeader.jobType === 'Labour' ? 'e.g. Delivery Charge' : ''}
                   />
                 </div>
 
@@ -2679,9 +2933,11 @@ function Invoice() {
                   <div className="sofast-combo-box" style={{ width: '120px', marginRight: '10px' }}>
                     <select
                       className="sofast-select"
-                      value={itemEntry.location || 'Main Store'}
+                      value={invoiceHeader.jobType === 'Labour' ? '-' : (itemEntry.location || 'Main Store')}
                       onChange={(e) => handleItemLocationChange(e.target.value)}
+                      disabled={invoiceHeader.jobType === 'Labour'}
                     >
+                      {invoiceHeader.jobType === 'Labour' && <option value="-">-</option>}
                       {locationsList.map((loc) => (
                         <option key={loc} value={loc}>{loc}</option>
                       ))}
@@ -2693,8 +2949,8 @@ function Invoice() {
                     className="sofast-input"
                     style={{ width: '80px', backgroundColor: '#f0f0f0', fontWeight: 'bold', textAlign: 'center', marginRight: '8px' }}
                     readOnly
-                    value={itemEntry.availableQty !== '' && itemEntry.availableQty !== undefined && itemEntry.availableQty !== null ? itemEntry.availableQty : ''}
-                    title="Available Stock in Inventory for Selected Item and Location"
+                    value={invoiceHeader.jobType === 'Labour' ? '-' : (itemEntry.availableQty !== '' && itemEntry.availableQty !== undefined && itemEntry.availableQty !== null ? itemEntry.availableQty : '')}
+                    title={invoiceHeader.jobType === 'Labour' ? 'Delivery charges do not require inventory stock' : 'Available Stock in Inventory for Selected Item and Location'}
                   />
                   <button
                     type="button"
@@ -2987,9 +3243,23 @@ function Invoice() {
 
             {/* Quick summary totals on the right of the bottom bar */}
             <div className="sofast-bottom-summary">
-              <span className="sofast-bottom-summary-item">
+              <span
+                className="sofast-bottom-summary-item"
+                title={
+                  lineItems.some((li) => li.jobType === 'Labour' || li.isService)
+                    ? `${lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} Stock, ${lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} Service`
+                    : `${lineItems.length} Items`
+                }
+              >
                 <span className="summary-label">Items:</span>
-                <span className="summary-value">{lineItems.length}</span>
+                <span className="summary-value">
+                  {lineItems.length}
+                  {lineItems.some((li) => li.jobType === 'Labour' || li.isService) && (
+                    <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#555', marginLeft: '4px' }}>
+                      ({lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} stock, {lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} service)
+                    </span>
+                  )}
+                </span>
               </span>
               <span className="sofast-bottom-summary-item">
                 <span className="summary-label">Sub Total:</span>

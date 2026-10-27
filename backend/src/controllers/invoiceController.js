@@ -174,6 +174,9 @@ export const aggregateItemsByCode = (lines) => {
   const map = new Map();
   if (!Array.isArray(lines)) return map;
   for (const line of lines) {
+    if (line.jobType === 'Labour' || line.type === 'Labour' || line.isService === true || line.isService === 'true') {
+      continue;
+    }
     const code = (line.code || line.itemCode || '').trim();
     if (!code) continue;
     const qty = parseFloat(line.quantity !== undefined ? line.quantity : line.qty) || 0;
@@ -261,12 +264,13 @@ export const createInvoice = async (req, res, next) => {
     let calculatedSubTotal = 0;
     const processedLineItems = [];
     for (const item of lineItems) {
-      const code = (item.code || item.itemCode || '').trim();
+      const isLabour = item.jobType === 'Labour' || item.type === 'Labour' || item.isService === true || item.isService === 'true';
+      const code = (item.code || item.itemCode || (isLabour ? 'DELIVERY' : '')).trim();
       const qty = Math.max(0.01, parseFloat(item.quantity || item.qty) || 1);
-      let price = parseFloat(item.price || item.unitPrice) || 0;
+      let price = parseFloat(item.price || item.unitPrice || item.rate) || 0;
 
-      // If price not explicitly supplied, lookup item's configured customer selling price
-      if (price <= 0 && code) {
+      // If price not explicitly supplied, lookup item's configured customer selling price (Material items only)
+      if (!isLabour && price <= 0 && code) {
         const dbItem = await Item.findOne({
           $or: [{ code }, { barcode: code }, { barCode: code }],
         }).lean();
@@ -294,8 +298,11 @@ export const createInvoice = async (req, res, next) => {
       processedLineItems.push({
         code,
         itemCode: code,
-        description: item.description || '',
-        location: item.location || 'Main Store',
+        description: item.description || (isLabour ? 'Delivery Charge' : ''),
+        jobType: isLabour ? 'Labour' : (item.jobType || 'Material'),
+        type: isLabour ? 'Labour' : (item.type || 'Material'),
+        isService: isLabour,
+        location: isLabour ? '-' : (item.location || 'Main Store'),
         quantity: qty,
         qty: qty,
         masterPack: String(item.masterPack || '1'),
@@ -303,21 +310,21 @@ export const createInvoice = async (req, res, next) => {
         rate,
         price,
         unitPrice: price,
-        itemCost: parseFloat(item.itemCost) || 0,
-        mpCost: parseFloat(item.mpCost) || 0,
+        itemCost: isLabour ? 0 : (parseFloat(item.itemCost) || 0),
+        mpCost: isLabour ? 0 : (parseFloat(item.mpCost) || 0),
         discountPercentage: Math.round(discPct * 100) / 100,
         discountAmount: Math.round(discAmt * 100) / 100,
         value: Math.round(lineVal * 100) / 100,
         total: Math.round(lineVal * 100) / 100,
-        balance: parseFloat(item.balance) || 0,
-        availableQty: parseFloat(item.availableQty) !== undefined && !isNaN(parseFloat(item.availableQty))
+        balance: isLabour ? 0 : (parseFloat(item.balance) || 0),
+        availableQty: isLabour ? 0 : (parseFloat(item.availableQty) !== undefined && !isNaN(parseFloat(item.availableQty))
           ? parseFloat(item.availableQty)
-          : parseFloat(item.balance) || 0,
+          : parseFloat(item.balance) || 0),
         finalPrice: parseFloat(item.finalPrice) !== undefined && !isNaN(parseFloat(item.finalPrice))
           ? parseFloat(item.finalPrice)
           : Math.round(lineVal * 100) / 100,
-        lastGrn: item.lastGrn ? String(item.lastGrn).trim() : '',
-        lastGrnDate: item.lastGrnDate ? String(item.lastGrnDate).trim() : '',
+        lastGrn: isLabour ? '' : (item.lastGrn ? String(item.lastGrn).trim() : ''),
+        lastGrnDate: isLabour ? '' : (item.lastGrnDate ? String(item.lastGrnDate).trim() : ''),
       });
     }
 
@@ -536,12 +543,13 @@ export const updateInvoice = async (req, res, next) => {
     let calculatedSubTotal = 0;
     const processedLineItems = [];
     for (const item of lineItems) {
-      const code = (item.code || item.itemCode || '').trim();
+      const isLabour = item.jobType === 'Labour' || item.type === 'Labour' || item.isService === true || item.isService === 'true';
+      const code = (item.code || item.itemCode || (isLabour ? 'DELIVERY' : '')).trim();
       const qty = Math.max(0.01, parseFloat(item.quantity || item.qty) || 1);
-      let price = parseFloat(item.price || item.unitPrice) || 0;
+      let price = parseFloat(item.price || item.unitPrice || item.rate) || 0;
 
-      // If price not explicitly supplied, lookup item's configured customer selling price
-      if (price <= 0 && code) {
+      // If price not explicitly supplied, lookup item's configured customer selling price (Material items only)
+      if (!isLabour && price <= 0 && code) {
         const dbItem = await Item.findOne({
           $or: [{ code }, { barcode: code }, { barCode: code }],
         }).lean();
@@ -569,8 +577,11 @@ export const updateInvoice = async (req, res, next) => {
       processedLineItems.push({
         code,
         itemCode: code,
-        description: item.description || '',
-        location: item.location || 'Main Store',
+        description: item.description || (isLabour ? 'Delivery Charge' : ''),
+        jobType: isLabour ? 'Labour' : (item.jobType || 'Material'),
+        type: isLabour ? 'Labour' : (item.type || 'Material'),
+        isService: isLabour,
+        location: isLabour ? '-' : (item.location || 'Main Store'),
         quantity: qty,
         qty: qty,
         masterPack: String(item.masterPack || '1'),
@@ -578,21 +589,21 @@ export const updateInvoice = async (req, res, next) => {
         rate,
         price,
         unitPrice: price,
-        itemCost: parseFloat(item.itemCost) || 0,
-        mpCost: parseFloat(item.mpCost) || 0,
+        itemCost: isLabour ? 0 : (parseFloat(item.itemCost) || 0),
+        mpCost: isLabour ? 0 : (parseFloat(item.mpCost) || 0),
         discountPercentage: Math.round(discPct * 100) / 100,
         discountAmount: Math.round(discAmt * 100) / 100,
         value: Math.round(lineVal * 100) / 100,
         total: Math.round(lineVal * 100) / 100,
-        balance: parseFloat(item.balance) || 0,
-        availableQty: parseFloat(item.availableQty) !== undefined && !isNaN(parseFloat(item.availableQty))
+        balance: isLabour ? 0 : (parseFloat(item.balance) || 0),
+        availableQty: isLabour ? 0 : (parseFloat(item.availableQty) !== undefined && !isNaN(parseFloat(item.availableQty))
           ? parseFloat(item.availableQty)
-          : parseFloat(item.balance) || 0,
+          : parseFloat(item.balance) || 0),
         finalPrice: parseFloat(item.finalPrice) !== undefined && !isNaN(parseFloat(item.finalPrice))
           ? parseFloat(item.finalPrice)
           : Math.round(lineVal * 100) / 100,
-        lastGrn: item.lastGrn ? String(item.lastGrn).trim() : '',
-        lastGrnDate: item.lastGrnDate ? String(item.lastGrnDate).trim() : '',
+        lastGrn: isLabour ? '' : (item.lastGrn ? String(item.lastGrn).trim() : ''),
+        lastGrnDate: isLabour ? '' : (item.lastGrnDate ? String(item.lastGrnDate).trim() : ''),
       });
     }
 

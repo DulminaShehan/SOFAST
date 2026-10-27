@@ -110,6 +110,7 @@ export const getClosingStockReport = async (req, res, next) => {
       invoices.forEach((inv) => {
         const staffUser = inv.cashier || inv.user || inv.createdBy || (inv.userId ? String(inv.userId) : 'cashier');
         (inv.lineItems || []).forEach((li) => {
+          if (li.jobType === 'Labour' || li.type === 'Labour' || li.isService) return;
           const code = String(li.code || li.itemCode || '').trim();
           if (!code) return;
           const qty = Number(li.quantity || li.qty || 1);

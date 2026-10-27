@@ -962,6 +962,8 @@
   .no-print * {
     display: none !important;
   }
+  #thermal-receipt-print-area,
+  #thermal-receipt-print-area *,
   #printable-erf-sheet,
   #printable-erf-sheet * {
     visibility: visible;

@@ -18,6 +18,20 @@ const invoiceLineItemSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  jobType: {
+    type: String,
+    trim: true,
+    default: 'Material',
+  },
+  type: {
+    type: String,
+    trim: true,
+    default: 'Material',
+  },
+  isService: {
+    type: Boolean,
+    default: false,
+  },
   location: {
     type: String,
     trim: true,

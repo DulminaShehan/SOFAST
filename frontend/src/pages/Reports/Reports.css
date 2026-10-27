@@ -2074,6 +2074,10 @@
   .no-print * {
     display: none !important;
   }
+  #thermal-receipt-print-area,
+  #thermal-receipt-print-area *,
+  .thermal-receipt,
+  .thermal-receipt *,
   #printable-closing-stock-report,
   #printable-closing-stock-report *,
   #printable-daily-sales-report,

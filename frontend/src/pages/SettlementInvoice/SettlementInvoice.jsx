@@ -606,7 +606,9 @@ function SettlementInvoice() {
             displayLineItems.map((li, idx) => (
               <tr key={idx} className="thermal-tr-item">
                 <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
-                  {li.code || li.itemCode ? `${li.code || li.itemCode} - ` : ''}{li.description || ''}
+                  {li.jobType === 'Labour' || li.isService
+                    ? (li.description || 'Delivery Charge')
+                    : `${li.code || li.itemCode ? `${li.code || li.itemCode} - ` : ''}${li.description || ''}`}
                 </td>
                 <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {Number(li.quantity || li.qty || 1).toFixed(2)} x {Number(li.price || li.unitPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

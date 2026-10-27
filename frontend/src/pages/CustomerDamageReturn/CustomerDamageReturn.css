@@ -660,6 +660,8 @@
   body * {
     visibility: hidden;
   }
+  #thermal-receipt-print-area,
+  #thermal-receipt-print-area *,
   .cdr-print-container, .cdr-print-container * {
     visibility: visible;
   }

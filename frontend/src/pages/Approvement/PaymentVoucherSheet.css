@@ -715,6 +715,8 @@
     visibility: hidden;
   }
 
+  #thermal-receipt-print-area,
+  #thermal-receipt-print-area *,
   .pv-paper-container,
   .pv-paper-container * {
     visibility: visible;
