@@ -49,8 +49,8 @@ function Invoice() {
     isHold: false,
     jobType: 'Material',
     itemLookupMode: 'Item Code',
-    isManualInvoice: false,
     remark: '',
+    note: '',
   });
 
   // Multiple Invoice Items
@@ -181,6 +181,12 @@ function Invoice() {
   const [discountInputPercentage, setDiscountInputPercentage] = useState('');
   const [discountInputError, setDiscountInputError] = useState('');
   const discountInputRef = useRef(null);
+
+  // Invoice Note Modal State
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [noteInputText, setNoteInputText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const noteTextareaRef = useRef(null);
 
   // Input Refs
   const itemCodeInputRef = useRef(null);
@@ -492,7 +498,8 @@ function Invoice() {
       jobType: inv.jobType || 'Material',
       itemLookupMode: 'Item Code',
       isManualInvoice: false,
-      remark: inv.remark || '',
+      remark: inv.remark || inv.note || '',
+      note: inv.note || inv.remark || '',
     });
 
     const lines = (inv.lineItems || []).map((li) => {
@@ -981,6 +988,72 @@ function Invoice() {
       })
     );
     showNotification('Discounts removed');
+  };
+
+  // Open Invoice Note Modal
+  const handleOpenNoteModal = () => {
+    setNoteInputText(invoiceHeader.note || invoiceHeader.remark || '');
+    setNoteModalOpen(true);
+    setTimeout(() => {
+      noteTextareaRef.current?.focus();
+    }, 50);
+  };
+
+  // Close Invoice Note Modal (Cancel)
+  const handleCloseNoteModal = () => {
+    setNoteModalOpen(false);
+  };
+
+  // Clear Note input
+  const handleClearNoteModal = () => {
+    setNoteInputText('');
+    noteTextareaRef.current?.focus();
+  };
+
+  // Save Note to invoice
+  const handleSaveNoteModal = async () => {
+    const trimmed = (noteInputText || '').trim();
+
+    // 1. Update local invoiceHeader state immediately
+    setInvoiceHeader((prev) => ({
+      ...prev,
+      note: trimmed,
+      remark: trimmed,
+    }));
+
+    // 2. If invoice is already persisted in database, save directly via dedicated note endpoint
+    if (activeInvoiceId) {
+      try {
+        setSavingNote(true);
+        const res = await api.patch(`/invoices/${activeInvoiceId}/note`, {
+          note: trimmed,
+          remark: trimmed,
+        });
+        if (res.data?.success) {
+          showNotification('Invoice note saved successfully', 'success');
+        } else {
+          showNotification('Note attached to invoice', 'info');
+        }
+      } catch (err) {
+        console.error('Error saving invoice note:', err);
+        try {
+          await api.put(`/invoices/${activeInvoiceId}`, {
+            note: trimmed,
+            remark: trimmed,
+          });
+          showNotification('Invoice note saved successfully', 'success');
+        } catch (e2) {
+          showNotification('Note saved locally in invoice session', 'info');
+        }
+      } finally {
+        setSavingNote(false);
+      }
+    } else {
+      // 3. Draft invoice: retained in draft state, will persist upon invoice save
+      showNotification('Note attached to draft invoice', 'info');
+    }
+
+    setNoteModalOpen(false);
   };
 
   // Select Invoice from Lookup Modal
@@ -1922,6 +1995,7 @@ function Invoice() {
           itemLookupMode: 'Item Code',
           isManualInvoice: false,
           remark: '',
+          note: '',
         });
       }
     } catch (e) {
@@ -1939,6 +2013,7 @@ function Invoice() {
         itemLookupMode: 'Item Code',
         isManualInvoice: false,
         remark: '',
+        note: '',
       });
     } finally {
       setLoading(false);
@@ -2006,7 +2081,8 @@ function Invoice() {
       jd: invoiceHeader.jd || 'Invoice',
       isHold: isHoldVal,
       status: isHoldVal ? 'hold' : 'completed',
-      remark: invoiceHeader.remark || '',
+      remark: (invoiceHeader.note || invoiceHeader.remark || '').trim(),
+      note: (invoiceHeader.note || invoiceHeader.remark || '').trim(),
       lineItems: lineItems.map((li) => {
         const isLabour = li.jobType === 'Labour' || li.type === 'Labour' || Boolean(li.isService);
         return {
@@ -2070,6 +2146,8 @@ function Invoice() {
           ...prev,
           invoiceNumber: savedInvNum,
           no: savedData?.no || prev.no,
+          note: savedData?.note !== undefined ? savedData.note : (savedData?.remark !== undefined ? savedData.remark : prev.note),
+          remark: savedData?.remark !== undefined ? savedData.remark : (savedData?.note !== undefined ? savedData.note : prev.remark),
         }));
 
         showNotification(
@@ -2448,6 +2526,15 @@ function Invoice() {
             </span>
           </div>
         </div>
+
+        {(invoiceHeader.note || invoiceHeader.remark) && (
+          <>
+            <div className="thermal-receipt-dashed"></div>
+            <div className="thermal-receipt-note" style={{ fontSize: '11px', padding: '2px 0', wordBreak: 'break-word' }}>
+              <strong>Note:</strong> {invoiceHeader.note || invoiceHeader.remark}
+            </div>
+          </>
+        )}
 
         <div className="thermal-receipt-dashed"></div>
 
@@ -3044,14 +3131,10 @@ function Invoice() {
                     type="button"
                     className="sofast-classic-btn"
                     style={{ width: '95px' }}
-                    onClick={() => {
-                      const noteText = prompt('Add a Note for this line item:', itemEntry.note || '');
-                      if (noteText !== null) {
-                        setItemEntry((prev) => ({ ...prev, note: noteText }));
-                      }
-                    }}
+                    onClick={handleOpenNoteModal}
+                    title={invoiceHeader.note ? `Note attached: ${invoiceHeader.note}` : 'Add or edit customer note for this invoice'}
                   >
-                    Add a Note
+                    Add a Note{invoiceHeader.note ? ' •' : ''}
                   </button>
                 </div>
 
@@ -3148,11 +3231,11 @@ function Invoice() {
               {/* 1. Quick Catalog Items Lookup Table */}
               <div className="sofast-table-panel sofast-catalog-table-panel">
                 <div className="sofast-table-scroll-container">
-                  <table className="sofast-classic-table">
+                  <table className="sofast-classic-table" style={{ minWidth: '500px' }}>
                     <thead>
                       <tr>
-                        <th style={{ width: '110px' }}>Code</th>
-                        <th>
+                        <th style={{ width: '100px', minWidth: '95px' }}>Code</th>
+                        <th style={{ minWidth: '150px' }}>
                           Description
                           {itemEntry.code && (
                             <span style={{ fontSize: '11px', color: '#000080', marginLeft: '6px', fontWeight: 'bold' }}>
@@ -3160,12 +3243,15 @@ function Invoice() {
                             </span>
                           )}
                         </th>
+                        <th style={{ width: '65px', minWidth: '60px', textAlign: 'center' }}>Quantity</th>
+                        <th style={{ width: '85px', minWidth: '80px', textAlign: 'right' }}>Selling Price</th>
+                        <th style={{ width: '90px', minWidth: '85px' }}>Location</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDropdownItems.length === 0 ? (
                         <tr>
-                          <td colSpan="2" style={{ padding: '8px', color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
+                          <td colSpan="5" style={{ padding: '8px', color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
                             No items matching "{itemEntry.code}"
                           </td>
                         </tr>
@@ -3175,21 +3261,52 @@ function Invoice() {
                             const isSelected =
                               (activePreviewItem && activePreviewItem.code?.toLowerCase() === item.code?.toLowerCase()) ||
                               (itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase());
+
+                            const stockQty = item.quantity !== undefined
+                              ? Number(item.quantity)
+                              : (item.stockInHand !== undefined ? Number(item.stockInHand) : 0);
+
+                            const sellingPrice = Number(
+                              item.sellingPrice !== undefined && Number(item.sellingPrice) >= 0
+                                ? item.sellingPrice
+                                : (item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) >= 0
+                                    ? item.finalSellingPrice
+                                    : (item.price || 0))
+                            ).toFixed(2);
+
+                            const loc = item.location || (Array.isArray(item.locations) && item.locations[0]?.name) || 'Main Store';
+
                             return (
                               <tr
                                 key={item._id || item.code}
                                 className={isSelected ? 'selected-row' : ''}
                                 onClick={() => handleSelectItemFromLookup(item)}
-                                title="Click to select item and display photo to customer"
+                                title={`Click to select ${item.code} (${item.description}) — Available: ${stockQty} in ${loc}`}
                               >
                                 <td className="sofast-cell-code">{item.code}</td>
-                                <td className="sofast-cell-desc">{item.description}</td>
+                                <td className="sofast-cell-desc" title={item.description}>{item.description}</td>
+                                <td
+                                  style={{
+                                    textAlign: 'center',
+                                    fontWeight: 'bold',
+                                    color: isSelected ? '#ffffff' : (stockQty <= 0 ? '#b00020' : '#000000'),
+                                  }}
+                                  title={`Available Stock: ${stockQty}`}
+                                >
+                                  {stockQty}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {sellingPrice}
+                                </td>
+                                <td className="sofast-cell-loc" title={loc}>
+                                  {loc}
+                                </td>
                               </tr>
                             );
                           })}
                           {filteredDropdownItems.length > 150 && (
                             <tr>
-                              <td colSpan="2" style={{ padding: '4px', color: '#000080', background: '#ece9d8', textAlign: 'center', fontSize: '11px', fontStyle: 'italic', borderTop: '1px solid #7f9db9' }}>
+                              <td colSpan="5" style={{ padding: '4px', color: '#000080', background: '#ece9d8', textAlign: 'center', fontSize: '11px', fontStyle: 'italic', borderTop: '1px solid #7f9db9' }}>
                                 Showing top 150 of {filteredDropdownItems.length} items. Type to search or press F2 for all.
                               </td>
                             </tr>
@@ -3706,6 +3823,123 @@ function Invoice() {
                 onClick={() => setLookupModal({ isOpen: false, type: null, title: '', search: '' })}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Note Modal */}
+      {noteModalOpen && (
+        <div className="invoice-modal-overlay" onClick={handleCloseNoteModal}>
+          <div
+            className="invoice-modal-window"
+            style={{ width: '640px', maxWidth: '96vw' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="invoice-modal-titlebar">
+              <span>Invoice Note</span>
+              <button
+                type="button"
+                className="control-btn close"
+                style={{ width: '24px', height: '20px' }}
+                onClick={handleCloseNoteModal}
+                title="Close dialog"
+              >
+                &#x2715;
+              </button>
+            </div>
+
+            <div className="invoice-modal-body" style={{ padding: '16px', gap: '12px' }}>
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #7f9db9',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  fontSize: '13px',
+                }}
+              >
+                {/* Customer Name */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, color: '#000080' }}>Customer Name:</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#000000' }}>
+                    {invoiceHeader.customerName || 'Walk In Customer'}
+                    {invoiceHeader.customerCode ? ` (${invoiceHeader.customerCode})` : ''}
+                  </span>
+                </div>
+
+                {/* Invoice Number */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, color: '#000080' }}>Invoice Number:</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#005bb7' }}>
+                    {invoiceHeader.invoiceNumber || 'Draft (New Invoice)'}
+                  </span>
+                </div>
+
+                {/* Note / Customer Details */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                  <label htmlFor="invoice-note-textarea" style={{ fontWeight: 600, color: '#000080', fontSize: '13px' }}>
+                    Note / Customer Details:
+                  </label>
+                  <textarea
+                    id="invoice-note-textarea"
+                    ref={noteTextareaRef}
+                    rows={10}
+                    className="invoice-input"
+                    style={{
+                      width: '100%',
+                      minHeight: '220px',
+                      padding: '8px 10px',
+                      fontSize: '13px',
+                      lineHeight: 1.5,
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                    }}
+                    placeholder="Enter delivery instructions, special requests, or customer details..."
+                    value={noteInputText}
+                    onChange={(e) => setNoteInputText(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div style={{ fontSize: '11px', color: '#555555', fontStyle: 'italic', lineHeight: 1.3 }}>
+                * This note is associated with this specific invoice and does not affect inventory stock, prices, or Customer Master records.
+              </div>
+            </div>
+
+            <div className="invoice-modal-footer">
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleClearNoteModal}
+                style={{ minWidth: '70px', height: '26px' }}
+                title="Clear note text"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleCloseNoteModal}
+                style={{ minWidth: '70px', height: '26px' }}
+                title="Cancel without saving"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleSaveNoteModal}
+                disabled={savingNote}
+                style={{ fontWeight: 'bold', minWidth: '95px', height: '26px' }}
+                title="Save note to invoice"
+              >
+                {savingNote ? 'Saving...' : 'Save Note'}
               </button>
             </div>
           </div>

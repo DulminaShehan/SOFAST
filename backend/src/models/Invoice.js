@@ -195,6 +195,11 @@ const invoiceSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    note: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     lineItems: {
       type: [invoiceLineItemSchema],
       default: [],

@@ -208,6 +208,7 @@ export const createInvoice = async (req, res, next) => {
       isHold = false,
       status: reqStatus,
       remark = '',
+      note = '',
       lineItems = [],
       specialDiscount = 0,
       paymentMethod = 'Cash',
@@ -411,8 +412,8 @@ export const createInvoice = async (req, res, next) => {
       jobType,
       jd,
       isHold: holdStatus,
-      status: invStatus,
-      remark,
+      remark: (note || remark || '').trim(),
+      note: (note || remark || '').trim(),
       lineItems: processedLineItems,
       subTotal: Math.round(calculatedSubTotal * 100) / 100,
       specialDiscount: specDisc,
@@ -527,6 +528,7 @@ export const updateInvoice = async (req, res, next) => {
       isHold,
       status: reqStatus,
       remark,
+      note,
       lineItems = [],
       specialDiscount,
       paymentMethod,
@@ -743,8 +745,11 @@ export const updateInvoice = async (req, res, next) => {
     if (jobType !== undefined) invoice.jobType = jobType;
     if (jd !== undefined) invoice.jd = jd;
     invoice.isHold = holdStatus;
-    invoice.status = invStatus;
-    if (remark !== undefined) invoice.remark = remark;
+    if (remark !== undefined || note !== undefined) {
+      const finalNote = (note !== undefined ? note : remark) || '';
+      invoice.remark = finalNote;
+      invoice.note = finalNote;
+    }
     invoice.lineItems = processedLineItems;
     invoice.subTotal = Math.round(calculatedSubTotal * 100) / 100;
     invoice.specialDiscount = specDisc;
@@ -1126,6 +1131,38 @@ export const getRemainingBalances = async (req, res, next) => {
       data: results,
       totalCount: results.length,
       totalOutstandingSum: Math.round(totalOutstandingSum * 100) / 100,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update invoice note without affecting stock, line items, or totals
+ * PATCH /api/invoices/:id/note
+ */
+export const updateInvoiceNote = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { note = '', remark = '' } = req.body;
+    const finalNote = (note !== undefined ? note : remark) || '';
+
+    const invoice = await Invoice.findById(id);
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: `Invoice not found with id ${id}`,
+      });
+    }
+
+    invoice.note = finalNote;
+    invoice.remark = finalNote;
+    await invoice.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Invoice note updated successfully',
+      data: invoice,
     });
   } catch (error) {
     next(error);

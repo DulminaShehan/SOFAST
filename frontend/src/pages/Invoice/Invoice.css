@@ -1854,8 +1854,12 @@
 
 .sofast-table-scroll-container {
   flex: 1;
-  overflow: scroll;
+  overflow: auto;
   background: #fff;
+}
+
+.sofast-catalog-table-panel .sofast-classic-table {
+  min-width: 500px;
 }
 
 .sofast-classic-table {
@@ -1915,6 +1919,10 @@
 
 .sofast-cell-desc {
   font-weight: 500;
+}
+
+.sofast-cell-loc {
+  color: #333333;
 }
 
 /* 2. Customer Display - Item Photo Preview Window */
