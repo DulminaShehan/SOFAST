@@ -2004,6 +2004,65 @@
 }
 
 /* ==========================================================================
+   Classic Windows XP / SOFAST Modal Dialogs for GRN & GREN Reports
+   ========================================================================== */
+.grn-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.grn-modal-window {
+  background-color: #ece9d8;
+  border: 2px solid #005bb7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  width: 92%;
+  max-width: 900px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.grn-modal-titlebar {
+  background: linear-gradient(180deg, #0a64d8 0%, #004fb0 100%);
+  color: #ffffff;
+  padding: 6px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+}
+
+.grn-modal-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  background-color: #f4f2e9;
+}
+
+.grn-modal-footer {
+  padding: 8px 12px;
+  background-color: #dfdbca;
+  border-top: 1px solid #b8b4a5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ==========================================================================
    Print Styles for Reports
    Exact multi-page replica matching the user's PDF scan
    ========================================================================== */
@@ -2036,7 +2095,9 @@
   #printable-non-moving-report,
   #printable-non-moving-report *,
   #printable-gren-report,
-  #printable-gren-report * {
+  #printable-gren-report *,
+  #printable-single-gren,
+  #printable-single-gren * {
     visibility: visible;
   }
   #printable-closing-stock-report,
@@ -2049,7 +2110,8 @@
   #printable-supplier-purchases-report,
   #printable-top-selling-report,
   #printable-non-moving-report,
-  #printable-gren-report {
+  #printable-gren-report,
+  #printable-single-gren {
     position: absolute;
     left: 0;
     top: 0;

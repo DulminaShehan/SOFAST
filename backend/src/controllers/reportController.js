@@ -344,8 +344,17 @@ export const getReportFilterOptions = async (req, res, next) => {
         const supNames = (supDocs || []).map((s) => s.name).filter(Boolean);
         const grnSups = await Grn.distinct('supplier');
         const grnSupNames = await Grn.distinct('supplierName');
-        suppliersList = [...new Set([...supNames, ...(grnSups || []), ...(grnSupNames || [])])].filter(Boolean).sort();
+        const srSupCodes = await mongoose.connection.db.collection('supplierreturns').distinct('supplierCode');
+        const srSupNames = await mongoose.connection.db.collection('supplierreturns').distinct('supplierName');
+        suppliersList = [...new Set([...supNames, ...(grnSups || []), ...(grnSupNames || []), ...(srSupCodes || []), ...(srSupNames || [])])].filter(Boolean).sort();
         supplierMasterList = (supDocs || []).map((s) => ({ code: s.code, name: s.name }));
+        const existingCodes = new Set(supplierMasterList.map((s) => String(s.code).toUpperCase()));
+        (srSupCodes || []).forEach((code) => {
+          if (code && !existingCodes.has(String(code).toUpperCase())) {
+            supplierMasterList.push({ code: String(code), name: String(code) });
+            existingCodes.add(String(code).toUpperCase());
+          }
+        });
 
         const cusNames = await Customer.distinct('name');
         const invCus = await Invoice.distinct('customerName');
@@ -893,16 +902,37 @@ export const getGrnReport = async (req, res, next) => {
 
     if (isDbConnected()) {
       try {
-        // Build map of Supplier Master for code-to-name and name-to-code resolution
+        // Build comprehensive map of Supplier Master for code, cleanCode, ID, and name resolution
         const supDocs = await Supplier.find({}, { code: 1, name: 1 }).lean();
-        const supMap = new Map();
+        const supCodeToName = new Map();
+        const supCleanCodeToName = new Map();
+        const supNameToCode = new Map();
+        const supIdToCode = new Map();
+        const supIdToName = new Map();
+        const masterSuppliers = [];
+
         (supDocs || []).forEach((s) => {
-          if (s.code) {
-            supMap.set(String(s.code).trim().toUpperCase(), s.name);
-            supMap.set(String(s.code).trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase(), s.name);
+          const sId = String(s._id);
+          const sCode = s.code ? String(s.code).trim() : '';
+          const sName = s.name ? String(s.name).trim() : '';
+          const sClean = sCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+          masterSuppliers.push({ id: sId, code: sCode, cleanCode: sClean, name: sName });
+
+          if (sCode) {
+            supCodeToName.set(sCode.toUpperCase(), sName);
+            supCodeToName.set(sCode.toLowerCase(), sName);
           }
-          if (s.name) {
-            supMap.set(String(s.name).trim().toUpperCase(), s.name);
+          if (sClean) {
+            supCleanCodeToName.set(sClean, sName);
+          }
+          if (sName) {
+            supNameToCode.set(sName.toUpperCase(), sCode);
+            supNameToCode.set(sName.toLowerCase(), sCode);
+          }
+          if (sId) {
+            supIdToCode.set(sId, sCode);
+            supIdToName.set(sId, sName);
           }
         });
 
@@ -917,14 +947,31 @@ export const getGrnReport = async (req, res, next) => {
         allGrnRecords = grnDocs.map((doc) => {
           const rawCode = String(doc.supplierCode || doc.supplier || '').trim();
           const cleanCode = rawCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-          const resolvedName =
-            doc.supplierName ||
-            supMap.get(cleanCode) ||
-            supMap.get(rawCode.toUpperCase()) ||
-            rawCode ||
-            'RAZA AUTO TRADERS';
+          const rawUpper = rawCode.toUpperCase();
 
-          const grnNoStr = doc.grnNumber || (doc.no !== undefined && doc.no !== null ? String(doc.no) : '') || 'GRN-GEN';
+          // Resolve accurate supplier code and name without fake fallbacks
+          const resolvedName =
+            (doc.supplierName && String(doc.supplierName).trim()) ||
+            supCodeToName.get(rawUpper) ||
+            supCleanCodeToName.get(cleanCode) ||
+            supIdToName.get(rawCode) ||
+            (supNameToCode.has(rawUpper) ? doc.supplier : null) ||
+            rawCode ||
+            'Unknown Supplier';
+
+          const resolvedCode =
+            (doc.supplierCode && String(doc.supplierCode).trim()) ||
+            supNameToCode.get(resolvedName.toUpperCase()) ||
+            supIdToCode.get(rawCode) ||
+            rawCode ||
+            '—';
+
+          const grnNoStr = doc.grnNumber !== undefined && doc.grnNumber !== null && String(doc.grnNumber).trim() !== ''
+            ? String(doc.grnNumber).trim()
+            : doc.no !== undefined && doc.no !== null
+            ? String(doc.no)
+            : 'GRN-GEN';
+
           const rawDate = doc.date || doc.createdAt;
           const grnDate = rawDate ? new Date(rawDate).toLocaleDateString('en-GB') : '';
           const isoDate = rawDate ? new Date(rawDate).toISOString().slice(0, 10) : '';
@@ -952,6 +999,7 @@ export const getGrnReport = async (req, res, next) => {
                 : rate * qty * (1 - disc / 100)
             );
             const sellPrice = Number(li.sellingPrice || 0);
+            const itemLoc = li.locationCode || li.location || location;
 
             totalQty += qty;
             if (disc > 0) {
@@ -960,10 +1008,17 @@ export const getGrnReport = async (req, res, next) => {
             computedVal += val;
 
             return {
-              _id: li._id || `${doc._id}_${idx}`,
+              _id: li._id ? String(li._id) : `${doc._id}_${idx}`,
+              grnNumber: grnNoStr,
+              grnDate,
+              date: grnDate,
+              rawDate: isoDate,
+              supplierCode: resolvedCode,
+              supplierName: resolvedName,
+              supplierInvoiceNo: invNo,
               code: li.code || li.itemCode || 'ITEM-GEN',
               itemCode: li.itemCode || li.code || 'ITEM-GEN',
-              description: li.description || 'Received Part',
+              description: li.description || '',
               quantity: qty,
               receivedQuantity: qty,
               returnQty: Number(li.returnQty || 0),
@@ -975,7 +1030,8 @@ export const getGrnReport = async (req, res, next) => {
               totalValue: Number(val.toFixed(2)),
               lineValue: Number(val.toFixed(2)),
               value: Number(val.toFixed(2)),
-              locationCode: li.locationCode || location,
+              location: itemLoc,
+              locationCode: itemLoc,
             };
           });
 
@@ -994,7 +1050,7 @@ export const getGrnReport = async (req, res, next) => {
             no: doc.no !== undefined ? doc.no : null,
             date: grnDate,
             rawDate: isoDate,
-            supplierCode: rawCode,
+            supplierCode: resolvedCode,
             supplierName: resolvedName,
             supplier: resolvedName,
             supplierInvoiceNo: invNo,
@@ -1018,23 +1074,56 @@ export const getGrnReport = async (req, res, next) => {
       }
     }
 
-    // 2. Filter by GRN Number (exact or partial, case-insensitive)
+    // 2. Filter by GRN Number (exact and partial, ranking exact matches first)
     if (grnNumQuery) {
       const q = grnNumQuery.toLowerCase();
-      allGrnRecords = allGrnRecords.filter((g) => {
-        const numStr = String(g.grnNumber || '').toLowerCase();
-        const noStr = g.no !== null && g.no !== undefined ? String(g.no) : '';
-        return numStr.includes(q) || noStr === q;
-      });
+      const qClean = q.replace(/^grn-?0*/i, '');
+
+      allGrnRecords = allGrnRecords
+        .map((g) => {
+          const numStr = String(g.grnNumber || '').toLowerCase();
+          const noStr = g.no !== null && g.no !== undefined ? String(g.no) : '';
+          const numClean = numStr.replace(/^grn-?0*/i, '');
+          const invStr = String(g.supplierInvoiceNo || '').toLowerCase();
+
+          let matchScore = 0;
+          if (numStr === q || noStr === q) {
+            matchScore = 100; // Exact match on GRN Number or Sequence
+          } else if (qClean && numClean === qClean) {
+            matchScore = 90; // Normalized exact match (e.g. "6" vs "GRN-0006")
+          } else if (numStr.startsWith(q) || (qClean && numClean.startsWith(qClean))) {
+            matchScore = 70; // Prefix match
+          } else if (numStr.includes(q) || noStr.includes(q)) {
+            matchScore = 50; // Partial substring in GRN Number
+          } else if (invStr && invStr.includes(q)) {
+            matchScore = 30; // Partial match in supplier invoice #
+          }
+
+          return { record: g, matchScore };
+        })
+        .filter((item) => item.matchScore > 0)
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .map((item) => item.record);
     }
 
-    // 3. Filter by Supplier (Code or Name, case-insensitive)
+    // 3. Filter by Supplier (Code or Name, matching Supplier Master reliably)
     if (supplier && supplier !== 'All') {
       const supQuery = String(supplier).trim().toLowerCase();
+      const cleanSupQuery = supQuery.replace(/[^a-zA-Z0-9]/g, '');
+
       allGrnRecords = allGrnRecords.filter((g) => {
         const sCode = String(g.supplierCode || '').toLowerCase();
+        const sCleanCode = sCode.replace(/[^a-zA-Z0-9]/g, '');
         const sName = String(g.supplierName || '').toLowerCase();
-        return sCode === supQuery || sName === supQuery || sCode.includes(supQuery) || sName.includes(supQuery);
+
+        return (
+          sCode === supQuery ||
+          sCleanCode === cleanSupQuery ||
+          sName === supQuery ||
+          (cleanSupQuery && sCleanCode.includes(cleanSupQuery)) ||
+          sCode.includes(supQuery) ||
+          sName.includes(supQuery)
+        );
       });
     }
 
@@ -1068,7 +1157,7 @@ export const getGrnReport = async (req, res, next) => {
       });
     }
 
-    // 6. Sorting
+    // 6. Sorting (Preserve priority ranking when grnNumQuery is present, unless user explicitly changes sortBy)
     if (sortBy === 'value_desc') {
       allGrnRecords.sort((a, b) => b.totalValue - a.totalValue);
     } else if (sortBy === 'value_asc') {
@@ -1085,7 +1174,7 @@ export const getGrnReport = async (req, res, next) => {
       allGrnRecords.sort((a, b) => a.supplierName.localeCompare(b.supplierName));
     } else if (sortBy === 'date_asc') {
       allGrnRecords.sort((a, b) => new Date(a.rawDate || 0) - new Date(b.rawDate || 0));
-    } else {
+    } else if (!grnNumQuery) {
       // default: date descending (latest first)
       allGrnRecords.sort((a, b) => new Date(b.rawDate || 0) - new Date(a.rawDate || 0) || (b.no || 0) - (a.no || 0));
     }
@@ -1757,51 +1846,232 @@ export const getGoodsReturnNotes = async (req, res, next) => {
     const {
       startDate = '',
       endDate = '',
+      fromDate = '',
+      toDate = '',
       supplier = 'All',
-      grenNumber = 'All',
+      grenNumber = '',
+      returnNumber = '',
+      grenNo = '',
       search = '',
       sortBy = 'default',
+      page = 1,
+      limit = 50,
     } = req.query;
 
-    let notes = [];
+    const start = (startDate || fromDate || '').trim();
+    const end = (endDate || toDate || '').trim();
+    const grenNumQuery = (grenNumber || returnNumber || grenNo || '').trim();
+
+    // Validate that From Date is not later than To Date
+    if (start && end) {
+      const dStart = new Date(start);
+      const dEnd = new Date(end);
+      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dStart > dEnd) {
+        return res.status(400).json({
+          success: false,
+          message: 'From Date cannot be later than To Date. Please correct the selected date range.',
+        });
+      }
+    }
+
+    let allReturnRecords = [];
 
     if (isDbConnected()) {
       try {
-        const dateQuery = buildDateRangeQuery(startDate, endDate, 'date');
+        // 1. Build map of Supplier Master for code-to-name and name-to-code resolution
+        const supDocs = await Supplier.find({}, { code: 1, name: 1 }).lean();
+        const supMap = new Map();
+        (supDocs || []).forEach((s) => {
+          if (s.code) {
+            supMap.set(String(s.code).trim().toUpperCase(), s.name);
+            supMap.set(String(s.code).trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase(), s.name);
+          }
+          if (s.name) {
+            supMap.set(String(s.name).trim().toUpperCase(), s.name);
+          }
+        });
+
+        // 2. Query supplierreturns from DB
+        const dateQuery = buildDateRangeQuery(start, end, 'date');
         const returnDocs = await mongoose.connection.db
           .collection('supplierreturns')
           .find(dateQuery)
-          .sort({ date: -1, no: -1 })
+          .sort({ date: -1, no: -1, createdAt: -1 })
           .toArray();
 
-        notes = returnDocs.map((doc) => {
-          const rawDate = doc.date ? new Date(doc.date).toISOString().slice(0, 10) : '';
-          const dateFormatted = doc.date ? new Date(doc.date).toLocaleDateString('en-GB') : '';
+        // 3. Collect linked GRN references to look up original GRN numbers and supplier invoices
+        const grnRefs = new Set();
+        returnDocs.forEach((d) => {
+          const ref = String(d.grnReference || d.grnNumber || '').trim();
+          if (ref && ref !== 'undefined') grnRefs.add(ref);
+        });
 
-          const items = (doc.lineItems || []).map((li, idx) => ({
-            no: li.no || idx + 1,
-            code: li.code || li.itemCode || 'ITEM-GEN',
-            description: li.description || 'Returned Part',
-            quantity: Number(li.quantity || li.qty || 1),
-            rate: Number(li.unitPrice || li.rate || 0),
-            discount: Number(li.discount || 0),
-            value: Number(li.totalValue || li.value || 0),
-          }));
+        const grnQueries = [];
+        if (grnRefs.size > 0) {
+          const refArr = Array.from(grnRefs);
+          grnQueries.push({ grnNumber: { $in: refArr } });
+          const numericRefs = refArr.filter((r) => !isNaN(Number(r))).map((r) => ({ no: Number(r) }));
+          if (numericRefs.length > 0) {
+            grnQueries.push(...numericRefs);
+          }
+        }
 
-          const subTotal = Number(doc.returnTotal || items.reduce((sum, it) => sum + it.value, 0));
+        const grnDocs =
+          grnQueries.length > 0
+            ? await Grn.find(
+                { $or: grnQueries },
+                { grnNumber: 1, no: 1, supplierInvoiceNo: 1, invoice: 1, supplierCode: 1, supplierName: 1 }
+              ).lean()
+            : [];
+
+        const grnMap = new Map();
+        grnDocs.forEach((g) => {
+          if (g.grnNumber) grnMap.set(String(g.grnNumber).trim().toLowerCase(), g);
+          if (g.no !== undefined && g.no !== null) grnMap.set(String(g.no).trim().toLowerCase(), g);
+        });
+
+        // 4. Map each return document
+        allReturnRecords = returnDocs.map((doc) => {
+          const rawCode = String(doc.supplierCode || '').trim();
+          const cleanCode = rawCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+          const resolvedName =
+            doc.supplierName ||
+            supMap.get(cleanCode) ||
+            supMap.get(rawCode.toUpperCase()) ||
+            rawCode ||
+            'RAZA AUTO TRADERS';
+
+          const rawDate = doc.date || doc.createdAt;
+          const dateFormatted = rawDate ? new Date(rawDate).toLocaleDateString('en-GB') : '';
+          const isoDate = rawDate ? new Date(rawDate).toISOString().slice(0, 10) : '';
+
+          const rawRef = String(doc.grnReference || doc.grnNumber || '').trim();
+          const linkedGrn = rawRef ? grnMap.get(rawRef.toLowerCase()) : null;
+          const origGrn =
+            (rawRef && rawRef !== 'undefined'
+              ? rawRef
+              : linkedGrn
+              ? linkedGrn.grnNumber || String(linkedGrn.no)
+              : '') || '—';
+          const invNo =
+            doc.supplierInvoiceNo ||
+            doc.invoice ||
+            (linkedGrn ? linkedGrn.supplierInvoiceNo || linkedGrn.invoice : '') ||
+            '—';
+
+          const grenNoStr =
+            doc.returnNumber && doc.returnNumber !== 'undefined'
+              ? String(doc.returnNumber)
+              : doc.grenNumber && doc.grenNumber !== 'undefined'
+              ? String(doc.grenNumber)
+              : doc.no !== undefined && doc.no !== null
+              ? String(doc.no).startsWith('GREN')
+                ? String(doc.no)
+                : `GREN-${doc.no}`
+              : 'GREN';
+
+          const statusStr =
+            doc.status === 'deleted'
+              ? 'Deleted'
+              : doc.status === 'cancelled'
+              ? 'Cancelled'
+              : doc.status === 'reversed'
+              ? 'Reversed'
+              : doc.isPosted !== false
+              ? 'Posted'
+              : doc.status || 'Active';
+
+          let totalReturnedQty = 0;
+          let computedVal = 0;
+
+          const lineItems = (doc.lineItems || []).map((li, idx) => {
+            const code = li.itemCode || li.code || 'ITEM-GEN';
+            const desc = li.description || 'Returned Part';
+            const unitPrice = Number(li.unitPrice !== undefined && li.unitPrice !== null ? li.unitPrice : li.rate || 0);
+            const disc = Number(li.discount || 0);
+            const returnQty = Number(
+              li.qtyReturn !== undefined && li.qtyReturn !== null
+                ? li.qtyReturn
+                : li.returnQuantity !== undefined && li.returnQuantity !== null
+                ? li.returnQuantity
+                : li.quantity !== undefined && li.quantity !== null
+                ? li.quantity
+                : li.qty || 0
+            );
+            const lineVal = Number(
+              li.totalValue !== undefined && li.totalValue !== null
+                ? li.totalValue
+                : li.value !== undefined && li.value !== null
+                ? li.value
+                : li.returnValue !== undefined && li.returnValue !== null
+                ? li.returnValue
+                : unitPrice * returnQty * (1 - disc / 100)
+            );
+
+            totalReturnedQty += returnQty;
+            computedVal += lineVal;
+
+            return {
+              _id: li._id || `${doc._id}_${idx}`,
+              no: li.no || idx + 1,
+              code,
+              itemCode: code,
+              description: desc,
+              quantity: returnQty,
+              returnQuantity: returnQty,
+              qtyReturn: returnQty,
+              unitPrice,
+              purchaseCost: unitPrice,
+              purchasePrice: unitPrice,
+              rate: unitPrice,
+              discount: disc,
+              totalValue: Number(lineVal.toFixed(2)),
+              lineValue: Number(lineVal.toFixed(2)),
+              value: Number(lineVal.toFixed(2)),
+              returnValue: Number(lineVal.toFixed(2)),
+              locationCode: li.locationCode || 'Main Store',
+              location: li.locationCode || 'Main Store',
+              originalQuantity: Number(li.quantity !== undefined ? li.quantity : li.qty || 0),
+            };
+          });
+
+          const finalReturnVal = Number(
+            doc.returnTotal !== undefined && doc.returnTotal !== null
+              ? doc.returnTotal
+              : doc.totalReturnValue !== undefined && doc.totalReturnValue !== null
+              ? doc.totalReturnValue
+              : computedVal
+          );
 
           return {
-            _id: doc._id,
-            grenNumber: doc.returnNumber || `GREN-${doc.no || 0}`,
-            no: doc.no,
+            _id: String(doc._id),
+            grenNumber: grenNoStr,
+            returnNumber: grenNoStr,
+            no: doc.no !== undefined ? doc.no : null,
             date: dateFormatted,
-            rawDate,
+            rawDate: isoDate,
             time: doc.time || '10:00:00 AM',
             userCode: doc.userCode || 'PC004',
-            supplierCode: doc.supplierCode || 'SUP',
-            supplierName: doc.supplierName || 'SUPPLIER',
-            items,
-            subTotal: Number(subTotal.toFixed(2)),
+            supplierCode: rawCode || (linkedGrn ? linkedGrn.supplierCode : '') || '—',
+            supplierName: resolvedName,
+            supplier: resolvedName,
+            originalGrnNumber: origGrn,
+            grnReference: origGrn,
+            supplierInvoiceNo: invNo,
+            supplierInvoiceNumber: invNo,
+            invoice: invNo,
+            totalItems: lineItems.length,
+            totalQuantity: totalReturnedQty,
+            totalReturnedQuantity: totalReturnedQty,
+            totalReturnValue: Number(finalReturnVal.toFixed(2)),
+            returnTotal: Number(finalReturnVal.toFixed(2)),
+            subTotal: Number(finalReturnVal.toFixed(2)),
+            status: statusStr,
+            isPosted: doc.isPosted !== false && doc.status !== 'deleted' && doc.status !== 'cancelled',
+            remarks: doc.remarks || doc.note || '',
+            note: doc.note || doc.remarks || '',
+            lineItems,
+            items: lineItems, // backwards compatibility
           };
         });
       } catch (err) {
@@ -1809,87 +2079,137 @@ export const getGoodsReturnNotes = async (req, res, next) => {
       }
     }
 
-    // Filter by supplier
-    if (supplier && supplier !== 'All') {
-      notes = notes.filter(
-        (n) =>
-          n.supplierCode.toLowerCase() === supplier.toLowerCase() ||
-          n.supplierName.toLowerCase() === supplier.toLowerCase()
-      );
-    }
-
-    // Filter by G.RE.N number
-    if (grenNumber && grenNumber !== 'All') {
-      notes = notes.filter((n) => n.grenNumber === grenNumber);
-    }
-
-    // Filter by search query (item code or description or grenNumber)
-    if (search && search.trim()) {
-      const q = search.toLowerCase().trim();
-      notes = notes
-        .map((note) => ({
-          ...note,
-          items: note.items.filter(
-            (it) =>
-              it.code.toLowerCase().includes(q) ||
-              it.description.toLowerCase().includes(q) ||
-              note.grenNumber.toLowerCase().includes(q)
-          ),
-        }))
-        .filter((note) => note.items.length > 0);
-
-      // Recalculate note subtotals based on filtered items
-      notes.forEach((note) => {
-        note.subTotal = Number(note.items.reduce((sum, it) => sum + it.value, 0).toFixed(2));
+    // 5. Filter by Goods Return Note Number (exact or partial, case-insensitive)
+    if (grenNumQuery && grenNumQuery !== 'All') {
+      const q = grenNumQuery.toLowerCase();
+      allReturnRecords = allReturnRecords.filter((n) => {
+        const numStr = String(n.grenNumber || '').toLowerCase();
+        const noStr = n.no !== null && n.no !== undefined ? String(n.no) : '';
+        return numStr.includes(q) || noStr === q;
       });
     }
 
-    // Flatten items for modern table view
+    // 6. Filter by Supplier (Code or Name, case-insensitive)
+    if (supplier && supplier !== 'All') {
+      const supQuery = String(supplier).trim().toLowerCase();
+      allReturnRecords = allReturnRecords.filter((n) => {
+        const sCode = String(n.supplierCode || '').toLowerCase();
+        const sName = String(n.supplierName || '').toLowerCase();
+        return (
+          sCode === supQuery ||
+          sName === supQuery ||
+          sCode.includes(supQuery) ||
+          sName.includes(supQuery)
+        );
+      });
+    }
+
+    // 7. General Search
+    if (search && search.trim() !== '') {
+      const q = search.trim().toLowerCase();
+      allReturnRecords = allReturnRecords.filter((n) => {
+        const matchesHeader =
+          String(n.grenNumber || '').toLowerCase().includes(q) ||
+          String(n.supplierCode || '').toLowerCase().includes(q) ||
+          String(n.supplierName || '').toLowerCase().includes(q) ||
+          String(n.originalGrnNumber || '').toLowerCase().includes(q) ||
+          String(n.supplierInvoiceNo || '').toLowerCase().includes(q) ||
+          String(n.status || '').toLowerCase().includes(q) ||
+          String(n.remarks || '').toLowerCase().includes(q);
+
+        if (matchesHeader) return true;
+
+        return (n.lineItems || []).some(
+          (li) =>
+            String(li.code || '').toLowerCase().includes(q) ||
+            String(li.description || '').toLowerCase().includes(q)
+        );
+      });
+    }
+
+    // 8. Sorting
+    if (sortBy === 'value_desc') {
+      allReturnRecords.sort((a, b) => b.totalReturnValue - a.totalReturnValue);
+    } else if (sortBy === 'value_asc') {
+      allReturnRecords.sort((a, b) => a.totalReturnValue - b.totalReturnValue);
+    } else if (sortBy === 'qty_desc') {
+      allReturnRecords.sort((a, b) => b.totalReturnedQuantity - a.totalReturnedQuantity);
+    } else if (sortBy === 'qty_asc') {
+      allReturnRecords.sort((a, b) => a.totalReturnedQuantity - b.totalReturnedQuantity);
+    } else if (sortBy === 'gren_desc' || sortBy === 'note_desc') {
+      allReturnRecords.sort((a, b) =>
+        String(b.grenNumber).localeCompare(String(a.grenNumber), undefined, { numeric: true })
+      );
+    } else if (sortBy === 'gren_asc' || sortBy === 'note_asc') {
+      allReturnRecords.sort((a, b) =>
+        String(a.grenNumber).localeCompare(String(b.grenNumber), undefined, { numeric: true })
+      );
+    } else if (sortBy === 'supplier_asc') {
+      allReturnRecords.sort((a, b) => a.supplierName.localeCompare(b.supplierName));
+    } else if (sortBy === 'date_asc') {
+      allReturnRecords.sort((a, b) => new Date(a.rawDate || 0) - new Date(b.rawDate || 0));
+    } else {
+      // default: date descending (latest first), then note no descending
+      allReturnRecords.sort(
+        (a, b) => new Date(b.rawDate || 0) - new Date(a.rawDate || 0) || (b.no || 0) - (a.no || 0)
+      );
+    }
+
+    // 9. Accurate Summary Calculation from filtered results
+    const postedRecords = allReturnRecords.filter(
+      (n) => !['cancelled', 'reversed', 'deleted'].includes(String(n.status || '').toLowerCase())
+    );
+
+    const grandTotalValue = postedRecords.reduce((sum, n) => sum + (n.totalReturnValue || 0), 0);
+    const totalReturnedQuantity = postedRecords.reduce((sum, n) => sum + (n.totalReturnedQuantity || 0), 0);
+    const totalItemsCount = postedRecords.reduce((sum, n) => sum + (n.totalItems || 0), 0);
+    const uniqueSuppliers = new Set(allReturnRecords.map((n) => n.supplierName || n.supplierCode));
+    const totalCancelled = allReturnRecords.length - postedRecords.length;
+    const highestNote = [...postedRecords].sort((a, b) => b.totalReturnValue - a.totalReturnValue)[0] || {
+      grenNumber: 'N/A',
+      subTotal: 0,
+      totalReturnValue: 0,
+    };
+
+    // 10. Generate flatItems for backward compatibility with continuous paper view
     let flatItems = [];
-    notes.forEach((note) => {
-      note.items.forEach((it) => {
+    allReturnRecords.forEach((note) => {
+      (note.lineItems || []).forEach((it) => {
         flatItems.push({
           grenNumber: note.grenNumber,
           date: note.date,
           supplierCode: note.supplierCode,
           supplierName: note.supplierName,
+          originalGrnNumber: note.originalGrnNumber,
+          supplierInvoiceNo: note.supplierInvoiceNo,
+          status: note.status,
           ...it,
         });
       });
     });
 
-    // Sort flat items if requested
-    if (sortBy === 'value_desc') {
-      flatItems.sort((a, b) => b.value - a.value);
-    } else if (sortBy === 'value_asc') {
-      flatItems.sort((a, b) => a.value - b.value);
-    } else if (sortBy === 'qty_desc') {
-      flatItems.sort((a, b) => b.quantity - a.quantity);
-    } else if (sortBy === 'date_desc') {
-      flatItems.sort((a, b) => b.date.localeCompare(a.date));
-    } else if (sortBy === 'code_asc') {
-      flatItems.sort((a, b) => a.code.localeCompare(b.code));
-    }
-
-    const grandTotal = notes.reduce((sum, n) => sum + (n.subTotal || 0), 0);
-    const totalQty = flatItems.reduce((sum, it) => sum + (it.quantity || 0), 0);
-    const primarySupplier = notes.length > 0 ? notes[0].supplierName : 'N/A';
-    const highestNote = [...notes].sort((a, b) => b.subTotal - a.subTotal)[0] || { grenNumber: 'N/A', subTotal: 0 };
-
     return res.status(200).json({
       success: true,
       reportType: 'goods_return_notes',
-      reportTitle: 'Goods Return Notes',
+      reportTitle: 'GOODS RETURN NOTES (G.RE.N) REPORT',
       company: COMPANY_HEADER,
       summary: {
-        totalNotes: notes.length,
-        totalItemsCount: flatItems.length,
-        totalQuantity: totalQty,
-        grandTotalValue: Number(grandTotal.toFixed(2)),
-        primarySupplier,
-        highestNote: { grenNumber: highestNote.grenNumber, subTotal: highestNote.subTotal },
+        totalNotes: allReturnRecords.length,
+        matchingNotesCount: allReturnRecords.length,
+        totalItemsCount,
+        totalQuantity: totalReturnedQuantity,
+        totalReturnedQuantity,
+        grandTotalValue: Number(grandTotalValue.toFixed(2)),
+        totalCancelled,
+        totalSuppliers: uniqueSuppliers.size,
+        primarySupplier: allReturnRecords[0]?.supplierName || 'N/A',
+        highestNote: {
+          grenNumber: highestNote.grenNumber,
+          subTotal: highestNote.subTotal || highestNote.totalReturnValue || 0,
+        },
       },
-      notes,
+      notes: allReturnRecords,
+      data: allReturnRecords, // alias for consistency
       flatItems,
       softwareFooter: SOFTWARE_FOOTER,
     });

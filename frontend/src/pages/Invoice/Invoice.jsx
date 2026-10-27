@@ -891,7 +891,7 @@ function Invoice() {
       availableQty: storedStock, // actual database stock!
       quantity: validQty, // customer purchase quantity (editable)
       price: sellingPrice,
-      rate: '0',
+      rate: sellingPrice ? Number(sellingPrice).toFixed(2) : '0.00',
       itemCost: costDisplay,
       lastGrn: grnNum,
       lastGrnDate: grnDate,
@@ -1125,6 +1125,23 @@ function Invoice() {
       updated.finalPrice = comp.finalPrice;
       updated.value = comp.finalPrice;
       updated.total = comp.finalPrice;
+    } else if (name === 'rate') {
+      const comp = computeLinePricing(
+        value,
+        itemEntry.quantity,
+        itemEntry.discountPercentage,
+        itemEntry.discountAmount,
+        'percentage',
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
+      );
+      updated.rate = value;
+      updated.price = value;
+      updated.discountPercentage = comp.discountPercentage;
+      updated.discountAmount = comp.discountAmount;
+      updated.finalPrice = comp.finalPrice;
+      updated.value = comp.finalPrice;
+      updated.total = comp.finalPrice;
     } else if (name === 'price') {
       const comp = computeLinePricing(
         value,
@@ -1136,6 +1153,7 @@ function Invoice() {
         itemEntry.roundOffStep
       );
       updated.price = value;
+      updated.rate = value;
       updated.discountPercentage = comp.discountPercentage;
       updated.discountAmount = comp.discountAmount;
       updated.finalPrice = comp.finalPrice;
@@ -1849,8 +1867,12 @@ function Invoice() {
       const subCatStr = String(i.subCategory || '').toLowerCase();
       const suppStr = String(i.suppCode || i.supplierCode || '').toLowerCase();
       const barStr = String(i.barcode || i.barCode || '').toLowerCase();
-      const combined = `${codeStr} ${descStr} ${catStr} ${subCatStr} ${suppStr} ${barStr}`;
-      return tokens.every((token) => combined.includes(token));
+      const cleanCode = codeStr.replace(/[^a-z0-9]/gi, '');
+      const combined = `${codeStr} ${cleanCode} ${descStr} ${catStr} ${subCatStr} ${suppStr} ${barStr}`;
+      return tokens.every((token) => {
+        const cleanToken = token.replace(/[^a-z0-9]/gi, '');
+        return combined.includes(token) || (cleanToken && cleanCode.includes(cleanToken));
+      });
     });
   }, [itemsList, itemEntry.code]);
 

@@ -361,12 +361,17 @@ function Reports() {
   // ---------------------------------------------------------------------------
   const [grenLoading, setGrenLoading] = useState(false);
   const [grenReportData, setGrenReportData] = useState(null);
-  const [grenStartDate, setGrenStartDate] = useState('2026-08-01');
-  const [grenEndDate, setGrenEndDate] = useState('2026-10-31');
+  const [grenNumberSearch, setGrenNumberSearch] = useState('');
+  const [grenStartDate, setGrenStartDate] = useState('');
+  const [grenEndDate, setGrenEndDate] = useState('');
   const [grenSelectedSupplier, setGrenSelectedSupplier] = useState('All');
   const [grenSelectedNote, setGrenSelectedNote] = useState('All');
   const [grenSearch, setGrenSearch] = useState('');
   const [grenSortBy, setGrenSortBy] = useState('default');
+  const [grenDateError, setGrenDateError] = useState('');
+  const [selectedGren, setSelectedGren] = useState(null);
+  const [isViewGrenModalOpen, setIsViewGrenModalOpen] = useState(false);
+  const [printingSingleGren, setPrintingSingleGren] = useState(null);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -582,6 +587,19 @@ function Reports() {
       const res = await api.get('/reports/grn', { params });
       if (res.data?.success) {
         setGrnReportData(res.data);
+        const grnList = res.data.data || [];
+        if (grnNumberSearch.trim() && grnList.length > 0) {
+          const q = grnNumberSearch.trim().toLowerCase();
+          const exact = grnList.find(
+            (g) => String(g.grnNumber).toLowerCase() === q || String(g.no) === q
+          );
+          setSelectedGrn(exact || grnList[0]);
+        } else if (selectedGrn) {
+          const refreshed = grnList.find((g) => g.grnNumber === selectedGrn.grnNumber || g._id === selectedGrn._id);
+          if (refreshed) {
+            setSelectedGrn(refreshed);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load GRN report:', err);
@@ -635,6 +653,16 @@ function Reports() {
     setGrnDateError('');
     setGrnPage(1);
     setGrnJumpPage('1');
+    setSelectedGrn(null);
+    setIsViewGrnModalOpen(false);
+  };
+
+  const handleSelectGrn = (grn) => {
+    setSelectedGrn(grn);
+    setTimeout(() => {
+      const el = document.getElementById('grn-item-details-section');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
   };
 
   const handleOpenGrnDetails = (grn) => {
@@ -835,14 +863,26 @@ function Reports() {
 
   // Fetch Goods Return Notes Report
   const fetchGoodsReturnNotes = async () => {
+    // Validate that From Date is not later than To Date
+    if (grenStartDate && grenEndDate) {
+      const dStart = new Date(grenStartDate);
+      const dEnd = new Date(grenEndDate);
+      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dStart > dEnd) {
+        setGrenDateError('From Date cannot be later than To Date. Please correct the date range.');
+        return;
+      }
+    }
+    setGrenDateError('');
+
     try {
       setGrenLoading(true);
+      const noteFilter = grenNumberSearch.trim() || (grenSelectedNote !== 'All' ? grenSelectedNote : '');
       const params = {
         startDate: grenStartDate,
         endDate: grenEndDate,
         supplier: grenSelectedSupplier,
-        grenNumber: grenSelectedNote,
-        search: grenSearch,
+        grenNumber: noteFilter,
+        search: grenSearch.trim(),
         sortBy: grenSortBy,
       };
 
@@ -852,6 +892,8 @@ function Reports() {
       }
     } catch (err) {
       console.error('Failed to load goods return notes report:', err);
+      const msg = err.response?.data?.message || 'Failed to load Goods Return Notes report.';
+      setGrenDateError(msg);
     } finally {
       setGrenLoading(false);
     }
@@ -861,7 +903,52 @@ function Reports() {
     if (activeReportTab === 'goods_return_notes') {
       fetchGoodsReturnNotes();
     }
-  }, [activeReportTab, grenStartDate, grenEndDate, grenSelectedSupplier, grenSelectedNote, grenSearch, grenSortBy]);
+  }, [
+    activeReportTab,
+    grenNumberSearch,
+    grenStartDate,
+    grenEndDate,
+    grenSelectedSupplier,
+    grenSelectedNote,
+    grenSearch,
+    grenSortBy,
+  ]);
+
+  const handleGrenSearch = () => {
+    if (grenStartDate && grenEndDate) {
+      const dStart = new Date(grenStartDate);
+      const dEnd = new Date(grenEndDate);
+      if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime()) && dStart > dEnd) {
+        setGrenDateError('From Date cannot be later than To Date. Please correct the date range.');
+        return;
+      }
+    }
+    setGrenDateError('');
+    fetchGoodsReturnNotes();
+  };
+
+  const handleGrenClear = () => {
+    setGrenNumberSearch('');
+    setGrenSelectedNote('All');
+    setGrenSelectedSupplier('All');
+    setGrenStartDate('');
+    setGrenEndDate('');
+    setGrenSearch('');
+    setGrenSortBy('default');
+    setGrenDateError('');
+  };
+
+  const handleOpenGrenDetails = (gren) => {
+    setSelectedGren(gren);
+    setIsViewGrenModalOpen(true);
+  };
+
+  const handlePrintSingleGren = (gren) => {
+    setPrintingSingleGren(gren);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
 
   // Unified live refresh for currently active report
   const refreshActiveReport = () => {
@@ -1263,7 +1350,9 @@ function Reports() {
 
   // Presets for Goods Return Notes
   const handleApplyGrenPreset = (presetType) => {
+    setGrenDateError('');
     if (presetType === 'all') {
+      setGrenNumberSearch('');
       setGrenStartDate('2026-08-01');
       setGrenEndDate('2026-10-31');
       setGrenSelectedSupplier('All');
@@ -1271,6 +1360,7 @@ function Reports() {
       setGrenSearch('');
       setGrenSortBy('default');
     } else if (presetType === 'all_dates') {
+      setGrenNumberSearch('');
       setGrenStartDate('');
       setGrenEndDate('');
       setGrenSelectedSupplier('All');
@@ -1278,25 +1368,22 @@ function Reports() {
       setGrenSearch('');
       setGrenSortBy('default');
     } else if (presetType === 'note_205') {
-      setGrenStartDate('2026-08-01');
-      setGrenEndDate('2026-10-31');
+      setGrenNumberSearch('205');
+      setGrenStartDate('');
+      setGrenEndDate('');
       setGrenSelectedSupplier('All');
-      setGrenSelectedNote('205');
+      setGrenSelectedNote('All');
       setGrenSearch('');
       setGrenSortBy('default');
     } else if (presetType === 'supplier_rat') {
-      setGrenStartDate('2026-08-01');
-      setGrenEndDate('2026-10-31');
+      setGrenNumberSearch('');
+      setGrenStartDate('');
+      setGrenEndDate('');
       setGrenSelectedSupplier('RAT');
       setGrenSelectedNote('All');
       setGrenSearch('');
       setGrenSortBy('default');
     } else if (presetType === 'high_value') {
-      setGrenStartDate('2026-08-01');
-      setGrenEndDate('2026-10-31');
-      setGrenSelectedSupplier('All');
-      setGrenSelectedNote('All');
-      setGrenSearch('');
       setGrenSortBy('value_desc');
     }
   };
@@ -1517,18 +1604,31 @@ function Reports() {
       link.click();
       document.body.removeChild(link);
     } else if (activeReportTab === 'goods_return_notes') {
-      if (!grenReportData?.flatItems || grenReportData.flatItems.length === 0) return;
-      const headers = ['G.RE.N Number', 'Date', 'Supplier Code', 'Supplier Name', 'Code', 'Description', 'Rate', 'Quantity', 'Value (Rs.)'];
-      const rows = grenReportData.flatItems.map((item) => [
+      const noteList = grenReportData?.notes || grenReportData?.data || [];
+      if (!noteList || noteList.length === 0) return;
+      const headers = [
+        'Goods Return Note Number',
+        'Return Date',
+        'Supplier Code',
+        'Supplier Name',
+        'Original GRN Number',
+        'Supplier Invoice Number',
+        'Total Items',
+        'Total Returned Quantity',
+        'Total Return Value (Rs.)',
+        'Status',
+      ];
+      const rows = noteList.map((item) => [
         `"${item.grenNumber || ''}"`,
         `"${item.date || ''}"`,
         `"${item.supplierCode || ''}"`,
-        `"${item.supplierName || ''}"`,
-        `"${item.code || ''}"`,
-        `"${(item.description || '').replace(/"/g, '""')}"`,
-        Number(item.rate || 0).toFixed(2),
-        Number(item.quantity || 0).toFixed(2),
-        Number(item.value || 0).toFixed(2),
+        `"${(item.supplierName || '').replace(/"/g, '""')}"`,
+        `"${item.originalGrnNumber || item.grnReference || ''}"`,
+        `"${item.supplierInvoiceNo || ''}"`,
+        item.totalItems || (item.lineItems ? item.lineItems.length : 0),
+        Number(item.totalReturnedQuantity || item.totalQuantity || 0).toFixed(2),
+        Number(item.totalReturnValue || item.subTotal || 0).toFixed(2),
+        `"${item.status || 'Posted'}"`,
       ]);
       const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
       const encodedUri = encodeURI(csvContent);
@@ -2976,9 +3076,10 @@ function Reports() {
                 </table>
               </div>
             ) : (
-              /* =========================================================================
+              <>
+                {/* =========================================================================
                   INTERACTIVE GRN REPORT RESULTS TABLE
-                  ========================================================================= */
+                  ========================================================================= */}
               <div className="reports-modern-card" id="printable-grn-report">
                 <table className="reports-modern-table">
                   <thead>
@@ -3001,9 +3102,13 @@ function Reports() {
                       grnReportData.data.map((grn, idx) => (
                         <tr
                           key={grn._id || idx}
-                          onClick={() => handleOpenGrnDetails(grn)}
-                          style={{ cursor: 'pointer' }}
-                          title="Click to view complete GRN details and received items"
+                          onClick={() => handleSelectGrn(grn)}
+                          style={{
+                            cursor: 'pointer',
+                            background: selectedGrn?.grnNumber === grn.grnNumber ? '#e0f2fe' : undefined,
+                            borderLeft: selectedGrn?.grnNumber === grn.grnNumber ? '4px solid #005bb7' : undefined,
+                          }}
+                          title="Click to select this GRN and view its item details below"
                         >
                           <td>
                             <strong style={{ fontFamily: 'monospace', color: '#005bb7', fontSize: '12px' }}>
@@ -3065,11 +3170,18 @@ function Reports() {
                               <button
                                 type="button"
                                 className="reports-action-btn"
-                                onClick={() => handleOpenGrnDetails(grn)}
-                                title="View saved items and details"
-                                style={{ fontSize: '10.5px', padding: '0 6px', height: '21px' }}
+                                onClick={() => handleSelectGrn(grn)}
+                                title={`View item details for GRN #${grn.grnNumber}`}
+                                style={{
+                                  fontSize: '10.5px',
+                                  padding: '0 6px',
+                                  height: '21px',
+                                  fontWeight: selectedGrn?.grnNumber === grn.grnNumber ? 'bold' : 'normal',
+                                  color: selectedGrn?.grnNumber === grn.grnNumber ? '#005bb7' : undefined,
+                                  background: selectedGrn?.grnNumber === grn.grnNumber ? '#bae6fd' : undefined,
+                                }}
                               >
-                                🔍 View GRN
+                                🔍 View Items
                               </button>
                               <button
                                 type="button"
@@ -3125,7 +3237,246 @@ function Reports() {
                   )}
                 </table>
               </div>
-            )}
+
+              {/* =========================================================================
+                  SELECTED GRN ITEM DETAILS PANEL (TABLE VIEW IN EXISTING SOFAST STYLE)
+                  ========================================================================= */}
+              {selectedGrn && (
+                <div
+                  id="grn-item-details-section"
+                  className="reports-modern-card"
+                  style={{
+                    marginTop: '16px',
+                    border: '1px solid #005bb7',
+                    boxShadow: '0 2px 8px rgba(0, 91, 183, 0.12)',
+                    background: '#ffffff',
+                  }}
+                >
+                  {/* Panel Header */}
+                  <div
+                    style={{
+                      background: 'linear-gradient(180deg, #005bb7 0%, #004494 100%)',
+                      color: '#ffffff',
+                      padding: '8px 14px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '15px' }}>📦</span>
+                      <strong style={{ fontSize: '13.5px', letterSpacing: '0.3px' }}>
+                        GRN Item Details — GRN #{selectedGrn.grnNumber}
+                      </strong>
+                      <span
+                        style={{
+                          background: '#ffffff',
+                          color: '#005bb7',
+                          fontWeight: 'bold',
+                          fontSize: '11px',
+                          padding: '1px 8px',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        {selectedGrn.lineItems?.length || 0} Items
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }} className="no-print">
+                      <button
+                        type="button"
+                        className="reports-action-btn"
+                        onClick={() => setIsViewGrnModalOpen(true)}
+                        title="Open full-screen modal view"
+                        style={{ fontSize: '11px', padding: '2px 8px' }}
+                      >
+                        🔍 Fullscreen View
+                      </button>
+                      <button
+                        type="button"
+                        className="reports-action-btn"
+                        onClick={() => handlePrintSingleGrn(selectedGrn)}
+                        title="Print this GRN"
+                        style={{ fontSize: '11px', padding: '2px 8px' }}
+                      >
+                        🖨️ Print Items
+                      </button>
+                      <button
+                        type="button"
+                        className="reports-action-btn"
+                        onClick={() => setSelectedGrn(null)}
+                        title="Close details panel"
+                        style={{ fontSize: '11px', padding: '2px 8px', color: '#b91c1c' }}
+                      >
+                        ✕ Close Panel
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Metadata Chips Bar */}
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      padding: '8px 14px',
+                      fontSize: '11.5px',
+                      borderBottom: '1px solid #cbd5e1',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '16px',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div>
+                      <span style={{ color: '#64748b' }}>GRN Date:</span>{' '}
+                      <strong>{selectedGrn.date || selectedGrn.rawDate}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Supplier:</span>{' '}
+                      <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#475569' }}>
+                        [{selectedGrn.supplierCode || '—'}]
+                      </span>{' '}
+                      <strong style={{ color: '#0f172a' }}>{selectedGrn.supplierName}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Supplier Invoice #:</span>{' '}
+                      <strong style={{ fontFamily: 'monospace', color: '#334155' }}>
+                        {selectedGrn.supplierInvoiceNo || '—'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Payment:</span>{' '}
+                      <strong>{selectedGrn.paymentMethod || 'Cash'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Location:</span>{' '}
+                      <strong>{selectedGrn.location || 'Main Store'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b' }}>Status:</span>{' '}
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '1px 6px',
+                          borderRadius: '2px',
+                          fontSize: '10.5px',
+                          fontWeight: 'bold',
+                          background: ['cancelled', 'reversed'].includes(String(selectedGrn.status).toLowerCase()) ? '#fee2e2' : '#dcfce7',
+                          color: ['cancelled', 'reversed'].includes(String(selectedGrn.status).toLowerCase()) ? '#b91c1c' : '#15803d',
+                          border: `1px solid ${['cancelled', 'reversed'].includes(String(selectedGrn.status).toLowerCase()) ? '#f87171' : '#86efac'}`,
+                        }}
+                      >
+                        {selectedGrn.status || 'Posted'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Line Items Table with All 13 Requested Columns */}
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="reports-modern-table" style={{ margin: 0, width: '100%' }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                          <th style={{ width: '35px' }}>#</th>
+                          <th style={{ width: '75px' }}>GRN #</th>
+                          <th style={{ width: '85px' }}>GRN Date</th>
+                          <th style={{ width: '80px' }}>Supplier Code</th>
+                          <th>Supplier Name</th>
+                          <th style={{ width: '100px' }}>Supplier Invoice #</th>
+                          <th style={{ width: '90px' }}>Item Code</th>
+                          <th>Item Description</th>
+                          <th style={{ width: '80px', textAlign: 'right' }}>Received Qty</th>
+                          <th style={{ width: '95px', textAlign: 'right' }}>Purchase Price</th>
+                          <th style={{ width: '90px', textAlign: 'right' }}>Selling Price</th>
+                          <th style={{ width: '65px', textAlign: 'center' }}>Discount</th>
+                          <th style={{ width: '105px', textAlign: 'right' }}>Line Value</th>
+                          <th style={{ width: '85px' }}>Location</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedGrn.lineItems && selectedGrn.lineItems.length > 0 ? (
+                          selectedGrn.lineItems.map((li, idx) => (
+                            <tr key={li._id || idx} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                              <td style={{ color: '#64748b', fontSize: '11px' }}>{idx + 1}</td>
+                              <td>
+                                <strong style={{ fontFamily: 'monospace', color: '#005bb7', fontSize: '11px' }}>
+                                  #{li.grnNumber || selectedGrn.grnNumber}
+                                </strong>
+                              </td>
+                              <td style={{ fontSize: '11px', color: '#334155' }}>
+                                {li.grnDate || li.date || selectedGrn.date || selectedGrn.rawDate}
+                              </td>
+                              <td>
+                                <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#475569', fontSize: '11px' }}>
+                                  {li.supplierCode || selectedGrn.supplierCode || '—'}
+                                </span>
+                              </td>
+                              <td style={{ fontWeight: '600', color: '#0f172a' }}>
+                                {li.supplierName || selectedGrn.supplierName}
+                              </td>
+                              <td>
+                                <span style={{ fontSize: '11px', color: '#475569', fontFamily: 'monospace' }}>
+                                  {li.supplierInvoiceNo || selectedGrn.supplierInvoiceNo || '—'}
+                                </span>
+                              </td>
+                              <td>
+                                <strong style={{ fontFamily: 'monospace', color: '#0284c7', fontSize: '11.5px' }}>
+                                  {li.code || li.itemCode}
+                                </strong>
+                              </td>
+                              <td style={{ fontWeight: '500' }}>{li.description}</td>
+                              <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                                {Number(li.quantity || li.receivedQuantity || 0).toFixed(2)}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                Rs. {Number(li.purchasePrice || li.unitPrice || li.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td style={{ textAlign: 'right', color: Number(li.sellingPrice) > 0 ? '#0f766e' : '#94a3b8' }}>
+                                {Number(li.sellingPrice) > 0 ? `Rs. ${Number(li.sellingPrice).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                {Number(li.discount || 0) > 0 ? `${Number(li.discount)}%` : '0%'}
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#005bb7' }}>
+                                Rs. {Number(li.lineValue || li.totalValue || li.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td style={{ color: '#475569', fontSize: '11px' }}>
+                                {li.locationCode || li.location || selectedGrn.location || 'Main Store'}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={14} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                              <div style={{ fontSize: '20px', marginBottom: '4px' }}>ℹ️</div>
+                              <strong>No saved item rows found for GRN #{selectedGrn.grnNumber}.</strong>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {selectedGrn.lineItems && selectedGrn.lineItems.length > 0 && (
+                        <tfoot>
+                          <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 'bold' }}>
+                            <td colSpan={8} style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '900' }}>
+                              Totals for GRN #{selectedGrn.grnNumber} ({selectedGrn.lineItems.length} Line Items):
+                            </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '900' }}>
+                              {Number(selectedGrn.totalQuantity || 0).toFixed(2)}
+                            </td>
+                            <td colSpan={2}></td>
+                            <td style={{ padding: '8px 10px', textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>
+                              Rs. {Number(selectedGrn.totalDiscount || 0).toFixed(2)}
+                            </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '900', color: '#005bb7', fontSize: '12px' }}>
+                              Rs. {Number(selectedGrn.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           </div>
 
           {/* =========================================================================
@@ -3196,6 +3547,7 @@ function Reports() {
                           <th style={{ padding: '6px 8px', textAlign: 'right' }}>Received Qty</th>
                           <th style={{ padding: '6px 8px', textAlign: 'center' }}>Discount</th>
                           <th style={{ padding: '6px 8px', textAlign: 'right' }}>Line Value (Rs.)</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Location</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3220,6 +3572,9 @@ function Reports() {
                             <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 'bold' }}>
                               {Number(li.totalValue || li.lineValue || li.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </td>
+                            <td style={{ padding: '5px 8px', color: '#64748b' }}>
+                              {li.locationCode || li.location || selectedGrn.location || 'Main Store'}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -3235,6 +3590,7 @@ function Reports() {
                           <td style={{ padding: '6px 8px', textAlign: 'right', color: '#005bb7', fontSize: '12px' }}>
                             Rs. {Number(selectedGrn.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </td>
+                          <td></td>
                         </tr>
                       </tfoot>
                     </table>
@@ -3312,6 +3668,7 @@ function Reports() {
                     <th className="grn-th-qty col-right">Received Qty</th>
                     <th className="grn-th-disc col-right">Discount</th>
                     <th className="grn-th-val col-right">Line Value</th>
+                    <th style={{ textAlign: 'left', paddingLeft: '8px' }}>Location</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3334,6 +3691,9 @@ function Reports() {
                       <td className="cs-val" style={{ textAlign: 'right' }}>
                         {Number(item.totalValue || item.lineValue || item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
+                      <td style={{ textAlign: 'left', paddingLeft: '8px', fontSize: '11px' }}>
+                        {item.locationCode || item.location || printingSingleGrn.location || 'Main Store'}
+                      </td>
                     </tr>
                   ))}
                   <tr className="grn-subtotal-row">
@@ -3341,6 +3701,7 @@ function Reports() {
                     <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{Number(printingSingleGrn.totalQuantity || 0).toFixed(2)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Rs. {Number(printingSingleGrn.totalDiscount || 0).toFixed(2)}</td>
                     <td style={{ textAlign: 'right', fontWeight: 'bold' }}>Rs. {Number(printingSingleGrn.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td></td>
                   </tr>
                   <tr className="grn-grandtotal-row">
                     <td colSpan={6} style={{ textAlign: 'right', fontWeight: '900', fontSize: '12px' }}>
@@ -3349,6 +3710,7 @@ function Reports() {
                     <td className="cs-val" style={{ fontWeight: '900', fontSize: '12px' }}>
                       {Number(printingSingleGrn.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
+                    <td></td>
                   </tr>
                 </tbody>
               </table>
@@ -6606,189 +6968,235 @@ function Reports() {
             <div className="reports-header-content">
               <div className="reports-title-area">
                 <span className="reports-eyebrow">Supplier Returns &amp; Vendor Credit Notes</span>
-                <h1 className="reports-main-title">Goods Return Notes (G.RE.N)</h1>
+                <h1 className="reports-main-title">Goods Return Notes (G.RE.N) Report</h1>
                 <p className="reports-subtitle">
-                  Audit and track items returned back to vendors and wholesale distributors with unit purchase rates, return quantities, and credit values matching the physical Goods Return Notes register.
+                  Audit and track items returned back to vendors and wholesale distributors with unit purchase rates, return quantities, original GRN references, and credit values matching the physical Goods Return Notes register.
                 </p>
               </div>
 
               {/* KPI Cards */}
               <div className="reports-kpi-grid">
                 <div className="reports-kpi-card">
-                  <span className="reports-kpi-label">TOTAL GOODS RETURNED VALUE</span>
+                  <span className="reports-kpi-label">TOTAL GOODS RETURN VALUE</span>
                   <span className="reports-kpi-val highlight" style={{ color: '#e11d48' }}>
-                    Rs. {Number(grenReportData?.summary?.grandTotalValue || 25277.23).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    Rs. {Number(grenReportData?.summary?.grandTotalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
-                  <span className="reports-kpi-sub">Across 3 return notes</span>
+                  <span className="reports-kpi-sub">
+                    Across {grenReportData?.summary?.matchingNotesCount ?? grenReportData?.notes?.length ?? 0} matching return notes
+                  </span>
                 </div>
 
                 <div className="reports-kpi-card">
                   <span className="reports-kpi-label">RETURN NOTES ISSUED</span>
                   <span className="reports-kpi-val" style={{ color: '#0284c7' }}>
-                    {grenReportData?.summary?.totalNotes || 3} Notes
+                    {grenReportData?.summary?.matchingNotesCount ?? grenReportData?.notes?.length ?? 0} Notes
                   </span>
-                  <span className="reports-kpi-sub">G.RE.N #204 - #206</span>
+                  <span className="reports-kpi-sub">
+                    {grenReportData?.summary?.totalCancelled ? `${grenReportData.summary.totalCancelled} cancelled/deleted` : 'All records active & posted'}
+                  </span>
                 </div>
 
                 <div className="reports-kpi-card">
-                  <span className="reports-kpi-label">RETURNED UNITS QUANTITY</span>
+                  <span className="reports-kpi-label">TOTAL RETURNED QUANTITY</span>
                   <span className="reports-kpi-val" style={{ color: '#059669' }}>
-                    {Number(grenReportData?.summary?.totalQuantity || 5.0).toFixed(2)} Units
+                    {Number(grenReportData?.summary?.totalReturnedQuantity || grenReportData?.summary?.totalQuantity || 0).toFixed(2)} Units
                   </span>
-                  <span className="reports-kpi-sub">{grenReportData?.summary?.totalItemsCount || 4} unique returned SKUs</span>
+                  <span className="reports-kpi-sub">
+                    {grenReportData?.summary?.totalItemsCount || 0} returned line items
+                  </span>
                 </div>
 
                 <div className="reports-kpi-card">
-                  <span className="reports-kpi-label">PRIMARY SUPPLIER</span>
-                  <span className="reports-kpi-val" style={{ color: '#7c3aed', fontSize: '18px' }}>
-                    RAT
+                  <span className="reports-kpi-label">MATCHING RETURN RECORDS</span>
+                  <span className="reports-kpi-val" style={{ color: '#7c3aed' }}>
+                    {grenReportData?.summary?.matchingNotesCount ?? grenReportData?.notes?.length ?? 0}
                   </span>
-                  <span className="reports-kpi-sub">RAZA AUTO TRADERS (100%)</span>
+                  <span className="reports-kpi-sub">
+                    From {grenReportData?.summary?.totalSuppliers || 0} suppliers
+                  </span>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Preset Buttons */}
-          <div className="reports-presets-container no-print">
-            <div className="reports-presets-title">⚡ QUICK PRESETS:</div>
-            <div className="reports-presets-list">
+            {/* Quick Preset Filter Buttons */}
+            <div className="reports-quick-pills">
+              <span className="reports-pills-label">Quick Presets:</span>
               <button
                 type="button"
-                className={`reports-preset-chip ${!grenStartDate && !grenEndDate ? 'active' : ''}`}
+                className={`reports-pill ${!grenStartDate && !grenEndDate && !grenNumberSearch && grenSelectedSupplier === 'All' ? 'active' : ''}`}
                 onClick={() => handleApplyGrenPreset('all_dates')}
               >
                 🌐 All Dates (Full DB)
               </button>
               <button
                 type="button"
-                className="reports-preset-chip"
+                className="reports-pill"
                 onClick={() => handleApplyGrenPreset('all')}
               >
-                📋 Active Notes Period
+                📋 Active Period
               </button>
               <button
                 type="button"
-                className="reports-preset-chip"
+                className="reports-pill"
                 onClick={() => handleApplyGrenPreset('note_205')}
               >
-                📦 G.RE.N #205 Major Return (Rs. 21,474.15)
+                📦 G.RE.N #205 Major Return
               </button>
               <button
                 type="button"
-                className="reports-preset-chip"
+                className="reports-pill"
                 onClick={() => handleApplyGrenPreset('supplier_rat')}
               >
-                🏢 Supplier RAT (Raza Auto Traders)
+                🏢 Supplier RAT
               </button>
               <button
                 type="button"
-                className="reports-preset-chip"
+                className={`reports-pill ${grenSortBy === 'value_desc' ? 'active' : ''}`}
                 onClick={() => handleApplyGrenPreset('high_value')}
               >
-                ⚡ High Value Items (&gt;Rs. 5,000)
+                💰 Highest Value Returns
               </button>
             </div>
           </div>
 
-          {/* Filter Bar */}
+          {/* Interactive Filter Controls Bar */}
           <div className="reports-filter-bar no-print">
-            <div className="reports-filter-inputs">
-              {/* Search */}
-              <div className="reports-search-box">
+            <div className="reports-filter-controls">
+              {/* 1. Goods Return Note Number Search */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>G.R.E.N #:</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  style={{ width: '135px', padding: '2px 6px' }}
+                  placeholder="e.g. 204, 0, 1"
+                  value={grenNumberSearch}
+                  onChange={(e) => setGrenNumberSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGrenSearch()}
+                  title="Search by Goods Return Note Number"
+                />
+              </div>
+
+              {/* 2. Supplier Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>Supplier:</span>
+                <select
+                  className="reports-filter-select"
+                  style={{ maxWidth: '220px' }}
+                  value={grenSelectedSupplier}
+                  onChange={(e) => setGrenSelectedSupplier(e.target.value)}
+                  title="Filter by Supplier Name or Supplier Code"
+                >
+                  <option value="All">All Suppliers (Master)</option>
+                  {(filterOptions.supplierMaster && filterOptions.supplierMaster.length > 0
+                    ? filterOptions.supplierMaster
+                    : (filterOptions.suppliers || []).map((s) => ({ code: s, name: s }))
+                  ).map((sup, idx) => (
+                    <option key={idx} value={sup.code || sup.name}>
+                      {sup.code ? `[${sup.code}] ` : ''}{sup.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Date Range (From & To) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>From:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={grenStartDate}
+                  onChange={(e) => setGrenStartDate(e.target.value)}
+                  title="Filter return date from"
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>To:</span>
+                <input
+                  type="date"
+                  className="reports-date-input"
+                  value={grenEndDate}
+                  onChange={(e) => setGrenEndDate(e.target.value)}
+                  title="Filter return date to"
+                />
+              </div>
+
+              {/* General Search Box */}
+              <div className="reports-search-box" style={{ maxWidth: '200px' }}>
                 <span className="reports-search-icon">🔍</span>
                 <input
                   type="text"
-                  placeholder="Search item code, description, or G.RE.N #..."
+                  className="reports-search-input"
+                  placeholder="Item code, GRN #, desc..."
                   value={grenSearch}
                   onChange={(e) => setGrenSearch(e.target.value)}
-                  className="reports-search-input"
+                  onKeyDown={(e) => e.key === 'Enter' && handleGrenSearch()}
                 />
                 {grenSearch && (
                   <button type="button" className="reports-search-clear" onClick={() => setGrenSearch('')}>
-                    ×
+                    ✕
                   </button>
                 )}
               </div>
 
-              {/* Supplier Select */}
-              <select
-                className="reports-filter-select"
-                value={grenSelectedSupplier}
-                onChange={(e) => setGrenSelectedSupplier(e.target.value)}
-                title="Filter by Supplier"
+              {/* Search / Filter Button */}
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleGrenSearch}
+                style={{ fontWeight: 'bold', color: '#005bb7' }}
+                title="Search and filter Goods Return Notes"
               >
-                <option value="All">All Suppliers</option>
-                <option value="RAT">RAT - RAZA AUTO TRADERS</option>
-              </select>
+                🔍 Search / Filter
+              </button>
 
-              {/* G.RE.N Note Number Select */}
-              <select
-                className="reports-filter-select"
-                value={grenSelectedNote}
-                onChange={(e) => setGrenSelectedNote(e.target.value)}
-                title="Filter by G.RE.N Number"
+              {/* Clear / Reset Button */}
+              <button
+                type="button"
+                className="reports-action-btn"
+                onClick={handleGrenClear}
+                title="Reset all filters and reload all saved Goods Return Notes"
               >
-                <option value="All">All G.RE.N Notes</option>
-                <option value="204">G.RE.N: 204 (03/08/2026)</option>
-                <option value="205">G.RE.N: 205 (06/08/2026)</option>
-                <option value="206">G.RE.N: 206 (07/08/2026)</option>
-              </select>
+                ↺ Clear / Reset
+              </button>
 
-              {/* Date Filters */}
-              <div className="reports-filter-group">
-                <label className="reports-filter-label">From:</label>
-                <input
-                  type="date"
-                  className="reports-filter-input"
-                  value={grenStartDate}
-                  onChange={(e) => setGrenStartDate(e.target.value)}
-                />
-              </div>
-
-              <div className="reports-filter-group">
-                <label className="reports-filter-label">To:</label>
-                <input
-                  type="date"
-                  className="reports-filter-input"
-                  value={grenEndDate}
-                  onChange={(e) => setGrenEndDate(e.target.value)}
-                />
-              </div>
-
-              {/* Sorting Select */}
+              {/* Sort By Dropdown */}
               <select
                 className="reports-filter-select"
                 value={grenSortBy}
                 onChange={(e) => setGrenSortBy(e.target.value)}
-                title="Sort Returned Items"
+                title="Sort Goods Return Notes"
               >
-                <option value="default">Sort: Default Note Sequence</option>
-                <option value="value_desc">Sort: Highest Return Value (Rs.)</option>
+                <option value="default">Sort: Date (Newest First)</option>
+                <option value="date_asc">Sort: Date (Oldest First)</option>
+                <option value="gren_desc">Sort: G.R.E.N # (Highest First)</option>
+                <option value="gren_asc">Sort: G.R.E.N # (Lowest First)</option>
+                <option value="value_desc">Sort: 💰 Highest Return Value (Rs.)</option>
                 <option value="value_asc">Sort: Lowest Return Value (Rs.)</option>
-                <option value="qty_desc">Sort: Highest Quantity</option>
-                <option value="code_asc">Sort: Item Code (A-Z)</option>
+                <option value="qty_desc">Sort: 📦 Highest Returned Qty</option>
+                <option value="supplier_asc">Sort: Supplier Name (A-Z)</option>
               </select>
             </div>
 
-            {/* View Mode & Action Buttons */}
-            <div className="reports-view-actions">
+            <div className="reports-actions-group">
+              {/* View Mode Switcher */}
               <div className="reports-view-toggle">
-                <button
-                  type="button"
-                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
-                  onClick={() => setViewMode('paper')}
-                  title="Physical PDF Continuous Dot-Matrix Layout"
-                >
-                  📄 PDF Paper
-                </button>
                 <button
                   type="button"
                   className={`reports-view-toggle-btn ${viewMode === 'modern' ? 'active' : ''}`}
                   onClick={() => setViewMode('modern')}
-                  title="Modern Interactive Table"
+                  title="Interactive Table View"
                 >
-                  🖥️ Modern Table
+                  🖥️ Results Table
+                </button>
+                <button
+                  type="button"
+                  className={`reports-view-toggle-btn ${viewMode === 'paper' ? 'active' : ''}`}
+                  onClick={() => setViewMode('paper')}
+                  title="Exact Continuous Paper Layout"
+                >
+                  📄 Paper View
                 </button>
               </div>
 
@@ -6804,12 +7212,37 @@ function Reports() {
               <button
                 type="button"
                 className="reports-action-btn print-btn"
-                onClick={handlePrint}
+                onClick={() => {
+                  setPrintingSingleGren(null);
+                  setTimeout(() => window.print(), 100);
+                }}
                 title="Print Goods Return Notes Report"
               >
                 🖨️ Print Report
               </button>
             </div>
+
+            {/* Date Validation Error Banner */}
+            {grenDateError && (
+              <div
+                style={{
+                  width: '100%',
+                  background: '#fef2f2',
+                  border: '1px solid #f87171',
+                  color: '#b91c1c',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  borderRadius: '2px',
+                  marginTop: '4px',
+                }}
+              >
+                <span>⚠️</span> {grenDateError}
+              </div>
+            )}
           </div>
 
           {/* Report Body */}
@@ -6817,12 +7250,12 @@ function Reports() {
             {grenLoading ? (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748b' }}>
                 <div style={{ fontSize: '32px', marginBottom: '12px' }}>⏳</div>
-                <strong style={{ fontSize: '15px' }}>Loading Goods Return Notes...</strong>
-                <p style={{ fontSize: '13px', marginTop: '4px' }}>Fetching supplier credit notes and return vouchers</p>
+                <strong style={{ fontSize: '15px' }}>Loading Goods Return Notes from database...</strong>
+                <p style={{ fontSize: '13px', marginTop: '4px' }}>Querying saved return notes, suppliers, line item values, and totals</p>
               </div>
             ) : viewMode === 'paper' ? (
               /* =========================================================================
-                 EXACT PHYSICAL CONTINUOUS COMPUTER PAPER (MATCHING G.RE.N PDF 100%)
+                 EXACT PHYSICAL CONTINUOUS COMPUTER PAPER (MATCHING G.RE.N PDF)
                  ========================================================================= */
               <div className="closing-stock-paper-sheet" id="printable-gren-report">
                 {/* Header matching PDF Scan */}
@@ -6831,9 +7264,18 @@ function Reports() {
                   <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
                   <div className="cs-company-phone">034-2210680, 074-0295088</div>
 
-                  <div style={{ marginTop: '8px', fontWeight: '800', fontSize: '12px', fontFamily: 'Courier New, monospace' }}>
-                    Goods Return Notes
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '6px' }}>
+                    <div className="cs-report-title" style={{ margin: 0 }}>
+                      Goods Return Notes (G.RE.N) Report
+                    </div>
+                    <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
+                      {grenStartDate ? `From ${grenStartDate}` : 'All Dates'} {grenEndDate ? `To ${grenEndDate}` : ''}
+                    </div>
                   </div>
+                </div>
+
+                <div style={{ fontSize: '10px', color: '#333333', marginBottom: '8px', borderBottom: '1px solid #000000', paddingBottom: '4px' }}>
+                  <strong>Filters:</strong> G.RE.N #: {grenNumberSearch || 'All'} &bull; Supplier: {grenSelectedSupplier || 'All'} &bull; Matching Records: {grenReportData?.notes?.length || 0}
                 </div>
 
                 {/* Table matching PDF Scan */}
@@ -6855,8 +7297,11 @@ function Reports() {
                           <tr className="gren-meta-row">
                             <td colSpan={5} className="gren-meta-cell">
                               <span style={{ fontWeight: '800' }}>G.RE.N: {note.grenNumber}</span>
-                              <span style={{ marginLeft: '48px', fontWeight: '800' }}>Date: {note.date}</span>
-                              <span style={{ marginLeft: '48px', fontWeight: '800' }}>Supplier:{note.supplierCode}</span>
+                              <span style={{ marginLeft: '32px', fontWeight: '800' }}>Date: {note.date}</span>
+                              <span style={{ marginLeft: '32px', fontWeight: '800' }}>Supplier: {note.supplierCode} ({note.supplierName})</span>
+                              {note.originalGrnNumber && note.originalGrnNumber !== '—' && (
+                                <span style={{ marginLeft: '32px', fontWeight: '800' }}>GRN Ref: {note.originalGrnNumber}</span>
+                              )}
                             </td>
                           </tr>
 
@@ -6866,13 +7311,19 @@ function Reports() {
                           </tr>
 
                           {/* Items Rows */}
-                          {note.items.map((item, idx) => (
+                          {(note.lineItems || note.items || []).map((item, idx) => (
                             <tr key={idx} className="gren-item-row">
-                              <td className="gren-code-cell">{item.code}</td>
+                              <td className="gren-code-cell">{item.code || item.itemCode}</td>
                               <td className="gren-desc-cell">{item.description}</td>
-                              <td className="gren-rate-cell">{Number(item.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                              <td className="gren-qty-cell">{Number(item.quantity || 0).toFixed(2)}</td>
-                              <td className="gren-val-cell">{Number(item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="gren-rate-cell">
+                                {Number(item.purchaseCost || item.rate || item.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="gren-qty-cell">
+                                {Number(item.returnQuantity || item.qtyReturn || item.quantity || 0).toFixed(2)}
+                              </td>
+                              <td className="gren-val-cell">
+                                {Number(item.lineValue || item.totalValue || item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
                             </tr>
                           ))}
 
@@ -6880,7 +7331,7 @@ function Reports() {
                           <tr className="gren-subtotal-row">
                             <td colSpan={4} className="gren-subtotal-label">Sub Total</td>
                             <td className="gren-val-cell gren-subtotal-val">
-                              {Number(note.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              {Number(note.totalReturnValue || note.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </td>
                           </tr>
 
@@ -6902,7 +7353,7 @@ function Reports() {
                     <tr className="gren-grandtotal-row">
                       <td colSpan={4} className="gren-grandtotal-label">Grand Total</td>
                       <td className="gren-val-cell gren-grandtotal-val">
-                        {Number(grenReportData?.summary?.grandTotalValue || 25277.23).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        Rs. {Number(grenReportData?.summary?.grandTotalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
                   </tbody>
@@ -6918,104 +7369,417 @@ function Reports() {
               </div>
             ) : (
               /* =========================================================================
-                 MODERN INTERACTIVE TABLE VIEW
+                 RESULTS TABLE: INTERACTIVE GOODS RETURN NOTES REGISTER
+                 Displaying:
+                 - Goods Return Note Number
+                 - Return Date
+                 - Supplier Code
+                 - Supplier Name
+                 - Original GRN Number
+                 - Supplier Invoice Number
+                 - Total Items
+                 - Total Returned Quantity
+                 - Total Return Value
+                 - Status
+                 - Actions (View G.RE.N, Print)
                  ========================================================================= */
-              <div className="reports-table-container">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
-                      ↩️ Goods Return Notes &amp; Supplier Credit Register
-                    </h3>
-                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-                      Showing {grenReportData?.flatItems?.length || 0} returned lines totaling Rs. {Number(grenReportData?.summary?.grandTotalValue || 25277.23).toLocaleString(undefined, { minimumFractionDigits: 2 })} in supplier debits
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <span className="reports-badge" style={{ background: '#ffe4e6', color: '#e11d48', border: '1px solid #fecdd3', padding: '6px 12px', borderRadius: '6px', fontWeight: '700' }}>
-                      Total Credit Value: Rs. {Number(grenReportData?.summary?.grandTotalValue || 25277.23).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="table-responsive">
-                  <table className="reports-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '10%' }}>G.RE.N #</th>
-                        <th style={{ width: '11%' }}>Return Date</th>
-                        <th style={{ width: '14%' }}>Supplier</th>
-                        <th style={{ width: '13%' }}>Item Code</th>
-                        <th style={{ width: '28%' }}>Description</th>
-                        <th style={{ width: '8%', textAlign: 'right' }}>Rate (Rs.)</th>
-                        <th style={{ width: '6%', textAlign: 'right' }}>Qty</th>
-                        <th style={{ width: '10%', textAlign: 'right' }}>Value (Rs.)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {grenReportData?.flatItems && grenReportData.flatItems.length > 0 ? (
-                        grenReportData.flatItems.map((item, idx) => (
-                          <tr key={idx}>
-                            <td>
-                              <span style={{
+              <div className="reports-modern-card" id="printable-gren-report">
+                <table className="reports-modern-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '105px' }}>Goods Return Note #</th>
+                      <th style={{ width: '90px' }}>Return Date</th>
+                      <th style={{ width: '85px' }}>Supplier Code</th>
+                      <th>Supplier Name</th>
+                      <th style={{ width: '100px' }}>Original GRN #</th>
+                      <th style={{ width: '110px' }}>Supplier Invoice #</th>
+                      <th style={{ width: '75px', textAlign: 'right' }}>Total Items</th>
+                      <th style={{ width: '85px', textAlign: 'right' }}>Total Returned Qty</th>
+                      <th style={{ width: '115px', textAlign: 'right' }}>Total Return Value</th>
+                      <th style={{ width: '75px', textAlign: 'center' }}>Status</th>
+                      <th style={{ width: '170px', textAlign: 'center' }} className="no-print">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grenReportData?.notes && grenReportData.notes.length > 0 ? (
+                      grenReportData.notes.map((note, idx) => (
+                        <tr
+                          key={note._id || idx}
+                          onClick={() => handleOpenGrenDetails(note)}
+                          style={{ cursor: 'pointer' }}
+                          title="Click to view full Goods Return Note details and returned items"
+                        >
+                          <td>
+                            <strong style={{ fontFamily: 'monospace', color: '#e11d48', fontSize: '12px' }}>
+                              #{note.grenNumber}
+                            </strong>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '11.5px', color: '#334155' }}>
+                              {note.date || note.rawDate}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#475569', fontSize: '11px' }}>
+                              {note.supplierCode || '—'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: '600', color: '#0f172a' }}>
+                              {note.supplierName}
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '11.5px', color: '#005bb7', fontFamily: 'monospace', fontWeight: 'bold' }}>
+                              {note.originalGrnNumber || '—'}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '11.5px', color: '#475569', fontFamily: 'monospace' }}>
+                              {note.supplierInvoiceNo || '—'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '700' }}>
+                            {note.totalItems || (note.lineItems?.length || 0)}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                            {Number(note.totalReturnedQuantity || note.totalQuantity || 0).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '900', color: '#e11d48' }}>
+                            Rs. {Number(note.totalReturnValue || note.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              style={{
                                 display: 'inline-block',
-                                padding: '3px 8px',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                fontWeight: '800',
-                                background: '#f1f5f9',
-                                color: '#0f172a',
-                                border: '1px solid #cbd5e1',
-                                fontFamily: 'monospace',
-                              }}>
-                                #{item.grenNumber}
-                              </span>
-                            </td>
-                            <td style={{ fontWeight: '600', color: '#475569', fontSize: '12px' }}>
-                              {item.date}
-                            </td>
-                            <td>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '2px 8px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
-                                fontWeight: '800',
-                                background: '#dbeafe',
-                                color: '#1d4ed8',
-                              }}>
-                                {item.supplierCode} ({item.supplierName || 'RAZA'})
-                              </span>
-                            </td>
-                            <td>
-                              <strong style={{ fontFamily: 'monospace', color: '#0284c7' }}>{item.code}</strong>
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: '600', color: '#1e293b' }}>{item.description}</div>
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: '600', color: '#475569' }}>
-                              {Number(item.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: '800', color: '#0f172a' }}>
-                              {Number(item.quantity || 0).toFixed(2)}
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: '900', color: '#e11d48', fontSize: '13px' }}>
-                              Rs. {Number(item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                            No Goods Return Notes found matching selected criteria.
+                                padding: '1px 6px',
+                                borderRadius: '3px',
+                                fontSize: '10.5px',
+                                fontWeight: 'bold',
+                                background: ['cancelled', 'reversed', 'deleted'].includes(String(note.status).toLowerCase()) ? '#fee2e2' : '#dcfce7',
+                                color: ['cancelled', 'reversed', 'deleted'].includes(String(note.status).toLowerCase()) ? '#b91c1c' : '#15803d',
+                                border: `1px solid ${['cancelled', 'reversed', 'deleted'].includes(String(note.status).toLowerCase()) ? '#f87171' : '#86efac'}`,
+                              }}
+                            >
+                              {note.status || 'Posted'}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }} className="no-print" onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'inline-flex', gap: '4px' }}>
+                              <button
+                                type="button"
+                                className="reports-action-btn"
+                                onClick={() => handleOpenGrenDetails(note)}
+                                title="View saved returned items and details"
+                                style={{ fontSize: '10.5px', padding: '0 6px', height: '21px' }}
+                              >
+                                🔍 View G.R.E.N
+                              </button>
+                              <button
+                                type="button"
+                                className="reports-action-btn"
+                                onClick={() => handlePrintSingleGren(note)}
+                                title="Print this saved Goods Return Note"
+                                style={{ fontSize: '10.5px', padding: '0 6px', height: '21px' }}
+                              >
+                                🖨️ Print
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                          <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔍</div>
+                          <div style={{ fontWeight: 'bold', fontSize: '13px' }}>No Goods Return Notes found</div>
+                          <div style={{ fontSize: '12px', marginTop: '4px', color: '#94a3b8' }}>
+                            Try adjusting your Goods Return Note number, supplier filter, or date range.
+                          </div>
+                          <button
+                            type="button"
+                            className="reports-action-btn"
+                            onClick={handleGrenClear}
+                            style={{ marginTop: '12px' }}
+                          >
+                            ↺ Reset Filters
+                          </button>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {grenReportData?.notes && grenReportData.notes.length > 0 && (
+                    <tfoot>
+                      <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 'bold' }}>
+                        <td colSpan={6} style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '900' }}>
+                          Filtered Totals ({grenReportData?.summary?.matchingNotesCount ?? grenReportData.notes.length} Return Notes):
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '900' }}>
+                          {grenReportData?.summary?.totalItemsCount || grenReportData.notes.reduce((sum, n) => sum + (n.totalItems || 0), 0)}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '900' }}>
+                          {Number(grenReportData?.summary?.totalReturnedQuantity || grenReportData?.summary?.totalQuantity || 0).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: '900', color: '#e11d48', fontSize: '12.5px' }}>
+                          Rs. {Number(grenReportData?.summary?.grandTotalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
               </div>
             )}
           </div>
+
+          {/* =========================================================================
+              VIEW SAVED GOODS RETURN NOTE DETAILS MODAL
+              ========================================================================= */}
+          {isViewGrenModalOpen && selectedGren && (
+            <div className="grn-modal-overlay no-print" onClick={() => setIsViewGrenModalOpen(false)}>
+              <div
+                className="grn-modal-window"
+                style={{ maxWidth: '880px', width: '92%' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="grn-modal-titlebar">
+                  <span>↩️ Goods Return Note Details — {selectedGren.grenNumber}</span>
+                  <button
+                    type="button"
+                    style={{ background: 'transparent', border: 'none', color: '#ffffff', fontSize: '13px', cursor: 'pointer', fontWeight: 'bold' }}
+                    onClick={() => setIsViewGrenModalOpen(false)}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="grn-modal-body" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+                  {/* GREN Header Information Box */}
+                  <div style={{ background: '#ffffff', border: '1px solid #7f9db9', padding: '10px 14px', fontSize: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+                      <div>
+                        <strong>Goods Return Note #:</strong>{' '}
+                        <span style={{ color: '#e11d48', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                          {selectedGren.grenNumber}
+                        </span>
+                      </div>
+                      <div><strong>Return Date:</strong> {selectedGren.date || selectedGren.rawDate} {selectedGren.time ? `(${selectedGren.time})` : ''}</div>
+                      <div><strong>Supplier Code:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>{selectedGren.supplierCode || '—'}</span></div>
+                      <div><strong>Supplier Name:</strong> <strong>{selectedGren.supplierName}</strong></div>
+                      <div>
+                        <strong>Original GRN #:</strong>{' '}
+                        <span style={{ color: '#005bb7', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                          {selectedGren.originalGrnNumber || '—'}
+                        </span>
+                      </div>
+                      <div><strong>Supplier Invoice #:</strong> {selectedGren.supplierInvoiceNo || '—'}</div>
+                      <div><strong>Handled By / User:</strong> {selectedGren.userCode || 'PC004'}</div>
+                      <div>
+                        <strong>Status:</strong>{' '}
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '1px 6px',
+                            borderRadius: '2px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            background: ['cancelled', 'reversed', 'deleted'].includes(String(selectedGren.status).toLowerCase()) ? '#fee2e2' : '#dcfce7',
+                            color: ['cancelled', 'reversed', 'deleted'].includes(String(selectedGren.status).toLowerCase()) ? '#b91c1c' : '#15803d',
+                            border: `1px solid ${['cancelled', 'reversed', 'deleted'].includes(String(selectedGren.status).toLowerCase()) ? '#f87171' : '#86efac'}`,
+                          }}
+                        >
+                          {selectedGren.status || 'Posted'}
+                        </span>
+                      </div>
+                      {selectedGren.remarks && (
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <strong>Remarks:</strong> {selectedGren.remarks}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Returned Line Items Table */}
+                  <div style={{ border: '1px solid #7f9db9', background: '#ffffff', marginTop: '4px' }}>
+                    <div style={{ background: '#e0ded4', padding: '5px 8px', fontSize: '11.5px', fontWeight: 'bold', borderBottom: '1px solid #aca899' }}>
+                      📦 Returned Line Items ({selectedGren.lineItems?.length || selectedGren.items?.length || 0} Items)
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11.5px' }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', width: '30px' }}>#</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Item Code</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Item Description</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Purchase Cost (Rs.)</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'center' }}>Discount</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Return Qty</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'right' }}>Line Value (Rs.)</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left' }}>Location</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedGren.lineItems || selectedGren.items || []).map((li, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0', background: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                            <td style={{ padding: '5px 8px', color: '#64748b' }}>{idx + 1}</td>
+                            <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontWeight: 'bold', color: '#0284c7' }}>
+                              {li.code || li.itemCode}
+                            </td>
+                            <td style={{ padding: '5px 8px' }}>{li.description}</td>
+                            <td style={{ padding: '5px 8px', textAlign: 'right' }}>
+                              {Number(li.purchaseCost || li.unitPrice || li.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                              {Number(li.discount || 0) > 0 ? `${Number(li.discount)}%` : '0%'}
+                            </td>
+                            <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 'bold' }}>
+                              {Number(li.returnQuantity || li.qtyReturn || li.quantity || 0).toFixed(2)}
+                            </td>
+                            <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 'bold', color: '#e11d48' }}>
+                              {Number(li.lineValue || li.totalValue || li.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ padding: '5px 8px', color: '#64748b' }}>
+                              {li.locationCode || li.location || 'Main Store'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: '#f8fafc', borderTop: '2px solid #cbd5e1', fontWeight: 'bold' }}>
+                          <td colSpan={5} style={{ padding: '6px 8px', textAlign: 'right' }}>Totals:</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 'bold' }}>
+                            {Number(selectedGren.totalReturnedQuantity || selectedGren.totalQuantity || 0).toFixed(2)}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', color: '#e11d48', fontSize: '12px' }}>
+                            Rs. {Number(selectedGren.totalReturnValue || selectedGren.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="grn-modal-footer">
+                  <button
+                    type="button"
+                    className="reports-action-btn"
+                    onClick={() => handlePrintSingleGren(selectedGren)}
+                    style={{ fontWeight: 'bold' }}
+                    title="Print this Goods Return Note"
+                  >
+                    🖨️ Print G.R.E.N
+                  </button>
+                  <button
+                    type="button"
+                    className="reports-action-btn"
+                    onClick={() => setIsViewGrenModalOpen(false)}
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* =========================================================================
+              PRINTABLE SINGLE GOODS RETURN NOTE SHEET (Triggered on Print G.R.E.N)
+              ========================================================================= */}
+          {printingSingleGren && (
+            <div id="printable-single-gren" className="closing-stock-paper-sheet" style={{ display: 'none' }}>
+              <div className="cs-report-header">
+                <div className="cs-company-name">SOFAST (PVT) LTD</div>
+                <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                <div className="cs-company-phone">034-2210680, 074-0295088</div>
+                <div className="cs-report-title" style={{ marginTop: '8px' }}>
+                  GOODS RETURN NOTE (G.R.E.N.)
+                </div>
+              </div>
+
+              <div className="grn-meta-box" style={{ marginTop: '10px' }}>
+                <table className="grn-meta-table">
+                  <tbody>
+                    <tr>
+                      <td className="grn-meta-key">G.R.E.N. #</td>
+                      <td className="grn-meta-val"><strong>{printingSingleGren.grenNumber}</strong></td>
+                      <td className="grn-meta-key">Date</td>
+                      <td className="grn-meta-val">{printingSingleGren.date || printingSingleGren.rawDate}</td>
+                      <td className="grn-meta-key">Supplier Code</td>
+                      <td className="grn-meta-val"><strong>{printingSingleGren.supplierCode || '—'}</strong></td>
+                      <td className="grn-meta-key">User</td>
+                      <td className="grn-meta-val">{printingSingleGren.userCode || 'PC004'}</td>
+                    </tr>
+                    <tr>
+                      <td className="grn-meta-key">Supplier Name</td>
+                      <td className="grn-meta-val" colSpan={3}><strong>{printingSingleGren.supplierName}</strong></td>
+                      <td className="grn-meta-key">Orig. GRN #</td>
+                      <td className="grn-meta-val"><strong>{printingSingleGren.originalGrnNumber || '—'}</strong></td>
+                      <td className="grn-meta-key">Invoice #</td>
+                      <td className="grn-meta-val">{printingSingleGren.supplierInvoiceNo || '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <table className="grn-table" style={{ marginTop: '12px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}>#</th>
+                    <th className="grn-th-code">Item Code</th>
+                    <th className="grn-th-desc">Description</th>
+                    <th className="col-right" style={{ textAlign: 'right' }}>Purchase Cost</th>
+                    <th className="grn-th-disc col-right">Discount</th>
+                    <th className="grn-th-qty col-right">Return Qty</th>
+                    <th className="grn-th-val col-right">Line Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(printingSingleGren.lineItems || printingSingleGren.items || []).map((item, idx) => (
+                    <tr key={idx}>
+                      <td>{idx + 1}</td>
+                      <td className="cs-code">{item.code || item.itemCode}</td>
+                      <td className="cs-desc">{item.description}</td>
+                      <td className="cs-val" style={{ textAlign: 'right' }}>
+                        {Number(item.purchaseCost || item.rate || item.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="cs-val" style={{ textAlign: 'right' }}>
+                        {Number(item.discount || 0) > 0 ? `${Number(item.discount)}%` : '0%'}
+                      </td>
+                      <td className="cs-qty" style={{ textAlign: 'right' }}>
+                        {Number(item.returnQuantity || item.qtyReturn || item.quantity || 0).toFixed(2)}
+                      </td>
+                      <td className="cs-val" style={{ textAlign: 'right' }}>
+                        {Number(item.lineValue || item.totalValue || item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="grn-subtotal-row">
+                    <td colSpan={5} style={{ textAlign: 'right', fontWeight: 'bold' }}>Total Returned Quantity:</td>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                      {Number(printingSingleGren.totalReturnedQuantity || printingSingleGren.totalQuantity || 0).toFixed(2)}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#e11d48' }}>
+                      Rs. {Number(printingSingleGren.totalReturnValue || printingSingleGren.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                  <tr className="grn-grandtotal-row">
+                    <td colSpan={6} style={{ textAlign: 'right', fontWeight: '900', fontSize: '12px' }}>
+                      TOTAL RETURN VALUE (Rs.):
+                    </td>
+                    <td className="cs-val" style={{ fontWeight: '900', fontSize: '12px', color: '#e11d48' }}>
+                      {Number(printingSingleGren.totalReturnValue || printingSingleGren.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', paddingTop: '10px', fontSize: '10px', borderTop: '1px dashed #666' }}>
+                <div>Prepared By: ___________________</div>
+                <div>Checked By: ___________________</div>
+                <div>Supplier / Receiver: ___________________</div>
+              </div>
+            </div>
+          )}
         </>
       )}
 

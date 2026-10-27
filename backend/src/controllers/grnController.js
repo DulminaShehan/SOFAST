@@ -963,7 +963,9 @@ export const getItemGrnHistory = async (req, res, next) => {
       : null;
     const lpc = latestCost !== null
       ? Number(latestCost).toFixed(2)
-      : (itemDoc?.lastGrnPrice ? Number(itemDoc.lastGrnPrice).toFixed(2) : '0.00');
+      : (itemDoc?.lastGrnPrice && Number(itemDoc.lastGrnPrice) > 0
+          ? Number(itemDoc.lastGrnPrice).toFixed(2)
+          : (itemDoc?.averageCost ? Number(itemDoc.averageCost).toFixed(2) : (itemDoc?.cost ? Number(itemDoc.cost).toFixed(2) : '0.00')));
     const lastGrnInfo = latestRecord
       ? `${latestRecord.grnNumber}${latestRecord.date ? ' (' + new Date(latestRecord.date).toISOString().split('T')[0] + ')' : ''}`
       : (itemDoc?.lastGrn || itemDoc?.lastGrnDate || '-');
