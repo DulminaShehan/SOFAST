@@ -282,8 +282,8 @@ export const createInvoice = async (req, res, next) => {
       }
 
       const rate = parseFloat(item.rate || price) || price;
-      let discPct = parseFloat(item.discountPercentage) || 0;
-      let discAmt = parseFloat(item.discountAmount) || 0;
+      let discPct = isLabour ? 0 : (parseFloat(item.discountPercentage) || 0);
+      let discAmt = isLabour ? 0 : (parseFloat(item.discountAmount) || 0);
 
       if (discPct > 0 && (!discAmt || discAmt === 0)) {
         discAmt = (price * discPct) / 100 * qty;
@@ -561,8 +561,8 @@ export const updateInvoice = async (req, res, next) => {
       }
 
       const rate = parseFloat(item.rate || price) || price;
-      let discPct = parseFloat(item.discountPercentage) || 0;
-      let discAmt = parseFloat(item.discountAmount) || 0;
+      let discPct = isLabour ? 0 : (parseFloat(item.discountPercentage) || 0);
+      let discAmt = isLabour ? 0 : (parseFloat(item.discountAmount) || 0);
 
       if (discPct > 0 && (!discAmt || discAmt === 0)) {
         discAmt = (price * discPct) / 100 * qty;

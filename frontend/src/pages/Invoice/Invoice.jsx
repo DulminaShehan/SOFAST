@@ -176,6 +176,12 @@ function Invoice() {
   // Receipt Preview Modal
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
+  // Calculate Discount Modal State
+  const [discountModalOpen, setDiscountModalOpen] = useState(false);
+  const [discountInputPercentage, setDiscountInputPercentage] = useState('');
+  const [discountInputError, setDiscountInputError] = useState('');
+  const discountInputRef = useRef(null);
+
   // Input Refs
   const itemCodeInputRef = useRef(null);
   const paidAmountInputRef = useRef(null);
@@ -751,6 +757,190 @@ function Invoice() {
     }
   };
 
+  // Calculate subtotal, discount amounts, and preview totals for Calculate Discount Modal
+  const discountCalculationSummary = useMemo(() => {
+    // 1. Filter eligible material items (excluding Labour / delivery charge lines)
+    const eligibleItems = lineItems.filter(
+      (li) => !li.isService && li.jobType !== 'Labour' && li.type !== 'Labour'
+    );
+    const nonEligibleItems = lineItems.filter(
+      (li) => li.isService || li.jobType === 'Labour' || li.type === 'Labour'
+    );
+
+    // 2. Gross subtotal of eligible items based on original unit selling prices
+    const eligibleGrossSubTotal = eligibleItems.reduce((acc, item) => {
+      const p = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (item.price || 0)) || 0;
+      const q = parseFloat(item.quantity) || 1;
+      return acc + (p * q);
+    }, 0);
+
+    // 3. Gross subtotal of non-eligible items (Labour/delivery charges)
+    const nonEligibleGrossSubTotal = nonEligibleItems.reduce((acc, item) => {
+      const p = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (item.price || 0)) || 0;
+      const q = parseFloat(item.quantity) || 1;
+      return acc + (p * q);
+    }, 0);
+
+    const totalGrossSubTotal = eligibleGrossSubTotal + nonEligibleGrossSubTotal;
+
+    const parsedPct = parseFloat(discountInputPercentage);
+    const isValidPct = !isNaN(parsedPct) && parsedPct >= 0 && parsedPct <= 100;
+    const effectivePct = isValidPct ? parsedPct : 0;
+
+    // 4. Calculate total discount amount across eligible items with per-line 2-decimal precision
+    const calculatedDiscountAmount = eligibleItems.reduce((acc, item) => {
+      const p = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (item.price || 0)) || 0;
+      const q = parseFloat(item.quantity) || 1;
+      const gross = Math.round(p * q * 100) / 100;
+      const discAmt = Math.round((gross * effectivePct) / 100 * 100) / 100;
+      return acc + discAmt;
+    }, 0);
+
+    const specDisc = parseFloat(payment.specialDiscount) || 0;
+    const newNetTotal = Math.max(0, Math.round((totalGrossSubTotal - calculatedDiscountAmount - specDisc) * 100) / 100);
+
+    return {
+      eligibleCount: eligibleItems.length,
+      nonEligibleCount: nonEligibleItems.length,
+      eligibleGrossSubTotal: Math.round(eligibleGrossSubTotal * 100) / 100,
+      totalGrossSubTotal: Math.round(totalGrossSubTotal * 100) / 100,
+      effectivePct,
+      isValidPct,
+      calculatedDiscountAmount: Math.round(calculatedDiscountAmount * 100) / 100,
+      newNetTotal,
+    };
+  }, [lineItems, discountInputPercentage, payment.specialDiscount]);
+
+  // Button: Cal. Discount (Open Calculate Discount Modal)
+  const handleCalculateDiscount = () => {
+    // Check if eligible items share an existing discount percentage
+    const eligibleItems = lineItems.filter(
+      (li) => !li.isService && li.jobType !== 'Labour' && li.type !== 'Labour'
+    );
+    if (eligibleItems.length > 0) {
+      const firstDisc = eligibleItems[0].discountPercentage;
+      const allSame = eligibleItems.every((li) => Number(li.discountPercentage) === Number(firstDisc));
+      setDiscountInputPercentage(allSame && Number(firstDisc) > 0 ? String(firstDisc) : '');
+    } else {
+      setDiscountInputPercentage('');
+    }
+    setDiscountInputError('');
+    setDiscountModalOpen(true);
+    setTimeout(() => {
+      discountInputRef.current?.focus();
+      discountInputRef.current?.select();
+    }, 50);
+  };
+
+  // Close Calculate Discount Modal
+  const handleCloseDiscountModal = () => {
+    setDiscountModalOpen(false);
+    setDiscountInputError('');
+  };
+
+  // Clear Calculate Discount Modal input
+  const handleClearDiscountModal = () => {
+    setDiscountInputPercentage('');
+    setDiscountInputError('');
+    discountInputRef.current?.focus();
+  };
+
+  // Handle Percentage Input Change
+  const handleDiscountPercentageInputChange = (val) => {
+    setDiscountInputPercentage(val);
+    if (val === '') {
+      setDiscountInputError('');
+      return;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) {
+      setDiscountInputError('Please enter a valid number');
+    } else if (num < 0 || num > 100) {
+      setDiscountInputError('Percentage must be between 0% and 100%');
+    } else {
+      setDiscountInputError('');
+    }
+  };
+
+  // Apply Common Discount to All Eligible Items
+  const handleApplyDiscountModal = () => {
+    const rawVal = String(discountInputPercentage || '').trim();
+    if (rawVal === '') {
+      setDiscountInputError('Please enter a discount percentage');
+      discountInputRef.current?.focus();
+      return;
+    }
+
+    const pct = parseFloat(rawVal);
+    if (isNaN(pct) || pct < 0 || pct > 100) {
+      setDiscountInputError('Percentage must be between 0% and 100%');
+      discountInputRef.current?.focus();
+      return;
+    }
+
+    const eligibleCount = lineItems.filter(
+      (li) => !li.isService && li.jobType !== 'Labour' && li.type !== 'Labour'
+    ).length;
+
+    if (eligibleCount === 0) {
+      showNotification('No eligible material items in invoice to apply discount', 'warning');
+      setDiscountModalOpen(false);
+      return;
+    }
+
+    // Apply common discount percentage to all eligible items
+    // Replaces previous discount percentage rather than stacking
+    setLineItems((prev) =>
+      prev.map((item) => {
+        const isLabour = item.jobType === 'Labour' || item.type === 'Labour' || Boolean(item.isService);
+        if (isLabour) return item;
+
+        const price = Number(item.sellingPrice !== undefined ? item.sellingPrice : item.price) || 0;
+        const qty = Number(item.quantity) || 1;
+        const gross = Math.round(price * qty * 100) / 100;
+        const discAmt = Math.round((gross * pct) / 100 * 100) / 100;
+        const netValue = Math.max(0, Math.round((gross - discAmt) * 100) / 100);
+
+        return {
+          ...item,
+          discountPercentage: pct,
+          discountAmount: discAmt,
+          discount: pct > 0 ? `${pct}%` : '0%',
+          value: netValue,
+          finalPrice: netValue,
+          total: netValue,
+        };
+      })
+    );
+
+    // Also update draft itemEntry if an eligible item is currently loaded
+    if (itemEntry.code && invoiceHeader.jobType !== 'Labour') {
+      const price = parseFloat(itemEntry.price !== '' ? itemEntry.price : (itemEntry.rate || 0)) || 0;
+      const qty = parseFloat(itemEntry.quantity) || 1;
+      const comp = computeLinePricing(
+        price,
+        qty,
+        pct,
+        0,
+        'percentage',
+        itemEntry.roundOffOption,
+        itemEntry.roundOffStep
+      );
+      setItemEntry((prev) => ({
+        ...prev,
+        discountPercentage: String(pct),
+        discountAmount: comp.discountAmount,
+        finalPrice: comp.finalPrice,
+        value: comp.finalPrice,
+        total: comp.finalPrice,
+      }));
+    }
+
+    setDiscountModalOpen(false);
+    setDiscountInputError('');
+    showNotification(`Applied ${pct}% discount to all eligible invoice items`, 'success');
+  };
+
   // Button: Rem. Discount (Remove Discount)
   const handleRemoveDiscount = () => {
     setItemEntry((prev) => {
@@ -773,14 +963,22 @@ function Invoice() {
       };
     });
     setLineItems((prev) =>
-      prev.map((item) => ({
-        ...item,
-        discountPercentage: 0,
-        discountAmount: 0,
-        discount: '0',
-        value: Math.round(Number(item.sellingPrice || item.price) * Number(item.quantity) * 100) / 100,
-        finalPrice: Math.round(Number(item.sellingPrice || item.price) * Number(item.quantity) * 100) / 100,
-      }))
+      prev.map((item) => {
+        const isLabour = item.jobType === 'Labour' || item.type === 'Labour' || Boolean(item.isService);
+        if (isLabour) return item;
+        const price = Number(item.sellingPrice !== undefined ? item.sellingPrice : item.price) || 0;
+        const qty = Number(item.quantity) || 1;
+        const gross = Math.round(price * qty * 100) / 100;
+        return {
+          ...item,
+          discountPercentage: 0,
+          discountAmount: 0,
+          discount: '0%',
+          value: gross,
+          finalPrice: gross,
+          total: gross,
+        };
+      })
     );
     showNotification('Discounts removed');
   };
@@ -1763,32 +1961,6 @@ function Invoice() {
     });
   };
 
-  // BUTTON: CALCULATE DISCOUNT
-  const handleCalculateDiscount = () => {
-    if (lineItems.length === 0) {
-      showNotification('No items in invoice to calculate discount', 'info');
-      return;
-    }
-    const updated = lineItems.map((item) => {
-      const comp = computeLinePricing(
-        item.price,
-        item.quantity,
-        item.discountPercentage,
-        item.discountAmount,
-        'percentage'
-      );
-      return {
-        ...item,
-        discountPercentage: parseFloat(comp.discountPercentage) || 0,
-        discountAmount: parseFloat(comp.discountAmount) || 0,
-        finalPrice: parseFloat(comp.finalPrice) || 0,
-        value: parseFloat(comp.finalPrice) || 0,
-        total: parseFloat(comp.finalPrice) || 0,
-      };
-    });
-    setLineItems(updated);
-    showNotification('Discounts and final prices calculated', 'success');
-  };
 
   // BUTTON: HOLD INVOICE
   const handleHoldInvoice = async () => {
@@ -2092,7 +2264,7 @@ function Invoice() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lineItems, invoiceHeader, activeInvoiceId, payment]);
+  }, [lineItems, invoiceHeader, activeInvoiceId, payment, discountModalOpen, discountInputPercentage]);
 
   // Filtered items for quick dropdown list (Code field)
   const filteredDropdownItems = useMemo(() => {
@@ -3534,6 +3706,167 @@ function Invoice() {
                 onClick={() => setLookupModal({ isOpen: false, type: null, title: '', search: '' })}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calculate Discount Modal (Common Discount for All Eligible Items) */}
+      {discountModalOpen && (
+        <div className="invoice-modal-overlay" onClick={handleCloseDiscountModal}>
+          <div
+            className="invoice-modal-window"
+            style={{ width: '420px', maxWidth: '95vw' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="invoice-modal-titlebar">
+              <span>Calculate Discount</span>
+              <button
+                type="button"
+                className="control-btn close"
+                style={{ width: '24px', height: '20px' }}
+                onClick={handleCloseDiscountModal}
+                title="Close dialog"
+              >
+                &#x2715;
+              </button>
+            </div>
+            <div className="invoice-modal-body" style={{ padding: '14px', gap: '10px' }}>
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #7f9db9',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  fontSize: '12px',
+                }}
+              >
+                {/* Current Invoice Subtotal */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, color: '#000080' }}>Current Invoice Subtotal:</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#000000' }}>
+                    Rs. {discountCalculationSummary.eligibleGrossSubTotal.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+
+                {/* Discount Percentage Input */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label htmlFor="discount-pct-input" style={{ fontWeight: 600, color: '#000080' }}>
+                    Discount Percentage (%):
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input
+                      id="discount-pct-input"
+                      ref={discountInputRef}
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="any"
+                      value={discountInputPercentage}
+                      onChange={(e) => handleDiscountPercentageInputChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleApplyDiscountModal();
+                        if (e.key === 'Escape') handleCloseDiscountModal();
+                      }}
+                      className="invoice-input"
+                      style={{
+                        width: '90px',
+                        textAlign: 'right',
+                        padding: '3px 6px',
+                        fontWeight: 'bold',
+                        borderColor: discountInputError ? '#d32f2f' : '#7f9db9',
+                      }}
+                      placeholder="0.00"
+                      autoFocus
+                    />
+                    <span style={{ fontWeight: 'bold' }}>%</span>
+                  </div>
+                </div>
+
+                {/* Validation Error Message */}
+                {discountInputError && (
+                  <div style={{ color: '#d32f2f', fontSize: '11px', textAlign: 'right', marginTop: '-4px' }}>
+                    {discountInputError}
+                  </div>
+                )}
+
+                {/* Calculated Discount Amount */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderTop: '1px dashed #cccccc',
+                    paddingTop: '8px',
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: '#8b0000' }}>Calculated Discount Amount:</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#8b0000' }}>
+                    - Rs. {discountCalculationSummary.calculatedDiscountAmount.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+
+                {/* New Net Total */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderTop: '2px solid #005bb7',
+                    paddingTop: '8px',
+                  }}
+                >
+                  <span style={{ fontWeight: 700, fontSize: '13px', color: '#000080' }}>New Net Total:</span>
+                  <span style={{ fontWeight: 800, fontSize: '14px', color: '#005bb7' }}>
+                    Rs. {discountCalculationSummary.newNetTotal.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Informative notice */}
+              <div style={{ fontSize: '11px', color: '#555555', fontStyle: 'italic', lineHeight: 1.3 }}>
+                * Applies to {discountCalculationSummary.eligibleCount} eligible item{discountCalculationSummary.eligibleCount === 1 ? '' : 's'}, replacing previous individual discounts.
+                {discountCalculationSummary.nonEligibleCount > 0 && ` (${discountCalculationSummary.nonEligibleCount} Labour/delivery charge line excluded)`}
+              </div>
+            </div>
+
+            <div className="invoice-modal-footer">
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleClearDiscountModal}
+                title="Clear discount percentage"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleCloseDiscountModal}
+                title="Cancel and close dialog"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={handleApplyDiscountModal}
+                style={{ fontWeight: 'bold' }}
+                title="Apply discount percentage to all eligible invoice items"
+              >
+                Apply Discount
               </button>
             </div>
           </div>
