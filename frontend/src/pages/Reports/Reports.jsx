@@ -261,6 +261,7 @@ function Reports() {
   // ---------------------------------------------------------------------------
   const [grnLoading, setGrnLoading] = useState(true);
   const [grnReportData, setGrnReportData] = useState(null);
+  const [grnInvoiceSearch, setGrnInvoiceSearch] = useState('');
   const [grnNumberSearch, setGrnNumberSearch] = useState('');
   const [grnStartDate, setGrnStartDate] = useState('');
   const [grnEndDate, setGrnEndDate] = useState('');
@@ -363,6 +364,8 @@ function Reports() {
   // ---------------------------------------------------------------------------
   const [grenLoading, setGrenLoading] = useState(false);
   const [grenReportData, setGrenReportData] = useState(null);
+  const [grenInvoiceSearch, setGrenInvoiceSearch] = useState('');
+  const [grenGrnSearch, setGrenGrnSearch] = useState('');
   const [grenNumberSearch, setGrenNumberSearch] = useState('');
   const [grenStartDate, setGrenStartDate] = useState('');
   const [grenEndDate, setGrenEndDate] = useState('');
@@ -575,6 +578,7 @@ function Reports() {
     try {
       setGrnLoading(true);
       const params = {
+        invoice: grnInvoiceSearch.trim(),
         grnNumber: grnNumberSearch.trim(),
         startDate: grnStartDate,
         endDate: grnEndDate,
@@ -590,17 +594,27 @@ function Reports() {
       if (res.data?.success) {
         setGrnReportData(res.data);
         const grnList = res.data.data || [];
-        if (grnNumberSearch.trim() && grnList.length > 0) {
-          const q = grnNumberSearch.trim().toLowerCase();
-          const exact = grnList.find(
-            (g) => String(g.grnNumber).toLowerCase() === q || String(g.no) === q
-          );
-          setSelectedGrn(exact || grnList[0]);
-        } else if (selectedGrn) {
-          const refreshed = grnList.find((g) => g.grnNumber === selectedGrn.grnNumber || g._id === selectedGrn._id);
-          if (refreshed) {
-            setSelectedGrn(refreshed);
+        if (grnList.length > 0) {
+          if (grnInvoiceSearch.trim()) {
+            const iq = grnInvoiceSearch.trim().toLowerCase();
+            const invMatch = grnList.find((g) =>
+              String(g.supplierInvoiceNo || g.invoice || '').toLowerCase().includes(iq)
+            );
+            setSelectedGrn(invMatch || grnList[0]);
+          } else if (grnNumberSearch.trim()) {
+            const q = grnNumberSearch.trim().toLowerCase();
+            const exact = grnList.find(
+              (g) => String(g.grnNumber).toLowerCase() === q || String(g.no) === q
+            );
+            setSelectedGrn(exact || grnList[0]);
+          } else if (!selectedGrn) {
+            setSelectedGrn(grnList[0]);
+          } else {
+            const refreshed = grnList.find((g) => g.grnNumber === selectedGrn.grnNumber || g._id === selectedGrn._id);
+            setSelectedGrn(refreshed || grnList[0]);
           }
+        } else {
+          setSelectedGrn(null);
         }
       }
     } catch (err) {
@@ -618,6 +632,7 @@ function Reports() {
     }
   }, [
     activeReportTab,
+    grnInvoiceSearch,
     grnNumberSearch,
     grnStartDate,
     grnEndDate,
@@ -645,6 +660,7 @@ function Reports() {
   };
 
   const handleGrnClear = () => {
+    setGrnInvoiceSearch('');
     setGrnNumberSearch('');
     setGrnSelectedSupplier('All');
     setGrnStartDate('');
@@ -880,6 +896,8 @@ function Reports() {
       setGrenLoading(true);
       const noteFilter = grenNumberSearch.trim() || (grenSelectedNote !== 'All' ? grenSelectedNote : '');
       const params = {
+        invoice: grenInvoiceSearch.trim(),
+        grnReference: grenGrnSearch.trim(),
         startDate: grenStartDate,
         endDate: grenEndDate,
         supplier: grenSelectedSupplier,
@@ -891,6 +909,33 @@ function Reports() {
       const res = await api.get('/reports/goods-return-notes', { params });
       if (res.data?.success) {
         setGrenReportData(res.data);
+        const notesList = res.data.notes || res.data.data || [];
+        if (notesList.length > 0) {
+          if (grenInvoiceSearch.trim()) {
+            const iq = grenInvoiceSearch.trim().toLowerCase();
+            const invMatch = notesList.find((n) =>
+              String(n.supplierInvoiceNo || n.invoice || '').toLowerCase().includes(iq)
+            );
+            setSelectedGren(invMatch || notesList[0]);
+          } else if (grenGrnSearch.trim()) {
+            const gq = grenGrnSearch.trim().toLowerCase();
+            const grnMatch = notesList.find((n) =>
+              String(n.originalGrnNumber || n.grnReference || '').toLowerCase().includes(gq)
+            );
+            setSelectedGren(grnMatch || notesList[0]);
+          } else if (noteFilter) {
+            const nq = noteFilter.toLowerCase();
+            const exact = notesList.find((n) => String(n.grenNumber).toLowerCase() === nq || String(n.no) === nq);
+            setSelectedGren(exact || notesList[0]);
+          } else if (!selectedGren) {
+            setSelectedGren(notesList[0]);
+          } else {
+            const refreshed = notesList.find((n) => n.grenNumber === selectedGren.grenNumber || n._id === selectedGren._id);
+            setSelectedGren(refreshed || notesList[0]);
+          }
+        } else {
+          setSelectedGren(null);
+        }
       }
     } catch (err) {
       console.error('Failed to load goods return notes report:', err);
@@ -907,6 +952,8 @@ function Reports() {
     }
   }, [
     activeReportTab,
+    grenInvoiceSearch,
+    grenGrnSearch,
     grenNumberSearch,
     grenStartDate,
     grenEndDate,
@@ -930,6 +977,8 @@ function Reports() {
   };
 
   const handleGrenClear = () => {
+    setGrenInvoiceSearch('');
+    setGrenGrnSearch('');
     setGrenNumberSearch('');
     setGrenSelectedNote('All');
     setGrenSelectedSupplier('All');
@@ -938,6 +987,7 @@ function Reports() {
     setGrenSearch('');
     setGrenSortBy('default');
     setGrenDateError('');
+    setSelectedGren(null);
   };
 
   const handleOpenGrenDetails = (gren) => {
@@ -1353,6 +1403,8 @@ function Reports() {
   // Presets for Goods Return Notes
   const handleApplyGrenPreset = (presetType) => {
     setGrenDateError('');
+    setGrenInvoiceSearch('');
+    setGrenGrnSearch('');
     if (presetType === 'all') {
       setGrenNumberSearch('');
       setGrenStartDate('2026-08-01');
@@ -2801,14 +2853,31 @@ function Reports() {
           {/* Interactive Filter Controls Bar */}
           <div className="reports-filter-bar no-print">
             <div className="reports-filter-controls">
-              {/* 1. GRN Number Search */}
+              {/* 1. Invoice Number Search */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>Invoice #:</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  style={{ width: '135px', padding: '2px 6px' }}
+                  placeholder="e.g. 0000023133"
+                  value={grnInvoiceSearch}
+                  onChange={(e) => {
+                    setGrnInvoiceSearch(e.target.value);
+                  }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGrnSearch()}
+                  title="Search by Supplier Invoice Number"
+                />
+              </div>
+
+              {/* 2. GRN Number Search */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>GRN #:</span>
                 <input
                   type="text"
                   className="reports-search-input"
                   style={{ width: '135px', padding: '2px 6px' }}
-                  placeholder="e.g. 6, GRN-0003"
+                  placeholder="e.g. 0000033919"
                   value={grnNumberSearch}
                   onChange={(e) => {
                     setGrnNumberSearch(e.target.value);
@@ -2818,7 +2887,7 @@ function Reports() {
                 />
               </div>
 
-              {/* 2. Supplier Dropdown */}
+              {/* 3. Supplier Dropdown */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>Supplier:</span>
                 <select
@@ -2828,7 +2897,7 @@ function Reports() {
                   onChange={(e) => {
                     setGrnSelectedSupplier(e.target.value);
                   }}
-                  title="Filter by Supplier Name or Code"
+                  title="Filter by Supplier Name or Code (Loads all records for this supplier)"
                 >
                   <option value="All">All Suppliers (Master)</option>
                   {(filterOptions.supplierMaster && filterOptions.supplierMaster.length > 0
@@ -2842,7 +2911,7 @@ function Reports() {
                 </select>
               </div>
 
-              {/* 3. Date Range (From & To) */}
+              {/* 4. Date Range (From & To) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>From:</span>
                 <input
@@ -2996,6 +3065,50 @@ function Reports() {
             )}
           </div>
 
+          {/* Active Invoice & Supplier Match Breadcrumb Banner */}
+          {(grnInvoiceSearch || grnReportData?.matchedInvoice || (grnSelectedSupplier && grnSelectedSupplier !== 'All')) && (
+            <div className="invoice-match-banner no-print">
+              <div className="invoice-match-content">
+                <span style={{ fontSize: '16px' }}>📍</span>
+                {grnInvoiceSearch && (
+                  <>
+                    <span style={{ fontWeight: 'bold' }}>Invoice:</span>
+                    <span className="invoice-match-pill">{grnInvoiceSearch}</span>
+                    <span>➜</span>
+                  </>
+                )}
+                <span style={{ fontWeight: 'bold' }}>Supplier:</span>
+                <span className="invoice-match-pill">
+                  {grnReportData?.matchedInvoice?.supplierName || selectedGrn?.supplierName || grnSelectedSupplier}
+                  {grnReportData?.matchedInvoice?.supplierCode ? ` [${grnReportData.matchedInvoice.supplierCode}]` : selectedGrn?.supplierCode ? ` [${selectedGrn.supplierCode}]` : ''}
+                </span>
+                <span>➜</span>
+                <span style={{ fontWeight: 'bold' }}>GRN Put:</span>
+                <span className="invoice-match-pill" style={{ color: '#005bb7', borderColor: '#93c5fd' }}>
+                  {grnReportData?.matchedInvoice?.grnNumber || selectedGrn?.grnNumber || 'Loaded below'}
+                </span>
+                {selectedGrn?.date && (
+                  <span style={{ fontSize: '11px', color: '#475569' }}>
+                    ({selectedGrn.date})
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold' }}>
+                  ✓ {grnReportData?.data?.length || 0} GRN record(s) loaded
+                </span>
+                <button
+                  type="button"
+                  className="reports-action-btn"
+                  onClick={() => setViewMode('paper')}
+                  style={{ fontSize: '11px', padding: '2px 8px', background: '#ffffff', color: '#005bb7', borderColor: '#93c5fd' }}
+                >
+                  📄 View Exact Image 1 Paper Report
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Report Body */}
           <div className="reports-content-body">
             {grnLoading ? (
@@ -3006,84 +3119,265 @@ function Reports() {
               </div>
             ) : viewMode === 'paper' ? (
               /* =========================================================================
-                  DOT-MATRIX PAPER VIEW FOR GRN REPORT
+                  EXACT IMAGE 1 REPLICA: PHYSICAL CONTINUOUS COMPUTER PAPER GOOD RECEIVE NOTE
                   ========================================================================= */
-              <div className="closing-stock-paper-sheet" id="printable-grn-report">
-                <div className="cs-report-header">
-                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
-                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
-                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '6px' }}>
-                    <div className="cs-report-title" style={{ margin: 0 }}>
-                      Goods Received Notes (GRN) Report
+              (() => {
+                const activeGrn = selectedGrn || grnReportData?.data?.[0];
+                if (!activeGrn) {
+                  return (
+                    <div className="closing-stock-paper-sheet" id="printable-grn-report">
+                      <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                        No Goods Received Notes found matching your search and filter criteria.
+                      </div>
                     </div>
-                    <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
-                      {grnStartDate ? `From ${grnStartDate}` : 'All Dates'} {grnEndDate ? `To ${grnEndDate}` : ''}
+                  );
+                }
+
+                const items = activeGrn.lineItems || [];
+                const totalItemsCount = items.length;
+                const totalQty = items.reduce((sum, it) => sum + Number(it.quantity !== undefined ? it.quantity : it.receivedQuantity || 0), 0);
+                const subTotal = activeGrn.subTotal || items.reduce((sum, it) => sum + (Number(it.salesPrice || it.rate || it.unitPrice || 0) * Number(it.quantity || 0)), 0);
+                const discountRate = activeGrn.discountPercent !== undefined ? activeGrn.discountPercent : 3.50;
+                const discountAmount = activeGrn.discountAmount !== undefined ? activeGrn.discountAmount : (subTotal * discountRate / 100);
+                const vatAmount = activeGrn.vatAmount || 0;
+                const grandTotal = activeGrn.grandTotal || (subTotal - discountAmount + vatAmount);
+
+                return (
+                  <div className="grn-paper-document" id="printable-grn-report">
+                    {/* GRN Quick Switcher Toolbar if multiple GRNs exist */}
+                    {grnReportData?.data && grnReportData.data.length > 1 && (
+                      <div className="grn-selector-toolbar no-print">
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>
+                          Select GRN to View ({grnReportData.data.length} found):
+                        </span>
+                        {grnReportData.data.map((g, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className={`grn-selector-btn ${activeGrn.grnNumber === g.grnNumber ? 'active' : ''}`}
+                            onClick={() => setSelectedGrn(g)}
+                          >
+                            GRN #{g.grnNumber} {g.supplierInvoiceNo ? `(Inv: ${g.supplierInvoiceNo})` : ''} - Rs. {Number(g.totalValue || 0).toLocaleString()}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Header Grid matching Image 1 */}
+                    <div className="grn-paper-header-grid">
+                      {/* Left: Customer / Company Info & Supplier */}
+                      <div className="grn-paper-customer-info">
+                        <div className="grn-paper-meta-row">
+                          <span className="grn-paper-meta-lbl">Customer</span>
+                          <span className="grn-paper-meta-val">SOFAST ( PVT ) LTD... (MATHUGAMA) *</span>
+                        </div>
+                        <div className="grn-paper-meta-row">
+                          <span className="grn-paper-meta-lbl">Address</span>
+                          <span className="grn-paper-meta-val">
+                            7E, MADDEGODA RD,<br />
+                            MATHUGAMA
+                          </span>
+                        </div>
+                        <div className="grn-paper-meta-row">
+                          <span className="grn-paper-meta-lbl">Telephone No</span>
+                          <span className="grn-paper-meta-val">034 2210680</span>
+                        </div>
+                        <div className="grn-paper-meta-row">
+                          <span className="grn-paper-meta-lbl">Fax No</span>
+                          <span className="grn-paper-meta-val"></span>
+                        </div>
+                        <div className="grn-paper-meta-row">
+                          <span className="grn-paper-meta-lbl">Supplier</span>
+                          <span className="grn-paper-meta-val" style={{ color: '#005bb7' }}>
+                            {activeGrn.supplierName} {activeGrn.supplierCode ? `[${activeGrn.supplierCode}]` : ''}
+                          </span>
+                        </div>
+                        <div className="grn-paper-meta-row" style={{ marginTop: '4px' }}>
+                          <span className="grn-paper-meta-lbl">Remark</span>
+                          <span className="grn-paper-meta-val">{activeGrn.remark || `${Number(discountRate).toFixed(1)}% OE O 04`}</span>
+                        </div>
+                      </div>
+
+                      {/* Right: Date, No, Quo/No, Page */}
+                      <div className="grn-paper-doc-info">
+                        <div className="grn-paper-doc-row">
+                          <span className="grn-paper-doc-lbl">Date</span>
+                          <span className="grn-paper-doc-val">{activeGrn.date || activeGrn.rawDate}</span>
+                        </div>
+                        <div className="grn-paper-doc-row">
+                          <span className="grn-paper-doc-lbl">No</span>
+                          <span className="grn-paper-doc-val">{activeGrn.grnNumber}</span>
+                        </div>
+                        <div className="grn-paper-doc-row">
+                          <span className="grn-paper-doc-lbl">Quo/No</span>
+                          <span className="grn-paper-doc-val">{activeGrn.supplierInvoiceNo || activeGrn.invoice || '0000023133'}</span>
+                        </div>
+                        <div className="grn-paper-doc-row">
+                          <span className="grn-paper-doc-lbl">Page</span>
+                          <span className="grn-paper-doc-val">Page 1 of 1</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Solid Divider */}
+                    <div className="grn-paper-solid-divider"></div>
+
+                    {/* Table with Exact Columns from Image 1 */}
+                    <table className="grn-paper-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '13%' }}>Item Code</th>
+                          <th style={{ width: '42%' }}>Description</th>
+                          <th style={{ width: '8%', textAlign: 'right' }}>Qty</th>
+                          <th style={{ width: '7%', textAlign: 'center' }}>Unit</th>
+                          <th style={{ width: '12%', textAlign: 'right' }}>Sales Price</th>
+                          <th style={{ width: '7%', textAlign: 'right' }}>Dis %</th>
+                          <th style={{ width: '11%', textAlign: 'right' }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, idx) => {
+                          const qty = Number(item.quantity !== undefined ? item.quantity : item.receivedQuantity || 0);
+                          const price = Number(item.salesPrice || item.rate || item.unitPrice || 0);
+                          const disc = Number(item.discount || 0);
+                          const lineAmt = Number(item.totalValue || item.lineValue || item.value || (qty * price * (1 - disc / 100)));
+                          const isReturned = item.isReturned || (item.returnQty > 0) || String(item.description || '').toUpperCase().includes('RTN');
+
+                          return (
+                            <tr key={idx}>
+                              <td style={{ fontWeight: '800', fontFamily: 'monospace' }}>
+                                {item.code || item.itemCode}
+                              </td>
+                              <td>
+                                {item.description}
+                                {isReturned && <span className="grn-rtn-flag">RTN</span>}
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                                {qty}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                {item.unit || (String(item.description || '').toUpperCase().includes('SET') ? 'SET' : 'PCS')}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                {price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                {disc.toFixed(2)}
+                              </td>
+                              <td style={{ textAlign: 'right', fontWeight: '800' }}>
+                                {lineAmt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                    {/* Solid Divider */}
+                    <div className="grn-paper-solid-divider"></div>
+
+                    {/* Summary Section matching Image 1 */}
+                    <div className="grn-paper-summary-section">
+                      <div className="grn-paper-summary-left">
+                        <span>{totalItemsCount}</span>
+                        <span style={{ marginLeft: '140px' }}>{totalQty}</span>
+                      </div>
+
+                      <div className="grn-paper-summary-right">
+                        <div className="grn-paper-summary-line">
+                          <span style={{ fontWeight: '700' }}>Total</span>
+                          <span style={{ fontWeight: '900' }}>
+                            {Number(subTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="grn-paper-summary-line">
+                          <span style={{ fontWeight: '700' }}>Discount</span>
+                          <span style={{ textAlign: 'center', width: '50px' }}>{Number(discountRate).toFixed(2)}</span>
+                          <span style={{ fontWeight: '900' }}>
+                            {Number(discountAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="grn-paper-summary-line">
+                          <span style={{ fontWeight: '700' }}>VAT</span>
+                          <span style={{ textAlign: 'center', width: '50px' }}>0.00</span>
+                          <span style={{ fontWeight: '900' }}>0.00</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Double Divider Category & Grand Total Bar matching Image 1 */}
+                    <div className="grn-paper-double-divider" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '900', fontSize: '12px' }}>
+                      <span>{activeGrn.categoryCode || 'C3'}</span>
+                      <span>S/Return: &nbsp; 0.00</span>
+                      <span style={{ display: 'flex', gap: '30px' }}>
+                        <span>Grand Total</span>
+                        <span>{Number(grandTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </span>
+                    </div>
+
+                    {/* 4 Signatures Grid matching Image 1 */}
+                    <div className="grn-paper-signatures">
+                      <div className="grn-paper-sign-item">
+                        <span className="grn-paper-sign-lbl">Prepared by</span>
+                        <span className="grn-paper-sign-dots"></span>
+                      </div>
+                      <div className="grn-paper-sign-item">
+                        <span className="grn-paper-sign-lbl">Approved by</span>
+                        <span className="grn-paper-sign-dots"></span>
+                      </div>
+                      <div className="grn-paper-sign-item">
+                        <span className="grn-paper-sign-lbl">Handed Over by</span>
+                        <span className="grn-paper-sign-dots"></span>
+                      </div>
+                      <div className="grn-paper-sign-item">
+                        <span className="grn-paper-sign-lbl">Received by</span>
+                        <span className="grn-paper-sign-dots"></span>
+                      </div>
+                    </div>
+
+                    {/* Sinhala Notice from Image 1 */}
+                    <div className="grn-paper-sinhala-notice">
+                      බිල්පතේ දෝෂ ඇත්නම් පැය 48 ඇතුලත දැනුම් දීමට කාරුණික වන්න.
+                    </div>
+
+                    {/* Bottom Two Boxes matching Image 1 */}
+                    <div className="grn-paper-bottom-grid">
+                      {/* Left: Below Items No Guaranty */}
+                      <div className="grn-paper-no-guaranty-box">
+                        <div style={{ fontWeight: '900', marginBottom: '2px' }}>BELOW ITEMS NO GUARANTY</div>
+                        <div>Pavna, O/E Items, Electrical Items,</div>
+                        <div>All Category Outers with removed packs.</div>
+                      </div>
+
+                      {/* Right: Box Received Note Boxed Form */}
+                      <div className="grn-paper-received-box">
+                        <div className="grn-paper-received-title">BOX RECEIVED NOTE</div>
+                        <div className="grn-paper-received-line">
+                          <span>Customer Name</span>
+                          <span>: ______________________</span>
+                        </div>
+                        <div className="grn-paper-received-line">
+                          <span>Date &amp; Time</span>
+                          <span>: ______________________</span>
+                        </div>
+                        <div className="grn-paper-received-line">
+                          <span>Box Received Qty</span>
+                          <span>: ______________________</span>
+                        </div>
+                        <div className="grn-paper-received-line">
+                          <span>Signature with Seal</span>
+                          <span>: ______________________</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Centered Footer from Image 1 */}
+                    <div className="grn-paper-thank-you">
+                      THANK YOU COME AGAIN.
                     </div>
                   </div>
-                </div>
-
-                <div style={{ fontSize: '10px', color: '#333333', marginBottom: '8px', borderBottom: '1px solid #000000', paddingBottom: '4px' }}>
-                  <strong>Filters:</strong> GRN #: {grnNumberSearch || 'All'} &bull; Supplier: {grnSelectedSupplier || 'All'} &bull; Matching Records: {grnReportData?.data?.length || 0}
-                </div>
-
-                <table className="grn-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: '85px' }}>GRN Number</th>
-                      <th style={{ width: '85px' }}>GRN Date</th>
-                      <th style={{ width: '75px' }}>Supplier Code</th>
-                      <th>Supplier Name</th>
-                      <th style={{ width: '100px' }}>Supplier Inv #</th>
-                      <th style={{ width: '75px' }}>Payment</th>
-                      <th style={{ width: '70px', textAlign: 'right' }}>Total Qty</th>
-                      <th style={{ width: '80px', textAlign: 'right' }}>Discount</th>
-                      <th style={{ width: '95px', textAlign: 'right' }}>Total Value</th>
-                      <th style={{ width: '65px', textAlign: 'center' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grnReportData?.data && grnReportData.data.length > 0 ? (
-                      grnReportData.data.map((grn, idx) => (
-                        <tr key={idx}>
-                          <td className="cs-code">{grn.grnNumber}</td>
-                          <td>{grn.date || grn.rawDate}</td>
-                          <td className="cs-code">{grn.supplierCode || '—'}</td>
-                          <td>{grn.supplierName}</td>
-                          <td>{grn.supplierInvoiceNo || '—'}</td>
-                          <td>{grn.paymentMethod}</td>
-                          <td style={{ textAlign: 'right' }}>{Number(grn.totalQuantity || 0).toFixed(2)}</td>
-                          <td style={{ textAlign: 'right' }}>{Number(grn.totalDiscount || 0).toFixed(2)}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{Number(grn.totalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                          <td style={{ textAlign: 'center' }}>{grn.status || 'Posted'}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                          No Goods Received Notes found matching your search and filter criteria.
-                        </td>
-                      </tr>
-                    )}
-                    <tr className="grn-grandtotal-row">
-                      <td colSpan={6} style={{ textAlign: 'right', fontWeight: '900' }}>
-                        Grand Total ({grnReportData?.summary?.matchingGrnsCount ?? grnReportData?.data?.length ?? 0} GRNs):
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: '900' }}>
-                        {Number(grnReportData?.summary?.totalQuantity || 0).toFixed(2)}
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: '900' }}>
-                        {Number(grnReportData?.summary?.totalDiscount || 0).toFixed(2)}
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: '900' }}>
-                        Rs. {Number(grnReportData?.summary?.grandTotalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                );
+              })()
             ) : (
               <>
                 {/* =========================================================================
@@ -7071,14 +7365,44 @@ function Reports() {
           {/* Interactive Filter Controls Bar */}
           <div className="reports-filter-bar no-print">
             <div className="reports-filter-controls">
-              {/* 1. Goods Return Note Number Search */}
+              {/* 1. Invoice Number Search */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>Invoice #:</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  style={{ width: '135px', padding: '2px 6px' }}
+                  placeholder="e.g. 0000023133"
+                  value={grenInvoiceSearch}
+                  onChange={(e) => setGrenInvoiceSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGrenSearch()}
+                  title="Search by Supplier Invoice Number (Loads supplier, GRN, and GREN)"
+                />
+              </div>
+
+              {/* 2. GRN Number Search */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>GRN #:</span>
+                <input
+                  type="text"
+                  className="reports-search-input"
+                  style={{ width: '135px', padding: '2px 6px' }}
+                  placeholder="e.g. 0000033919"
+                  value={grenGrnSearch}
+                  onChange={(e) => setGrenGrnSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleGrenSearch()}
+                  title="Search by Original GRN Reference Number"
+                />
+              </div>
+
+              {/* 3. Goods Return Note Number Search */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>G.R.E.N #:</span>
                 <input
                   type="text"
                   className="reports-search-input"
-                  style={{ width: '135px', padding: '2px 6px' }}
-                  placeholder="e.g. 204, 0, 1"
+                  style={{ width: '110px', padding: '2px 6px' }}
+                  placeholder="e.g. 205, 0, 1"
                   value={grenNumberSearch}
                   onChange={(e) => setGrenNumberSearch(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleGrenSearch()}
@@ -7254,6 +7578,84 @@ function Reports() {
             )}
           </div>
 
+          {/* Active Invoice & Supplier Match Breadcrumb Banner */}
+          {(grenInvoiceSearch || grenGrnSearch || grenReportData?.matchedInvoice || (grenSelectedSupplier && grenSelectedSupplier !== 'All')) && (
+            <div className="invoice-match-banner no-print">
+              <div className="invoice-match-content">
+                <span style={{ fontSize: '16px' }}>📍</span>
+                {grenInvoiceSearch && (
+                  <>
+                    <span style={{ fontWeight: 'bold' }}>Invoice:</span>
+                    <span className="invoice-match-pill">{grenInvoiceSearch}</span>
+                    <span>➜</span>
+                  </>
+                )}
+                <span style={{ fontWeight: 'bold' }}>Supplier:</span>
+                <span className="invoice-match-pill">
+                  {grenReportData?.matchedInvoice?.supplierName || selectedGren?.supplierName || grenSelectedSupplier}
+                  {grenReportData?.matchedInvoice?.supplierCode ? ` [${grenReportData.matchedInvoice.supplierCode}]` : selectedGren?.supplierCode ? ` [${selectedGren.supplierCode}]` : ''}
+                </span>
+                <span>➜</span>
+                <span style={{ fontWeight: 'bold' }}>Original GRN:</span>
+                <span className="invoice-match-pill" style={{ color: '#005bb7', borderColor: '#93c5fd' }}>
+                  {selectedGren?.originalGrnNumber || grenGrnSearch || grenReportData?.matchedInvoice?.grnNumber || '—'}
+                </span>
+                <span>➜</span>
+                <span style={{ fontWeight: 'bold' }}>G.RE.N Put:</span>
+                <span className="invoice-match-pill" style={{ color: '#e11d48', borderColor: '#fca5a5' }}>
+                  {selectedGren?.grenNumber || grenReportData?.matchedInvoice?.grenNumber || 'Loaded below'}
+                </span>
+                {selectedGren?.date && (
+                  <span style={{ fontSize: '11px', color: '#475569' }}>
+                    ({selectedGren.date})
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 'bold' }}>
+                  ✓ {grenReportData?.notes?.length || 0} Return Note(s) loaded
+                </span>
+                <button
+                  type="button"
+                  className="reports-action-btn"
+                  onClick={() => setViewMode('paper')}
+                  style={{ fontSize: '11px', padding: '2px 8px', background: '#ffffff', color: '#005bb7', borderColor: '#93c5fd' }}
+                >
+                  📄 View Exact Image 2 Paper Report
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Return Note Selector Toolbar (if multiple notes for supplier) */}
+          {grenReportData?.notes && grenReportData.notes.length > 1 && (
+            <div className="grn-selector-toolbar no-print">
+              <span style={{ fontSize: '11.5px', fontWeight: 'bold', color: '#334155' }}>
+                Select Return Note to View:
+              </span>
+              <button
+                type="button"
+                className={`grn-selector-btn ${!selectedGren ? 'active' : ''}`}
+                onClick={() => setSelectedGren(null)}
+              >
+                📑 View All Notes ({grenReportData.notes.length})
+              </button>
+              {grenReportData.notes.map((note) => {
+                const isActive = selectedGren && ((selectedGren.grenNumber === note.grenNumber) || (selectedGren._id === note._id));
+                return (
+                  <button
+                    key={note.grenNumber || note._id}
+                    type="button"
+                    className={`grn-selector-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => setSelectedGren(note)}
+                  >
+                    G.RE.N #{note.grenNumber} ({note.date || '—'}) - Rs. {Number(note.totalReturnValue || note.grandTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Report Body */}
           <div className="reports-content-body">
             {grenLoading ? (
@@ -7264,117 +7666,184 @@ function Reports() {
               </div>
             ) : viewMode === 'paper' ? (
               /* =========================================================================
-                 EXACT PHYSICAL CONTINUOUS COMPUTER PAPER (MATCHING G.RE.N PDF)
+                 IMAGE 2 REPLICA: EXACT PHYSICAL GOODS RETURN NOTES (G.RE.N) REPORT
+                 Matches exact continuous paper layout from legacy system (Image 2)
                  ========================================================================= */
-              <div className="closing-stock-paper-sheet" id="printable-gren-report">
-                {/* Header matching PDF Scan */}
-                <div className="cs-report-header" style={{ marginBottom: '8px' }}>
-                  <div className="cs-company-name">SOFAST (PVT) LTD</div>
-                  <div className="cs-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
-                  <div className="cs-company-phone">034-2210680, 074-0295088</div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: '6px' }}>
-                    <div className="cs-report-title" style={{ margin: 0 }}>
-                      Goods Return Notes (G.RE.N) Report
-                    </div>
-                    <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
-                      {grenStartDate ? `From ${grenStartDate}` : 'All Dates'} {grenEndDate ? `To ${grenEndDate}` : ''}
-                    </div>
-                  </div>
+              <div className="gren-image2-sheet" id="printable-gren-report">
+                {/* Company Header matching Image 2 */}
+                <div className="gren-image2-header">
+                  <div className="gren-image2-company-name">SOFAST (PVT) LTD</div>
+                  <div className="gren-image2-company-addr">7E, MADDEGODA ROAD, MATHUGAMA</div>
+                  <div className="gren-image2-company-phone">034-2210680, 074-029</div>
+                  <div className="gren-image2-title">Goods Return Notes</div>
                 </div>
 
-                <div style={{ fontSize: '10px', color: '#333333', marginBottom: '8px', borderBottom: '1px solid #000000', paddingBottom: '4px' }}>
-                  <strong>Filters:</strong> G.RE.N #: {grenNumberSearch || 'All'} &bull; Supplier: {grenSelectedSupplier || 'All'} &bull; Matching Records: {grenReportData?.notes?.length || 0}
+                {/* Solid Border Box for Column Headers matching Image 2 */}
+                <div
+                  style={{
+                    border: '1.5px solid #000000',
+                    padding: '4px 8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontWeight: '800',
+                    fontFamily: "'Courier New', Courier, monospace",
+                    fontSize: '11.5px',
+                    boxSizing: 'border-box',
+                    width: '100%',
+                  }}
+                >
+                  <div style={{ width: '130px', textAlign: 'left' }}>Code</div>
+                  <div style={{ flex: 1, textAlign: 'left' }}>Description</div>
+                  <div style={{ width: '110px', textAlign: 'right' }}>Rate</div>
+                  <div style={{ width: '80px', textAlign: 'right' }}>Qty</div>
+                  <div style={{ width: '120px', textAlign: 'right' }}>Value</div>
                 </div>
 
-                {/* Table matching PDF Scan */}
-                <table className="gren-table">
-                  <thead>
-                    <tr className="gren-header-row">
-                      <th className="gren-th-code col-left">Code</th>
-                      <th className="gren-th-desc col-left">Description</th>
-                      <th className="gren-th-rate col-right">Rate</th>
-                      <th className="gren-th-qty col-right">Qty</th>
-                      <th className="gren-th-val col-right">Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grenReportData?.notes && grenReportData.notes.length > 0 ? (
-                      grenReportData.notes.map((note) => (
-                        <Fragment key={note.grenNumber}>
-                          {/* G.RE.N Meta Row */}
-                          <tr className="gren-meta-row">
-                            <td colSpan={5} className="gren-meta-cell">
-                              <span style={{ fontWeight: '800' }}>G.RE.N: {note.grenNumber}</span>
-                              <span style={{ marginLeft: '32px', fontWeight: '800' }}>Date: {note.date}</span>
-                              <span style={{ marginLeft: '32px', fontWeight: '800' }}>Supplier: {note.supplierCode} ({note.supplierName})</span>
-                              {note.originalGrnNumber && note.originalGrnNumber !== '—' && (
-                                <span style={{ marginLeft: '32px', fontWeight: '800' }}>GRN Ref: {note.originalGrnNumber}</span>
-                              )}
-                            </td>
-                          </tr>
+                {/* Notes List: either all matching notes or selected note */}
+                {(() => {
+                  const notesToRender = selectedGren
+                    ? [selectedGren]
+                    : (grenReportData?.notes && grenReportData.notes.length > 0)
+                      ? grenReportData.notes
+                      : [];
 
-                          {/* Dashed line under G.RE.N meta header */}
-                          <tr className="gren-dashed-line-row">
-                            <td colSpan={5} className="gren-dashed-line-cell"></td>
-                          </tr>
+                  if (notesToRender.length === 0) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                        No Goods Return Notes found matching the selected filters.
+                      </div>
+                    );
+                  }
 
-                          {/* Items Rows */}
-                          {(note.lineItems || note.items || []).map((item, idx) => (
-                            <tr key={idx} className="gren-item-row">
-                              <td className="gren-code-cell">{item.code || item.itemCode}</td>
-                              <td className="gren-desc-cell">{item.description}</td>
-                              <td className="gren-rate-cell">
-                                {Number(item.purchaseCost || item.rate || item.unitPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                              </td>
-                              <td className="gren-qty-cell">
-                                {Number(item.returnQuantity || item.qtyReturn || item.quantity || 0).toFixed(2)}
-                              </td>
-                              <td className="gren-val-cell">
-                                {Number(item.lineValue || item.totalValue || item.value || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                              </td>
-                            </tr>
-                          ))}
+                  const grandTotalVal = selectedGren
+                    ? Number(selectedGren.totalReturnValue || selectedGren.subTotal || 0)
+                    : (grenReportData?.summary?.grandTotalValue ||
+                        notesToRender.reduce((sum, n) => sum + Number(n.totalReturnValue || n.subTotal || 0), 0));
 
-                          {/* Sub Total Row */}
-                          <tr className="gren-subtotal-row">
-                            <td colSpan={4} className="gren-subtotal-label">Sub Total</td>
-                            <td className="gren-val-cell gren-subtotal-val">
-                              {Number(note.totalReturnValue || note.subTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
+                  return (
+                    <>
+                      {notesToRender.map((note, nIdx) => {
+                        const items = note.lineItems || note.items || [];
+                        const subTotalVal = Number(note.totalReturnValue || note.subTotal || 0);
 
-                          {/* Dashed line after Sub Total */}
-                          <tr className="gren-dashed-line-row">
-                            <td colSpan={5} className="gren-dashed-line-cell"></td>
-                          </tr>
-                        </Fragment>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
-                          No Goods Return Notes found matching the selected filters.
-                        </td>
-                      </tr>
-                    )}
+                        return (
+                          <div
+                            key={note.grenNumber || nIdx}
+                            className="gren-image2-dashed-box"
+                            style={{
+                              border: '1.5px dashed #000000',
+                              padding: '6px 8px',
+                              marginTop: '2px',
+                              marginBottom: '6px',
+                              boxSizing: 'border-box',
+                              fontFamily: "'Courier New', Courier, monospace",
+                              fontSize: '11.5px',
+                            }}
+                          >
+                            {/* Meta Row matching Image 2: G.RE.N: 205   Date: 06/08/2026   Supplier:RAT */}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                fontWeight: '800',
+                                padding: '2px 0 4px 0',
+                                borderBottom: '1px dashed #000000',
+                                marginBottom: '6px',
+                              }}
+                            >
+                              <div style={{ width: '170px' }}>
+                                G.RE.N: {note.grenNumber}
+                              </div>
+                              <div style={{ width: '210px' }}>
+                                Date: {note.date}
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                Supplier:{note.supplierCode || note.supplierName}
+                              </div>
+                            </div>
 
-                    {/* Grand Total Row */}
-                    <tr className="gren-grandtotal-row">
-                      <td colSpan={4} className="gren-grandtotal-label">Grand Total</td>
-                      <td className="gren-val-cell gren-grandtotal-val">
-                        Rs. {Number(grenReportData?.summary?.grandTotalValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                            {/* Item Rows matching Image 2 */}
+                            {items.map((item, idx) => {
+                              const code = item.code || item.itemCode || '';
+                              const desc = item.description || '';
+                              const rate = Number(item.purchaseCost || item.rate || item.unitPrice || 0);
+                              const qty = Number(item.returnQuantity || item.qtyReturn || item.quantity || 0);
+                              const val = Number(item.lineValue || item.totalValue || item.value || (rate * qty));
 
-                {/* Footer matching PDF Scan */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '6px' }}>
-                  <div></div>
-                  <div style={{ fontFamily: 'Courier New, monospace', fontWeight: '800', fontSize: '11px' }}>
-                    Page 1 of 1
-                  </div>
-                </div>
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    padding: '2px 0',
+                                    lineHeight: '1.4',
+                                  }}
+                                >
+                                  <div style={{ width: '130px', fontWeight: '800', fontFamily: 'monospace' }}>
+                                    {code}
+                                  </div>
+                                  <div style={{ flex: 1, paddingRight: '8px' }}>
+                                    {desc}
+                                  </div>
+                                  <div style={{ width: '110px', textAlign: 'right' }}>
+                                    {rate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </div>
+                                  <div style={{ width: '80px', textAlign: 'right' }}>
+                                    {qty.toFixed(2)}
+                                  </div>
+                                  <div style={{ width: '120px', textAlign: 'right', fontWeight: '800' }}>
+                                    {val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Sub Total Row inside Dashed Box matching Image 2 */}
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                alignItems: 'center',
+                                borderTop: '1px dashed #000000',
+                                marginTop: '4px',
+                                paddingTop: '4px',
+                                fontWeight: '800',
+                              }}
+                            >
+                              <div style={{ width: '110px', textAlign: 'right' }}>
+                                Sub Total
+                              </div>
+                              <div style={{ width: '120px', textAlign: 'right' }}>
+                                {subTotalVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Grand Total Row outside Dashed Box matching Image 2 */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          alignItems: 'center',
+                          fontWeight: '900',
+                          fontSize: '12px',
+                          padding: '6px 8px 12px 8px',
+                          fontFamily: "'Courier New', Courier, monospace",
+                        }}
+                      >
+                        <div style={{ width: '130px', textAlign: 'right' }}>
+                          Grand Total
+                        </div>
+                        <div style={{ width: '120px', textAlign: 'right' }}>
+                          {Number(grandTotalVal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             ) : (
               /* =========================================================================

@@ -48,6 +48,7 @@ function GoodReturnNote() {
   const [grenNumber, setGrenNumber] = useState('0');
   const [returnDate, setReturnDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedGrnNumber, setSelectedGrnNumber] = useState('');
+  const [invoiceFilter, setInvoiceFilter] = useState('');
   const [supplierDetailsText, setSupplierDetailsText] = useState('');
 
   // Dropdown Lists
@@ -112,6 +113,7 @@ function GoodReturnNote() {
 
     setReturnDate(new Date().toISOString().split('T')[0]);
     setSelectedGrnNumber('');
+    setInvoiceFilter('');
     setSupplierDetailsText('');
     setSelectedGrnData(null);
     setCurrentGrenRecord(null);
@@ -125,14 +127,42 @@ function GoodReturnNote() {
   /**
    * Fetch list of available GRNs
    */
-  const fetchGrnList = async () => {
+  const fetchGrnList = async (supplier = '', invoice = '') => {
     try {
-      const res = await api.get('/good-returns/grns');
+      const params = {};
+      if (supplier && supplier !== 'All') params.supplier = supplier;
+      if (invoice) params.invoice = invoice;
+      const res = await api.get('/good-returns/grns', { params });
       if (res.data && res.data.success) {
         setGrnList(res.data.data || []);
       }
     } catch (err) {
       console.error('Error fetching GRN list:', err);
+    }
+  };
+
+  /**
+   * Quick filter GRNs by Supplier Invoice Number
+   */
+  const handleInvoiceFilterChange = async (inv) => {
+    setInvoiceFilter(inv);
+    const clean = inv.trim();
+    if (!clean) {
+      fetchGrnList();
+      return;
+    }
+    try {
+      const res = await api.get('/good-returns/grns', { params: { invoice: clean } });
+      if (res.data?.success && res.data.data) {
+        const found = res.data.data;
+        setGrnList(found);
+        if (found.length === 1) {
+          const gNum = String(found[0].grnNumber !== undefined ? found[0].grnNumber : found[0].no);
+          handleGrnChange(gNum);
+        }
+      }
+    } catch (err) {
+      console.warn('Error filtering by invoice:', err);
     }
   };
 
@@ -771,7 +801,18 @@ function GoodReturnNote() {
 
           {/* Grn Selection & Details Display Area */}
           <div className="gren-field-group" style={{ flex: 1 }}>
-            <span className="gren-label">Grn</span>
+            <span className="gren-label">Inv #</span>
+            <input
+              type="text"
+              className="gren-combo-input"
+              style={{ width: '90px' }}
+              placeholder="e.g. 0000023133"
+              value={invoiceFilter}
+              onChange={(e) => handleInvoiceFilterChange(e.target.value)}
+              title="Search and filter GRNs by Supplier Invoice Number"
+            />
+
+            <span className="gren-label" style={{ marginLeft: 4 }}>Grn</span>
             <select
               className="gren-combo-select gren-input-grn-no"
               value={selectedGrnNumber}

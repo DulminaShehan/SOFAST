@@ -69,7 +69,33 @@ export const getNextGrenNumber = async (req, res, next) => {
  */
 export const getGrnListForReturn = async (req, res, next) => {
   try {
-    const grns = await Grn.find({ status: { $ne: 'cancelled' } })
+    const { supplier = '', invoice = '' } = req.query;
+    let query = { status: { $ne: 'cancelled' } };
+
+    if (supplier && supplier !== 'All') {
+      const s = supplier.trim();
+      query.$or = [
+        { supplierCode: new RegExp(s, 'i') },
+        { supplierName: new RegExp(s, 'i') },
+        { supplier: new RegExp(s, 'i') },
+      ];
+    }
+
+    if (invoice && invoice !== 'All') {
+      const inv = invoice.trim();
+      const invCondition = [
+        { supplierInvoiceNo: new RegExp(inv, 'i') },
+        { invoice: new RegExp(inv, 'i') },
+      ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: invCondition }];
+        delete query.$or;
+      } else {
+        query.$or = invCondition;
+      }
+    }
+
+    const grns = await Grn.find(query)
       .sort({ date: -1, createdAt: -1 })
       .lean();
 

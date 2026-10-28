@@ -364,6 +364,38 @@ export const getReportFilterOptions = async (req, res, next) => {
         const invCus = await Invoice.distinct('customerName');
         const stlCus = await mongoose.connection.db.collection('invoicesettlements').distinct('customer');
         customersList = [...new Set([...(cusNames || []), ...(invCus || []), ...(stlCus || [])])].filter(Boolean).sort();
+
+        // Collect distinct supplier invoices mapped to their supplier and GRN
+        const grnInvoices = await Grn.find(
+          {},
+          { supplierInvoiceNo: 1, invoice: 1, supplierCode: 1, supplierName: 1, grnNumber: 1, no: 1 }
+        ).lean();
+
+        const invoicesList = [];
+        const seenInvoices = new Set();
+        (grnInvoices || []).forEach((g) => {
+          const inv = String(g.supplierInvoiceNo || g.invoice || '').trim();
+          if (inv && !seenInvoices.has(inv.toLowerCase())) {
+            seenInvoices.add(inv.toLowerCase());
+            invoicesList.push({
+              invoice: inv,
+              supplierCode: g.supplierCode || '',
+              supplierName: g.supplierName || '',
+              grnNumber: String(g.grnNumber || g.no || ''),
+            });
+          }
+        });
+
+        return res.status(200).json({
+          success: true,
+          categories: categories.length > 0 ? categories : ['2W', '2W-BODY', '2W-ELEC', '2W-ENG', '3W', '3W-BODY', 'OIL'],
+          bins: bins.length > 0 ? bins : ['R1', 'R2', 'R3', 'DISPLAY', 'Main Store'],
+          staff: staffList,
+          suppliers: suppliersList,
+          supplierMaster: supplierMasterList || [],
+          customers: customersList,
+          invoices: invoicesList,
+        });
       } catch (err) {
         console.warn('Filter options fetch warning:', err.message);
       }
@@ -377,6 +409,7 @@ export const getReportFilterOptions = async (req, res, next) => {
       suppliers: suppliersList,
       supplierMaster: supplierMasterList || [],
       customers: customersList,
+      invoices: [],
     });
   } catch (error) {
     next(error);
@@ -875,6 +908,9 @@ export const getGrnReport = async (req, res, next) => {
       toDate = '',
       grnNumber = '',
       grnNo = '',
+      invoice = '',
+      supplierInvoiceNo = '',
+      invoiceNo = '',
       supplier = 'All',
       user = 'All',
       search = '',
@@ -886,6 +922,7 @@ export const getGrnReport = async (req, res, next) => {
     const start = (startDate || fromDate || '').trim();
     const end = (endDate || toDate || '').trim();
     const grnNumQuery = (grnNumber || grnNo || '').trim();
+    const invoiceQuery = (invoice || supplierInvoiceNo || invoiceNo || '').trim();
 
     // Validate that From Date is not later than To Date
     if (start && end) {
@@ -1025,9 +1062,12 @@ export const getGrnReport = async (req, res, next) => {
               description: li.description || '',
               quantity: qty,
               receivedQuantity: qty,
+              unit: li.unit || (String(li.description || '').toUpperCase().includes('SET') ? 'SET' : 'PCS'),
               returnQty: Number(li.returnQty || 0),
+              isReturned: li.isReturned !== undefined ? li.isReturned : (Number(li.returnQty || 0) > 0 || String(li.description || '').toUpperCase().includes('RTN')),
               unitPrice: rate,
               purchasePrice: rate,
+              salesPrice: sellPrice || rate,
               rate,
               sellingPrice: sellPrice,
               discount: disc,
@@ -1047,6 +1087,10 @@ export const getGrnReport = async (req, res, next) => {
               : computedVal
           );
 
+          const discPercent = doc.discountPercent !== undefined ? doc.discountPercent : (doc.remark && doc.remark.includes('3.5%') ? 3.5 : (totalDiscVal > 0 && computedVal > 0 ? (totalDiscVal / (computedVal + totalDiscVal)) * 100 : 0));
+          const discAmount = doc.discountAmount !== undefined ? doc.discountAmount : Number(totalDiscVal.toFixed(2));
+          const subTot = doc.subTotal !== undefined ? doc.subTotal : (finalVal + discAmount);
+
           return {
             _id: String(doc._id),
             grnId: doc._id,
@@ -1059,16 +1103,24 @@ export const getGrnReport = async (req, res, next) => {
             supplier: resolvedName,
             supplierInvoiceNo: invNo,
             invoice: invNo,
+            quoNo: invNo,
             paymentMethod: payMethod,
             paidBy: payMethod,
             totalQuantity: totalQty,
-            totalDiscount: Number(totalDiscVal.toFixed(2)),
+            totalDiscount: discAmount,
+            discountPercent: Number(Number(discPercent).toFixed(2)),
+            discountAmount: discAmount,
+            vatPercent: doc.vatPercent !== undefined ? doc.vatPercent : 0,
+            vatAmount: doc.vatAmount !== undefined ? doc.vatAmount : 0,
+            categoryCode: doc.categoryCode || 'C3',
+            subTotal: Number(Number(subTot).toFixed(2)),
             totalValue: Number(finalVal.toFixed(2)),
+            grandTotal: Number(finalVal.toFixed(2)),
             status: statusStr,
             isPosted: doc.isPosted !== false,
             location,
             user: userName,
-            remark: doc.remark || '',
+            remark: doc.remark || (invNo ? `Invoice: ${invNo}` : ''),
             itemsCount: lineItems.length,
             lineItems,
           };
@@ -1110,7 +1162,32 @@ export const getGrnReport = async (req, res, next) => {
         .map((item) => item.record);
     }
 
-    // 3. Filter by Supplier (Code or Name, matching Supplier Master reliably)
+    // 3. Filter by Supplier Invoice No (e.g. 0000023133)
+    if (invoiceQuery && invoiceQuery !== 'All') {
+      const invQ = invoiceQuery.toLowerCase();
+      const invQClean = invQ.replace(/^inv-?0*/i, '');
+      allGrnRecords = allGrnRecords
+        .map((g) => {
+          const invStr = String(g.supplierInvoiceNo || g.invoice || '').toLowerCase();
+          const invClean = invStr.replace(/^inv-?0*/i, '');
+          let matchScore = 0;
+          if (invStr === invQ) {
+            matchScore = 100; // Exact match
+          } else if (invQClean && invClean === invQClean) {
+            matchScore = 95; // Normalized exact match
+          } else if (invStr.startsWith(invQ) || (invQClean && invClean.startsWith(invQClean))) {
+            matchScore = 80;
+          } else if (invStr.includes(invQ) || (invQClean && invClean.includes(invQClean))) {
+            matchScore = 60;
+          }
+          return { record: g, matchScore };
+        })
+        .filter((item) => item.matchScore > 0)
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .map((item) => item.record);
+    }
+
+    // 4. Filter by Supplier (Code or Name, matching Supplier Master reliably)
     if (supplier && supplier !== 'All') {
       const supQuery = String(supplier).trim().toLowerCase();
       const cleanSupQuery = supQuery.replace(/[^a-zA-Z0-9]/g, '');
@@ -1225,8 +1302,17 @@ export const getGrnReport = async (req, res, next) => {
         from: start || '',
         to: end || '',
       },
+      matchedInvoice: invoiceQuery && allGrnRecords.length > 0 ? {
+        invoice: allGrnRecords[0].supplierInvoiceNo || allGrnRecords[0].invoice,
+        supplierCode: allGrnRecords[0].supplierCode,
+        supplierName: allGrnRecords[0].supplierName,
+        grnNumber: allGrnRecords[0].grnNumber,
+        grnDate: allGrnRecords[0].date,
+      } : null,
       filters: {
         grnNumber: grnNumQuery,
+        invoice: invoiceQuery,
+        supplierInvoiceNo: invoiceQuery,
         supplier: supplier || 'All',
         startDate: start,
         endDate: end,
@@ -1856,6 +1942,12 @@ export const getGoodsReturnNotes = async (req, res, next) => {
       grenNumber = '',
       returnNumber = '',
       grenNo = '',
+      invoice = '',
+      supplierInvoiceNo = '',
+      invoiceNo = '',
+      grnReference = '',
+      grnNumber = '',
+      grnNo = '',
       search = '',
       sortBy = 'default',
       page = 1,
@@ -1865,6 +1957,8 @@ export const getGoodsReturnNotes = async (req, res, next) => {
     const start = (startDate || fromDate || '').trim();
     const end = (endDate || toDate || '').trim();
     const grenNumQuery = (grenNumber || returnNumber || grenNo || '').trim();
+    const invoiceQuery = (invoice || supplierInvoiceNo || invoiceNo || '').trim();
+    const grnRefQuery = (grnReference || grnNumber || grnNo || '').trim();
 
     // Validate that From Date is not later than To Date
     if (start && end) {
@@ -2093,6 +2187,28 @@ export const getGoodsReturnNotes = async (req, res, next) => {
       });
     }
 
+    // 5b. Filter by Supplier Invoice No (e.g. 0000023133)
+    if (invoiceQuery && invoiceQuery !== 'All') {
+      const invQ = invoiceQuery.toLowerCase();
+      const invQClean = invQ.replace(/^inv-?0*/i, '');
+      allReturnRecords = allReturnRecords.filter((n) => {
+        const invStr = String(n.supplierInvoiceNo || n.invoice || '').toLowerCase();
+        const invClean = invStr.replace(/^inv-?0*/i, '');
+        return invStr.includes(invQ) || (invQClean && invClean.includes(invQClean)) || invStr === invQ;
+      });
+    }
+
+    // 5c. Filter by linked GRN Reference (e.g. 0000033919)
+    if (grnRefQuery && grnRefQuery !== 'All') {
+      const gQ = grnRefQuery.toLowerCase();
+      const gQClean = gQ.replace(/^grn-?0*/i, '');
+      allReturnRecords = allReturnRecords.filter((n) => {
+        const gStr = String(n.originalGrnNumber || n.grnReference || '').toLowerCase();
+        const gClean = gStr.replace(/^grn-?0*/i, '');
+        return gStr.includes(gQ) || (gQClean && gClean.includes(gQClean)) || gStr === gQ;
+      });
+    }
+
     // 6. Filter by Supplier (Code or Name, case-insensitive)
     if (supplier && supplier !== 'All') {
       const supQuery = String(supplier).trim().toLowerCase();
@@ -2211,6 +2327,23 @@ export const getGoodsReturnNotes = async (req, res, next) => {
           grenNumber: highestNote.grenNumber,
           subTotal: highestNote.subTotal || highestNote.totalReturnValue || 0,
         },
+      },
+      matchedInvoice: invoiceQuery && allReturnRecords.length > 0 ? {
+        invoice: allReturnRecords[0].supplierInvoiceNo || allReturnRecords[0].invoice,
+        supplierCode: allReturnRecords[0].supplierCode,
+        supplierName: allReturnRecords[0].supplierName,
+        grnNumber: allReturnRecords[0].originalGrnNumber || allReturnRecords[0].grnReference,
+        grenNumber: allReturnRecords[0].grenNumber,
+      } : null,
+      filters: {
+        grenNumber: grenNumQuery,
+        invoice: invoiceQuery,
+        supplierInvoiceNo: invoiceQuery,
+        grnReference: grnRefQuery,
+        supplier: supplier || 'All',
+        startDate: start,
+        endDate: end,
+        search,
       },
       notes: allReturnRecords,
       data: allReturnRecords, // alias for consistency
