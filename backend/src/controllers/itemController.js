@@ -95,7 +95,9 @@ const normalizeItem = (item) => {
     averageCost: item.averageCost !== undefined ? Number(item.averageCost) : 0,
     sellingPrice: pricing.sellingPrice,
     finalSellingPrice,
-    value: item.value !== undefined ? Number(item.value) : 0,
+    value: item.value !== undefined ? Number(item.value) : (stock * (Number(item.averageCost || item.lastGrnPrice) || 0)),
+    rackBin: item.rackBin || item.bin || '',
+    costPrice: item.costPrice !== undefined ? Number(item.costPrice) : (item.averageCost !== undefined ? Number(item.averageCost) : 0),
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
@@ -134,8 +136,8 @@ export const getItems = async (req, res, next) => {
     }
 
     const total = await Item.countDocuments(query);
-    const isUnlimited = limit === 'all' || limit === '0' || Number(limit) === 0 || Number(limit) >= 5000;
-    const limitNum = isUnlimited ? 0 : Math.min(Number(limit) || 1000, 50000);
+    const isUnlimited = limit === 'all' || limit === '0' || Number(limit) === 0;
+    const limitNum = isUnlimited ? 0 : Math.max(Number(limit) || 100, 1);
     const pageNum = Math.max(Number(page) || 1, 1);
     const skip = limitNum > 0 ? (pageNum - 1) * limitNum : 0;
 
@@ -152,7 +154,8 @@ export const getItems = async (req, res, next) => {
       count: normalized.length,
       total,
       page: pageNum,
-      totalPages: Math.ceil(total / limitNum) || 1,
+      totalPages: limitNum > 0 ? Math.ceil(total / limitNum) : 1,
+      limit: limitNum > 0 ? limitNum : total,
       data: normalized,
     });
   } catch (error) {
@@ -758,3 +761,470 @@ export const deleteItem = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @route   POST /api/items/bulk-import-preview
+ * @desc    Validate uploaded item rows, detect duplicates, and preview database matches before importing
+ */
+export const previewBulkImport = async (req, res, next) => {
+  try {
+    const { items = [] } = req.body;
+
+    if (!Array.isArray(items)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payload: items must be an array of objects containing code and description',
+      });
+    }
+
+    if (!isDbConnected()) {
+      return res.status(500).json({ success: false, message: 'Database offline' });
+    }
+
+    const totalRows = items.length;
+    const seenInFile = new Set();
+    const candidateCodes = new Set();
+    const evaluatedRows = [];
+
+    let duplicateInFileCount = 0;
+    let invalidCount = 0;
+
+    // 1. Initial validation of fields and in-file duplicate detection
+    items.forEach((item, index) => {
+      const rowNum = item.row !== undefined && item.row !== null ? Number(item.row) : index + 1;
+      const rawCode = item.code !== undefined && item.code !== null ? String(item.code).trim() : '';
+      const rawDesc = item.description !== undefined && item.description !== null ? String(item.description).trim() : '';
+      const rawBin = item.bin !== undefined && item.bin !== null ? String(item.bin).trim() : '';
+      const rawQty = item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? Math.max(0, Number(item.quantity) || 0) : 0;
+      const rawCost = item.cost !== undefined && item.cost !== null && item.cost !== '' ? Math.max(0, Number(item.cost) || 0) : 0;
+      const rawPrice = item.sellingPrice !== undefined && item.sellingPrice !== null && item.sellingPrice !== ''
+        ? Math.max(0, Number(item.sellingPrice) || 0)
+        : (item.selPrice !== undefined && item.selPrice !== null && item.selPrice !== '' ? Math.max(0, Number(item.selPrice) || 0) : 0);
+      const rawVal = item.value !== undefined && item.value !== null && item.value !== ''
+        ? Math.max(0, Number(item.value) || 0)
+        : (rawQty * rawCost);
+      const rawCat = item.category !== undefined && item.category !== null ? String(item.category).trim() : '';
+
+      if (!rawCode || !rawDesc) {
+        invalidCount++;
+        evaluatedRows.push({
+          row: rowNum,
+          code: rawCode || '(Empty)',
+          description: rawDesc || '(Empty)',
+          bin: rawBin,
+          quantity: rawQty,
+          sellingPrice: rawPrice,
+          cost: rawCost,
+          value: rawVal,
+          category: rawCat,
+          status: 'invalid',
+          reason: !rawCode && !rawDesc ? 'Both Item Code and Description are missing' : (!rawCode ? 'Item Code is missing' : 'Description is missing'),
+        });
+        return;
+      }
+
+      const lowerCode = rawCode.toLowerCase();
+      if (seenInFile.has(lowerCode)) {
+        duplicateInFileCount++;
+        evaluatedRows.push({
+          row: rowNum,
+          code: rawCode,
+          description: rawDesc,
+          bin: rawBin,
+          quantity: rawQty,
+          sellingPrice: rawPrice,
+          cost: rawCost,
+          value: rawVal,
+          category: rawCat,
+          status: 'duplicate',
+          reason: `Duplicate Item Code '${rawCode}' appears multiple times in uploaded file`,
+        });
+        return;
+      }
+
+      seenInFile.add(lowerCode);
+      candidateCodes.add(rawCode);
+      evaluatedRows.push({
+        row: rowNum,
+        code: rawCode,
+        description: rawDesc,
+        bin: rawBin,
+        quantity: rawQty,
+        sellingPrice: rawPrice,
+        cost: rawCost,
+        value: rawVal,
+        category: rawCat,
+        status: 'pending_db_check',
+        reason: '',
+      });
+    });
+
+    // 2. Query MongoDB Item collection for existing item codes in safe batches of 500
+    const candidateArray = Array.from(candidateCodes);
+    const existingMap = new Map();
+    const QUERY_CHUNK_SIZE = 500;
+
+    for (let i = 0; i < candidateArray.length; i += QUERY_CHUNK_SIZE) {
+      const chunk = candidateArray.slice(i, i + QUERY_CHUNK_SIZE);
+      const chunkExisting = await Item.find({
+        code: { $in: chunk },
+      }).select('code description location rackBin quantity stockInHand sellingPrice averageCost lastGrnPrice costPrice value category').lean();
+
+      chunkExisting.forEach((ei) => {
+        existingMap.set(String(ei.code).trim().toLowerCase(), ei);
+      });
+    }
+
+    let newCount = 0;
+    let existingCount = 0;
+
+    // 3. Mark existing vs new with full column and variance preview
+    const finalizedRows = evaluatedRows.map((r) => {
+      if (r.status !== 'pending_db_check') return r;
+      const lower = r.code.toLowerCase();
+      if (existingMap.has(lower)) {
+        existingCount++;
+        const dbItem = existingMap.get(lower);
+        const currentQty = Number(dbItem.quantity !== undefined ? dbItem.quantity : dbItem.stockInHand || 0);
+        const qtyDiff = r.quantity - currentQty;
+        return {
+          ...r,
+          status: 'existing',
+          existingDescription: dbItem.description,
+          currentStock: currentQty,
+          currentPrice: dbItem.sellingPrice || 0,
+          currentCost: dbItem.averageCost || dbItem.costPrice || dbItem.lastGrnPrice || 0,
+          currentLocation: dbItem.location || dbItem.rackBin || 'Main Store',
+          qtyDiff,
+          reason: `Item exists in DB (Current Stock: ${currentQty}, Closing Qty: ${r.quantity}${qtyDiff !== 0 ? `, Diff: ${qtyDiff > 0 ? '+' : ''}${qtyDiff}` : ''})`,
+        };
+      } else {
+        newCount++;
+        return {
+          ...r,
+          status: 'new',
+          reason: `New Item (Closing Qty: ${r.quantity}, Price: ${r.sellingPrice}, Cost: ${r.cost}, Bin: ${r.bin || 'Main Store'})`,
+        };
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      summary: {
+        totalRows,
+        validNewCount: newCount,
+        existingCount,
+        duplicateInFileCount,
+        invalidCount,
+      },
+      previewRows: finalizedRows.slice(0, 300),
+      allRowsSummary: finalizedRows.map((r) => ({
+        row: r.row,
+        code: r.code,
+        description: r.description,
+        bin: r.bin,
+        quantity: r.quantity,
+        sellingPrice: r.sellingPrice,
+        cost: r.cost,
+        value: r.value,
+        category: r.category,
+        status: r.status,
+        reason: r.reason,
+        currentStock: r.currentStock,
+        qtyDiff: r.qtyDiff,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @route   POST /api/items/bulk-import
+ * @desc    Execute safe bulk import of ALL closing stock report data fields into Item Master
+ */
+export const bulkImportItems = async (req, res, next) => {
+  try {
+    const { items = [], overwriteExisting = false, batchId: customBatchId } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No items provided for import',
+      });
+    }
+
+    if (!isDbConnected()) {
+      return res.status(500).json({ success: false, message: 'Database offline' });
+    }
+
+    const totalRows = items.length;
+    const batchId = customBatchId || `MIG_${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}`;
+    const importDate = new Date();
+
+    const seenInFile = new Set();
+    const candidateCodes = new Set();
+    const validCandidates = [];
+    const duplicates = [];
+    const invalid = [];
+
+    // 1. In-file validation & deduplication with all 7 columns
+    items.forEach((item, index) => {
+      const rowNum = item.row !== undefined && item.row !== null ? Number(item.row) : index + 1;
+      const rawCode = item.code !== undefined && item.code !== null ? String(item.code).trim() : '';
+      const rawDesc = item.description !== undefined && item.description !== null ? String(item.description).trim() : '';
+      const rawBin = item.bin !== undefined && item.bin !== null ? String(item.bin).trim() : '';
+      const rawQty = item.quantity !== undefined && item.quantity !== null && item.quantity !== '' ? Math.max(0, Number(item.quantity) || 0) : 0;
+      const rawCost = item.cost !== undefined && item.cost !== null && item.cost !== '' ? Math.max(0, Number(item.cost) || 0) : 0;
+      const rawPrice = item.sellingPrice !== undefined && item.sellingPrice !== null && item.sellingPrice !== ''
+        ? Math.max(0, Number(item.sellingPrice) || 0)
+        : (item.selPrice !== undefined && item.selPrice !== null && item.selPrice !== '' ? Math.max(0, Number(item.selPrice) || 0) : 0);
+      const rawVal = item.value !== undefined && item.value !== null && item.value !== ''
+        ? Math.max(0, Number(item.value) || 0)
+        : (rawQty * rawCost);
+      const rawCat = item.category !== undefined && item.category !== null ? String(item.category).trim() : '';
+
+      if (!rawCode || !rawDesc) {
+        invalid.push({
+          row: rowNum,
+          code: rawCode || '(Empty)',
+          description: rawDesc || '(Empty)',
+          reason: !rawCode ? 'Empty Item Code' : 'Empty Item Description',
+        });
+        return;
+      }
+
+      const lowerCode = rawCode.toLowerCase();
+      if (seenInFile.has(lowerCode)) {
+        duplicates.push({
+          row: rowNum,
+          code: rawCode,
+          description: rawDesc,
+          reason: 'Duplicate code within uploaded file',
+        });
+        return;
+      }
+
+      seenInFile.add(lowerCode);
+      candidateCodes.add(rawCode);
+      validCandidates.push({
+        row: rowNum,
+        code: rawCode,
+        description: rawDesc,
+        bin: rawBin,
+        quantity: rawQty,
+        sellingPrice: rawPrice,
+        cost: rawCost,
+        value: rawVal,
+        category: rawCat,
+      });
+    });
+
+    // 2. Fetch existing records from MongoDB in safe chunks of 500
+    const candidateArray = Array.from(candidateCodes);
+    const existingMap = new Map();
+    const QUERY_CHUNK_SIZE = 500;
+
+    for (let i = 0; i < candidateArray.length; i += QUERY_CHUNK_SIZE) {
+      const chunk = candidateArray.slice(i, i + QUERY_CHUNK_SIZE);
+      const chunkExisting = await Item.find({
+        code: { $in: chunk },
+      }).select('code description location rackBin quantity stockInHand sellingPrice averageCost lastGrnPrice costPrice value category').lean();
+
+      chunkExisting.forEach((ei) => {
+        existingMap.set(String(ei.code).trim().toLowerCase(), ei);
+      });
+    }
+
+    const toInsert = [];
+    const toUpdate = [];
+    const skipped = [];
+    const errors = [];
+    const stockDifferences = [];
+
+    // 3. Separate into new items vs existing items
+    for (const item of validCandidates) {
+      const lower = item.code.toLowerCase();
+      if (existingMap.has(lower)) {
+        const dbItem = existingMap.get(lower);
+        const currentQty = Number(dbItem.quantity !== undefined ? dbItem.quantity : dbItem.stockInHand || 0);
+        const qtyDiff = item.quantity - currentQty;
+
+        if (qtyDiff !== 0) {
+          stockDifferences.push({
+            row: item.row,
+            code: item.code,
+            description: item.description,
+            currentSystemQty: currentQty,
+            closingStockQty: item.quantity,
+            variance: qtyDiff,
+          });
+        }
+
+        if (overwriteExisting) {
+          toUpdate.push({
+            row: item.row,
+            code: item.code,
+            description: item.description,
+            bin: item.bin,
+            quantity: item.quantity,
+            sellingPrice: item.sellingPrice,
+            cost: item.cost,
+            value: item.value,
+            category: item.category,
+            currentSystemQty: currentQty,
+          });
+        } else {
+          skipped.push({
+            row: item.row,
+            code: item.code,
+            description: item.description,
+            currentStock: currentQty,
+            closingQty: item.quantity,
+            sellingPrice: dbItem.sellingPrice || 0,
+            reason: `Item code already exists in Item Master (Skipped by default). Current Stock: ${currentQty}`,
+          });
+        }
+      } else {
+        toInsert.push({
+          _sourceRow: item.row,
+          code: item.code,
+          description: item.description,
+          category: item.category || '',
+          subCategory: '',
+          location: item.bin || 'Main Store',
+          rackBin: item.bin || '',
+          type: 'Item',
+          status: 'A',
+          quantity: item.quantity,
+          stockInHand: item.quantity,
+          damagedStock: 0,
+          sellingPrice: item.sellingPrice,
+          finalSellingPrice: item.sellingPrice,
+          averageCost: item.cost,
+          lastGrnPrice: item.cost,
+          costPrice: item.cost,
+          value: item.value,
+          reorderLevel: 0,
+          reorderQty: 0,
+          maxStockLevel: 0,
+          barcode: item.code,
+          barCode: item.code,
+          isBulkItem: false,
+          remark: item.category ? `Imported (${item.category})` : '',
+          color: '',
+          importBatch: batchId,
+          migrationDate: importDate,
+        });
+      }
+    }
+
+    let insertedCount = 0;
+    let updatedCount = 0;
+
+    // 4. Perform insertions in safe batches of 250 records
+    const INSERT_BATCH_SIZE = 250;
+    for (let i = 0; i < toInsert.length; i += INSERT_BATCH_SIZE) {
+      const chunk = toInsert.slice(i, i + INSERT_BATCH_SIZE);
+      try {
+        const insertRes = await Item.insertMany(chunk, { ordered: false });
+        insertedCount += insertRes.length;
+      } catch (err) {
+        if (err.insertedDocs && err.insertedDocs.length) {
+          insertedCount += err.insertedDocs.length;
+        }
+        if (err.writeErrors && err.writeErrors.length) {
+          err.writeErrors.forEach((we) => {
+            const failedDoc = chunk[we.index];
+            errors.push({
+              row: failedDoc ? failedDoc._sourceRow : 'Unknown',
+              code: failedDoc ? failedDoc.code : 'Unknown',
+              description: failedDoc ? failedDoc.description : 'Unknown',
+              reason: we.errmsg || 'Database constraint error',
+            });
+          });
+        } else {
+          errors.push({
+            row: 'N/A',
+            code: 'BATCH_FAIL',
+            description: `Insert batch starting at record ${i + 1}`,
+            reason: err.message || 'Error inserting batch of records',
+          });
+        }
+      }
+    }
+
+    // 5. Perform updates in safe batches of 500 records if overwrite was requested
+    if (toUpdate.length > 0) {
+      const UPDATE_BATCH_SIZE = 500;
+      for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH_SIZE) {
+        const chunk = toUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+        const bulkOps = chunk.map((u) => {
+          const updateFields = {
+            description: u.description,
+            quantity: u.quantity,
+            stockInHand: u.quantity,
+            sellingPrice: u.sellingPrice,
+            finalSellingPrice: u.sellingPrice,
+            averageCost: u.cost,
+            lastGrnPrice: u.cost,
+            costPrice: u.cost,
+            value: u.value,
+            lastImportBatch: batchId,
+            lastImportDate: importDate,
+          };
+          if (u.bin) {
+            updateFields.location = u.bin;
+            updateFields.rackBin = u.bin;
+          }
+          if (u.category) {
+            updateFields.category = u.category;
+          }
+          return {
+            updateOne: {
+              filter: { code: u.code },
+              update: { $set: updateFields },
+            },
+          };
+        });
+
+        try {
+          const updateRes = await Item.bulkWrite(bulkOps, { ordered: false });
+          updatedCount += updateRes.modifiedCount || 0;
+        } catch (err) {
+          errors.push({
+            row: 'N/A',
+            code: 'UPDATE_BATCH_FAIL',
+            description: `Update batch starting at record ${i + 1}`,
+            reason: err.message || 'Error updating existing item descriptions',
+          });
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Import completed: ${insertedCount} items created, ${updatedCount} updated, ${skipped.length} existing skipped, ${duplicates.length} duplicates in file, ${invalid.length} invalid.`,
+      batchId,
+      migrationDate: importDate,
+      summary: {
+        totalRows,
+        importedCount: insertedCount,
+        updatedCount,
+        skippedCount: skipped.length,
+        duplicateCount: duplicates.length,
+        invalidCount: invalid.length,
+        errorCount: errors.length,
+        stockVarianceCount: stockDifferences.length,
+      },
+      skipped,
+      duplicates,
+      invalid,
+      errors,
+      stockDifferences: stockDifferences.slice(0, 500),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

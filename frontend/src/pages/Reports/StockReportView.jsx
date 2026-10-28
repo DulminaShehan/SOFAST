@@ -178,6 +178,7 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
         'Available Stock Quantity',
         'Reorder Level',
         'Stock Status',
+        'Cost Price (Rs.)',
         'Last GRN Date',
         'Last GRN Purchase Cost (Rs.)',
         'Selling Price (Rs.)',
@@ -192,12 +193,13 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
           `"${String(itm.description || '').replace(/"/g, '""')}"`,
           `"${String(itm.category || '').replace(/"/g, '""')}"`,
           `"${String(itm.subCategory || '').replace(/"/g, '""')}"`,
-          `"${String(itm.location || '').replace(/"/g, '""')}"`,
+          `"${String(itm.rackBin || itm.location || 'Main Store').replace(/"/g, '""')}"`,
           itm.availableStock !== undefined ? itm.availableStock : 0,
           itm.reorderLevel !== undefined ? itm.reorderLevel : 0,
           `"${itm.stockStatus || 'In Stock'}"`,
-          `"${itm.lastGrnDate || ''}"`,
-          (Number(itm.lastGrnPurchaseCost) || 0).toFixed(2),
+          (Number(itm.costPrice) || 0).toFixed(2),
+          `"${itm.lastGrnDate ? itm.lastGrnDate.slice(0, 10) : 'Not available'}"`,
+          `"${itm.hasGrnHistory && itm.lastGrnPurchaseCost > 0 ? Number(itm.lastGrnPurchaseCost).toFixed(2) : 'Not available'}"`,
           (Number(itm.sellingPrice) || 0).toFixed(2),
           (Number(itm.valuation) || 0).toFixed(2),
         ];
@@ -523,6 +525,7 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
               <th style={{ width: '100px', textAlign: 'right' }}>Available Qty</th>
               <th style={{ width: '85px', textAlign: 'right' }}>Reorder Lvl</th>
               <th style={{ width: '105px', textAlign: 'center' }}>Stock Status</th>
+              <th style={{ width: '100px', textAlign: 'right' }}>Cost Price</th>
               <th style={{ width: '95px', textAlign: 'center' }}>Last GRN Date</th>
               <th style={{ width: '110px', textAlign: 'right' }}>Last GRN Cost</th>
               <th style={{ width: '110px', textAlign: 'right' }}>Selling Price</th>
@@ -531,7 +534,7 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
           <tbody>
             {items.length === 0 && !loading ? (
               <tr>
-                <td colSpan={12} className="sr-no-data-cell">
+                <td colSpan={13} className="sr-no-data-cell">
                   <div className="sr-empty-state">
                     <span style={{ fontSize: '28px' }}>📦</span>
                     <p>No inventory items match the current search &amp; filter criteria.</p>
@@ -579,7 +582,7 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
                     </td>
                     <td className="sr-subcat-text">{itm.subCategory || 'N/A'}</td>
                     <td>
-                      <span className="sr-loc-badge">{itm.location || 'Main Store'}</span>
+                      <span className="sr-loc-badge">{itm.rackBin || itm.location || 'Main Store'}</span>
                     </td>
                     <td className="sr-cell-right">
                       <span
@@ -608,18 +611,23 @@ function StockReportView({ initialStockStatus = 'all', onNavigateTab }) {
                         </span>
                       )}
                     </td>
-                    <td className="sr-cell-center sr-grn-date text-muted">
-                      {itm.lastGrnDate ? itm.lastGrnDate.slice(0, 10) : '—'}
-                    </td>
                     <td className="sr-cell-right sr-price-col">
-                      {itm.lastGrnPurchaseCost > 0
-                        ? `Rs. ${itm.lastGrnPurchaseCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : '—'}
+                      {itm.costPrice > 0
+                        ? `Rs. ${itm.costPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : 'Rs. 0.00'}
                     </td>
-                    <td className="sr-cell-right sr-price-col font-weight-bold">
+                    <td className="sr-cell-center sr-grn-date text-muted" style={{ fontSize: itm.lastGrnDate ? '12px' : '11px' }}>
+                      {itm.lastGrnDate ? itm.lastGrnDate.slice(0, 10) : 'Not available'}
+                    </td>
+                    <td className="sr-cell-right sr-price-col" style={{ fontSize: itm.hasGrnHistory && itm.lastGrnPurchaseCost > 0 ? '12px' : '11px', color: itm.hasGrnHistory && itm.lastGrnPurchaseCost > 0 ? 'inherit' : '#64748b' }}>
+                      {itm.hasGrnHistory && itm.lastGrnPurchaseCost > 0
+                        ? `Rs. ${itm.lastGrnPurchaseCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : 'Not available'}
+                    </td>
+                    <td className="sr-cell-right sr-price-col font-weight-bold" style={{ color: '#0d6efd' }}>
                       {itm.sellingPrice > 0
                         ? `Rs. ${itm.sellingPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : '—'}
+                        : 'Rs. 0.00'}
                     </td>
                   </tr>
                 );

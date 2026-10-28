@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
+import * as XLSX from 'xlsx';
 import './ItemMaster.css';
 
 // Window Icon (SVG data URI for classic window titlebar)
@@ -74,6 +75,9 @@ const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal
 function ItemMaster() {
   const [items, setItems] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,7 +104,35 @@ function ItemMaster() {
   const [suppliersList, setSuppliersList] = useState([]);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
-  // Exact 20 Fields matching Section 2 of prompt
+  // Bulk Import States (Excel & CSV)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importStep, setImportStep] = useState('select'); // 'select' | 'preview' | 'processing' | 'results'
+  const [importFileName, setImportFileName] = useState('');
+  const [importFileSize, setImportFileSize] = useState('');
+  const [parsedImportItems, setParsedImportItems] = useState([]);
+  const [importPreviewSummary, setImportPreviewSummary] = useState({
+    totalRows: 0,
+    validNewCount: 0,
+    existingCount: 0,
+    duplicateInFileCount: 0,
+    invalidCount: 0,
+  });
+  const [importPreviewRows, setImportPreviewRows] = useState([]);
+  const [allImportEvaluatedRows, setAllImportEvaluatedRows] = useState([]);
+  const [overwriteExisting, setOverwriteExisting] = useState(true);
+  const [importResults, setImportResults] = useState(null);
+  const [importFilter, setImportFilter] = useState('all'); // 'all' | 'new' | 'existing' | 'duplicate' | 'invalid'
+  const [isProcessingImport, setIsProcessingImport] = useState(false);
+  const [importSearchTerm, setImportSearchTerm] = useState('');
+  const [importProgress, setImportProgress] = useState({
+    batch: 0,
+    totalBatches: 0,
+    percent: 0,
+    statusText: '',
+  });
+  const importFileInputRef = useRef(null);
+
+  // Exact 20 Fields matching Section 2 of prompt + Imported Inventory fields
   const [formData, setFormData] = useState({
     code: '',               // 1. Item Code
     image: '',              // 2. Item Image
@@ -108,6 +140,10 @@ function ItemMaster() {
     category: '',           // 4. Category
     subCategory: '',        // 5. Sub Category
     location: 'Main Store', // 6. Location
+    rackBin: '',            // Bin / Rack Location (imported from BIN column)
+    quantity: 0,            // Closing Stock Quantity
+    costPrice: 0,           // Unit Cost / Purchase Cost (imported from COST column)
+    value: 0,               // Stock Valuation (imported from VALUE column)
     reorderLevel: '',       // 7. Re-Order Level
     reorderQty: '',         // 8. Re-Order Quantity
     maxStockLevel: '',      // 9. Max Stock Level
@@ -165,20 +201,23 @@ function ItemMaster() {
     { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
   ];
 
-  // Fetch items from backend
-  const fetchItems = async (search = '') => {
+  // Fetch items from backend with pagination and search
+  const fetchItems = async (search = searchTerm, page = currentPage, limit = pageSize) => {
     try {
       setLoading(true);
       const params = {};
       if (search && search.trim()) {
         params.search = search.trim();
       }
-      params.limit = 1000;
+      params.page = page;
+      params.limit = limit;
 
       const res = await api.get('/items', { params });
       if (res.data && res.data.success) {
         setItems(res.data.data || []);
-        setTotalItems(res.data.total || res.data.count || 0);
+        setTotalItems(res.data.total || 0);
+        setTotalPages(res.data.totalPages || 1);
+        setCurrentPage(res.data.page || 1);
       }
     } catch (error) {
       showNotification('Failed to load items from database', 'error');
@@ -382,6 +421,10 @@ function ItemMaster() {
       category: lookupOptions.categories[0] || '',
       subCategory: '',
       location: 'Main Store',
+      rackBin: '',
+      quantity: 0,
+      costPrice: 0,
+      value: 0,
       reorderLevel: '',
       reorderQty: '',
       maxStockLevel: '',
@@ -571,6 +614,530 @@ function ItemMaster() {
     showNotification('Item Master list exported successfully.', 'success');
   };
 
+  // =========================================================================
+  // Bulk Import Helper Handlers (Excel & CSV)
+  // =========================================================================
+
+  // Open Bulk Import Modal
+  const handleOpenImportModal = () => {
+    setImportStep('select');
+    setImportFileName('');
+    setImportFileSize('');
+    setParsedImportItems([]);
+    setImportPreviewSummary({
+      totalRows: 0,
+      validNewCount: 0,
+      existingCount: 0,
+      duplicateInFileCount: 0,
+      invalidCount: 0,
+    });
+    setImportPreviewRows([]);
+    setAllImportEvaluatedRows([]);
+    setOverwriteExisting(true);
+    setImportResults(null);
+    setImportFilter('all');
+    setImportSearchTerm('');
+    setIsImportModalOpen(true);
+  };
+
+  // Close Bulk Import Modal
+  const handleCloseImportModal = () => {
+    setIsImportModalOpen(false);
+    setImportStep('select');
+  };
+
+  // Parse raw rows from Spreadsheet or CSV with all 7 columns mapped
+  const processRawDataRows = async (rawRows, fileName, fileSizeStr) => {
+    if (!rawRows || rawRows.length === 0) {
+      showNotification('The uploaded file is empty.', 'error');
+      setImportStep('select');
+      return;
+    }
+
+    // Determine header row and column indices
+    let headerRowIdx = -1;
+    let codeColIdx = -1;
+    let descColIdx = -1;
+    let binColIdx = -1;
+    let qtyColIdx = -1;
+    let valColIdx = -1;
+    let selPriceColIdx = -1;
+    let costColIdx = -1;
+
+    for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+      const row = rawRows[i];
+      if (!row || !Array.isArray(row)) continue;
+
+      row.forEach((cell, colIdx) => {
+        const str = String(cell || '').trim();
+        if (/^(item[\s_-]*code|code|part[\s_-]*no|part[\s_-]*number|item[\s_-]*no)$/i.test(str)) {
+          codeColIdx = colIdx;
+          headerRowIdx = i;
+        }
+        if (/^(description|item[\s_-]*desc|item[\s_-]*description|desc|name|item[\s_-]*name)$/i.test(str)) {
+          descColIdx = colIdx;
+          headerRowIdx = i;
+        }
+        if (/^(bin|rack[\s_-]*bin|rack|location|loc)$/i.test(str)) {
+          binColIdx = colIdx;
+        }
+        if (/^(quantity|qty|stock|closing[\s_-]*stock|closing[\s_-]*qty|stock[\s_-]*qty)$/i.test(str)) {
+          qtyColIdx = colIdx;
+        }
+        if (/^(value|stock[\s_-]*value|val|total[\s_-]*value)$/i.test(str)) {
+          valColIdx = colIdx;
+        }
+        if (/^(sel\.[\s_-]*price|selling[\s_-]*price|sel[\s_-]*price|sell[\s_-]*price|price|mrp)$/i.test(str)) {
+          selPriceColIdx = colIdx;
+        }
+        if (/^(cost|item[\s_-]*cost|cost[\s_-]*price|unit[\s_-]*cost|purchase[\s_-]*price|avg[\s_-]*cost)$/i.test(str)) {
+          costColIdx = colIdx;
+        }
+      });
+
+      if (codeColIdx !== -1 && descColIdx !== -1) {
+        break;
+      }
+    }
+
+    // Default column fallback if no explicit headers found
+    if (codeColIdx === -1 || descColIdx === -1) {
+      headerRowIdx = 0;
+      codeColIdx = 0;
+      descColIdx = 1;
+      binColIdx = 2;
+      qtyColIdx = 3;
+      valColIdx = 4;
+      selPriceColIdx = 5;
+      costColIdx = 6;
+    }
+
+    const cleanNum = (v) => {
+      if (v === '' || v === null || v === undefined) return 0;
+      const n = parseFloat(String(v).replace(/[^0-9.-]+/g, ''));
+      return isNaN(n) ? 0 : n;
+    };
+
+    const parsed = [];
+    const startRow = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
+    let currentCategory = 'General';
+
+    for (let i = startRow; i < rawRows.length; i++) {
+      const row = rawRows[i];
+      if (!row || !Array.isArray(row)) continue;
+
+      const codeVal = row[codeColIdx] !== undefined && row[codeColIdx] !== null ? String(row[codeColIdx]).trim() : '';
+      const descVal = descColIdx !== -1 && row[descColIdx] !== undefined && row[descColIdx] !== null ? String(row[descColIdx]).trim() : '';
+      const binVal = binColIdx !== -1 && row[binColIdx] !== undefined && row[binColIdx] !== null ? String(row[binColIdx]).trim() : '';
+      const qtyRaw = qtyColIdx !== -1 && row[qtyColIdx] !== undefined && row[qtyColIdx] !== null ? row[qtyColIdx] : '';
+      const valRaw = valColIdx !== -1 && row[valColIdx] !== undefined && row[valColIdx] !== null ? row[valColIdx] : '';
+      const selPriceRaw = selPriceColIdx !== -1 && row[selPriceColIdx] !== undefined && row[selPriceColIdx] !== null ? row[selPriceColIdx] : '';
+      const costRaw = costColIdx !== -1 && row[costColIdx] !== undefined && row[costColIdx] !== null ? row[costColIdx] : '';
+
+      // Skip completely blank rows
+      if (!codeVal && !descVal && !binVal && qtyRaw === '' && valRaw === '' && selPriceRaw === '' && costRaw === '') {
+        continue;
+      }
+
+      // Skip subtotal rows (code and description are empty)
+      if (!codeVal && !descVal) {
+        continue;
+      }
+
+      // Category section header detection (e.g., '2W-BODY', '3W-BODY', '2W-ELEC', '3W', etc.)
+      if (codeVal && !descVal && !binVal && (qtyRaw === '' || qtyRaw === null) && (valRaw === '' || valRaw === null) && (selPriceRaw === '' || selPriceRaw === null) && (costRaw === '' || costRaw === null)) {
+        currentCategory = codeVal;
+        continue;
+      }
+
+      const quantity = cleanNum(qtyRaw);
+      const value = cleanNum(valRaw);
+      const sellingPrice = cleanNum(selPriceRaw);
+      const cost = cleanNum(costRaw);
+
+      parsed.push({
+        row: parsed.length + 1,
+        code: codeVal,
+        description: descVal,
+        bin: binVal,
+        quantity,
+        value,
+        sellingPrice,
+        cost,
+        category: currentCategory,
+      });
+    }
+
+    if (parsed.length === 0) {
+      showNotification('No data rows found in the uploaded file.', 'error');
+      setImportStep('select');
+      return;
+    }
+
+    setImportFileName(fileName);
+    setImportFileSize(fileSizeStr);
+    setParsedImportItems(parsed);
+    setImportStep('preview');
+    setIsProcessingImport(true);
+
+    try {
+      const previewRes = await api.post('/items/bulk-import-preview', { items: parsed });
+      if (previewRes.data && previewRes.data.success) {
+        setImportPreviewSummary(previewRes.data.summary);
+        setImportPreviewRows(previewRes.data.previewRows || []);
+        setAllImportEvaluatedRows(previewRes.data.allRowsSummary || []);
+      } else {
+        throw new Error(previewRes.data?.message || 'Failed to inspect database');
+      }
+    } catch (err) {
+      console.error('Preview error:', err);
+      showNotification('Error validating items with database: ' + (err.response?.data?.message || err.message), 'error');
+    } finally {
+      setIsProcessingImport(false);
+    }
+  };
+
+  // Parse file selected via file input or drag-and-drop
+  const handleFileSelect = async (file) => {
+    if (!file) return;
+    const name = file.name || 'uploaded_file';
+    const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
+
+    try {
+      setIsProcessingImport(true);
+      let workbook;
+      if (name.toLowerCase().endsWith('.csv')) {
+        const text = await file.text();
+        workbook = XLSX.read(text, { type: 'string', raw: true });
+      } else {
+        const data = await file.arrayBuffer();
+        workbook = XLSX.read(data, { type: 'array', raw: true, cellText: true });
+      }
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: '' });
+      await processRawDataRows(rawRows, name, sizeKb);
+    } catch (err) {
+      console.error('Failed to parse file:', err);
+      showNotification('Failed to read file: ' + err.message, 'error');
+      setIsProcessingImport(false);
+    }
+  };
+
+  // Quick load pre-extracted closing stock dataset or test sample
+  const handleLoadPredefined = async (type) => {
+    let url = '/closingstock3 report excel -15.10.2026.csv';
+    let label = 'closingstock3 report excel -15.10.2026.csv (5,974 Items)';
+
+    if (type === 'sample_5') {
+      url = '/sample_test_items.csv';
+      label = 'sample_test_items.csv (5 items)';
+    } else if (type === 'xlsx') {
+      url = '/closingstock3 report excel -15.10.2026.xlsx';
+      label = 'closingstock3 report excel -15.10.2026.xlsx (5,974 Items)';
+    }
+
+    try {
+      setIsProcessingImport(true);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let workbook;
+      let sizeStr = '';
+      if (url.endsWith('.csv')) {
+        const text = await res.text();
+        sizeStr = (new Blob([text]).size / 1024).toFixed(1) + ' KB';
+        workbook = XLSX.read(text, { type: 'string', raw: true });
+      } else {
+        const arrayBuf = await res.arrayBuffer();
+        sizeStr = (arrayBuf.byteLength / 1024).toFixed(1) + ' KB';
+        workbook = XLSX.read(arrayBuf, { type: 'array', raw: true, cellText: true });
+      }
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: '' });
+      await processRawDataRows(rawRows, label, sizeStr);
+    } catch (err) {
+      console.error('Could not load predefined dataset:', err);
+      showNotification('Could not load predefined dataset: ' + err.message, 'error');
+      setIsProcessingImport(false);
+    }
+  };
+
+  // Button: Confirm and Execute Bulk Import in safe batches of 500 records
+  const handleConfirmImport = async () => {
+    if (parsedImportItems.length === 0) {
+      showNotification('No items to import.', 'error');
+      return;
+    }
+
+    const countToImport = importPreviewSummary.validNewCount;
+    const confirmMsg =
+      `Are you sure you want to import data from '${importFileName}' into Item Master?\n\n` +
+      `• Total Valid Items in File: ${parsedImportItems.length}\n` +
+      `• Valid New Items to Insert: ${countToImport}\n` +
+      (overwriteExisting && importPreviewSummary.existingCount > 0
+        ? `• Existing Items to Update: ${importPreviewSummary.existingCount} (Will update stock baseline, location/bin, selling price, cost, and valuation)\n`
+        : `• Existing Items: ${importPreviewSummary.existingCount} (Will be safely preserved / skipped)\n`) +
+      `\nItems will be processed in safe batches of 500 records with progress tracking. Proceed?`;
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    try {
+      setIsProcessingImport(true);
+      const BATCH_SIZE = 500;
+      const totalBatches = Math.ceil(parsedImportItems.length / BATCH_SIZE);
+
+      const aggregatedResults = {
+        success: true,
+        summary: {
+          totalRows: parsedImportItems.length,
+          importedCount: 0,
+          updatedCount: 0,
+          skippedCount: 0,
+          duplicateCount: 0,
+          invalidCount: 0,
+          errorCount: 0,
+        },
+        imported: [],
+        updated: [],
+        skipped: [],
+        duplicates: [],
+        invalid: [],
+        errors: [],
+        stockDifferences: [],
+      };
+
+      for (let b = 0; b < totalBatches; b++) {
+        const start = b * BATCH_SIZE;
+        const chunk = parsedImportItems.slice(start, start + BATCH_SIZE);
+
+        setImportProgress({
+          batch: b + 1,
+          totalBatches,
+          percent: Math.round((b / totalBatches) * 100),
+          statusText: `Processing batch ${b + 1} of ${totalBatches} (${start + 1} to ${Math.min(start + BATCH_SIZE, parsedImportItems.length)})...`,
+        });
+
+        const res = await api.post('/items/bulk-import', {
+          items: chunk,
+          overwriteExisting,
+        });
+
+        if (res.data && res.data.success) {
+          const s = res.data.summary || {};
+          aggregatedResults.summary.importedCount += s.importedCount || 0;
+          aggregatedResults.summary.updatedCount += s.updatedCount || 0;
+          aggregatedResults.summary.skippedCount += s.skippedCount || 0;
+          aggregatedResults.summary.duplicateCount += s.duplicateCount || 0;
+          aggregatedResults.summary.invalidCount += s.invalidCount || 0;
+          aggregatedResults.summary.errorCount += s.errorCount || 0;
+
+          if (res.data.imported) aggregatedResults.imported.push(...res.data.imported);
+          if (res.data.updated) aggregatedResults.updated.push(...res.data.updated);
+          if (res.data.skipped) aggregatedResults.skipped.push(...res.data.skipped);
+          if (res.data.duplicates) aggregatedResults.duplicates.push(...res.data.duplicates);
+          if (res.data.invalid) aggregatedResults.invalid.push(...res.data.invalid);
+          if (res.data.errors) aggregatedResults.errors.push(...res.data.errors);
+          if (res.data.stockDifferences) aggregatedResults.stockDifferences.push(...res.data.stockDifferences);
+        } else {
+          throw new Error(res.data?.message || `Batch ${b + 1} failed.`);
+        }
+      }
+
+      setImportProgress({
+        batch: totalBatches,
+        totalBatches,
+        percent: 100,
+        statusText: 'All batches completed successfully!',
+      });
+
+      setImportResults(aggregatedResults);
+      setImportStep('results');
+      showNotification(
+        `Import Completed: ${aggregatedResults.summary.importedCount} new items inserted, ${aggregatedResults.summary.updatedCount} items updated, ${aggregatedResults.summary.skippedCount} skipped.`,
+        'success'
+      );
+      // Refresh Item Master list
+      fetchItems('', 1, pageSize);
+    } catch (err) {
+      console.error('Import execution error:', err);
+      showNotification('Import failed: ' + (err.response?.data?.message || err.message), 'error');
+    } finally {
+      setIsProcessingImport(false);
+    }
+  };
+
+  // Download comprehensive audit & stock variance CSV report
+  const handleDownloadErrorReport = () => {
+    if (!importResults) return;
+    const {
+      imported = [],
+      updated = [],
+      skipped = [],
+      duplicates = [],
+      invalid = [],
+      errors = [],
+      stockDifferences = [],
+    } = importResults;
+
+    const rows = [];
+
+    // 1. Stock differences / variance records
+    stockDifferences.forEach((v) => {
+      rows.push([
+        v.row || '-',
+        `"${v.code || ''}"`,
+        `"${(v.description || '').replace(/"/g, '""')}"`,
+        `"${v.bin || ''}"`,
+        `"${v.category || ''}"`,
+        v.sourceQty ?? 0,
+        v.existingQty ?? 0,
+        v.qtyDiff ?? 0,
+        v.sellingPrice ?? 0,
+        v.cost ?? 0,
+        v.value ?? 0,
+        'Stock Variance',
+        `"Closing stock baseline updated from ${v.existingQty} to ${v.sourceQty}"`,
+      ]);
+    });
+
+    // 2. Updated records
+    updated.forEach((u) => {
+      rows.push([
+        u.row || '-',
+        `"${u.code || ''}"`,
+        `"${(u.description || '').replace(/"/g, '""')}"`,
+        `"${u.bin || ''}"`,
+        `"${u.category || ''}"`,
+        u.quantity ?? 0,
+        '-',
+        '-',
+        u.sellingPrice ?? 0,
+        u.cost ?? 0,
+        u.value ?? 0,
+        'Updated Existing',
+        '"Fields updated from closing stock report"',
+      ]);
+    });
+
+    // 3. New imports
+    imported.forEach((m) => {
+      rows.push([
+        m.row || '-',
+        `"${m.code || ''}"`,
+        `"${(m.description || '').replace(/"/g, '""')}"`,
+        `"${m.bin || ''}"`,
+        `"${m.category || ''}"`,
+        m.quantity ?? 0,
+        '-',
+        '-',
+        m.sellingPrice ?? 0,
+        m.cost ?? 0,
+        m.value ?? 0,
+        'Imported New',
+        '"New item inserted into master catalog"',
+      ]);
+    });
+
+    // 4. Skipped / Duplicates / Errors
+    skipped.forEach((s) => {
+      rows.push([
+        s.row || '-',
+        `"${s.code || ''}"`,
+        `"${(s.description || '').replace(/"/g, '""')}"`,
+        `"${s.bin || ''}"`,
+        `"${s.category || ''}"`,
+        s.quantity ?? 0,
+        '-',
+        '-',
+        s.sellingPrice ?? 0,
+        s.cost ?? 0,
+        s.value ?? 0,
+        'Skipped',
+        `"${(s.reason || 'Existing item skipped').replace(/"/g, '""')}"`,
+      ]);
+    });
+
+    duplicates.forEach((d) => {
+      rows.push([
+        d.row || '-',
+        `"${d.code || ''}"`,
+        `"${(d.description || '').replace(/"/g, '""')}"`,
+        `"${d.bin || ''}"`,
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        'Duplicate in File',
+        `"${(d.reason || '').replace(/"/g, '""')}"`,
+      ]);
+    });
+
+    invalid.forEach((iv) => {
+      rows.push([
+        iv.row || '-',
+        `"${iv.code || ''}"`,
+        `"${(iv.description || '').replace(/"/g, '""')}"`,
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        'Invalid',
+        `"${(iv.reason || '').replace(/"/g, '""')}"`,
+      ]);
+    });
+
+    errors.forEach((er) => {
+      rows.push([
+        er.row || '-',
+        `"${er.code || ''}"`,
+        `"${(er.description || '').replace(/"/g, '""')}"`,
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        'Error',
+        `"${(er.reason || '').replace(/"/g, '""')}"`,
+      ]);
+    });
+
+    const headers = [
+      'Row Number',
+      'Item Code',
+      'Description',
+      'Bin / Rack',
+      'Category',
+      'Report Closing Qty',
+      'Previous DB Qty',
+      'Qty Variance',
+      'Selling Price',
+      'Cost Price',
+      'Stock Value',
+      'Status',
+      'Audit Reason / Detail',
+    ];
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `SOFAST_ClosingStock_Import_Audit_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+  };
+
   // Row selection from lower grid
   const handleRowClick = (item) => {
     if (isDirty) {
@@ -606,6 +1173,10 @@ function ItemMaster() {
       category: item.category || '',
       subCategory: item.subCategory || '',
       location: item.location || 'Main Store',
+      rackBin: item.rackBin || item.bin || '',
+      quantity: item.quantity !== undefined ? item.quantity : (item.stockInHand || 0),
+      costPrice: item.costPrice !== undefined ? item.costPrice : (item.averageCost || item.lastGrnPrice || 0),
+      value: item.value !== undefined ? item.value : (((item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)) * (item.costPrice || item.averageCost || 0))),
       reorderLevel: item.reorderLevel !== undefined ? item.reorderLevel : '',
       reorderQty: item.reorderQty !== undefined ? item.reorderQty : '',
       maxStockLevel: item.maxStockLevel !== undefined ? item.maxStockLevel : '',
@@ -881,7 +1452,7 @@ function ItemMaster() {
                 </div>
               </div>
 
-              {/* Row 4: Location */}
+              {/* Row 4: Location | Bin / Location | Closing Stock */}
               <div className="field-row">
                 <label className="field-label" htmlFor="item-location" style={{ width: '140px' }}>
                   Location . . . . . .
@@ -907,6 +1478,35 @@ function ItemMaster() {
                     ...
                   </button>
                 </div>
+
+                <label className="field-label" htmlFor="item-rack-bin" style={{ marginLeft: '36px', width: '140px' }}>
+                  Bin / Location . . .
+                </label>
+                <input
+                  id="item-rack-bin"
+                  name="rackBin"
+                  type="text"
+                  className="input-classic"
+                  style={{ width: '130px', fontWeight: 'bold', color: '#1e3a8a' }}
+                  value={formData.rackBin || ''}
+                  onChange={handleInputChange}
+                  placeholder="e.g. R3-Q-1"
+                  autoComplete="off"
+                />
+
+                <label className="field-label" htmlFor="item-quantity" style={{ marginLeft: '24px', width: '110px' }}>
+                  Closing Stock .
+                </label>
+                <input
+                  id="item-quantity"
+                  name="quantity"
+                  type="number"
+                  className="input-classic input-num-small"
+                  style={{ width: '90px', fontWeight: 'bold', color: '#002D62', backgroundColor: '#f8fafc' }}
+                  value={formData.quantity !== undefined && formData.quantity !== '' ? formData.quantity : 0}
+                  readOnly
+                  title="Closing Stock Quantity from Closing Stock Report / Inventory"
+                />
               </div>
 
               {/* Row 5: Re-Order Level | Re-Order Qty | Max Stock Level | Bulk Item */}
@@ -1012,12 +1612,12 @@ function ItemMaster() {
                 />
               </div>
 
-              {/* Row 7: Last GRN Date */}
+              {/* Row 7: Last GRN Date | Item Cost | Stock Value */}
               <div className="field-row">
                 <label className="field-label" htmlFor="item-last-grn-date" style={{ width: '140px' }}>
                   Last GRN Date . .
                 </label>
-                <div className="field-control-group" style={{ width: '220px' }}>
+                <div className="field-control-group" style={{ width: '280px' }}>
                   <input
                     id="item-last-grn-date"
                     name="lastGrnDate"
@@ -1041,6 +1641,34 @@ function ItemMaster() {
                     ...
                   </button>
                 </div>
+
+                <label className="field-label" htmlFor="item-cost-price" style={{ marginLeft: '36px', width: '140px' }}>
+                  Item Cost . . . . . .
+                </label>
+                <input
+                  id="item-cost-price"
+                  name="costPrice"
+                  type="text"
+                  className="input-classic"
+                  style={{ width: '130px', backgroundColor: '#f8fafc', color: '#475569' }}
+                  value={Number(formData.costPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  readOnly
+                  title="Unit Cost Price from Closing Stock Report"
+                />
+
+                <label className="field-label" htmlFor="item-stock-value" style={{ marginLeft: '24px', width: '110px' }}>
+                  Stock Value . .
+                </label>
+                <input
+                  id="item-stock-value"
+                  name="value"
+                  type="text"
+                  className="input-classic"
+                  style={{ width: '110px', backgroundColor: '#f8fafc', fontWeight: 'bold', color: '#047857' }}
+                  value={Number(formData.value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  readOnly
+                  title="Total Stock Valuation (Closing Stock Qty x Cost)"
+                />
               </div>
 
               {/* Row 8: Supplier */}
@@ -1296,8 +1924,17 @@ function ItemMaster() {
                   type="button"
                   className="btn-classic"
                   onClick={handleExportExcel}
+                  title="Export items to Excel/CSV"
                 >
                   Excel
+                </button>
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={handleOpenImportModal}
+                  title="Bulk Import Item Codes & Descriptions from Excel (.xlsx) or CSV"
+                >
+                  Import Items
                 </button>
               </div>
             </form>
@@ -1310,26 +1947,28 @@ function ItemMaster() {
                     <tr>
                       <th style={{ width: '100px' }}>Item Code</th>
                       <th style={{ width: '220px' }}>Description</th>
-                      <th style={{ width: '110px' }}>Category</th>
-                      <th style={{ width: '110px' }}>Sub Category</th>
-                      <th style={{ width: '95px' }}>Location</th>
+                      <th style={{ width: '90px' }}>Bin / Rack</th>
+                      <th style={{ width: '80px', textAlign: 'right' }}>Stock Qty</th>
                       <th style={{ width: '95px', textAlign: 'right' }}>Selling Price</th>
-                      <th style={{ width: '75px', textAlign: 'center' }}>Disc (%)</th>
-                      <th style={{ width: '80px', textAlign: 'center' }}>Re-Order</th>
-                      <th style={{ width: '130px' }}>Supplier</th>
-                      <th style={{ width: '60px', textAlign: 'center' }}>Status</th>
+                      <th style={{ width: '90px', textAlign: 'right' }}>Cost Price</th>
+                      <th style={{ width: '95px', textAlign: 'right' }}>Stock Value</th>
+                      <th style={{ width: '95px' }}>Category</th>
+                      <th style={{ width: '95px' }}>Sub Category</th>
+                      <th style={{ width: '90px' }}>Location</th>
+                      <th style={{ width: '110px' }}>Supplier</th>
+                      <th style={{ width: '65px', textAlign: 'center' }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="10" className="grid-empty-state">
+                        <td colSpan="12" className="grid-empty-state">
                           Loading item records...
                         </td>
                       </tr>
                     ) : items.length === 0 ? (
                       <tr>
-                        <td colSpan="10" className="grid-empty-state">
+                        <td colSpan="12" className="grid-empty-state">
                           No item records found in database. Click &quot;New&quot; to add an item.
                         </td>
                       </tr>
@@ -1343,18 +1982,28 @@ function ItemMaster() {
                         >
                           <td className="col-code">{item.code}</td>
                           <td className="col-desc">{item.description}</td>
-                          <td>{item.category || '-'}</td>
-                          <td>{item.subCategory || '-'}</td>
-                          <td>{item.location || 'Main Store'}</td>
-                          <td style={{ textAlign: 'right' }}>
+                          <td style={{ fontWeight: '600', color: '#1e3a8a' }}>{item.rackBin || item.bin || '-'}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: (item.quantity || 0) > 0 ? '#0f172a' : '#94a3b8' }}>
+                            {item.quantity !== undefined ? Number(item.quantity).toLocaleString() : '0'}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: '600' }}>
                             {item.sellingPrice !== undefined && item.sellingPrice !== null && item.sellingPrice !== ''
                               ? Number(item.sellingPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                               : '0.00'}
                           </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {item.discountPercentage ? `${item.discountPercentage}%` : '-'}
+                          <td style={{ textAlign: 'right', color: '#475569' }}>
+                            {item.costPrice !== undefined && item.costPrice !== null && item.costPrice !== ''
+                              ? Number(item.costPrice).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : '0.00'}
                           </td>
-                          <td style={{ textAlign: 'center' }}>{item.reorderLevel || 0}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#047857' }}>
+                            {item.value !== undefined && item.value !== null && item.value !== ''
+                              ? Number(item.value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : '0.00'}
+                          </td>
+                          <td>{item.category || '-'}</td>
+                          <td>{item.subCategory || '-'}</td>
+                          <td>{item.location || 'Main Store'}</td>
                           <td>{item.supplier || item.supplierCode || item.suppCode || '-'}</td>
                           <td style={{ textAlign: 'center' }}>
                             <span className={item.status === 'I' || item.status === 'Inactive' ? 'badge-inactive' : 'badge-active'}>
@@ -1368,19 +2017,85 @@ function ItemMaster() {
                 </table>
               </div>
 
-              {/* Table search filter bar */}
+              {/* Table search filter bar with pagination */}
               <div className="grid-footer-bar">
-                <span className="grid-footer-count">Total Items: {items.length}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <span className="grid-footer-count">
+                    Total Items: {totalItems.toLocaleString()}
+                    {totalItems > 0 && ` | Showing ${((currentPage - 1) * (pageSize === 'all' ? totalItems : pageSize) + 1).toLocaleString()} - ${Math.min(currentPage * (pageSize === 'all' ? totalItems : pageSize), totalItems).toLocaleString()}`}
+                  </span>
+
+                  <div className="grid-pagination-controls">
+                    <button
+                      type="button"
+                      className="btn-page-nav"
+                      onClick={() => fetchItems(searchTerm, 1, pageSize)}
+                      disabled={currentPage <= 1 || loading}
+                      title="First Page"
+                    >
+                      |&lt;
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-page-nav"
+                      onClick={() => fetchItems(searchTerm, currentPage - 1, pageSize)}
+                      disabled={currentPage <= 1 || loading}
+                      title="Previous Page"
+                    >
+                      &lt;
+                    </button>
+                    <span className="pagination-page-indicator">
+                      Page {currentPage} of {totalPages || 1}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-page-nav"
+                      onClick={() => fetchItems(searchTerm, currentPage + 1, pageSize)}
+                      disabled={currentPage >= totalPages || loading}
+                      title="Next Page"
+                    >
+                      &gt;
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-page-nav"
+                      onClick={() => fetchItems(searchTerm, totalPages, pageSize)}
+                      disabled={currentPage >= totalPages || loading}
+                      title="Last Page"
+                    >
+                      &gt;|
+                    </button>
+
+                    <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '4px' }}>Per Page:</span>
+                    <select
+                      className="select-page-size"
+                      value={pageSize}
+                      onChange={(e) => {
+                        const newSize = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                        setPageSize(newSize);
+                        fetchItems(searchTerm, 1, newSize);
+                      }}
+                    >
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={250}>250</option>
+                      <option value={500}>500</option>
+                      <option value={1000}>1,000</option>
+                      <option value="all">All ({totalItems.toLocaleString()})</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="grid-search-control">
                   <span style={{ fontSize: '11px', color: '#002D62', fontWeight: 'bold' }}>Quick Search:</span>
                   <input
                     type="text"
                     className="input-classic input-table-search"
-                    placeholder="Filter by code, description, or category..."
+                    placeholder="Filter by code, description, bin, or category..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
-                      fetchItems(e.target.value);
+                      fetchItems(e.target.value, 1, pageSize);
                     }}
                   />
                   {searchTerm && (
@@ -1389,7 +2104,7 @@ function ItemMaster() {
                       className="btn-lookup"
                       onClick={() => {
                         setSearchTerm('');
-                        fetchItems('');
+                        fetchItems('', 1, pageSize);
                       }}
                       title="Clear search"
                     >
@@ -1555,6 +2270,557 @@ function ItemMaster() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Bulk Import Items Modal (Excel & CSV) */}
+      {isImportModalOpen && (
+        <div className="import-modal-overlay" onClick={handleCloseImportModal}>
+          <div className="import-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="import-modal-header">
+              <span>📥 SOFAST POS — Bulk Import Items (Excel / CSV)</span>
+              <button
+                type="button"
+                className="item-modal-close"
+                onClick={handleCloseImportModal}
+                title="Close"
+              >
+                &#x2715;
+              </button>
+            </div>
+
+            <div className="import-modal-body">
+              {/* STEP 1: Select / Upload File */}
+              {importStep === 'select' && (
+                <>
+                  <div
+                    className="import-dropzone"
+                    onClick={() => importFileInputRef.current && importFileInputRef.current.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                        handleFileSelect(e.dataTransfer.files[0]);
+                      }
+                    }}
+                  >
+                    <div className="import-dropzone-icon">📁</div>
+                    <div className="import-dropzone-text">Click or Drag &amp; Drop Excel or CSV File Here</div>
+                    <div className="import-dropzone-subtext">
+                      Supports <strong>.xlsx, .xls, .csv</strong> — Columns: <code>Item Code</code> &amp; <code>Description</code>
+                    </div>
+                    <input
+                      type="file"
+                      ref={importFileInputRef}
+                      style={{ display: 'none' }}
+                      accept=".xlsx,.xls,.csv"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleFileSelect(e.target.files[0]);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      className="btn-classic"
+                      onClick={() => importFileInputRef.current && importFileInputRef.current.click()}
+                    >
+                      Browse File...
+                    </button>
+                  </div>
+
+                  {/* Predefined closing stock or sample options */}
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '10px 12px',
+                    background: '#f8fafc',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '4px',
+                    fontSize: '11px'
+                  }}>
+                    <div style={{ fontWeight: 'bold', color: '#002D62', marginBottom: '6px' }}>
+                      ⚡ Quick Import Original Closing Stock Report:
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        className="btn-classic"
+                        disabled={isProcessingImport}
+                        onClick={() => handleLoadPredefined('closing_stock')}
+                        style={{ fontWeight: 'bold', color: '#002D62' }}
+                        title="Load original Closing Stock report with 5,974 items and all 7 columns"
+                      >
+                        📦 Load Original Closing Stock Report (5,974 Items)
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-classic"
+                        disabled={isProcessingImport}
+                        onClick={() => handleLoadPredefined('xlsx')}
+                        title="Load Excel (.xlsx) version of Closing Stock report"
+                      >
+                        📊 Load Excel (.xlsx) Report
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-classic"
+                        disabled={isProcessingImport}
+                        onClick={() => handleLoadPredefined('sample_5')}
+                        title="Load 5 items for safe testing"
+                      >
+                        🧪 Load Test Sample (5 Items)
+                      </button>
+                    </div>
+                    <div style={{ marginTop: '6px', color: '#64748b', fontSize: '10.5px' }}>
+                      * The full closing stock report containing all 5,974 valid items, rack bins, closing stock quantities, prices, costs, and categories is ready for immediate one-click import.
+                    </div>
+                  </div>
+
+                  {/* Rules banner */}
+                  <div style={{
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '3px',
+                    padding: '8px 10px',
+                    fontSize: '11px',
+                    color: '#1e3a8a'
+                  }}>
+                    <strong>🛡️ Safe Import Rules &amp; Inventory Baseline Protection:</strong>
+                    <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                      <li><strong>7 Available Columns Mapped:</strong> <code>CODE</code>, <code>DESCRIPTION</code>, <code>BIN</code>, <code>QUANTITY</code>, <code>VALUE</code>, <code>SEL.PRICE</code>, <code>COST</code>.</li>
+                      <li><strong>Category Headers Auto-Detected:</strong> Section headers (<code>2W-BODY</code>, <code>3W-BODY</code>, <code>2W-ELEC</code>, etc.) automatically tag all member items.</li>
+                      <li><strong>Stock Baseline Migration:</strong> Closing stock quantity establishes the inventory baseline without double-counting.</li>
+                      <li><strong>Existing Records Protected:</strong> Suppliers, customer discounts, barcodes, and transaction histories are strictly preserved.</li>
+                    </ul>
+                  </div>
+                </>
+              )}
+
+              {/* STEP 2: Preview & Validation */}
+              {importStep === 'preview' && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', fontWeight: 'bold' }}>
+                    <span>
+                      📄 File: <span style={{ color: '#005bb7' }}>{importFileName}</span> ({importFileSize})
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-classic"
+                      onClick={() => setImportStep('select')}
+                      disabled={isProcessingImport}
+                    >
+                      Choose Different File
+                    </button>
+                  </div>
+
+                  {/* 5 KPI Metric Badges */}
+                  <div className="import-kpi-strip">
+                    <div className="import-kpi-badge kpi-total">
+                      <span className="kpi-num">{importPreviewSummary.totalRows}</span>
+                      <span className="kpi-lbl">Total Items</span>
+                    </div>
+                    <div className="import-kpi-badge kpi-new">
+                      <span className="kpi-num">{importPreviewSummary.validNewCount}</span>
+                      <span className="kpi-lbl">Valid New Items</span>
+                    </div>
+                    <div className="import-kpi-badge kpi-exist">
+                      <span className="kpi-num">{importPreviewSummary.existingCount}</span>
+                      <span className="kpi-lbl">Already in DB</span>
+                    </div>
+                    <div className="import-kpi-badge kpi-dup">
+                      <span className="kpi-num">{importPreviewSummary.duplicateInFileCount}</span>
+                      <span className="kpi-lbl">Duplicates in File</span>
+                    </div>
+                    <div className="import-kpi-badge kpi-invalid">
+                      <span className="kpi-num">{importPreviewSummary.invalidCount}</span>
+                      <span className="kpi-lbl">Invalid Rows</span>
+                    </div>
+                  </div>
+
+                  {/* Live Progress Bar when importing */}
+                  {isProcessingImport && importProgress.totalBatches > 0 && (
+                    <div className="import-progress-box">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', color: '#002D62' }}>
+                        <span>⏳ {importProgress.statusText}</span>
+                        <span>{importProgress.percent}%</span>
+                      </div>
+                      <div className="import-progress-bar-bg">
+                        <div
+                          className="import-progress-bar-fill"
+                          style={{ width: `${importProgress.percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Overwrite option and filter search */}
+                  <div className="import-options-bar">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontWeight: '600' }}>
+                      <input
+                        type="checkbox"
+                        checked={overwriteExisting}
+                        onChange={(e) => setOverwriteExisting(e.target.checked)}
+                      />
+                      <span>Update existing items with Closing Stock Qty, Bin, Selling Price, Cost, and Value (Baseline Migration)</span>
+                    </label>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>Filter:</span>
+                      <select
+                        className="input-classic"
+                        style={{ padding: '2px 6px', fontSize: '11px' }}
+                        value={importFilter}
+                        onChange={(e) => setImportFilter(e.target.value)}
+                      >
+                        <option value="all">All Rows ({importPreviewSummary.totalRows})</option>
+                        <option value="new">New Items Only ({importPreviewSummary.validNewCount})</option>
+                        <option value="existing">Already in DB ({importPreviewSummary.existingCount})</option>
+                        <option value="duplicate">Duplicates in File ({importPreviewSummary.duplicateInFileCount})</option>
+                        <option value="invalid">Invalid Rows ({importPreviewSummary.invalidCount})</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        className="input-classic"
+                        placeholder="Search preview..."
+                        style={{ width: '130px', padding: '2px 6px', fontSize: '11px' }}
+                        value={importSearchTerm}
+                        onChange={(e) => setImportSearchTerm(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preview Table with 7 mapped columns */}
+                  <div className="import-preview-wrapper">
+                    <table className="import-preview-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                          <th style={{ width: '105px' }}>Item Code</th>
+                          <th style={{ minWidth: '180px' }}>Description</th>
+                          <th style={{ width: '85px' }}>Bin / Rack</th>
+                          <th style={{ width: '75px', textAlign: 'right' }}>Closing Qty</th>
+                          <th style={{ width: '85px', textAlign: 'right' }}>Sel. Price</th>
+                          <th style={{ width: '85px', textAlign: 'right' }}>Cost</th>
+                          <th style={{ width: '90px', textAlign: 'right' }}>Stock Value</th>
+                          <th style={{ width: '85px' }}>Category</th>
+                          <th style={{ width: '105px', textAlign: 'center' }}>Status</th>
+                          <th style={{ width: '220px' }}>Validation Note / Stock Variance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const evaluatedList = allImportEvaluatedRows.length > 0 ? allImportEvaluatedRows : importPreviewRows;
+                          const filtered = evaluatedList.filter((r) => {
+                            if (importFilter === 'new' && r.status !== 'new') return false;
+                            if (importFilter === 'existing' && r.status !== 'existing') return false;
+                            if (importFilter === 'duplicate' && r.status !== 'duplicate') return false;
+                            if (importFilter === 'invalid' && r.status !== 'invalid') return false;
+                            if (importSearchTerm) {
+                              const t = importSearchTerm.toLowerCase();
+                              return (
+                                String(r.code || '').toLowerCase().includes(t) ||
+                                String(r.description || '').toLowerCase().includes(t) ||
+                                String(r.bin || '').toLowerCase().includes(t) ||
+                                String(r.category || '').toLowerCase().includes(t)
+                              );
+                            }
+                            return true;
+                          });
+
+                          if (filtered.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan="11" style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
+                                  No rows matching selected filter.
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return filtered.slice(0, 300).map((r, idx) => {
+                            let tagClass = 'tag-new';
+                            let tagLabel = 'NEW';
+                            if (r.status === 'existing') {
+                              tagClass = 'tag-exist';
+                              tagLabel = overwriteExisting ? 'WILL UPDATE' : 'SKIP (EXISTS)';
+                            } else if (r.status === 'duplicate') {
+                              tagClass = 'tag-dup';
+                              tagLabel = 'DUPLICATE';
+                            } else if (r.status === 'invalid') {
+                              tagClass = 'tag-invalid';
+                              tagLabel = 'INVALID';
+                            }
+
+                            return (
+                              <tr key={idx}>
+                                <td style={{ textAlign: 'center', color: '#64748b' }}>{r.row}</td>
+                                <td style={{ fontFamily: 'Consolas, monospace', fontWeight: 'bold' }}>{r.code || '(empty)'}</td>
+                                <td>{r.description || '(empty)'}</td>
+                                <td style={{ fontWeight: '600', color: '#1e3a8a' }}>{r.bin || '-'}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', color: (r.quantity || 0) > 0 ? '#0f172a' : '#94a3b8' }}>
+                                  {r.quantity !== undefined ? r.quantity : 0}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {r.sellingPrice !== undefined ? Number(r.sellingPrice).toFixed(2) : '0.00'}
+                                </td>
+                                <td style={{ textAlign: 'right', color: '#475569' }}>
+                                  {r.cost !== undefined ? Number(r.cost).toFixed(2) : '0.00'}
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#047857' }}>
+                                  {r.value !== undefined ? Number(r.value).toFixed(2) : '0.00'}
+                                </td>
+                                <td style={{ color: '#0369a1' }}>{r.category || 'General'}</td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span className={`import-status-tag ${tagClass}`}>{tagLabel}</span>
+                                </td>
+                                <td style={{ fontSize: '10.5px', color: '#475569' }}>
+                                  {r.reason || (r.status === 'new' ? 'Ready to insert' : '')}
+                                  {r.existingQty !== undefined && r.status === 'existing' && (
+                                    <div style={{ fontSize: '10px', color: r.qtyDiff !== 0 ? '#d97706' : '#16a34a', fontWeight: '600' }}>
+                                      DB Stock: {r.existingQty} → Report: {r.quantity} {r.qtyDiff !== 0 ? `(Variance: ${r.qtyDiff > 0 ? '+' : ''}${r.qtyDiff})` : '(Balanced)'}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {(() => {
+                    const evaluatedList = allImportEvaluatedRows.length > 0 ? allImportEvaluatedRows : importPreviewRows;
+                    if (evaluatedList.length > 300) {
+                      return (
+                        <div style={{ fontSize: '10.5px', color: '#64748b', textAlign: 'right' }}>
+                          * Displaying first 300 rows for preview speed ({evaluatedList.length} total valid records will be imported in batches of 500)
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Safety note */}
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#065f46',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    padding: '6px 10px',
+                    borderRadius: '3px'
+                  }}>
+                    ✓ <strong>Safe Inventory Import:</strong>
+                    {overwriteExisting
+                      ? ` ${importPreviewSummary.validNewCount} new items will be inserted and ${importPreviewSummary.existingCount} existing records will have Closing Stock, Bin, Selling Price, Cost, and Value safely updated.`
+                      : ` Only ${importPreviewSummary.validNewCount} new items will be created. ${importPreviewSummary.existingCount} existing records will NOT be modified.`}
+                  </div>
+                </>
+              )}
+
+              {/* STEP 3: Results */}
+              {importStep === 'results' && importResults && (
+                <>
+                  <div style={{
+                    padding: '12px',
+                    background: '#f0fdf4',
+                    border: '1px solid #86efac',
+                    borderRadius: '4px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '24px', marginBottom: '4px' }}>✅</div>
+                    <div style={{ fontSize: '15px', fontWeight: '800', color: '#166534' }}>
+                      Closing Stock Report Bulk Import Completed
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#374151', marginTop: '2px' }}>
+                      Processed {importResults.summary.totalRows} records from <strong>{importFileName}</strong> in safe batches of 500
+                    </div>
+                  </div>
+
+                  {/* Result KPI cards */}
+                  <div className="import-kpi-strip">
+                    <div className="import-kpi-badge kpi-new">
+                      <span className="kpi-num">{importResults.summary.importedCount}</span>
+                      <span className="kpi-lbl">Successfully Imported</span>
+                    </div>
+                    {importResults.summary.updatedCount > 0 && (
+                      <div className="import-kpi-badge kpi-exist">
+                        <span className="kpi-num">{importResults.summary.updatedCount}</span>
+                        <span className="kpi-lbl">Updated Baseline</span>
+                      </div>
+                    )}
+                    <div className="import-kpi-badge kpi-exist">
+                      <span className="kpi-num">{importResults.summary.skippedCount}</span>
+                      <span className="kpi-lbl">Skipped (Existed)</span>
+                    </div>
+                    {importResults.stockDifferences && importResults.stockDifferences.length > 0 && (
+                      <div className="import-kpi-badge kpi-dup">
+                        <span className="kpi-num">{importResults.stockDifferences.length}</span>
+                        <span className="kpi-lbl">Stock Variances</span>
+                      </div>
+                    )}
+                    <div className="import-kpi-badge kpi-dup">
+                      <span className="kpi-num">{importResults.summary.duplicateCount}</span>
+                      <span className="kpi-lbl">In-File Duplicates</span>
+                    </div>
+                    <div className="import-kpi-badge kpi-invalid">
+                      <span className="kpi-num">{importResults.summary.invalidCount + importResults.summary.errorCount}</span>
+                      <span className="kpi-lbl">Invalid / Errors</span>
+                    </div>
+                  </div>
+
+                  {/* Download Audit & Stock Variance Report */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '8px 12px',
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '3px',
+                    fontSize: '11.5px'
+                  }}>
+                    <div>
+                      <strong>Audit Log &amp; Inventory Variance Report:</strong>
+                      <div style={{ color: '#64748b', fontSize: '10.5px' }}>
+                        {importResults.stockDifferences && importResults.stockDifferences.length > 0
+                          ? `Recorded ${importResults.stockDifferences.length} stock quantity variances between report and system baseline.`
+                          : 'All items imported cleanly into database master catalog.'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-classic"
+                      onClick={handleDownloadErrorReport}
+                      style={{ fontWeight: 'bold', color: '#002D62' }}
+                      title="Download complete CSV audit log of all imported items, updated records, and stock variances"
+                    >
+                      📥 Download Audit &amp; Variance Report (CSV)
+                    </button>
+                  </div>
+
+                  {/* Stock Differences Table if any */}
+                  {importResults.stockDifferences && importResults.stockDifferences.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#9a3412', marginBottom: '4px' }}>
+                        ⚠️ Stock Differences Recorded ({importResults.stockDifferences.length} items):
+                      </div>
+                      <div className="import-preview-wrapper" style={{ maxHeight: '180px' }}>
+                        <table className="import-preview-table">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                              <th style={{ width: '100px' }}>Item Code</th>
+                              <th>Description</th>
+                              <th style={{ width: '75px' }}>Bin</th>
+                              <th style={{ width: '80px', textAlign: 'right' }}>Previous DB Qty</th>
+                              <th style={{ width: '80px', textAlign: 'right' }}>Report Qty</th>
+                              <th style={{ width: '80px', textAlign: 'right' }}>Difference</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importResults.stockDifferences.slice(0, 100).map((v, idx) => (
+                              <tr key={idx}>
+                                <td style={{ textAlign: 'center', color: '#64748b' }}>{v.row || idx + 1}</td>
+                                <td style={{ fontFamily: 'Consolas, monospace', fontWeight: 'bold' }}>{v.code}</td>
+                                <td>{v.description}</td>
+                                <td style={{ fontWeight: '600' }}>{v.bin || '-'}</td>
+                                <td style={{ textAlign: 'right', color: '#64748b' }}>{v.existingQty}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{v.sourceQty}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 'bold', color: v.qtyDiff > 0 ? '#16a34a' : '#dc2626' }}>
+                                  {v.qtyDiff > 0 ? `+${v.qtyDiff}` : v.qtyDiff}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Modal Bottom Actions */}
+            <div className="import-modal-footer">
+              {importStep === 'select' && (
+                <>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    Select Closing Stock Excel (.xlsx, .xls) or CSV with CODE, DESCRIPTION, BIN, QUANTITY, VALUE, SEL.PRICE, COST
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-classic"
+                    onClick={handleCloseImportModal}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+
+              {importStep === 'preview' && (
+                <>
+                  <button
+                    type="button"
+                    className="btn-classic"
+                    onClick={() => setImportStep('select')}
+                    disabled={isProcessingImport}
+                  >
+                    ← Back
+                  </button>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn-classic"
+                      onClick={handleCloseImportModal}
+                      disabled={isProcessingImport}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-classic"
+                      style={{
+                        fontWeight: 'bold',
+                        backgroundColor: importPreviewSummary.validNewCount > 0 || (overwriteExisting && importPreviewSummary.existingCount > 0) ? '#005bb7' : '#e2e8f0',
+                        color: importPreviewSummary.validNewCount > 0 || (overwriteExisting && importPreviewSummary.existingCount > 0) ? '#ffffff' : '#94a3b8',
+                      }}
+                      disabled={isProcessingImport || (importPreviewSummary.validNewCount === 0 && (!overwriteExisting || importPreviewSummary.existingCount === 0))}
+                      onClick={handleConfirmImport}
+                    >
+                      {isProcessingImport
+                        ? '⏳ Importing in Batches...'
+                        : `Confirm & Import (${importPreviewSummary.validNewCount} New, ${overwriteExisting ? importPreviewSummary.existingCount : 0} Updates)`}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {importStep === 'results' && (
+                <>
+                  <div style={{ fontSize: '11px', color: '#166534', fontWeight: 'bold' }}>
+                    ✓ Database successfully updated with Closing Stock baseline.
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-classic"
+                    onClick={handleCloseImportModal}
+                  >
+                    Done / Close
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

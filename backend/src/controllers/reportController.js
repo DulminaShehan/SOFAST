@@ -163,9 +163,10 @@ export const getClosingStockReport = async (req, res, next) => {
       };
 
       const qty = itm.quantity !== undefined ? Number(itm.quantity) : (itm.stockInHand !== undefined ? Number(itm.stockInHand) : 0);
-      const avgCost = Number(itm.averageCost) || Number(itm.lastGrnPrice) || 0;
+      const avgCost = Number(itm.costPrice) || Number(itm.averageCost) || Number(itm.lastGrnPrice) || Number(itm.cost) || 0;
       const val = itm.value !== undefined && Number(itm.value) > 0 ? Number(itm.value) : Math.round(qty * avgCost * 100) / 100;
       const selPrice = Number(itm.finalSellingPrice) || Number(itm.sellingPrice) || 0;
+      const binDisplay = String(itm.rackBin || itm.location || itm.bin || 'Main Store').trim();
 
       // Multi-location distribution simulation
       const loc1_qty = Math.round(qty * 0.7 * 100) / 100;
@@ -177,10 +178,12 @@ export const getClosingStockReport = async (req, res, next) => {
         _id: itm._id,
         code,
         description: String(itm.description || '').toUpperCase().trim(),
-        category: String(itm.category || '2W').toUpperCase().trim(),
-        bin: String(itm.location || itm.bin || 'R1-A-1').trim(),
+        category: String(itm.category || 'GENERAL').toUpperCase().trim(),
+        bin: binDisplay,
         quantity: qty,
         value: val,
+        cost: avgCost,
+        costPrice: avgCost,
         loc1_qty,
         loc1_val,
         loc2_qty,
@@ -2338,6 +2341,7 @@ export const getStockReport = async (req, res, next) => {
         category: 1,
         subCategory: 1,
         location: 1,
+        rackBin: 1,
         quantity: 1,
         stockInHand: 1,
         stock: 1,
@@ -2347,9 +2351,11 @@ export const getStockReport = async (req, res, next) => {
         lastGrn: 1,
         lastGrnPrice: 1,
         averageCost: 1,
+        costPrice: 1,
         cost: 1,
         sellingPrice: 1,
         finalSellingPrice: 1,
+        value: 1,
       },
     }).toArray();
 
@@ -2368,14 +2374,24 @@ export const getStockReport = async (req, res, next) => {
       const isLow = !isOut && (reorder > 0 ? qty <= reorder : qty <= 2);
       const stockStatus = isOut ? 'Out of Stock' : (isLow ? 'Low Stock' : 'In Stock');
 
-      const cost = Number(itm.averageCost) || Number(itm.lastGrnPrice) || Number(itm.cost) || 0;
+      const costPrice = itm.costPrice !== undefined && Number(itm.costPrice) > 0
+        ? Number(itm.costPrice)
+        : (Number(itm.averageCost) || Number(itm.cost) || Number(itm.lastGrnPrice) || 0);
+
+      const hasGrn = Boolean(itm.lastGrnDate || itm.lastGrn || (itm.lastGrnPrice && Number(itm.lastGrnPrice) > 0));
+      const grnCost = hasGrn ? (Number(itm.lastGrnPrice) || 0) : null;
+
       const price = itm.sellingPrice !== undefined && Number(itm.sellingPrice) >= 0
         ? Number(itm.sellingPrice)
         : (itm.finalSellingPrice !== undefined ? Number(itm.finalSellingPrice) : 0);
 
-      const unitValuation = cost > 0 ? cost : (price > 0 ? price * 0.7 : 0);
-      const valuation = qty > 0 ? Number((qty * unitValuation).toFixed(2)) : 0;
+      const unitValuation = costPrice > 0 ? costPrice : (price > 0 ? price * 0.7 : 0);
+      const valuation = itm.value !== undefined && Number(itm.value) > 0
+        ? Number(Number(itm.value).toFixed(2))
+        : (qty > 0 ? Number((qty * unitValuation).toFixed(2)) : 0);
       const grnDate = itm.lastGrnDate || itm.lastGrn || '';
+
+      const locationDisplay = String(itm.rackBin || itm.location || '').trim() || 'Main Store';
 
       return {
         _id: itm._id,
@@ -2383,15 +2399,19 @@ export const getStockReport = async (req, res, next) => {
         description: desc,
         category: (itm.category || '').toUpperCase().trim() || 'GENERAL',
         subCategory: (itm.subCategory || '').trim() || 'N/A',
-        location: (itm.location || '').trim() || 'Main Store',
+        location: locationDisplay,
+        rackBin: String(itm.rackBin || '').trim(),
         availableStock: qty,
         damagedStock: Number(itm.damagedStock) || 0,
         reorderLevel: reorder,
         stockStatus,
         isLowStock: isLow,
         isOutOfStock: isOut,
+        hasGrnHistory: hasGrn,
         lastGrnDate: grnDate ? String(grnDate).slice(0, 10) : '',
-        lastGrnPurchaseCost: Number(cost.toFixed(2)),
+        lastGrnPurchaseCost: grnCost !== null ? Number(grnCost.toFixed(2)) : null,
+        costPrice: Number(costPrice.toFixed(2)),
+        cost: Number(costPrice.toFixed(2)),
         sellingPrice: Number(price.toFixed(2)),
         valuation,
       };
@@ -2427,9 +2447,9 @@ export const getStockReport = async (req, res, next) => {
     } else if (sortBy === 'qty_asc') {
       filteredItems.sort((a, b) => a.availableStock - b.availableStock);
     } else if (sortBy === 'cost_desc') {
-      filteredItems.sort((a, b) => b.lastGrnPurchaseCost - a.lastGrnPurchaseCost);
+      filteredItems.sort((a, b) => b.costPrice - a.costPrice);
     } else if (sortBy === 'cost_asc') {
-      filteredItems.sort((a, b) => a.lastGrnPurchaseCost - b.lastGrnPurchaseCost);
+      filteredItems.sort((a, b) => a.costPrice - b.costPrice);
     } else if (sortBy === 'price_desc') {
       filteredItems.sort((a, b) => b.sellingPrice - a.sellingPrice);
     } else if (sortBy === 'price_asc') {

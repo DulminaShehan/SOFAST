@@ -176,6 +176,29 @@ const itemSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    costPrice: {
+      type: Number,
+      default: 0,
+    },
+    rackBin: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    importBatch: {
+      type: String,
+      default: '',
+    },
+    migrationDate: {
+      type: Date,
+    },
+    lastImportBatch: {
+      type: String,
+      default: '',
+    },
+    lastImportDate: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
