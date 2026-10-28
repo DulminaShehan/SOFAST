@@ -88,6 +88,32 @@ if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
         console.error('Server error:', err);
       }
     });
+
+    // Graceful shutdown handlers for process managers (PM2 / Docker / Systemd)
+    const gracefulShutdown = async (signal) => {
+      console.log(`\n🛑 [${signal}] Received. Shutting down SOFAST HTTP server gracefully...`);
+      server.close(async () => {
+        console.log('HTTP server closed.');
+        try {
+          const mongoose = (await import('mongoose')).default;
+          if (mongoose.connection.readyState !== 0) {
+            await mongoose.connection.close(false);
+            console.log('MongoDB connection closed.');
+          }
+        } catch (closeErr) {
+          console.warn('Error during database disconnect:', closeErr.message);
+        }
+        process.exit(0);
+      });
+      // Force exit after 10 seconds if graceful close hangs
+      setTimeout(() => {
+        console.error('Forcing shutdown after timeout.');
+        process.exit(1);
+      }, 10000).unref();
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   };
 
   startServer();

@@ -33,7 +33,7 @@ export const connectDatabase = async () => {
     return null;
   }
 
-  const directFallbackUri = 'mongodb://pramuditha:pramuditha@ac-firyk5f-shard-00-00.ecu9tpg.mongodb.net:27017,ac-firyk5f-shard-00-01.ecu9tpg.mongodb.net:27017,ac-firyk5f-shard-00-02.ecu9tpg.mongodb.net:27017/sofast_pos?ssl=true&replicaSet=atlas-p6vt1h-shard-0&authSource=admin&retryWrites=true&w=majority';
+  const directFallbackUri = process.env.MONGODB_FALLBACK_URI || mongoUri;
 
   try {
     isConnecting = mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 8000 });
