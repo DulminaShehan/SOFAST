@@ -152,14 +152,30 @@ export const loginUser = async (req, res, next) => {
         });
       }
 
-      if (!user.isActive) {
+      // Check isActive or legacy status
+      const isUserActive =
+        user.isActive !== undefined
+          ? Boolean(user.isActive)
+          : user.status
+          ? user.status.toLowerCase() === 'active'
+          : true;
+
+      if (!isUserActive) {
         return res.status(403).json({
           success: false,
           message: 'This user account is inactive. Please contact the administrator.',
         });
       }
 
-      if (!user.validatePassword(password)) {
+      let isValidPassword = false;
+      try {
+        isValidPassword = user.validatePassword(password);
+      } catch (authErr) {
+        console.warn('Password check error:', authErr.message);
+        isValidPassword = false;
+      }
+
+      if (!isValidPassword) {
         return res.status(401).json({
           success: false,
           message: 'Invalid username or password',
@@ -182,18 +198,33 @@ export const loginUser = async (req, res, next) => {
       });
     }
 
-    if (!memUser.isActive) {
+    const isMemActive =
+      memUser.isActive !== undefined
+        ? Boolean(memUser.isActive)
+        : memUser.status
+        ? memUser.status.toLowerCase() === 'active'
+        : true;
+
+    if (!isMemActive) {
       return res.status(403).json({
         success: false,
         message: 'This user account is inactive. Please contact the administrator.',
       });
     }
 
-    const testHash = crypto
-      .pbkdf2Sync(password, memUser.salt, 1000, 64, 'sha512')
-      .toString('hex');
+    let isValidMemPass = false;
+    if (memUser.salt && memUser.passwordHash) {
+      try {
+        const testHash = crypto
+          .pbkdf2Sync(password, memUser.salt, 1000, 64, 'sha512')
+          .toString('hex');
+        isValidMemPass = testHash === memUser.passwordHash;
+      } catch (e) {
+        isValidMemPass = false;
+      }
+    }
 
-    if (testHash !== memUser.passwordHash) {
+    if (!isValidMemPass) {
       return res.status(401).json({
         success: false,
         message: 'Invalid username or password',
