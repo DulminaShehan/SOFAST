@@ -5,7 +5,7 @@ import axios from 'axios';
  * Base URL is configured dynamically via the VITE_API_URL environment variable.
  */
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://168.144.117.2.sslip.io/api',
   headers: {
     'Content-Type': 'application/json',
   },
