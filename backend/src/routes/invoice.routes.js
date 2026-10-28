@@ -3,6 +3,7 @@ import {
   getInvoices,
   getInvoiceById,
   getNextInvoiceNumber,
+  getNextManualInvoiceNumber,
   getRemainingBalances,
   createInvoice,
   updateInvoice,
@@ -14,6 +15,7 @@ import {
 const router = Router();
 
 router.get('/next-number', getNextInvoiceNumber);
+router.get('/next-manual-number', getNextManualInvoiceNumber);
 router.get('/remaining-balances', getRemainingBalances);
 router.get('/', getInvoices);
 router.get('/:id', getInvoiceById);

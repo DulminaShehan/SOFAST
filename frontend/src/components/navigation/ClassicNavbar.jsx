@@ -58,6 +58,7 @@ function ClassicNavbar({ activeMenu = '', className = '' }) {
   const salesServiceDropdownItems = [
     { id: 'sales-service-hub', label: '🧾 Sales & Service (Overview)', path: '/invoice', badge: 'Hub' },
     { id: 'create-invoice', label: '🧾 Create Invoice', path: '/invoice' },
+    { id: 'manual-invoice', label: '📝 Manual Invoice', path: '/manual-invoice' },
     { id: 'settlement-invoice', label: '💰 Settlement Invoice', path: '/settlement-invoice' },
     { id: 'remaining-balance', label: '⚖️ Remaining Balance', path: '/remaining-balance' },
   ];

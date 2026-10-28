@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import React, { Component, useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
@@ -23,7 +23,9 @@ function AlternativeProduct() {
 
   // Loading States
   const [loadingItems, setLoadingItems] = useState(false);
+  const [loadingRelationships, setLoadingRelationships] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   // Available Items List from Item Master
   const [itemsList, setItemsList] = useState([]);
@@ -120,12 +122,14 @@ function AlternativeProduct() {
   const fetchItems = async () => {
     try {
       setLoadingItems(true);
+      setLoadError(null);
       const res = await api.get('/items?limit=all');
-      if (res.data?.data) {
+      if (res.data?.data && Array.isArray(res.data.data)) {
         setItemsList(res.data.data);
       }
     } catch (err) {
       console.error('Failed to fetch items:', err);
+      setLoadError('Failed to load items from Item Master. Please check server connection.');
     } finally {
       setLoadingItems(false);
     }
@@ -134,13 +138,23 @@ function AlternativeProduct() {
   // 2. Fetch All Saved Alternative Relationships
   const fetchRelationships = async () => {
     try {
+      setLoadingRelationships(true);
       const res = await api.get('/alternative-products?limit=all');
-      if (res.data?.data) {
+      if (res.data?.data && Array.isArray(res.data.data)) {
         setSavedRelationships(res.data.data);
       }
     } catch (err) {
       console.error('Failed to fetch alternative products:', err);
+      setLoadError('Failed to load alternative product relationships. Please check server connection.');
+    } finally {
+      setLoadingRelationships(false);
     }
+  };
+
+  const handleRetryLoad = () => {
+    setLoadError(null);
+    fetchItems();
+    fetchRelationships();
   };
 
   useEffect(() => {
@@ -529,6 +543,59 @@ function AlternativeProduct() {
     }
   };
 
+  // Filter for Main Item Search Modal
+  const filteredMainItems = useMemo(() => {
+    const q = mainItemModal.search.toLowerCase().trim();
+    if (!q) return itemsList;
+    return itemsList.filter(
+      (i) =>
+        i.code?.toLowerCase().includes(q) ||
+        i.description?.toLowerCase().includes(q) ||
+        i.category?.toLowerCase().includes(q) ||
+        (i.barcode && String(i.barcode).toLowerCase().includes(q)) ||
+        (i.suppCode && String(i.suppCode).toLowerCase().includes(q))
+    );
+  }, [itemsList, mainItemModal.search]);
+
+  // Slice to max 100 to prevent React DOM lockup
+  const displayedMainItems = useMemo(() => {
+    return [...filteredMainItems.slice(0, 100), ...mainServerResults];
+  }, [filteredMainItems, mainServerResults]);
+
+  // Filter for Add Alternative Item Search Modal
+  const filteredAltCandidateItems = useMemo(() => {
+    const q = addAltModal.search.toLowerCase().trim();
+
+    return itemsList.filter((i) => {
+      if (!q) return true;
+      const c = i.code?.toLowerCase() || '';
+      const d = i.description?.toLowerCase() || '';
+      const cat = i.category?.toLowerCase() || '';
+      const b = i.barcode ? String(i.barcode).toLowerCase() : '';
+      const supp = i.suppCode ? String(i.suppCode).toLowerCase() : '';
+
+      return c.includes(q) || d.includes(q) || cat.includes(q) || b.includes(q) || supp.includes(q);
+    });
+  }, [itemsList, addAltModal.search]);
+
+  // Slice to max 100 to prevent browser freezing
+  const displayedAltCandidateItems = useMemo(() => {
+    return [...filteredAltCandidateItems.slice(0, 100), ...altServerResults];
+  }, [filteredAltCandidateItems, altServerResults]);
+
+  // Filter for Lower Records List
+  const filteredRecords = useMemo(() => {
+    const q = recordsFilter.toLowerCase().trim();
+    if (!q) return savedRelationships;
+    return savedRelationships.filter(
+      (r) =>
+        r.mainItemCode?.toLowerCase().includes(q) ||
+        r.description?.toLowerCase().includes(q) ||
+        (r.alternativeItemCodes &&
+          r.alternativeItemCodes.some((ac) => ac.toLowerCase().includes(q)))
+    );
+  }, [savedRelationships, recordsFilter]);
+
   // Debounced server search fallback for Main Item Modal
   useEffect(() => {
     const q = mainItemModal.search?.trim();
@@ -597,59 +664,6 @@ function AlternativeProduct() {
     return () => clearTimeout(timer);
   }, [addAltModal.search, addAltModal.isOpen, filteredAltCandidateItems]);
 
-  // Filter for Main Item Search Modal
-  const filteredMainItems = useMemo(() => {
-    const q = mainItemModal.search.toLowerCase().trim();
-    if (!q) return itemsList;
-    return itemsList.filter(
-      (i) =>
-        i.code?.toLowerCase().includes(q) ||
-        i.description?.toLowerCase().includes(q) ||
-        i.category?.toLowerCase().includes(q) ||
-        (i.barcode && String(i.barcode).toLowerCase().includes(q)) ||
-        (i.suppCode && String(i.suppCode).toLowerCase().includes(q))
-    );
-  }, [itemsList, mainItemModal.search]);
-
-  // Slice to max 100 to prevent React DOM lockup
-  const displayedMainItems = useMemo(() => {
-    return [...filteredMainItems.slice(0, 100), ...mainServerResults];
-  }, [filteredMainItems, mainServerResults]);
-
-  // Filter for Add Alternative Item Search Modal
-  const filteredAltCandidateItems = useMemo(() => {
-    const q = addAltModal.search.toLowerCase().trim();
-
-    return itemsList.filter((i) => {
-      if (!q) return true;
-      const c = i.code?.toLowerCase() || '';
-      const d = i.description?.toLowerCase() || '';
-      const cat = i.category?.toLowerCase() || '';
-      const b = i.barcode ? String(i.barcode).toLowerCase() : '';
-      const supp = i.suppCode ? String(i.suppCode).toLowerCase() : '';
-
-      return c.includes(q) || d.includes(q) || cat.includes(q) || b.includes(q) || supp.includes(q);
-    });
-  }, [itemsList, addAltModal.search]);
-
-  // Slice to max 100 to prevent browser freezing
-  const displayedAltCandidateItems = useMemo(() => {
-    return [...filteredAltCandidateItems.slice(0, 100), ...altServerResults];
-  }, [filteredAltCandidateItems, altServerResults]);
-
-  // Filter for Lower Records List
-  const filteredRecords = useMemo(() => {
-    const q = recordsFilter.toLowerCase().trim();
-    if (!q) return savedRelationships;
-    return savedRelationships.filter(
-      (r) =>
-        r.mainItemCode?.toLowerCase().includes(q) ||
-        r.description?.toLowerCase().includes(q) ||
-        (r.alternativeItemCodes &&
-          r.alternativeItemCodes.some((ac) => ac.toLowerCase().includes(q)))
-    );
-  }, [savedRelationships, recordsFilter]);
-
   return (
     <div className="alt-prod-page">
       {/* 1. Windows Blue Header */}
@@ -689,6 +703,41 @@ function AlternativeProduct() {
               onClick={() => setNotification(null)}
             >
               &#x2715;
+            </button>
+          </div>
+        )}
+
+        {/* Load Error Banner with Retry */}
+        {loadError && (
+          <div
+            className="alt-prod-alert error"
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#fee2e2',
+              color: '#991b1b',
+              border: '1px solid #f87171',
+              padding: '6px 12px',
+              marginBottom: '8px',
+              fontSize: '12px',
+              fontWeight: 500,
+            }}
+          >
+            <span>⚠️ {loadError}</span>
+            <button
+              type="button"
+              className="alt-prod-btn-classic"
+              style={{
+                marginLeft: '12px',
+                padding: '2px 10px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+              }}
+              onClick={handleRetryLoad}
+            >
+              🔄 Retry
             </button>
           </div>
         )}
@@ -952,7 +1001,13 @@ function AlternativeProduct() {
                   {filteredRecords.length === 0 ? (
                     <tr>
                       <td colSpan="7" className="empty-table-message">
-                        No Alternative Product relationship records found in the database.
+                        {loadingRelationships ? (
+                          <span>Loading saved alternative product mappings...</span>
+                        ) : savedRelationships.length === 0 ? (
+                          <span>No Alternative Product relationship records found in the database. Enter a Main Item Code above to create one.</span>
+                        ) : (
+                          <span>No matching records found for "{recordsFilter}".</span>
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -1263,4 +1318,59 @@ function AlternativeProduct() {
   );
 }
 
-export default AlternativeProduct;
+class AlternativeProductErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('AlternativeProduct render error caught by ErrorBoundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="alt-prod-page" style={{ padding: '20px', fontFamily: 'Tahoma, Arial, sans-serif', backgroundColor: '#d4d0c8', minHeight: '100vh' }}>
+          <header className="alt-prod-titlebar">
+            <span className="alt-prod-titlebar-heading">SOFAST MOTORS - [Alternative Product Error]</span>
+          </header>
+          <div style={{ background: '#ece9d8', border: '2px solid #005bb7', padding: '24px', margin: '40px auto', maxWidth: '640px', boxShadow: '2px 2px 8px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ color: '#b00020', margin: '0 0 12px', fontSize: '15px' }}>⚠️ Unable to display Alternative Product page</h3>
+            <p style={{ fontSize: '12px', color: '#333', background: '#fff', border: '1px solid #ccc', padding: '8px', fontFamily: 'monospace' }}>
+              {this.state.error?.message || 'A component rendering error occurred.'}
+            </p>
+            <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="alt-prod-btn-classic"
+                style={{ padding: '4px 14px', fontWeight: 'bold' }}
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
+                  window.location.reload();
+                }}
+              >
+                🔄 Reload Page
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function AlternativeProductPage() {
+  return (
+    <AlternativeProductErrorBoundary>
+      <AlternativeProduct />
+    </AlternativeProductErrorBoundary>
+  );
+}
+
+export default AlternativeProductPage;

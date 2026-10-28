@@ -7,16 +7,22 @@ const invoiceLineItemSchema = new mongoose.Schema({
   code: {
     type: String,
     trim: true,
-    required: [true, 'Item code is required'],
+    default: '',
   },
   itemCode: {
     type: String,
     trim: true,
+    default: '',
   },
   description: {
     type: String,
     trim: true,
     default: '',
+  },
+  unit: {
+    type: String,
+    trim: true,
+    default: 'PCS',
   },
   jobType: {
     type: String,
@@ -185,6 +191,17 @@ const invoiceSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isManualInvoice: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    invoiceType: {
+      type: String,
+      trim: true,
+      default: 'Standard',
+      index: true,
+    },
     status: {
       type: String,
       trim: true,
@@ -205,6 +222,10 @@ const invoiceSchema = new mongoose.Schema(
       default: [],
     },
     subTotal: {
+      type: Number,
+      default: 0,
+    },
+    totalDiscount: {
       type: Number,
       default: 0,
     },

@@ -56,12 +56,77 @@ export const computeNextInvoiceNumber = async (db) => {
 };
 
 /**
+ * Helper to compute the next sequential manual invoice number starting from MAN-0001
+ */
+export const computeNextManualInvoiceNumber = async (db) => {
+  const existingManual = await Invoice.find(
+    {
+      $or: [
+        { isManualInvoice: true },
+        { invoiceType: 'Manual' },
+        { invoiceNumber: { $regex: /^MAN-\d+/i } },
+      ],
+    },
+    { invoiceNumber: 1, no: 1 }
+  ).lean();
+
+  const maxExisting = existingManual.length > 0
+    ? Math.max(
+        0,
+        ...existingManual
+          .map((i) => {
+            const match = String(i.invoiceNumber || '').match(/^MAN-(\d+)/i);
+            if (match) return parseInt(match[1], 10);
+            return 0;
+          })
+          .filter((n) => !isNaN(n))
+      )
+    : 0;
+
+  let nextNo = maxExisting + 1;
+  let candidateInvoiceNumber = `MAN-${String(nextNo).padStart(4, '0')}`;
+  while (await Invoice.findOne({ invoiceNumber: candidateInvoiceNumber })) {
+    nextNo++;
+    candidateInvoiceNumber = `MAN-${String(nextNo).padStart(4, '0')}`;
+  }
+
+  return {
+    no: nextNo,
+    invoiceNumber: candidateInvoiceNumber,
+  };
+};
+
+/**
  * Get next sequential invoice number from MongoDB docnumbers and invoices (0001, 0002, ...)
+ * Supports ?type=manual for Manual Invoices (MAN-0001, MAN-0002, ...)
  */
 export const getNextInvoiceNumber = async (req, res, next) => {
   try {
     const db = mongoose.connection.db;
-    const { no, invoiceNumber } = await computeNextInvoiceNumber(db);
+    const isManual = req.query.type === 'manual' || req.query.isManual === 'true';
+    const { no, invoiceNumber } = isManual
+      ? await computeNextManualInvoiceNumber(db)
+      : await computeNextInvoiceNumber(db);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        no,
+        invoiceNumber,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get next sequential manual invoice number (MAN-0001, MAN-0002, ...)
+ */
+export const getNextManualInvoiceNumber = async (req, res, next) => {
+  try {
+    const db = mongoose.connection.db;
+    const { no, invoiceNumber } = await computeNextManualInvoiceNumber(db);
 
     return res.status(200).json({
       success: true,
@@ -89,6 +154,21 @@ export const getInvoices = async (req, res, next) => {
       } else if (status === 'completed') {
         query.$and = [{ isHold: { $ne: true } }, { status: { $ne: 'hold' } }];
       }
+    }
+
+    if (req.query.type === 'manual' || req.query.isManual === 'true') {
+      query.$or = [
+        { isManualInvoice: true },
+        { invoiceType: 'Manual' },
+        { invoiceNumber: /^MAN-/i },
+      ];
+    } else if (req.query.type === 'standard') {
+      query.$and = [
+        ...(query.$and || []),
+        { isManualInvoice: { $ne: true } },
+        { invoiceType: { $ne: 'Manual' } },
+        { invoiceNumber: { $not: /^MAN-/i } },
+      ];
     }
 
     if (search && search.trim() !== '') {
@@ -228,21 +308,35 @@ export const createInvoice = async (req, res, next) => {
       });
     }
 
-    // Determine sequential invoice number (starting at 0001, 0002, ...)
+    const isManual = Boolean(
+      req.body.isManualInvoice === true ||
+      req.body.isManualInvoice === 'true' ||
+      req.body.invoiceType === 'Manual' ||
+      (providedInvoiceNumber && String(providedInvoiceNumber).trim().toUpperCase().startsWith('MAN-'))
+    );
+
+    // Determine sequential invoice number (starting at 0001 for regular, MAN-0001 for manual)
     let finalNo = providedNo;
     let finalInvoiceNumber = providedInvoiceNumber;
 
     if (!finalNo || !finalInvoiceNumber) {
-      const nextData = await computeNextInvoiceNumber(db);
-      finalNo = nextData.no;
-      finalInvoiceNumber = nextData.invoiceNumber;
+      if (isManual) {
+        const nextData = await computeNextManualInvoiceNumber(db);
+        finalNo = nextData.no;
+        finalInvoiceNumber = nextData.invoiceNumber;
+      } else {
+        const nextData = await computeNextInvoiceNumber(db);
+        finalNo = nextData.no;
+        finalInvoiceNumber = nextData.invoiceNumber;
+      }
     } else {
       finalInvoiceNumber = String(finalInvoiceNumber).trim();
-      if (/^\d{1,4}$/.test(finalInvoiceNumber)) {
+      if (!isManual && /^\d{1,4}$/.test(finalInvoiceNumber)) {
         finalInvoiceNumber = finalInvoiceNumber.padStart(4, '0');
       }
       if (!finalNo) {
-        finalNo = parseInt(finalInvoiceNumber, 10) || 1;
+        const numPart = finalInvoiceNumber.replace(/\D/g, '');
+        finalNo = parseInt(numPart, 10) || 1;
       }
     }
 
@@ -263,15 +357,46 @@ export const createInvoice = async (req, res, next) => {
 
     // Process line items and compute pricing
     let calculatedSubTotal = 0;
+    let calculatedGrossSubTotal = 0;
+    let calculatedTotalDiscount = 0;
     const processedLineItems = [];
-    for (const item of lineItems) {
-      const isLabour = item.jobType === 'Labour' || item.type === 'Labour' || item.isService === true || item.isService === 'true';
-      const code = (item.code || item.itemCode || (isLabour ? 'DELIVERY' : '')).trim();
-      const qty = Math.max(0.01, parseFloat(item.quantity || item.qty) || 1);
-      let price = parseFloat(item.price || item.unitPrice || item.rate) || 0;
+    for (const [index, item] of lineItems.entries()) {
+      const isLabour = !isManual && (item.jobType === 'Labour' || item.type === 'Labour' || item.isService === true || item.isService === 'true');
+      let code = (item.code || item.itemCode || '').trim();
+      if (!code && isManual) {
+        code = `MAN-${index + 1}`;
+      } else if (!code && isLabour) {
+        code = 'DELIVERY';
+      }
 
-      // If price not explicitly supplied, lookup item's configured customer selling price (Material items only)
-      if (!isLabour && price <= 0 && code) {
+      const description = (item.description || (isLabour ? 'Delivery Charge' : (isManual ? `Item ${index + 1}` : ''))).trim();
+      if (isManual && !description) {
+        return res.status(400).json({
+          success: false,
+          message: `Item #${index + 1}: Description is required for manual invoice item`,
+        });
+      }
+
+      const unit = (item.unit || 'PCS').trim();
+      const qty = parseFloat(item.quantity !== undefined ? item.quantity : item.qty) || 0;
+      if (isManual && qty <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Item '${description || code}': Quantity must be greater than zero`,
+        });
+      }
+      const safeQty = Math.max(0.01, qty > 0 ? qty : 1);
+
+      let price = parseFloat(item.price !== undefined ? item.price : (item.unitPrice !== undefined ? item.unitPrice : (item.sellingPrice !== undefined ? item.sellingPrice : item.rate))) || 0;
+      if (isManual && price < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Item '${description || code}': Selling price cannot be negative`,
+        });
+      }
+
+      // If price not explicitly supplied, lookup item's configured customer selling price (Standard Material items only)
+      if (!isManual && !isLabour && price <= 0 && code) {
         const dbItem = await Item.findOne({
           $or: [{ code }, { barcode: code }, { barCode: code }],
         }).lean();
@@ -283,49 +408,48 @@ export const createInvoice = async (req, res, next) => {
       }
 
       const rate = parseFloat(item.rate || price) || price;
-      let discPct = isLabour ? 0 : (parseFloat(item.discountPercentage) || 0);
-      let discAmt = isLabour ? 0 : (parseFloat(item.discountAmount) || 0);
+      let discPct = isLabour ? 0 : Math.min(100, Math.max(0, parseFloat(item.discountPercentage) || 0));
+      let discAmt = isLabour ? 0 : Math.max(0, parseFloat(item.discountAmount) || 0);
 
       if (discPct > 0 && (!discAmt || discAmt === 0)) {
-        discAmt = (price * discPct) / 100 * qty;
+        discAmt = (price * discPct) / 100 * safeQty;
       } else if (discAmt > 0 && (!discPct || discPct === 0) && price > 0) {
-        discPct = (discAmt / (price * qty)) * 100;
+        discPct = (discAmt / (price * safeQty)) * 100;
       }
 
-      const gross = price * qty;
+      const gross = price * safeQty;
       const lineVal = Math.max(0, gross - discAmt);
       calculatedSubTotal += lineVal;
+      calculatedGrossSubTotal += gross;
+      calculatedTotalDiscount += discAmt;
 
       processedLineItems.push({
         code,
         itemCode: code,
-        description: item.description || (isLabour ? 'Delivery Charge' : ''),
-        jobType: isLabour ? 'Labour' : (item.jobType || 'Material'),
-        type: isLabour ? 'Labour' : (item.type || 'Material'),
+        description,
+        unit,
+        jobType: isManual ? 'Manual' : (isLabour ? 'Labour' : (item.jobType || 'Material')),
+        type: isManual ? 'Manual' : (isLabour ? 'Labour' : (item.type || 'Material')),
         isService: isLabour,
-        location: isLabour ? '-' : (item.location || 'Main Store'),
-        quantity: qty,
-        qty: qty,
+        location: isManual ? '-' : (isLabour ? '-' : (item.location || 'Main Store')),
+        quantity: safeQty,
+        qty: safeQty,
         masterPack: String(item.masterPack || '1'),
         rateType: item.rateType || 'Retail',
         rate,
         price,
         unitPrice: price,
-        itemCost: isLabour ? 0 : (parseFloat(item.itemCost) || 0),
-        mpCost: isLabour ? 0 : (parseFloat(item.mpCost) || 0),
+        itemCost: 0,
+        mpCost: 0,
         discountPercentage: Math.round(discPct * 100) / 100,
         discountAmount: Math.round(discAmt * 100) / 100,
         value: Math.round(lineVal * 100) / 100,
         total: Math.round(lineVal * 100) / 100,
-        balance: isLabour ? 0 : (parseFloat(item.balance) || 0),
-        availableQty: isLabour ? 0 : (parseFloat(item.availableQty) !== undefined && !isNaN(parseFloat(item.availableQty))
-          ? parseFloat(item.availableQty)
-          : parseFloat(item.balance) || 0),
-        finalPrice: parseFloat(item.finalPrice) !== undefined && !isNaN(parseFloat(item.finalPrice))
-          ? parseFloat(item.finalPrice)
-          : Math.round(lineVal * 100) / 100,
-        lastGrn: isLabour ? '' : (item.lastGrn ? String(item.lastGrn).trim() : ''),
-        lastGrnDate: isLabour ? '' : (item.lastGrnDate ? String(item.lastGrnDate).trim() : ''),
+        balance: 0,
+        availableQty: 0,
+        finalPrice: Math.round(lineVal * 100) / 100,
+        lastGrn: '',
+        lastGrnDate: '',
       });
     }
 
@@ -350,9 +474,9 @@ export const createInvoice = async (req, res, next) => {
     const holdStatus = Boolean(isHold);
     const invStatus = holdStatus ? 'hold' : (reqStatus || 'completed');
     const isCompleted = !holdStatus;
-    const isStockUpdated = isCompleted;
+    const isStockUpdated = isCompleted && !isManual; // Manual Invoices NEVER decrement inventory stock!
 
-    // Stock validation & atomic deduction ONLY if invoice is completed (not on hold)
+    // Stock validation & atomic deduction ONLY if invoice is completed (not on hold) AND NOT A MANUAL INVOICE
     if (isStockUpdated) {
       const itemsMap = aggregateItemsByCode(processedLineItems);
 
@@ -409,13 +533,16 @@ export const createInvoice = async (req, res, next) => {
       customerAddress: finalCusAddress,
       customerTelephone: finalCusTelephone,
       telephone: finalCusTelephone,
-      jobType,
-      jd,
+      jobType: isManual ? 'Manual' : jobType,
+      jd: isManual ? 'Manual Invoice' : jd,
       isHold: holdStatus,
+      isManualInvoice: isManual,
+      invoiceType: isManual ? 'Manual' : 'Standard',
       remark: (note || remark || '').trim(),
       note: (note || remark || '').trim(),
       lineItems: processedLineItems,
-      subTotal: Math.round(calculatedSubTotal * 100) / 100,
+      subTotal: Math.round((isManual ? calculatedGrossSubTotal : calculatedSubTotal) * 100) / 100,
+      totalDiscount: Math.round(calculatedTotalDiscount * 100) / 100,
       specialDiscount: specDisc,
       amountToPay: Math.round(amountToPay * 100) / 100,
       netTotal: Math.round(amountToPay * 100) / 100,
@@ -435,7 +562,7 @@ export const createInvoice = async (req, res, next) => {
       isSettled: calculatedDueAmount === 0,
       settlementRef: req.body.settlementRef || '',
       settlementStatus: req.body.settlementStatus || '',
-      isStockUpdated,
+      isStockUpdated: false, // Manual invoices NEVER touch stock
       isCompleted,
     });
 
@@ -541,17 +668,35 @@ export const updateInvoice = async (req, res, next) => {
       dateRealized,
     } = req.body;
 
+    const isManual = Boolean(
+      invoice.isManualInvoice === true ||
+      invoice.invoiceType === 'Manual' ||
+      req.body.isManualInvoice === true ||
+      req.body.isManualInvoice === 'true' ||
+      (invoice.invoiceNumber && String(invoice.invoiceNumber).toUpperCase().startsWith('MAN-'))
+    );
+
     // Process updated line items
     let calculatedSubTotal = 0;
+    let calculatedGrossSubTotal = 0;
+    let calculatedTotalDiscount = 0;
     const processedLineItems = [];
-    for (const item of lineItems) {
-      const isLabour = item.jobType === 'Labour' || item.type === 'Labour' || item.isService === true || item.isService === 'true';
-      const code = (item.code || item.itemCode || (isLabour ? 'DELIVERY' : '')).trim();
-      const qty = Math.max(0.01, parseFloat(item.quantity || item.qty) || 1);
-      let price = parseFloat(item.price || item.unitPrice || item.rate) || 0;
+    for (const [index, item] of lineItems.entries()) {
+      const isLabour = !isManual && (item.jobType === 'Labour' || item.type === 'Labour' || item.isService === true || item.isService === 'true');
+      let code = (item.code || item.itemCode || '').trim();
+      if (!code && isManual) {
+        code = `MAN-${index + 1}`;
+      } else if (!code && isLabour) {
+        code = 'DELIVERY';
+      }
 
-      // If price not explicitly supplied, lookup item's configured customer selling price (Material items only)
-      if (!isLabour && price <= 0 && code) {
+      const description = (item.description || (isLabour ? 'Delivery Charge' : (isManual ? `Item ${index + 1}` : ''))).trim();
+      const unit = (item.unit || 'PCS').trim();
+      const qty = Math.max(0.01, parseFloat(item.quantity || item.qty) || 1);
+      let price = parseFloat(item.price !== undefined ? item.price : (item.unitPrice !== undefined ? item.unitPrice : (item.sellingPrice !== undefined ? item.sellingPrice : item.rate))) || 0;
+
+      // If price not explicitly supplied, lookup item's configured customer selling price (Material items only, not manual)
+      if (!isManual && !isLabour && price <= 0 && code) {
         const dbItem = await Item.findOne({
           $or: [{ code }, { barcode: code }, { barCode: code }],
         }).lean();
@@ -563,8 +708,8 @@ export const updateInvoice = async (req, res, next) => {
       }
 
       const rate = parseFloat(item.rate || price) || price;
-      let discPct = isLabour ? 0 : (parseFloat(item.discountPercentage) || 0);
-      let discAmt = isLabour ? 0 : (parseFloat(item.discountAmount) || 0);
+      let discPct = isLabour ? 0 : Math.min(100, Math.max(0, parseFloat(item.discountPercentage) || 0));
+      let discAmt = isLabour ? 0 : Math.max(0, parseFloat(item.discountAmount) || 0);
 
       if (discPct > 0 && (!discAmt || discAmt === 0)) {
         discAmt = (price * discPct) / 100 * qty;
@@ -575,15 +720,18 @@ export const updateInvoice = async (req, res, next) => {
       const gross = price * qty;
       const lineVal = Math.max(0, gross - discAmt);
       calculatedSubTotal += lineVal;
+      calculatedGrossSubTotal += gross;
+      calculatedTotalDiscount += discAmt;
 
       processedLineItems.push({
         code,
         itemCode: code,
-        description: item.description || (isLabour ? 'Delivery Charge' : ''),
-        jobType: isLabour ? 'Labour' : (item.jobType || 'Material'),
-        type: isLabour ? 'Labour' : (item.type || 'Material'),
+        description,
+        unit,
+        jobType: isManual ? 'Manual' : (isLabour ? 'Labour' : (item.jobType || 'Material')),
+        type: isManual ? 'Manual' : (isLabour ? 'Labour' : (item.type || 'Material')),
         isService: isLabour,
-        location: isLabour ? '-' : (item.location || 'Main Store'),
+        location: isManual ? '-' : (isLabour ? '-' : (item.location || 'Main Store')),
         quantity: qty,
         qty: qty,
         masterPack: String(item.masterPack || '1'),
@@ -635,96 +783,98 @@ export const updateInvoice = async (req, res, next) => {
 
     const holdStatus = isHold !== undefined ? Boolean(isHold) : invoice.isHold;
     const invStatus = holdStatus ? 'hold' : (reqStatus || invoice.status || 'completed');
-    const wasStockUpdated = Boolean(invoice.isStockUpdated && !invoice.isHold && invoice.status !== 'hold' && invoice.status !== 'cancelled');
-    const targetStockUpdated = Boolean(!holdStatus && invStatus !== 'cancelled');
+    const wasStockUpdated = !isManual && Boolean(invoice.isStockUpdated && !invoice.isHold && invoice.status !== 'hold' && invoice.status !== 'cancelled');
+    const targetStockUpdated = !isManual && Boolean(!holdStatus && invStatus !== 'cancelled');
 
-    // Safe Stock Reconciliation Workflow
-    if (!wasStockUpdated && targetStockUpdated) {
-      // Case A: Transition from Draft/Hold to Completed -> Deduct stock
-      const newMap = aggregateItemsByCode(processedLineItems);
+    // Safe Stock Reconciliation Workflow (Standard Inventory Invoices Only!)
+    if (!isManual) {
+      if (!wasStockUpdated && targetStockUpdated) {
+        // Case A: Transition from Draft/Hold to Completed -> Deduct stock
+        const newMap = aggregateItemsByCode(processedLineItems);
 
-      // Pre-validation
-      for (const [code, { quantity: requiredQty }] of newMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (!itemDoc) {
-          return res.status(400).json({
-            success: false,
-            message: `Item code '${code}' not found in Item Master`,
-          });
-        }
-        const available = Number(itemDoc.quantity !== undefined ? itemDoc.quantity : (itemDoc.stockInHand || 0)) || 0;
-        if (available < requiredQty) {
-          return res.status(400).json({
-            success: false,
-            message: `Insufficient stock for item '${code}'. Available: ${available}, Required: ${requiredQty}`,
-          });
-        }
-      }
-
-      for (const [code, { quantity: requiredQty }] of newMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (itemDoc) {
-          await Item.updateOne(
-            { _id: itemDoc._id },
-            { $inc: { quantity: -requiredQty, stockInHand: -requiredQty } }
-          );
-        }
-      }
-      invoice.isStockUpdated = true;
-    } else if (wasStockUpdated && !targetStockUpdated) {
-      // Case B: Transition from Completed to Draft/Hold/Cancelled -> Revert stock
-      const oldMap = aggregateItemsByCode(invoice.lineItems);
-      for (const [code, { quantity: oldQty }] of oldMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (itemDoc) {
-          await Item.updateOne(
-            { _id: itemDoc._id },
-            { $inc: { quantity: oldQty, stockInHand: oldQty } }
-          );
-        }
-      }
-      invoice.isStockUpdated = false;
-    } else if (wasStockUpdated && targetStockUpdated) {
-      // Case C: Already posted invoice being modified -> Apply only the difference (delta = new - old)
-      const oldMap = aggregateItemsByCode(invoice.lineItems);
-      const newMap = aggregateItemsByCode(processedLineItems);
-      const allCodes = new Set([...oldMap.keys(), ...newMap.keys()]);
-
-      // Pre-validate any items where delta > 0 (requiring additional stock)
-      for (const code of allCodes) {
-        const oldQty = oldMap.get(code)?.quantity || 0;
-        const newQty = newMap.get(code)?.quantity || 0;
-        const delta = newQty - oldQty;
-        if (delta > 0) {
+        // Pre-validation
+        for (const [code, { quantity: requiredQty }] of newMap.entries()) {
           const itemDoc = await findItemMasterRecord(code);
-          const available = Number(itemDoc ? (itemDoc.quantity !== undefined ? itemDoc.quantity : itemDoc.stockInHand) : 0) || 0;
-          if (available < delta) {
+          if (!itemDoc) {
             return res.status(400).json({
               success: false,
-              message: `Insufficient stock to increase quantity of item '${code}'. Available: ${available}, Additional required: ${delta}`,
+              message: `Item code '${code}' not found in Item Master`,
+            });
+          }
+          const available = Number(itemDoc.quantity !== undefined ? itemDoc.quantity : (itemDoc.stockInHand || 0)) || 0;
+          if (available < requiredQty) {
+            return res.status(400).json({
+              success: false,
+              message: `Insufficient stock for item '${code}'. Available: ${available}, Required: ${requiredQty}`,
             });
           }
         }
-      }
 
-      // Apply atomic delta adjustments
-      for (const code of allCodes) {
-        const oldQty = oldMap.get(code)?.quantity || 0;
-        const newQty = newMap.get(code)?.quantity || 0;
-        const delta = newQty - oldQty;
-        if (delta !== 0) {
-          // If delta > 0: reduce stock by delta (-delta)
-          // If delta < 0: return stock by |delta| (+(-delta))
+        for (const [code, { quantity: requiredQty }] of newMap.entries()) {
           const itemDoc = await findItemMasterRecord(code);
           if (itemDoc) {
             await Item.updateOne(
               { _id: itemDoc._id },
-              { $inc: { quantity: -delta, stockInHand: -delta } }
+              { $inc: { quantity: -requiredQty, stockInHand: -requiredQty } }
             );
           }
         }
+        invoice.isStockUpdated = true;
+      } else if (wasStockUpdated && !targetStockUpdated) {
+        // Case B: Transition from Completed to Draft/Hold/Cancelled -> Revert stock
+        const oldMap = aggregateItemsByCode(invoice.lineItems);
+        for (const [code, { quantity: oldQty }] of oldMap.entries()) {
+          const itemDoc = await findItemMasterRecord(code);
+          if (itemDoc) {
+            await Item.updateOne(
+              { _id: itemDoc._id },
+              { $inc: { quantity: oldQty, stockInHand: oldQty } }
+            );
+          }
+        }
+        invoice.isStockUpdated = false;
+      } else if (wasStockUpdated && targetStockUpdated) {
+        // Case C: Already posted invoice being modified -> Apply only the difference (delta = new - old)
+        const oldMap = aggregateItemsByCode(invoice.lineItems);
+        const newMap = aggregateItemsByCode(processedLineItems);
+        const allCodes = new Set([...oldMap.keys(), ...newMap.keys()]);
+
+        // Pre-validate any items where delta > 0 (requiring additional stock)
+        for (const code of allCodes) {
+          const oldQty = oldMap.get(code)?.quantity || 0;
+          const newQty = newMap.get(code)?.quantity || 0;
+          const delta = newQty - oldQty;
+          if (delta > 0) {
+            const itemDoc = await findItemMasterRecord(code);
+            const available = Number(itemDoc ? (itemDoc.quantity !== undefined ? itemDoc.quantity : itemDoc.stockInHand) : 0) || 0;
+            if (available < delta) {
+              return res.status(400).json({
+                success: false,
+                message: `Insufficient stock to increase quantity of item '${code}'. Available: ${available}, Additional required: ${delta}`,
+              });
+            }
+          }
+        }
+
+        // Apply atomic delta adjustments
+        for (const code of allCodes) {
+          const oldQty = oldMap.get(code)?.quantity || 0;
+          const newQty = newMap.get(code)?.quantity || 0;
+          const delta = newQty - oldQty;
+          if (delta !== 0) {
+            const itemDoc = await findItemMasterRecord(code);
+            if (itemDoc) {
+              await Item.updateOne(
+                { _id: itemDoc._id },
+                { $inc: { quantity: -delta, stockInHand: -delta } }
+              );
+            }
+          }
+        }
+        invoice.isStockUpdated = true;
       }
-      invoice.isStockUpdated = true;
+    } else {
+      invoice.isStockUpdated = false;
     }
 
     if (date) invoice.date = new Date(date);
@@ -751,7 +901,8 @@ export const updateInvoice = async (req, res, next) => {
       invoice.note = finalNote;
     }
     invoice.lineItems = processedLineItems;
-    invoice.subTotal = Math.round(calculatedSubTotal * 100) / 100;
+    invoice.subTotal = Math.round((isManual ? calculatedGrossSubTotal : calculatedSubTotal) * 100) / 100;
+    invoice.totalDiscount = Math.round(calculatedTotalDiscount * 100) / 100;
     invoice.specialDiscount = specDisc;
     invoice.amountToPay = Math.round(amountToPay * 100) / 100;
     invoice.netTotal = Math.round(amountToPay * 100) / 100;
@@ -850,8 +1001,8 @@ export const cancelInvoice = async (req, res, next) => {
       });
     }
 
-    // Revert stock deductions if they were applied
-    if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
+    // Revert stock deductions if they were applied (never for manual invoices)
+    if (!invoice.isManualInvoice && invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
       const itemsMap = aggregateItemsByCode(invoice.lineItems);
       for (const [code, { quantity: oldQty }] of itemsMap.entries()) {
         const itemDoc = await findItemMasterRecord(code);
@@ -934,8 +1085,8 @@ export const deleteInvoice = async (req, res, next) => {
       });
     }
 
-    // Revert stock deductions if they were applied
-    if (invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
+    // Revert stock deductions if they were applied (never for manual invoices)
+    if (!invoice.isManualInvoice && invoice.isStockUpdated && Array.isArray(invoice.lineItems)) {
       const itemsMap = aggregateItemsByCode(invoice.lineItems);
       for (const [code, { quantity: oldQty }] of itemsMap.entries()) {
         const itemDoc = await findItemMasterRecord(code);

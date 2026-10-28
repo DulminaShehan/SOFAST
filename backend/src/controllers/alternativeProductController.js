@@ -258,10 +258,17 @@ export const getAlternativeProductByCode = async (req, res, next) => {
           },
         });
       }
+    }
 
-      // Check if item exists in Item Master to at least return item info
+    // If still no relationship found:
+    if (!rel) {
+      // Check if item exists in Item Master to at least return item info with 0 alternatives
       const item = await Item.findOne({
-        code: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') },
+        $or: [
+          { code: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') } },
+          { barcode: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') } },
+          { barCode: { $regex: new RegExp(`^${escapeRegex(rawCode)}$`, 'i') } },
+        ],
       }).lean();
 
       if (!item) {
@@ -283,8 +290,8 @@ export const getAlternativeProductByCode = async (req, res, next) => {
         data: {
           mainItemCode: item.code,
           mainItemId: item._id,
-          description: item.description,
-          mainItemDescription: item.description,
+          description: item.description || '',
+          mainItemDescription: item.description || '',
           mainItemStock: stock,
           alternativeCount: 0,
           alternativeItemCodes: [],
@@ -294,11 +301,11 @@ export const getAlternativeProductByCode = async (req, res, next) => {
       });
     }
 
-    // Fetch main item details
+    // Fetch main item details when relationship exists
     const mainItem = await Item.findOne({
       code: { $regex: new RegExp(`^${escapeRegex(rel.mainItemCode)}$`, 'i') },
     }).lean();
-    const altItems = await getItemsDetailsByCodes(rel.alternativeItemCodes);
+    const altItems = await getItemsDetailsByCodes(rel.alternativeItemCodes || []);
 
     return res.status(200).json({
       success: true,
@@ -339,9 +346,14 @@ export const saveAlternativeProduct = async (req, res, next) => {
 
     const trimmedMainCode = String(mainItemCode).trim();
 
-    // Verify main item in Item Master
+    // Verify main item in Item Master (by code, barcode, or suppCode)
     const mainItem = await Item.findOne({
-      code: { $regex: new RegExp(`^${escapeRegex(trimmedMainCode)}$`, 'i') },
+      $or: [
+        { code: { $regex: new RegExp(`^${escapeRegex(trimmedMainCode)}$`, 'i') } },
+        { barcode: { $regex: new RegExp(`^${escapeRegex(trimmedMainCode)}$`, 'i') } },
+        { barCode: { $regex: new RegExp(`^${escapeRegex(trimmedMainCode)}$`, 'i') } },
+        { suppCode: { $regex: new RegExp(`^${escapeRegex(trimmedMainCode)}$`, 'i') } },
+      ],
     });
 
     if (!mainItem) {
@@ -364,16 +376,33 @@ export const saveAlternativeProduct = async (req, res, next) => {
       ...new Set(
         rawAltCodes
           .map((c) => (c ? String(c).trim() : ''))
-          .filter((c) => c && c.toUpperCase() !== trimmedMainCode.toUpperCase())
+          .filter((c) => c && c.toUpperCase() !== mainItem.code.toUpperCase())
       ),
     ];
 
-    // Find matching ObjectIds for the alternative items from Item Master
+    // Find matching ObjectIds and canonical codes for the alternative items from Item Master
     let altObjectIds = [];
+    let canonicalAltCodes = cleanAltCodes;
     if (cleanAltCodes.length > 0) {
       const regexList = cleanAltCodes.map((c) => new RegExp(`^${escapeRegex(c)}$`, 'i'));
-      const foundAltItems = await Item.find({ code: { $in: regexList } }).lean();
+      const foundAltItems = await Item.find({
+        $or: [
+          { code: { $in: regexList } },
+          { barcode: { $in: regexList } },
+          { barCode: { $in: regexList } },
+          { suppCode: { $in: regexList } },
+        ],
+      }).lean();
       altObjectIds = foundAltItems.map((i) => i._id);
+      canonicalAltCodes = cleanAltCodes.map((c) => {
+        const matched = foundAltItems.find(
+          (fi) =>
+            fi.code?.toUpperCase() === c.toUpperCase() ||
+            (fi.barcode && String(fi.barcode).toUpperCase() === c.toUpperCase()) ||
+            (fi.suppCode && String(fi.suppCode).toUpperCase() === c.toUpperCase())
+        );
+        return matched ? matched.code : c;
+      });
     }
 
     // Upsert relationship document
@@ -382,7 +411,7 @@ export const saveAlternativeProduct = async (req, res, next) => {
       {
         mainItemCode: mainItem.code,
         mainItemId: mainItem._id,
-        alternativeItemCodes: cleanAltCodes,
+        alternativeItemCodes: canonicalAltCodes,
         alternativeItemIds: altObjectIds,
         status: status || 'Active',
         remark: remark || '',

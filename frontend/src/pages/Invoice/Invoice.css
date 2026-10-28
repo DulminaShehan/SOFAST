@@ -1838,7 +1838,7 @@
   flex: 1 1 38%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 360px;
 }
 
@@ -1846,7 +1846,7 @@
 .sofast-table-panel.sofast-catalog-table-panel {
   border: 1px solid #7f9db9;
   background: #fff;
-  height: 185px;
+  height: 245px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;

@@ -60,6 +60,8 @@ function Invoice() {
   // Alternative Products State
   const [alternativeProducts, setAlternativeProducts] = useState([]);
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
+  const [altModalOpen, setAltModalOpen] = useState(false);
+  const [altSearchQuery, setAltSearchQuery] = useState('');
 
   // Current Item Entry Draft
   const [itemEntry, setItemEntry] = useState({
@@ -1594,7 +1596,9 @@ function Invoice() {
   // Select an Alternative Product to load into item entry
   const handleSelectAlternativeProduct = async (alt) => {
     if (!alt || !alt.code) return;
-    await loadItemIntoEntry(alt.code, '1');
+    setAltModalOpen(false);
+    await loadItemIntoEntry(alt.code, itemEntry.quantity || '1');
+    showNotification(`Selected alternative product '${alt.code} - ${alt.description || ''}'`, 'success');
   };
 
   // Add or Update Line Item in Table (Add Item Button or Enter key)
@@ -1639,18 +1643,34 @@ function Invoice() {
     if (!isLabour) {
       avail = parseFloat(itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0);
       if (isNaN(avail) || avail <= 0) {
-        showNotification(
-          `Cannot add item '${itemEntry.code}' — No stock available in location '${itemEntry.location || 'Main Store'}' (Available: 0)`,
-          'error'
-        );
+        if (alternativeProducts && alternativeProducts.length > 0) {
+          showNotification(
+            `Item '${itemEntry.code}' has 0 stock! ${alternativeProducts.length} Alternative Product(s) are available. Opening alternative list...`,
+            'info'
+          );
+          setAltModalOpen(true);
+        } else {
+          showNotification(
+            `Cannot add item '${itemEntry.code}' — No stock available in location '${itemEntry.location || 'Main Store'}' (Available: 0)`,
+            'error'
+          );
+        }
         return;
       }
 
       if (saleQty > avail) {
-        showNotification(
-          `Cannot add item '${itemEntry.code}' — Requested purchase quantity (${saleQty}) exceeds available stock (${avail})`,
-          'error'
-        );
+        if (alternativeProducts && alternativeProducts.length > 0) {
+          showNotification(
+            `Requested quantity (${saleQty}) exceeds available stock (${avail}) for '${itemEntry.code}'! ${alternativeProducts.length} Alternative Product(s) are available.`,
+            'info'
+          );
+          setAltModalOpen(true);
+        } else {
+          showNotification(
+            `Cannot add item '${itemEntry.code}' — Requested purchase quantity (${saleQty}) exceeds available stock (${avail})`,
+            'error'
+          );
+        }
         return;
       }
     }
@@ -2022,18 +2042,9 @@ function Invoice() {
     showNotification('Prepared New Invoice', 'info');
   };
 
-  // BUTTON: MANUAL INVOICE
-  const handleManualInvoiceToggle = () => {
-    setInvoiceHeader((prev) => {
-      const nextManual = !prev.isManualInvoice;
-      showNotification(
-        nextManual
-          ? 'Manual Invoice mode activated. You can now edit the Invoice Number.'
-          : 'Automatic invoice numbering restored.',
-        'info'
-      );
-      return { ...prev, isManualInvoice: nextManual };
-    });
+  // BUTTON: MANUAL INVOICE - Open dedicated Manual Invoice form
+  const handleManualInvoiceClick = () => {
+    navigate('/manual-invoice');
   };
 
 
@@ -2414,6 +2425,18 @@ function Invoice() {
     const start = (lookupPage - 1) * ITEMS_PER_PAGE;
     return filteredItems.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredItems, lookupPage]);
+
+  // Filtered alternative products for modal
+  const filteredAltProducts = useMemo(() => {
+    if (!altSearchQuery || !altSearchQuery.trim()) return alternativeProducts;
+    const q = altSearchQuery.toLowerCase().trim();
+    return alternativeProducts.filter(
+      (p) =>
+        (p.code && p.code.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.location && p.location.toLowerCase().includes(q))
+    );
+  }, [alternativeProducts, altSearchQuery]);
 
   // Reusable Compact Thermal Receipt component for both Print and Preview
   const renderThermalReceiptContent = () => {
@@ -2885,9 +2908,10 @@ function Invoice() {
                   <button
                     type="button"
                     className="sofast-classic-btn"
-                    onClick={handleManualInvoiceToggle}
+                    onClick={handleManualInvoiceClick}
+                    title="Open Manual Invoice form for non-stock items"
                   >
-                    {invoiceHeader.isManualInvoice ? 'Auto Invoice' : 'Manual Invoice'}
+                    Manual Invoice
                   </button>
                 </div>
               </div>
@@ -3062,21 +3086,50 @@ function Invoice() {
                 {/* Form Row 2: Coupon No & INV */}
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Coupon No . . . .</span>
-                  <input
-                    type="text"
-                    className="sofast-input coupon-green-input"
-                    style={{ width: '210px', marginRight: '8px' }}
-                    value={
-                      invoiceHeader.jobType === 'Labour'
-                        ? '-'
-                        : (itemEntry.code
-                            ? (alternativeProducts.length > 0
-                                ? `${alternativeProducts.length} Alternative(s) Available`
-                                : 'No Product Available')
-                            : '')
-                    }
-                    readOnly
-                  />
+                  <div style={{ display: 'inline-flex', alignItems: 'center', width: '210px', marginRight: '8px' }}>
+                    <input
+                      type="text"
+                      className="sofast-input coupon-green-input"
+                      style={{
+                        flex: 1,
+                        cursor: alternativeProducts.length > 0 ? 'pointer' : 'default',
+                        fontWeight: alternativeProducts.length > 0 ? 'bold' : 'normal',
+                      }}
+                      title={alternativeProducts.length > 0 ? 'Click to view and choose Alternative Products' : ''}
+                      onClick={() => {
+                        if (alternativeProducts.length > 0) setAltModalOpen(true);
+                      }}
+                      value={
+                        invoiceHeader.jobType === 'Labour'
+                          ? '-'
+                          : (itemEntry.code
+                              ? (alternativeProducts.length > 0
+                                  ? `${alternativeProducts.length} Alternative(s) Available`
+                                  : 'No Product Available')
+                              : '')
+                      }
+                      readOnly
+                    />
+                    {alternativeProducts.length > 0 && (
+                      <button
+                        type="button"
+                        className="sofast-btn"
+                        style={{
+                          marginLeft: '4px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
+                          height: '22px',
+                          background: '#0055ea',
+                          color: '#fff',
+                          fontWeight: 'bold',
+                        }}
+                        title="View and choose Alternative Products"
+                        onClick={() => setAltModalOpen(true)}
+                      >
+                        Alt
+                      </button>
+                    )}
+                  </div>
                   <span className="sofast-navy-label" style={{ width: '45px' }}>INV . . .</span>
                   <input
                     type="text"
@@ -3405,6 +3458,28 @@ function Invoice() {
                         {activePreviewItem.category && (
                           <div className="sofast-display-cat">
                             Category: <b>{activePreviewItem.category}</b>
+                          </div>
+                        )}
+                        {alternativeProducts.length > 0 && (
+                          <div
+                            style={{
+                              marginTop: '6px',
+                              padding: '3px 6px',
+                              background: '#e0f2fe',
+                              border: '1px solid #7dd3fc',
+                              borderRadius: '3px',
+                              fontSize: '11px',
+                              color: '#0369a1',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => setAltModalOpen(true)}
+                            title="Click to view and choose Alternative Products"
+                          >
+                            <span>🔄 <b>{alternativeProducts.length}</b> Alternative Product(s) Available</span>
+                            <span style={{ textDecoration: 'underline', fontWeight: 'bold' }}>View / Swap</span>
                           </div>
                         )}
                       </div>
@@ -4192,6 +4267,188 @@ function Invoice() {
                 onClick={() => setIsImageModalOpen(false)}
               >
                 Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alternative Products Modal */}
+      {altModalOpen && (
+        <div className="invoice-modal-overlay" onClick={() => setAltModalOpen(false)}>
+          <div
+            className="invoice-modal-window"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '740px', maxWidth: '96vw' }}
+          >
+            <div className="invoice-modal-titlebar">
+              <span>🔄 Alternative Products for Item #{itemEntry.code || '-'}</span>
+              <button
+                type="button"
+                className="control-btn close"
+                style={{ width: '24px', height: '20px' }}
+                onClick={() => setAltModalOpen(false)}
+              >
+                &#x2715;
+              </button>
+            </div>
+            <div className="invoice-modal-body" style={{ padding: '12px', background: '#ece9d8' }}>
+              {/* Header Box: Current Item details */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #7f9db9',
+                  padding: '8px 12px',
+                  marginBottom: '10px',
+                  fontSize: '12px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <strong>Current Item:</strong>{' '}
+                  <span style={{ color: '#000080', fontWeight: 'bold' }}>{itemEntry.code}</span>
+                  {itemEntry.description && ` — ${itemEntry.description}`}
+                  <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>
+                    Location: <strong>{itemEntry.location || 'Main Store'}</strong> | Available Stock:{' '}
+                    <span style={{ color: Number(itemEntry.availableQty || 0) > 0 ? '#008000' : '#cc0000', fontWeight: 'bold' }}>
+                      {itemEntry.availableQty !== undefined && itemEntry.availableQty !== '' ? itemEntry.availableQty : 0}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="invoice-btn-classic"
+                    style={{ fontSize: '11px', padding: '3px 8px' }}
+                    onClick={() => {
+                      setAltModalOpen(false);
+                      navigate('/alternative-product');
+                    }}
+                    title="Manage alternative product relationships in Master Files"
+                  >
+                    Manage Alternatives
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Filter input */}
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#000080' }}>Search:</span>
+                <input
+                  type="text"
+                  className="sofast-input"
+                  style={{ flex: 1, padding: '3px 6px' }}
+                  placeholder="Filter alternatives by code, description, or location..."
+                  value={altSearchQuery}
+                  onChange={(e) => setAltSearchQuery(e.target.value)}
+                  autoFocus
+                />
+                {altSearchQuery && (
+                  <button
+                    type="button"
+                    className="sofast-btn"
+                    style={{ padding: '2px 8px', fontSize: '11px' }}
+                    onClick={() => setAltSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Table of Alternatives */}
+              <div
+                style={{
+                  maxHeight: '280px',
+                  overflowY: 'auto',
+                  border: '1px solid #7f9db9',
+                  background: '#ffffff',
+                }}
+              >
+                <table className="sofast-classic-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ background: '#005bb7', color: '#ffffff', position: 'sticky', top: 0, zIndex: 1 }}>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Code</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Description</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488', width: '100px' }}>Location</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '70px' }}>Stock</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '90px' }}>Price (Rs.)</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #004488', width: '90px' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAltProducts.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic' }}>
+                          {alternativeProducts.length === 0
+                            ? 'No alternative products configured for this item.'
+                            : 'No matching alternative products found.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAltProducts.map((alt) => {
+                        const stockNum = Number(alt.stock !== undefined ? alt.stock : (alt.quantity || 0));
+                        const hasStock = stockNum > 0;
+                        return (
+                          <tr
+                            key={alt.code}
+                            style={{
+                              borderBottom: '1px solid #dcdcdc',
+                              background: hasStock ? '#f9fff9' : '#fff9f9',
+                            }}
+                          >
+                            <td style={{ padding: '5px 8px', fontWeight: 'bold', color: '#000080' }}>{alt.code}</td>
+                            <td style={{ padding: '5px 8px' }}>{alt.description}</td>
+                            <td style={{ padding: '5px 8px', color: '#555' }}>{alt.location || 'Main Store'}</td>
+                            <td
+                              style={{
+                                padding: '5px 8px',
+                                textAlign: 'right',
+                                fontWeight: 'bold',
+                                color: hasStock ? '#008000' : '#cc0000',
+                              }}
+                            >
+                              {stockNum}
+                            </td>
+                            <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 'bold' }}>
+                              {Number(alt.price || alt.sellingPrice || 0).toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            <td style={{ padding: '3px 8px', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="invoice-btn-classic"
+                                style={{
+                                  padding: '2px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  backgroundColor: hasStock ? '#0055ea' : '#777777',
+                                  color: '#ffffff',
+                                }}
+                                onClick={() => handleSelectAlternativeProduct(alt)}
+                                title={hasStock ? 'Select this alternative item' : 'Select this item (0 stock)'}
+                              >
+                                Select
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="invoice-modal-footer">
+              <button
+                type="button"
+                className="invoice-btn-classic"
+                onClick={() => setAltModalOpen(false)}
+              >
+                Close
               </button>
             </div>
           </div>

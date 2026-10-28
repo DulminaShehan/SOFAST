@@ -10,6 +10,7 @@ import AlternativeProduct from './pages/AlternativeProduct/AlternativeProduct';
 import CustomerMaster from './pages/CustomerMaster/CustomerMaster';
 import SelectionScreen from './components/SelectionScreen';
 import Invoice from './pages/Invoice/Invoice';
+import ManualInvoice from './pages/ManualInvoice/ManualInvoice';
 import SettlementInvoice from './pages/SettlementInvoice/SettlementInvoice';
 import RemainingBalance from './pages/RemainingBalance/RemainingBalance';
 import Damage from './pages/Damage/Damage';
@@ -29,11 +30,14 @@ import Reports from './pages/Reports/Reports';
  * 3. Management System & Master Files (Supplier Master, Item Master, Customer Details, Alternative Product)
  */
 function App() {
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    return window.location.pathname === '/' && !sessionStorage.getItem('splash_shown');
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
 
   const handleSplashFinish = () => {
+    sessionStorage.setItem('splash_shown', 'true');
     setShowSplash(false);
   };
 
@@ -102,6 +106,8 @@ function App() {
       <Route path="/selection" element={<SelectionScreen />} />
       <Route path="/invoice" element={<Invoice />} />
       <Route path="/sales-service/invoice" element={<Invoice />} />
+      <Route path="/manual-invoice" element={<ManualInvoice />} />
+      <Route path="/sales-service/manual-invoice" element={<ManualInvoice />} />
       <Route path="/settlement-invoice" element={<SettlementInvoice />} />
       <Route path="/sales-service/settlement-invoice" element={<SettlementInvoice />} />
       <Route path="/sales-service/invoice/settlement" element={<SettlementInvoice />} />
