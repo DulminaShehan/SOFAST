@@ -137,6 +137,9 @@ function App() {
 
       <Route path="/reports" element={<Reports />} />
       <Route path="/reports/closing-stock" element={<Reports />} />
+      <Route path="/invoice-report" element={<Navigate to="/reports?tab=invoices" replace />} />
+      <Route path="/invoices-report" element={<Navigate to="/reports?tab=invoices" replace />} />
+      <Route path="/reports/invoices" element={<Navigate to="/reports?tab=invoices" replace />} />
       <Route path="*" element={<Navigate to="/management" replace />} />
     </Routes>
   );

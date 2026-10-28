@@ -13,6 +13,7 @@ import {
   getGoodsReturnNotes,
   getStockReport,
   getDashboardMetrics,
+  getInvoiceReport,
 } from '../controllers/reportController.js';
 
 const router = Router();
@@ -67,6 +68,8 @@ router.get('/stock-report', getStockReport);
 router.get('/inventory-stock', getStockReport);
 router.get('/dashboard-metrics', getDashboardMetrics);
 router.get('/dashboard', getDashboardMetrics);
+router.get('/invoices', getInvoiceReport);
+router.get('/invoice-report', getInvoiceReport);
 
 export default router;
 

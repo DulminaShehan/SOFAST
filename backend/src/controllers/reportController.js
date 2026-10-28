@@ -2847,3 +2847,367 @@ export const getDashboardMetrics = async (req, res, next) => {
   }
 };
 
+/**
+ * =============================================================================
+ * INVOICE REPORT (Complete Invoice List with Settlements and KPI Dashboard)
+ * =============================================================================
+ */
+export const getInvoiceReport = async (req, res, next) => {
+  try {
+    const {
+      search = '',
+      invoiceNumber = '',
+      customer = '',
+      dateFrom = '',
+      dateTo = '',
+      invoiceType = 'all',
+      paymentMethod = 'all',
+      paymentStatus = 'all',
+      sortBy = 'date_desc',
+      page = 1,
+      limit = 50,
+    } = req.query;
+
+    if (!isDbConnected()) {
+      return res.status(200).json({
+        success: false,
+        message: 'Database offline mode',
+        data: [],
+        summary: {
+          totalInvoices: 0,
+          todayInvoices: 0,
+          todaySales: 0,
+          totalOutstandingBalance: 0,
+          matchingCount: 0,
+          matchingNetTotal: 0,
+          matchingAmountPaid: 0,
+          matchingOutstanding: 0,
+        },
+        pagination: {
+          page: 1,
+          limit: 50,
+          totalRecords: 0,
+          totalPages: 1,
+        },
+      });
+    }
+
+    // Fetch all saved invoices and settlements from database
+    const [invoices, settlements] = await Promise.all([
+      Invoice.find({}).sort({ date: -1, createdAt: -1, no: -1 }).lean(),
+      Settlement.find({}).sort({ date: 1, createdAt: 1 }).lean(),
+    ]);
+
+    // Map settlements by normalized invoiceNumber and invoiceNo
+    const settMap = new Map();
+    for (const s of settlements) {
+      const keys = [];
+      if (s.invoiceNumber) keys.push(String(s.invoiceNumber).trim().toLowerCase());
+      if (s.invoiceNo) keys.push(String(s.invoiceNo).trim().toLowerCase());
+      for (const k of keys) {
+        if (!settMap.has(k)) settMap.set(k, []);
+        settMap.get(k).push(s);
+      }
+    }
+
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo' }).format(new Date());
+
+    let totalInvoices = invoices.length;
+    let todayInvoices = 0;
+    let todaySales = 0;
+    let totalOutstandingBalance = 0;
+
+    // Process every invoice with real financials and actual settlement records
+    const allInvoices = invoices.map((inv) => {
+      const invNum = String(
+        inv.invoiceNumber || (inv.no !== undefined && inv.no !== null ? String(inv.no) : '') || (inv._id ? inv._id.toString() : '')
+      ).trim();
+      const invKey = invNum.toLowerCase();
+      const invNoKey = inv.no !== undefined && inv.no !== null ? String(inv.no).trim().toLowerCase() : null;
+
+      // Match linked settlements
+      const matchedSettlements = [];
+      const seenReceipts = new Set();
+      const candidates = [...(settMap.get(invKey) || []), ...(invNoKey ? (settMap.get(invNoKey) || []) : [])];
+      for (const c of candidates) {
+        const rKey = c.receiptNo || (c._id ? c._id.toString() : '');
+        if (!seenReceipts.has(rKey)) {
+          seenReceipts.add(rKey);
+          matchedSettlements.push({
+            receiptNo: c.receiptNo || 'N/A',
+            no: c.no,
+            date: c.date || c.createdAt,
+            amount: Number(parseFloat(c.amount || 0).toFixed(2)),
+            method: c.method || 'Cash',
+            bank: c.bank || '',
+            chequeNo: c.chequeNo || '',
+            dateRealized: c.dateRealized || '',
+            remark: c.remark || '',
+            createdBy: c.createdBy || 'Staff',
+          });
+        }
+      }
+
+      const isCancelled = String(inv.status || '').toLowerCase() === 'cancelled';
+      const isTemp = inv.isTemporary === true || String(inv.invoiceType || '').toLowerCase() === 'temporary';
+      const isManual = inv.isManualInvoice === true || String(inv.invoiceType || '').toLowerCase() === 'manual' || invNum.startsWith('MAN-');
+      const resolvedType = isTemp ? 'Temporary Bill' : (isManual ? 'Manual Invoice' : 'Normal Sales Invoice');
+
+      // Gross SubTotal and Line Discounts
+      let subTotal = 0;
+      let lineDiscount = 0;
+      if (inv.lineItems && Array.isArray(inv.lineItems) && inv.lineItems.length > 0) {
+        subTotal = inv.lineItems.reduce((acc, li) => {
+          const p = parseFloat(li.price !== undefined ? li.price : (li.unitPrice !== undefined ? li.unitPrice : (li.rate || 0)));
+          const q = parseFloat(li.quantity !== undefined ? li.quantity : (li.qty || 1));
+          return acc + (p * q);
+        }, 0);
+        lineDiscount = inv.lineItems.reduce((acc, li) => acc + parseFloat(li.discountAmount || 0), 0);
+      } else {
+        subTotal = parseFloat(inv.subTotal || inv.amountToPay || inv.netTotal || 0);
+      }
+
+      const specialDiscount = parseFloat(inv.specialDiscount || 0);
+      const totalDiscount = Math.round((lineDiscount + specialDiscount) * 100) / 100;
+
+      let netTotal = parseFloat(
+        inv.netTotal !== undefined && inv.netTotal !== null && !isNaN(inv.netTotal)
+          ? inv.netTotal
+          : (inv.amountToPay !== undefined && inv.amountToPay !== null && !isNaN(inv.amountToPay)
+              ? inv.amountToPay
+              : Math.max(0, subTotal - totalDiscount))
+      );
+      if (isNaN(netTotal) || netTotal < 0) netTotal = 0;
+      netTotal = Math.round(netTotal * 100) / 100;
+      subTotal = Math.round(subTotal * 100) / 100;
+
+      // Actual Payments Received
+      const settlementSum = Math.round(matchedSettlements.reduce((acc, s) => acc + s.amount, 0) * 100) / 100;
+      const initialPaid = parseFloat(inv.paidAmount || inv.amountReceived || inv.customerPaidAmount || inv.cashReceived || 0);
+
+      let amountPaid = 0;
+      if (matchedSettlements.length > 0) {
+        amountPaid = Math.max(settlementSum, initialPaid);
+      } else {
+        amountPaid = initialPaid;
+      }
+      if (amountPaid < 0) amountPaid = 0;
+      if (String(inv.status || '').toLowerCase() === 'paid' && amountPaid === 0 && netTotal > 0) {
+        amountPaid = netTotal;
+      }
+      amountPaid = Math.round(Math.min(netTotal, amountPaid) * 100) / 100;
+
+      let outstandingBalance = isCancelled ? 0 : Math.round(Math.max(0, netTotal - amountPaid) * 100) / 100;
+
+      let paymentStatus = 'Unpaid';
+      if (isCancelled) {
+        paymentStatus = 'Cancelled';
+      } else if (outstandingBalance <= 0.01) {
+        paymentStatus = 'Paid';
+      } else if (amountPaid > 0.01 && outstandingBalance > 0.01) {
+        paymentStatus = 'Partially Paid';
+      } else {
+        paymentStatus = 'Unpaid';
+      }
+
+      let payMethod = (inv.paymentMethod || inv.paidBy || (matchedSettlements[0]?.method) || 'Cash').trim();
+      if (payMethod.toUpperCase() === 'CASH') payMethod = 'Cash';
+
+      const invDate = inv.date || inv.createdAt || new Date();
+      let invDateStr = '';
+      try {
+        invDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo' }).format(new Date(invDate));
+      } catch (e) {
+        invDateStr = new Date(invDate).toISOString().split('T')[0];
+      }
+
+      // Update Dashboard KPIs (Real database totals)
+      if (invDateStr === todayStr) {
+        todayInvoices++;
+        if (!isCancelled && !isTemp) {
+          todaySales += netTotal;
+        }
+      }
+
+      if (!isCancelled && !isTemp) {
+        totalOutstandingBalance += outstandingBalance;
+      }
+
+      return {
+        _id: inv._id,
+        invoiceNumber: invNum,
+        no: inv.no,
+        date: invDate,
+        dateStr: invDateStr,
+        customerCode: inv.customerCode || inv.cuscode || '',
+        customerName: inv.customerName || inv.cusname || 'Walk-in Customer',
+        customerAddress: inv.customerAddress || '',
+        customerTelephone: inv.customerTelephone || inv.telephone || '',
+        invoiceType: resolvedType,
+        isManualInvoice: isManual,
+        isTemporary: isTemp,
+        paymentMethod: payMethod,
+        subTotal,
+        discount: totalDiscount,
+        lineDiscount,
+        specialDiscount,
+        netTotal,
+        amountPaid,
+        outstandingBalance,
+        status: paymentStatus,
+        rawStatus: inv.status || '',
+        settlements: matchedSettlements,
+        lineItems: (inv.lineItems || []).map((li) => {
+          const liPrice = parseFloat(li.price !== undefined ? li.price : (li.unitPrice !== undefined ? li.unitPrice : (li.rate || 0)));
+          const liQty = parseFloat(li.quantity !== undefined ? li.quantity : (li.qty || 1));
+          const liDiscAmt = parseFloat(li.discountAmount || 0);
+          const liVal = parseFloat(li.value !== undefined ? li.value : Math.max(0, (liPrice * liQty) - liDiscAmt));
+          return {
+            code: li.code || li.itemCode || '',
+            itemCode: li.itemCode || li.code || '',
+            description: li.description || '',
+            unit: li.unit || 'PCS',
+            location: li.location || 'Main Store',
+            quantity: liQty,
+            sellingPrice: liPrice,
+            rate: liPrice,
+            discountPercentage: parseFloat(li.discountPercentage || 0),
+            discountAmount: liDiscAmt,
+            lineValue: liVal,
+            jobType: li.jobType || li.type || 'Material',
+          };
+        }),
+        remark: inv.remark || inv.note || '',
+      };
+    });
+
+    // Apply combined filters
+    let filtered = allInvoices;
+
+    // Filter: Search Keyword (Invoice Number, Customer Name/Code, Item Codes)
+    if (search && search.trim() !== '') {
+      const q = search.trim().toLowerCase();
+      filtered = filtered.filter((i) => {
+        return (
+          i.invoiceNumber.toLowerCase().includes(q) ||
+          i.customerCode.toLowerCase().includes(q) ||
+          i.customerName.toLowerCase().includes(q) ||
+          i.customerTelephone.toLowerCase().includes(q) ||
+          i.lineItems.some((li) => li.itemCode.toLowerCase().includes(q) || li.description.toLowerCase().includes(q))
+        );
+      });
+    }
+
+    // Filter: Invoice Number (exact or partial)
+    if (invoiceNumber && invoiceNumber.trim() !== '') {
+      const invQ = invoiceNumber.trim().toLowerCase();
+      filtered = filtered.filter((i) => i.invoiceNumber.toLowerCase().includes(invQ));
+    }
+
+    // Filter: Customer Code or Customer Name
+    if (customer && customer.trim() !== '') {
+      const cusQ = customer.trim().toLowerCase();
+      filtered = filtered.filter(
+        (i) => i.customerCode.toLowerCase().includes(cusQ) || i.customerName.toLowerCase().includes(cusQ)
+      );
+    }
+
+    // Filter: Date Range (dateFrom & dateTo)
+    if (dateFrom && dateFrom.trim() && dateFrom !== 'all') {
+      const startD = new Date(dateFrom.trim());
+      startD.setHours(0, 0, 0, 0);
+      filtered = filtered.filter((i) => new Date(i.date) >= startD);
+    }
+    if (dateTo && dateTo.trim() && dateTo !== 'all') {
+      const endD = new Date(dateTo.trim());
+      endD.setHours(23, 59, 59, 999);
+      filtered = filtered.filter((i) => new Date(i.date) <= endD);
+    }
+
+    // Filter: Invoice Type
+    if (invoiceType && invoiceType !== 'all') {
+      const itNorm = invoiceType.toLowerCase();
+      if (itNorm.includes('manual')) {
+        filtered = filtered.filter((i) => i.invoiceType === 'Manual Invoice');
+      } else if (itNorm.includes('temp')) {
+        filtered = filtered.filter((i) => i.invoiceType === 'Temporary Bill');
+      } else if (itNorm.includes('normal') || itNorm.includes('sales') || itNorm.includes('standard')) {
+        filtered = filtered.filter((i) => i.invoiceType === 'Normal Sales Invoice');
+      }
+    }
+
+    // Filter: Payment Method
+    if (paymentMethod && paymentMethod !== 'all') {
+      const pmNorm = paymentMethod.toLowerCase();
+      filtered = filtered.filter((i) => i.paymentMethod.toLowerCase().includes(pmNorm));
+    }
+
+    // Filter: Payment Status
+    if (paymentStatus && paymentStatus !== 'all') {
+      const psNorm = paymentStatus.toLowerCase();
+      filtered = filtered.filter((i) => {
+        if (psNorm === 'paid') return i.status === 'Paid';
+        if (psNorm === 'unpaid') return i.status === 'Unpaid';
+        if (psNorm.includes('part')) return i.status === 'Partially Paid';
+        if (psNorm === 'cancelled') return i.status === 'Cancelled';
+        return true;
+      });
+    }
+
+    // Sorting
+    filtered.sort((a, b) => {
+      if (sortBy === 'date_asc') return new Date(a.date) - new Date(b.date);
+      if (sortBy === 'date_desc') return new Date(b.date) - new Date(a.date);
+      if (sortBy === 'invoice_asc') return a.invoiceNumber.localeCompare(b.invoiceNumber, undefined, { numeric: true });
+      if (sortBy === 'invoice_desc') return b.invoiceNumber.localeCompare(a.invoiceNumber, undefined, { numeric: true });
+      if (sortBy === 'net_desc') return b.netTotal - a.netTotal;
+      if (sortBy === 'net_asc') return a.netTotal - b.netTotal;
+      if (sortBy === 'balance_desc') return b.outstandingBalance - a.outstandingBalance;
+      if (sortBy === 'balance_asc') return a.outstandingBalance - b.outstandingBalance;
+      return new Date(b.date) - new Date(a.date);
+    });
+
+    // Summary of matching invoices
+    const matchingCount = filtered.length;
+    const matchingNetTotal = Math.round(filtered.reduce((sum, i) => sum + i.netTotal, 0) * 100) / 100;
+    const matchingAmountPaid = Math.round(filtered.reduce((sum, i) => sum + i.amountPaid, 0) * 100) / 100;
+    const matchingOutstanding = Math.round(filtered.reduce((sum, i) => sum + i.outstandingBalance, 0) * 100) / 100;
+
+    // Pagination
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = parseInt(limit, 10) === 0 ? 0 : Math.min(250, Math.max(1, parseInt(limit, 10) || 50));
+    const totalPages = limitNum === 0 ? 1 : Math.max(1, Math.ceil(matchingCount / limitNum));
+    const paginatedInvoices = limitNum === 0 ? filtered : filtered.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+    return res.status(200).json({
+      success: true,
+      reportType: 'invoice_report',
+      company: COMPANY_HEADER,
+      summary: {
+        totalInvoices,
+        todayInvoices,
+        todaySales: Number(todaySales.toFixed(2)),
+        totalOutstandingBalance: Number(totalOutstandingBalance.toFixed(2)),
+        matchingCount,
+        matchingNetTotal,
+        matchingAmountPaid,
+        matchingOutstanding,
+      },
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalRecords: matchingCount,
+        totalPages,
+      },
+      data: paginatedInvoices,
+    });
+  } catch (error) {
+    console.error('[Invoice Report Controller Error]:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve invoice report from database: ' + error.message,
+    });
+  }
+};
+
+

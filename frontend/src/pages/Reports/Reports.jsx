@@ -5,6 +5,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import StockReportView from './StockReportView';
 import ReportsDashboardView from './ReportsDashboardView';
+import InvoiceReportView from './InvoiceReportView';
 import './Reports.css';
 
 /**
@@ -69,6 +70,7 @@ function Reports() {
 
   const reportTabsList = [
     { id: 'dashboard', label: 'Reports Dashboard', icon: '📊' },
+    { id: 'invoices', label: 'Invoice Report (All Invoices)', icon: '🧾' },
     { id: 'stock_report', label: 'Stock Report', icon: '📋' },
     { id: 'settlements', label: 'Daily Settlements Details', icon: '💰' },
     { id: 'grn', label: 'Goods Received Notes (GRN)', icon: '📥' },
@@ -1789,6 +1791,13 @@ function Reports() {
           ========================================================================= */}
       {activeReportTab === 'dashboard' && (
         <ReportsDashboardView onNavigateTab={handleTabSwitch} />
+      )}
+
+      {/* =========================================================================
+          FEATURE: INVOICE REPORT (Complete Saved Invoices, KPIs, Filters, Details)
+          ========================================================================= */}
+      {activeReportTab === 'invoices' && (
+        <InvoiceReportView onNavigateTab={handleTabSwitch} />
       )}
 
       {/* =========================================================================
