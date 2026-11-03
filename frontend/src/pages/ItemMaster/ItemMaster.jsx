@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import * as XLSX from 'xlsx';
 import './ItemMaster.css';
@@ -170,6 +172,7 @@ function ItemMaster() {
   const colorPaletteRef = useRef(null);
   const nativeColorInputRef = useRef(null);
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
 
   // Top Menu Items for standard management layout
   const topMenuItems = [
@@ -464,6 +467,9 @@ function ItemMaster() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     const payload = {
       code: formData.code.trim(),
       image: formData.image || '',
@@ -521,11 +527,11 @@ function ItemMaster() {
       return;
     }
 
-    const confirmDelete = window.confirm(
+    const confirmed = await confirmDelete(
       `Are you sure you want to delete item '${formData.description}' (${formData.code})?`
     );
 
-    if (!confirmDelete) return;
+    if (!confirmed) return;
 
     try {
       const res = await api.delete(`/items/${selectedId}`);
@@ -1317,7 +1323,7 @@ function ItemMaster() {
             )}
 
             {/* Form Section containing the 20 requested fields matching reference */}
-            <form className="item-master-form" onSubmit={handleSave} autoComplete="off">
+            <form className="item-master-form" onSubmit={handleSave} autoComplete="off" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.buttons-row button[type="submit"]' })}>
               {/* Row 1 & 2 Block: Item Code + Description on the Left; Item Image on the Right */}
               {/* Row 1 & 2 Block: Item Code + Description on the Left; Item Image spanning rows 1 & 2 on the Right */}
               <div className="form-top-block">

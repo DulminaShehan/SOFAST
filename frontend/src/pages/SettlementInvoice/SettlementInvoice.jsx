@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './SettlementInvoice.css';
@@ -13,6 +15,7 @@ import './SettlementInvoice.css';
  */
 function SettlementInvoice() {
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
   const location = useLocation();
   const { isAdmin } = useAuth();
 
@@ -404,6 +407,9 @@ function SettlementInvoice() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     const method = paymentMethod || 'Cash';
 
     if ((method === 'Cheque' || method === 'Credit Note') && !chequeNo.trim()) {
@@ -490,7 +496,7 @@ function SettlementInvoice() {
       return;
     }
 
-    const confirmDel = window.confirm(
+    const confirmDel = await confirmDelete(
       'Are you sure you want to delete this settlement record? The amount will be restored to the invoice balance.'
     );
     if (!confirmDel) return;
@@ -723,7 +729,7 @@ function SettlementInvoice() {
       </header>
 
       {/* 3. Main Full-Width Form Container */}
-      <main className="main-settlement-container">
+      <main className="main-settlement-container" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.settlement-btn-save-blue' })}>
         {/* Notification Alert */}
         {notification && (
           <div className={`settlement-alert ${notification.type}`}>

@@ -2,6 +2,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
+import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
 import './Invoice.css';
 
 /**
@@ -11,6 +14,18 @@ import './Invoice.css';
 function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirmDelete, confirmInvoicePrint } = useConfirmDialog();
+
+  // F6 & Alternative Items Selection State
+  const [altModalTargetIndex, setAltModalTargetIndex] = useState(-1);
+  const [altModalTargetCode, setAltModalTargetCode] = useState('');
+  const [altHighlightedIndex, setAltHighlightedIndex] = useState(0);
+
+  // Field Refs for smooth Enter Key navigation
+  const quantityInputRef = useRef(null);
+  const rateInputRef = useRef(null);
+  const priceInputRef = useRef(null);
+  const entryDiscountInputRef = useRef(null);
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -62,6 +77,21 @@ function Invoice() {
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
   const [altModalOpen, setAltModalOpen] = useState(false);
   const [altSearchQuery, setAltSearchQuery] = useState('');
+
+  // Filtered alternative products for modal
+  const filteredAltProducts = useMemo(() => {
+    if (!altSearchQuery || !altSearchQuery.trim()) return alternativeProducts;
+    const q = altSearchQuery.toLowerCase().trim();
+    return alternativeProducts.filter(
+      (p) =>
+        (p.code && p.code.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.location && p.location.toLowerCase().includes(q))
+    );
+  }, [alternativeProducts, altSearchQuery]);
+
+
+
 
   // Current Item Entry Draft
   const [itemEntry, setItemEntry] = useState({
@@ -1209,6 +1239,10 @@ function Invoice() {
     setItemDropdownOpen(false);
     setHighlightedItemIndex(-1);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+    setTimeout(() => {
+      quantityInputRef.current?.focus();
+      quantityInputRef.current?.select();
+    }, 60);
   };
 
   // Change location for selected item & refresh available stock
@@ -1593,13 +1627,135 @@ function Invoice() {
     setItemEntry(updated);
   };
 
-  // Select an Alternative Product to load into item entry
+  // Select an Alternative Product to load into item entry or replace selected line
   const handleSelectAlternativeProduct = async (alt) => {
     if (!alt || !alt.code) return;
     setAltModalOpen(false);
-    await loadItemIntoEntry(alt.code, itemEntry.quantity || '1');
-    showNotification(`Selected alternative product '${alt.code} - ${alt.description || ''}'`, 'success');
+
+    if (altModalTargetIndex >= 0 && lineItems[altModalTargetIndex]) {
+      try {
+        setLoading(true);
+        // Fetch actual Item Master record to get real stock, price, and location
+        const res = await api.get(`/items/${encodeURIComponent(alt.code)}`);
+        const fullItem = res.data?.data || alt;
+        const currentLine = lineItems[altModalTargetIndex];
+        const qty = currentLine.quantity || 1;
+        const price = Number(fullItem.sellingPrice || alt.sellingPrice || alt.price || 0);
+        const discPct = Number(currentLine.discountPercentage || 0);
+        const discAmt = Number(currentLine.discountAmount || 0);
+        const comp = computeLinePricing(price, qty, discPct, discAmt, 'percentage', fullItem.roundOffOption, fullItem.roundOffStep);
+        const finalPrice = parseFloat(comp.finalPrice) || (price * qty);
+
+        const updatedLine = {
+          ...currentLine,
+          code: fullItem.code,
+          description: fullItem.description,
+          location: fullItem.location || 'Main Store',
+          availableQty: fullItem.quantity !== undefined ? fullItem.quantity : (fullItem.stockInHand !== undefined ? fullItem.stockInHand : (alt.stock || 0)),
+          sellingPrice: price,
+          price: price,
+          rate: String(price),
+          discountPercentage: discPct,
+          discountAmount: parseFloat(comp.discountAmount) || 0,
+          discount: discPct > 0 ? `${discPct}%` : (discAmt > 0 ? discAmt.toFixed(2) : '0%'),
+          value: finalPrice,
+          finalPrice: finalPrice,
+          itemCost: fullItem.costPrice || fullItem.averageCost || '-',
+          lastGrn: fullItem.lastGrn || '',
+          lastGrnDate: fullItem.lastGrnDate || '',
+        };
+
+        const updatedLines = [...lineItems];
+        updatedLines[altModalTargetIndex] = updatedLine;
+        setLineItems(updatedLines);
+        setSelectedLineIndex(-1);
+        setAltModalTargetIndex(-1);
+        showNotification(`Replaced line item with alternative '${fullItem.code} - ${fullItem.description}'`, 'success');
+      } catch (err) {
+        console.error('Error applying alternative item:', err);
+        showNotification('Failed to load alternative item details', 'error');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      await loadItemIntoEntry(alt.code, itemEntry.quantity || '1');
+      showNotification(`Selected alternative product '${alt.code} - ${alt.description || ''}'`, 'success');
+      setTimeout(() => {
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
+      }, 60);
+    }
   };
+
+  // Keyboard shortcut F6 to open Alternative Items for currently selected item
+  const handleOpenAlternativeItemsF6 = async () => {
+    let targetCode = '';
+    let targetIndex = -1;
+
+    if (selectedLineIndex >= 0 && lineItems[selectedLineIndex]) {
+      targetCode = (lineItems[selectedLineIndex].code || '').trim();
+      targetIndex = selectedLineIndex;
+    } else if (itemEntry.code && itemEntry.code.trim()) {
+      targetCode = itemEntry.code.trim();
+    }
+
+    if (!targetCode) {
+      showNotification('Please select an item first.', 'info');
+      return;
+    }
+
+    setAltModalTargetCode(targetCode);
+    setAltModalTargetIndex(targetIndex);
+    setAltSearchQuery('');
+    setAltHighlightedIndex(0);
+    setLoadingAlternatives(true);
+
+    try {
+      const res = await api.get(`/alternative-products/${encodeURIComponent(targetCode)}`);
+      const alts = res.data?.data?.alternativeItems || [];
+      setAlternativeProducts(alts);
+      setAltModalOpen(true);
+      if (alts.length === 0) {
+        showNotification('No alternative items available.', 'info');
+      }
+    } catch (err) {
+      console.error('Error fetching alternative products:', err);
+      setAlternativeProducts([]);
+      setAltModalOpen(true);
+      showNotification('No alternative items available.', 'info');
+    } finally {
+      setLoadingAlternatives(false);
+    }
+  };
+
+  // Register F6 shortcut exclusively for Sales Invoice
+  useKeyboardShortcut('F6', handleOpenAlternativeItemsF6, { enabled: true, allowInInputs: true });
+
+  // Modal Keyboard Navigation (Escape to close, Up/Down to navigate, Enter to select)
+  useEffect(() => {
+    if (!altModalOpen) return;
+
+    const handleAltModalKeys = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setAltModalOpen(false);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setAltHighlightedIndex((prev) => (prev < filteredAltProducts.length - 1 ? prev + 1 : prev));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setAltHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      } else if (e.key === 'Enter') {
+        if (filteredAltProducts.length > 0 && altHighlightedIndex >= 0 && altHighlightedIndex < filteredAltProducts.length) {
+          e.preventDefault();
+          handleSelectAlternativeProduct(filteredAltProducts[altHighlightedIndex]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleAltModalKeys);
+    return () => window.removeEventListener('keydown', handleAltModalKeys);
+  }, [altModalOpen, filteredAltProducts, altHighlightedIndex]);
 
   // Add or Update Line Item in Table (Add Item Button or Enter key)
   const handleAddOrUpdateItem = () => {
@@ -2209,11 +2365,49 @@ function Invoice() {
     navigate('/settlement-invoice');
   };
 
+  // BUTTON: SAVE / COMPLETE INVOICE WITH PRINT CONFIRMATION
+  // Prompt requirement: "Do you wish to print this invoice?"
+  // Buttons:
+  // Yes — Save the invoice and print it.
+  // No — Save the invoice without printing.
+  // Cancel — Return to the invoice without saving.
+  const handleSaveInvoiceWithPrintConfirmation = async () => {
+    if (lineItems.length === 0) {
+      showNotification('Please add at least one item before saving the invoice', 'error');
+      return;
+    }
+
+    for (const li of lineItems) {
+      if (!li.quantity || Number(li.quantity) <= 0) {
+        showNotification(`Invalid quantity for item '${li.code}'`, 'error');
+        return;
+      }
+    }
+
+    const choice = await confirmInvoicePrint('Do you wish to print this invoice?');
+
+    if (choice === 'cancel') {
+      return;
+    }
+
+    if (choice === 'no') {
+      await handleSaveInvoice(false);
+      return;
+    }
+
+    if (choice === 'yes') {
+      const saved = await handleSaveInvoice(false);
+      if (saved) {
+        handlePrint();
+      }
+    }
+  };
+
   // BUTTON: DELETE INVOICE
   const handleDeleteInvoice = async () => {
     // 1. If an active saved invoice is loaded
     if (activeInvoiceId) {
-      const confirmDel = window.confirm(
+      const confirmDel = await confirmDelete(
         `Are you sure you want to delete / cancel Invoice '${invoiceHeader.invoiceNumber}'?\n\nThis will restore deducted inventory stock and update customer outstanding balance.`
       );
       if (!confirmDel) return;
@@ -2244,7 +2438,7 @@ function Invoice() {
     // 2. If a line item is selected in the bottom table
     if (selectedLineIndex >= 0 && selectedLineIndex < lineItems.length) {
       const itemToDelete = lineItems[selectedLineIndex];
-      const confirmItem = window.confirm(
+      const confirmItem = await confirmDelete(
         `Remove item '${itemToDelete?.code || 'selected'}' from invoice?`
       );
       if (confirmItem) {
@@ -2256,7 +2450,7 @@ function Invoice() {
 
     // 3. If there are unsaved line items in the table
     if (lineItems.length > 0) {
-      const confirmLines = window.confirm('Clear all unsaved line items from the invoice?');
+      const confirmLines = await confirmDelete('Clear all unsaved line items from the invoice?');
       if (confirmLines) {
         setLineItems([]);
         showNotification('Cleared unsaved invoice lines', 'info');
@@ -2426,17 +2620,6 @@ function Invoice() {
     return filteredItems.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredItems, lookupPage]);
 
-  // Filtered alternative products for modal
-  const filteredAltProducts = useMemo(() => {
-    if (!altSearchQuery || !altSearchQuery.trim()) return alternativeProducts;
-    const q = altSearchQuery.toLowerCase().trim();
-    return alternativeProducts.filter(
-      (p) =>
-        (p.code && p.code.toLowerCase().includes(q)) ||
-        (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.location && p.location.toLowerCase().includes(q))
-    );
-  }, [alternativeProducts, altSearchQuery]);
 
   // Reusable Compact Thermal Receipt component for both Print and Preview
   const renderThermalReceiptContent = () => {
@@ -3158,6 +3341,7 @@ function Invoice() {
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Quantity . . . . . .</span>
                   <input
+                    ref={quantityInputRef}
                     type="number"
                     name="quantity"
                     className="sofast-input"
@@ -3165,11 +3349,16 @@ function Invoice() {
                     value={itemEntry.quantity}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        rateInputRef.current?.focus();
+                        rateInputRef.current?.select();
+                      }
                     }}
                   />
                   <span className="sofast-navy-label" style={{ width: '75px' }}>Rate . . . . . . . .</span>
                   <input
+                    ref={rateInputRef}
                     type="text"
                     name="rate"
                     className="sofast-input"
@@ -3177,7 +3366,11 @@ function Invoice() {
                     value={itemEntry.rate}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        priceInputRef.current?.focus();
+                        priceInputRef.current?.select();
+                      }
                     }}
                   />
                   <button
@@ -3195,6 +3388,7 @@ function Invoice() {
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Selling Price . . .</span>
                   <input
+                    ref={priceInputRef}
                     type="number"
                     name="price"
                     className="sofast-input"
@@ -3202,11 +3396,16 @@ function Invoice() {
                     value={itemEntry.price}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        entryDiscountInputRef.current?.focus();
+                        entryDiscountInputRef.current?.select();
+                      }
                     }}
                   />
                   <span className="sofast-navy-label" style={{ width: '75px' }}>Discount . . .</span>
                   <input
+                    ref={entryDiscountInputRef}
                     type="text"
                     name="discountPercentage"
                     className="sofast-input discount-lavender-input"
@@ -3214,7 +3413,14 @@ function Invoice() {
                     value={itemEntry.discountPercentage}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddOrUpdateItem();
+                        setTimeout(() => {
+                          itemCodeInputRef.current?.focus();
+                          itemCodeInputRef.current?.select();
+                        }, 50);
+                      }
                     }}
                   />
                   <span className="sofast-navy-label" style={{ width: '45px' }}>Cost . . .</span>
@@ -3588,9 +3794,9 @@ function Invoice() {
               <button
                 type="button"
                 className="sofast-bottom-btn sofast-btn-save"
-                onClick={() => handleSaveInvoice(false)}
+                onClick={handleSaveInvoiceWithPrintConfirmation}
                 disabled={loading}
-                title="Save invoice to database and update stock"
+                title="Save invoice to database and update stock (Enter / Click)"
               >
                 Save
               </button>
@@ -4369,38 +4575,39 @@ function Invoice() {
                 <table className="sofast-classic-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
                     <tr style={{ background: '#005bb7', color: '#ffffff', position: 'sticky', top: 0, zIndex: 1 }}>
-                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Code</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Description</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488', width: '100px' }}>Location</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '70px' }}>Stock</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '90px' }}>Price (Rs.)</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #004488', width: '90px' }}>Action</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Item Code</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Item Description</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '125px' }}>Available Quantity</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '110px' }}>Selling Price</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488', width: '110px' }}>Location</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #004488', width: '100px' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredAltProducts.length === 0 ? (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic' }}>
-                          {alternativeProducts.length === 0
-                            ? 'No alternative products configured for this item.'
-                            : 'No matching alternative products found.'}
+                        <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: '#666', fontStyle: 'italic', fontSize: '13px' }}>
+                          No alternative items available.
                         </td>
                       </tr>
                     ) : (
-                      filteredAltProducts.map((alt) => {
+                      filteredAltProducts.map((alt, idx) => {
                         const stockNum = Number(alt.stock !== undefined ? alt.stock : (alt.quantity || 0));
                         const hasStock = stockNum > 0;
+                        const isHighlighted = altHighlightedIndex === idx;
                         return (
                           <tr
                             key={alt.code}
                             style={{
                               borderBottom: '1px solid #dcdcdc',
-                              background: hasStock ? '#f9fff9' : '#fff9f9',
+                              background: isHighlighted ? '#e0efff' : (hasStock ? '#f9fff9' : '#fff9f9'),
+                              cursor: 'pointer',
                             }}
+                            onClick={() => setAltHighlightedIndex(idx)}
+                            onDoubleClick={() => handleSelectAlternativeProduct(alt)}
                           >
                             <td style={{ padding: '5px 8px', fontWeight: 'bold', color: '#000080' }}>{alt.code}</td>
                             <td style={{ padding: '5px 8px' }}>{alt.description}</td>
-                            <td style={{ padding: '5px 8px', color: '#555' }}>{alt.location || 'Main Store'}</td>
                             <td
                               style={{
                                 padding: '5px 8px',
@@ -4417,6 +4624,7 @@ function Invoice() {
                                 maximumFractionDigits: 2,
                               })}
                             </td>
+                            <td style={{ padding: '5px 8px', color: '#555' }}>{alt.location || 'Main Store'}</td>
                             <td style={{ padding: '3px 8px', textAlign: 'center' }}>
                               <button
                                 type="button"
@@ -4431,7 +4639,7 @@ function Invoice() {
                                 onClick={() => handleSelectAlternativeProduct(alt)}
                                 title={hasStock ? 'Select this alternative item' : 'Select this item (0 stock)'}
                               >
-                                Select
+                                {altModalTargetIndex >= 0 ? 'Replace Line' : 'Select'}
                               </button>
                             </td>
                           </tr>

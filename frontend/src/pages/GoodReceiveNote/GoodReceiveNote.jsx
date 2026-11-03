@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import './GoodReceiveNote.css';
 
@@ -89,6 +91,11 @@ function GoodReceiveNote() {
 
   // Ref for Code Input focus
   const itemCodeInputRef = useRef(null);
+  const grnPriceInputRef = useRef(null);
+  const grnSellPriceInputRef = useRef(null);
+  const grnQtyInputRef = useRef(null);
+  const grnDiscountInputRef = useRef(null);
+  const { confirmSave, confirmDelete, showConfirm } = useConfirmDialog();
 
   // Menubar items
   const topMenuItems = [
@@ -903,15 +910,25 @@ function GoodReceiveNote() {
       return;
     }
 
+    // Confirm Save
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     // Prompt user to choose between posting stock or saving as draft
     let willPost = isRecordPosted;
     if (!isRecordPosted) {
-      const confirmPost = window.confirm(
-        "Do you want to post this GRN to stock now?\n\n" +
-        "• Click 'OK' to Post to Stock (Stock increases immediately in Item Master & Sales Invoice)\n" +
-        "• Click 'Cancel' to Save as Draft (Stock will NOT change)"
-      );
-      willPost = Boolean(confirmPost);
+      const postChoice = await showConfirm({
+        title: 'Post to Stock',
+        message: "Do you want to post this GRN to stock now?\n\n• Yes — Post to Stock (Stock increases immediately in Item Master & Sales Invoice)\n• No — Save as Draft (Stock will NOT change)",
+        iconType: 'question',
+        buttons: [
+          { label: 'Yes', value: true, variant: 'primary' },
+          { label: 'No', value: false, variant: 'default' },
+          { label: 'Cancel', value: 'cancel', variant: 'default' }
+        ]
+      });
+      if (postChoice === 'cancel') return;
+      willPost = Boolean(postChoice);
     }
 
     const payload = {
@@ -1070,7 +1087,7 @@ function GoodReceiveNote() {
       return;
     }
 
-    const confirmDelete = window.confirm(
+    const confirmDelete = await confirmDelete(
       `Are you sure you want to delete GRN '${grnHeader.grnNumber}'?${
         isRecordPosted ? ' This will revert updated stock quantities!' : ''
       }`
@@ -1256,7 +1273,7 @@ function GoodReceiveNote() {
           <div className="grn-panel-container">
             {/* Top Form Section (GRN, Date, Supplier & Top Right Buttons) */}
             <div className="grn-header-section">
-              <div className="grn-header-fields">
+              <div className="grn-header-fields" onKeyDown={(e) => handleEnterNavigation(e, { finalAction: () => itemCodeInputRef.current?.focus() })}>
                 {/* Row 1: GRN | Date | Supplier */}
                 <div className="grn-row">
                   <span className="grn-label-blue">GRN</span>
@@ -1558,6 +1575,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Price</span>
                   <input
+                    ref={grnPriceInputRef}
                     type="number"
                     name="price"
                     className="grn-input"
@@ -1566,7 +1584,11 @@ function GoodReceiveNote() {
                     value={itemEntry.price}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        grnSellPriceInputRef.current?.focus();
+                        grnSellPriceInputRef.current?.select();
+                      }
                     }}
                   />
                 </div>
@@ -1575,6 +1597,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Sell. Price</span>
                   <input
+                    ref={grnSellPriceInputRef}
                     type="number"
                     name="sellPrice"
                     className="grn-input"
@@ -1583,7 +1606,11 @@ function GoodReceiveNote() {
                     value={itemEntry.sellPrice}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        grnQtyInputRef.current?.focus();
+                        grnQtyInputRef.current?.select();
+                      }
                     }}
                   />
                 </div>
@@ -1592,6 +1619,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Quantity</span>
                   <input
+                    ref={grnQtyInputRef}
                     type="number"
                     name="quantity"
                     className="grn-input"
@@ -1600,7 +1628,11 @@ function GoodReceiveNote() {
                     value={itemEntry.quantity}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        grnDiscountInputRef.current?.focus();
+                        grnDiscountInputRef.current?.select();
+                      }
                     }}
                   />
                 </div>
@@ -1609,6 +1641,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Discount</span>
                   <input
+                    ref={grnDiscountInputRef}
                     type="number"
                     name="discount"
                     className="grn-input"
@@ -1617,7 +1650,14 @@ function GoodReceiveNote() {
                     value={itemEntry.discount}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddOrUpdateLineItem();
+                        setTimeout(() => {
+                          itemCodeInputRef.current?.focus();
+                          itemCodeInputRef.current?.select();
+                        }, 50);
+                      }
                     }}
                   />
                 </div>

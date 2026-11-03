@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import './GoodReturnNote.css';
 
@@ -21,6 +23,7 @@ import './GoodReturnNote.css';
  */
 function GoodReturnNote() {
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
 
   // Notification State
   const [notification, setNotification] = useState(null);
@@ -497,6 +500,9 @@ function GoodReturnNote() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     // Client-side quick check on eligible quantity
     for (const item of itemsToSave) {
       const q = parseFloat(item.qtyReturn);
@@ -615,19 +621,18 @@ function GoodReturnNote() {
    * Action: Delete Button
    * Confirms and deletes a saved GREN, safely reversing its stock deductions
    */
-  const handleDeletePrompt = () => {
+  const handleDeletePrompt = async () => {
     if (!isSavedRecord) {
       showNotification('info', 'Delete is only available for saved Good Return Notes.');
       return;
     }
 
-    setModalState({
-      isOpen: true,
-      title: 'Confirm Delete',
-      message: `Are you sure you want to delete Good Return Note #${grenNumber}?\n\nThis will safely reverse its stock deductions and restore returned items back to sellable inventory.`,
-      isAlertOnly: false,
-      confirmAction: executeDelete,
-    });
+    const confirmed = await confirmDelete(
+      `Are you sure you want to delete Good Return Note #${grenNumber}?\n\nThis will safely reverse its stock deductions and restore returned items back to sellable inventory.`
+    );
+    if (!confirmed) return;
+
+    await executeDelete();
   };
 
   const executeDelete = async () => {
@@ -763,7 +768,7 @@ function GoodReturnNote() {
       </div>
 
       {/* 3. Main Form Body */}
-      <div className="gren-form-body">
+      <div className="gren-form-body" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.btn-save-default' })}>
         {/* Top Header Box */}
         <div className="gren-header-box">
           {/* Sub-group: Gren & Date */}

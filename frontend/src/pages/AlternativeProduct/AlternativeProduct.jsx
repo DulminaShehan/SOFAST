@@ -1,6 +1,8 @@
 import React, { Component, useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './AlternativeProduct.css';
@@ -12,6 +14,7 @@ import './AlternativeProduct.css';
  */
 function AlternativeProduct() {
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
   const { isAdmin } = useAuth();
 
   // Navigation Menubar state
@@ -479,6 +482,9 @@ function AlternativeProduct() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     const trimmedCode = formData.itemCode.trim().toUpperCase();
 
     // Verify main item exists (prefer cached code for casing)
@@ -525,7 +531,7 @@ function AlternativeProduct() {
 
     const trimmedCode = formData.itemCode.trim().toUpperCase();
 
-    const confirmDel = window.confirm(
+    const confirmDel = await confirmDelete(
       `Are you sure you want to delete the Alternative Product mapping for '${trimmedCode}'?\n\nIMPORTANT: This will ONLY delete the relationship. No items in Item Master will be deleted.`
     );
     if (!confirmDel) return;
@@ -743,7 +749,7 @@ function AlternativeProduct() {
         )}
 
         {/* Form Container Panel */}
-        <div className="alt-prod-panel-container">
+        <div className="alt-prod-panel-container" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.alt-prod-btn-classic' })}>
           {/* Top Controls: Item Code, Save, Update, New, Delete, Description, Active */}
           <div className="alt-prod-top-controls">
             {/* Row 1: Item Code + Buttons */}

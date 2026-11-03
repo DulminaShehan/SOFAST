@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './CustomerMaster.css';
@@ -11,6 +13,7 @@ import './CustomerMaster.css';
  */
 function CustomerMaster() {
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
   const { isAdmin } = useAuth();
 
   // Navigation Menubar state
@@ -276,6 +279,9 @@ function CustomerMaster() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     try {
       setIsSaving(true);
 
@@ -336,7 +342,7 @@ function CustomerMaster() {
     }
 
     const customerName = formData.name || formData.code;
-    const confirmDel = window.confirm(
+    const confirmDel = await confirmDelete(
       `Are you sure you want to delete Customer '${formData.code} - ${customerName}'?\n\nIMPORTANT: Customers with active sales invoices, payments, settlements, or outstanding balances cannot be deleted.`
     );
     if (!confirmDel) return;
@@ -454,7 +460,7 @@ function CustomerMaster() {
           </div>
 
           {/* Form Two-Column Grid */}
-          <div className="cust-form-grid">
+          <div className="cust-form-grid" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.cust-btn-bar .cust-btn-classic' })}>
             {/* ========================================================= */}
             {/* LEFT COLUMN FIELDS (9 fields)                             */}
             {/* ========================================================= */}

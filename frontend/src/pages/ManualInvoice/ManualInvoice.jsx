@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import './ManualInvoice.css';
 
@@ -11,6 +13,7 @@ import './ManualInvoice.css';
  */
 function ManualInvoice() {
   const navigate = useNavigate();
+  const { confirmDelete, confirmInvoicePrint } = useConfirmDialog();
 
   // Active loaded invoice ID (null for new unsaved invoice)
   const [activeInvoiceId, setActiveInvoiceId] = useState(null);
@@ -348,6 +351,49 @@ function ManualInvoice() {
     }
   };
 
+  // Save with 3-button Print Confirmation
+  const handlePromptSaveAndPrint = async () => {
+    if (isSubmitting) return;
+
+    if (!invoiceHeader.invoiceNumber.trim()) {
+      showNotification('Invoice Number is required', 'error');
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      showNotification('Please add at least one item to save the manual invoice', 'error');
+      descInputRef.current?.focus();
+      return;
+    }
+
+    const choice = await confirmInvoicePrint('Do you wish to print this invoice?');
+
+    if (choice === 'cancel') return;
+
+    if (choice === 'no') {
+      await handleSaveInvoice(false);
+      return;
+    }
+
+    if (choice === 'yes') {
+      const saved = await handleSaveInvoice(true);
+      if (saved) {
+        setPrintTime(
+          new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+          })
+        );
+        setReceiptPreviewOpen(true);
+        setTimeout(() => {
+          window.print();
+        }, 200);
+      }
+    }
+  };
+
   // Bill Print
   const handleBillPrint = async () => {
     if (lineItems.length === 0) {
@@ -384,7 +430,7 @@ function ManualInvoice() {
       return;
     }
 
-    const confirmDel = window.confirm(
+    const confirmDel = await confirmDelete(
       `Are you sure you want to delete Manual Invoice "${invoiceHeader.invoiceNumber}"?\n\nThis will remove the invoice record permanently without affecting stock.`
     );
     if (!confirmDel) return;
@@ -844,7 +890,7 @@ function ManualInvoice() {
         {/* Manual Item Entry Section */}
         <fieldset className="manual-fieldset">
           <legend className="manual-legend">Manual Item Entry (No Stock Item Required)</legend>
-          <form onSubmit={handleAddItem} className="manual-item-entry-grid">
+          <form onSubmit={handleAddItem} className="manual-item-entry-grid" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: 'button[type="submit"]' })}>
             {/* Item Code (Optional) */}
             <div className="manual-form-group">
               <label className="manual-label">Item Code (Ref)</label>
@@ -1042,7 +1088,7 @@ function ManualInvoice() {
                 <button
                   type="button"
                   className="manual-btn manual-btn-success"
-                  onClick={() => handleSaveInvoice(false)}
+                  onClick={handlePromptSaveAndPrint}
                   disabled={isSubmitting || lineItems.length === 0}
                   title="Validate and save manual invoice"
                 >

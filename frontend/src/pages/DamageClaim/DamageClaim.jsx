@@ -12,6 +12,7 @@ import './DamageClaim.css';
  */
 function DamageClaim() {
   const navigate = useNavigate();
+  const { confirmSave } = useConfirmDialog();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -312,6 +313,9 @@ function DamageClaim() {
   // Save new Damage Claim
   const handleSave = async () => {
     if (!validateForm()) return;
+
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
 
     setIsSubmitting(true);
     setNotification(null);
