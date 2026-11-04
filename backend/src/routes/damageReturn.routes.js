@@ -11,6 +11,7 @@ import {
   updateCustomerDamageClaim,
   updateReturnInspectionAndStatus,
   updateReturnSupplierClaimAndResolution,
+  processInvoiceReturn,
 } from '../controllers/damageReturnController.js';
 
 const router = Router();
@@ -23,6 +24,7 @@ router.get('/items', getDamageItems);
 router.get('/damage-items', getDamageItems);
 router.get('/', getCustomerDamageReturns);
 
+router.post('/process-return', processInvoiceReturn);
 router.post('/', createCustomerDamageReturn);
 router.get('/:id', getCustomerDamageReturnById);
 router.put('/:id', updateCustomerDamageClaim);

@@ -113,7 +113,10 @@ export const getInvoiceForReturn = async (req, res, next) => {
     };
 
     if (!isNaN(cleanInv)) {
-      query.$or.push({ no: Number(cleanInv) });
+      const numVal = Number(cleanInv);
+      query.$or.push({ no: numVal });
+      query.$or.push({ invoiceNumber: String(numVal).padStart(4, '0') });
+      query.$or.push({ invoiceNumber: `INV-${String(numVal).padStart(4, '0')}` });
     }
 
     const invoice = await Invoice.findOne(query).lean();
@@ -187,6 +190,12 @@ export const getInvoiceForReturn = async (req, res, next) => {
       const availableReturnQty = Math.max(0, Math.round((purchasedQty - prevReturnedQty) * 100) / 100);
       const stockInfo = itemStockMap[codeUpper] || null;
 
+      const finalPrice = Number(li.finalPrice !== undefined ? li.finalPrice : (li.value || li.total || 0));
+      const lineUnitPrice = Number(li.price !== undefined ? li.price : (li.unitPrice || li.rate || 0));
+      const effectiveUnitPrice = purchasedQty > 0
+        ? Math.round((finalPrice / purchasedQty) * 100) / 100
+        : lineUnitPrice;
+
       return {
         lineIndex: idx,
         itemCode,
@@ -195,11 +204,16 @@ export const getInvoiceForReturn = async (req, res, next) => {
         previousReturnedQuantity: prevReturnedQty,
         availableReturnQuantity: availableReturnQty,
         canReturn: availableReturnQty > 0,
-        unitPrice: Number(li.price || li.unitPrice || 0),
+        unitPrice: lineUnitPrice,
+        rate: lineUnitPrice,
+        discountPercentage: Number(li.discountPercentage || 0),
         discountAmount: Number(li.discountAmount || 0),
-        total: Number(li.total || li.value || 0),
+        finalPrice,
+        total: Number(li.total || li.value || finalPrice || 0),
+        effectiveUnitPrice,
         currentSellableStock: stockInfo ? (Number(stockInfo.quantity) || Number(stockInfo.stockInHand) || 0) : 0,
         currentDamagedStock: stockInfo ? (Number(stockInfo.damagedStock) || 0) : 0,
+        location: li.location || 'Main Store',
         suppCode: stockInfo ? stockInfo.suppCode : '',
       };
     });
@@ -209,10 +223,28 @@ export const getInvoiceForReturn = async (req, res, next) => {
       data: {
         invoice: {
           _id: invoice._id,
+          no: invoice.no,
           invoiceNumber: invNum,
           date: invoice.date,
-          netTotal: invoice.netTotal || invoice.amountToPay || invoice.subTotal || 0,
           customer,
+          customerCode: customer.code,
+          customerName: customer.name,
+          customerTelephone: customer.telephone,
+          customerAddress: customer.address,
+          jobType: invoice.jobType || 'Material',
+          status: invoice.status || 'completed',
+          subTotal: invoice.subTotal || 0,
+          totalDiscount: invoice.totalDiscount || 0,
+          specialDiscount: invoice.specialDiscount || 0,
+          amountToPay: invoice.amountToPay || invoice.netTotal || 0,
+          netTotal: invoice.netTotal || invoice.amountToPay || invoice.subTotal || 0,
+          paymentMethod: invoice.paymentMethod || invoice.paidBy || 'Cash',
+          customerPaidAmount: invoice.customerPaidAmount !== undefined ? invoice.customerPaidAmount : (invoice.paidAmount || 0),
+          amountReceived: invoice.amountReceived !== undefined ? invoice.amountReceived : (invoice.paidAmount || 0),
+          paidAmount: invoice.paidAmount || 0,
+          balance: invoice.balance || 0,
+          dueAmount: invoice.dueAmount || 0,
+          note: invoice.note || invoice.remark || '',
         },
         lineItems: enrichedLineItems,
         previousReturns: existingReturns,
@@ -1501,3 +1533,344 @@ export const updateReturnSupplierClaimAndResolution = async (req, res, next) => 
   }
 };
 
+
+
+/**
+ * Process Invoice Return (Multi-item return directly from Sales Invoice)
+ * - Validates original invoice and returnable limits (sold qty - previously returned)
+ * - Atomic stock updates:
+ *   - accepted sellable items: +quantity, +stockInHand
+ *   - damaged items: +damagedStock, logs DamageStockMovement
+ * - Creates CustomerDamageReturn records with link to original invoice and customer
+ * - Adjusts customer outstanding due balance or records refund
+ * - Returns return summary
+ */
+export const processInvoiceReturn = async (req, res, next) => {
+  const session = await mongoose.startSession();
+  let useSession = false;
+  try {
+    session.startTransaction();
+    useSession = true;
+  } catch (err) {
+    useSession = false;
+  }
+
+  try {
+    const invoiceNumberParam = req.params.invoiceNumber || req.body.invoiceNumber;
+    if (!invoiceNumberParam || !invoiceNumberParam.trim()) {
+      if (useSession) await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'Invoice number is required' });
+    }
+
+    const cleanInv = invoiceNumberParam.trim();
+    const query = {
+      $or: [
+        { invoiceNumber: cleanInv },
+        { invoiceNumber: new RegExp(`^${cleanInv}$`, 'i') },
+      ],
+    };
+    if (!isNaN(cleanInv)) {
+      const numVal = Number(cleanInv);
+      query.$or.push({ no: numVal });
+      query.$or.push({ invoiceNumber: String(numVal).padStart(4, '0') });
+      query.$or.push({ invoiceNumber: `INV-${String(numVal).padStart(4, '0')}` });
+    }
+
+    const invoice = await Invoice.findOne(query);
+    if (!invoice) {
+      if (useSession) await session.abortTransaction();
+      return res.status(404).json({ success: false, message: `Invoice '${cleanInv}' not found` });
+    }
+
+    if (invoice.status === 'cancelled') {
+      if (useSession) await session.abortTransaction();
+      return res.status(400).json({ success: false, message: `Cannot process return for cancelled invoice '${invoice.invoiceNumber || cleanInv}'` });
+    }
+
+    const rawItems = req.body.returnedItems || req.body.lines || req.body.items || [];
+    const {
+      returnReason = 'Customer Return',
+      returnNotes = '',
+      adjustCustomerBalance = true,
+      condition = 'GOOD',
+    } = req.body;
+
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      if (useSession) await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'At least one returned item is required' });
+    }
+
+    // Filter only items with returnedQuantity > 0 or returnQuantity > 0
+    const itemsToProcess = rawItems
+      .map((i) => ({
+        ...i,
+        returnedQuantity: Number(i.returnedQuantity !== undefined ? i.returnedQuantity : (i.returnQuantity || 0)),
+        itemCondition: i.itemCondition || i.condition || condition || 'GOOD',
+      }))
+      .filter((i) => Number(i.returnedQuantity) > 0);
+
+    if (itemsToProcess.length === 0) {
+      if (useSession) await session.abortTransaction();
+      return res.status(400).json({ success: false, message: 'Returned quantity must be greater than zero' });
+    }
+
+    // Fetch existing returns for this invoice
+    const invNum = invoice.invoiceNumber || String(invoice.no);
+    const existingReturns = await CustomerDamageReturn.find({
+      invoiceNumber: invNum,
+      status: { $ne: 'CANCELLED' },
+    }).lean();
+
+    const previousReturnsByItem = {};
+    existingReturns.forEach((ret) => {
+      const code = String(ret.returnedItem?.itemCode || '').trim().toUpperCase();
+      if (code) {
+        if (!previousReturnsByItem[code]) {
+          previousReturnsByItem[code] = 0;
+        }
+        previousReturnsByItem[code] += Number(ret.returnedItem?.returnedQuantity || 0);
+      }
+    });
+
+    // Validate each item against original invoice line items & previous returns
+    const processedLines = [];
+    let totalReturnAmount = 0;
+
+    for (const retItem of itemsToProcess) {
+      const cleanCode = String(retItem.itemCode || retItem.code || '').trim();
+      const codeUpper = cleanCode.toUpperCase();
+      const retQty = Number(retItem.returnedQuantity);
+
+      if (isNaN(retQty) || retQty <= 0) {
+        if (useSession) await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `Invalid return quantity (${retQty}) for item '${cleanCode}'`,
+        });
+      }
+
+      // Find matching line in invoice
+      const matchedLine = (invoice.lineItems || []).find(
+        (li) => String(li.code || li.itemCode || '').trim().toUpperCase() === codeUpper
+      );
+      if (!matchedLine) {
+        if (useSession) await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `Item '${cleanCode}' was not found on Invoice '${invNum}'`,
+        });
+      }
+
+      const purchasedQty = Math.max(0, Number(matchedLine.quantity || matchedLine.qty || 1));
+      const alreadyReturned = Number(previousReturnsByItem[codeUpper] || 0);
+      const availableReturnQty = Math.max(0, Math.round((purchasedQty - alreadyReturned) * 100) / 100);
+
+      if (retQty > availableReturnQty) {
+        if (useSession) await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `Return quantity (${retQty}) for item '${cleanCode}' exceeds allowable return quantity (${availableReturnQty}). Purchased: ${purchasedQty}, Already returned: ${alreadyReturned}.`,
+        });
+      }
+
+      // Calculate return price using original invoice line prices and discounts
+      const originalLineFinalPrice = Number(matchedLine.finalPrice !== undefined ? matchedLine.finalPrice : (matchedLine.value || matchedLine.total || 0));
+      const effectiveUnitPrice = purchasedQty > 0
+        ? Math.round((originalLineFinalPrice / purchasedQty) * 100) / 100
+        : Number(matchedLine.price || matchedLine.unitPrice || 0);
+
+      const lineRefundAmount = Math.round(retQty * effectiveUnitPrice * 100) / 100;
+      totalReturnAmount += lineRefundAmount;
+
+      const itemCondition = (retItem.itemCondition || retItem.condition || condition || 'GOOD').toUpperCase();
+      const isGoodCondition = (itemCondition === 'GOOD' || retItem.acceptToSellableStock === true) && itemCondition !== 'DAMAGED';
+
+      processedLines.push({
+        itemCode: cleanCode,
+        description: matchedLine.description || '',
+        purchasedQuantity: purchasedQty,
+        returnedQuantity: retQty,
+        unitPrice: effectiveUnitPrice,
+        originalUnitPrice: Number(matchedLine.price || matchedLine.unitPrice || 0),
+        discountPercentage: Number(matchedLine.discountPercentage || 0),
+        lineRefundAmount,
+        itemCondition: isGoodCondition ? 'GOOD' : 'DAMAGED',
+        isGoodCondition,
+        returnReason: retItem.returnReason || returnReason || 'Customer Return',
+      });
+    }
+
+    totalReturnAmount = Math.round(totalReturnAmount * 100) / 100;
+
+    // Generate Return Reference Number (CDR-XXXX)
+    const db = mongoose.connection.db;
+    const docNum = await db.collection('docnumbers').findOne({ docType: 'CDR' });
+    const latestReturn = await CustomerDamageReturn.findOne({ no: { $exists: true, $ne: null } })
+      .sort({ no: -1, createdAt: -1 })
+      .lean();
+
+    const docCurrent = docNum && Number(docNum.currentNumber) ? Number(docNum.currentNumber) : 0;
+    const returnCurrent = latestReturn && Number(latestReturn.no) ? Number(latestReturn.no) : 0;
+    let nextNo = Math.max(docCurrent, returnCurrent);
+
+    const savedReturnRecords = [];
+
+    // Process stock updates and save return records
+    for (const pLine of processedLines) {
+      nextNo += 1;
+      const returnNumber = `CDR-${String(nextNo).padStart(4, '0')}`;
+      const claimNumber = `DC-${new Date().getFullYear()}-${String(nextNo).padStart(4, '0')}`;
+
+      // Stock update
+      if (pLine.isGoodCondition) {
+        // Physically accepted into sellable inventory:
+        await Item.updateOne(
+          { code: new RegExp(`^${pLine.itemCode}$`, 'i') },
+          { $inc: { quantity: pLine.returnedQuantity, stockInHand: pLine.returnedQuantity } }
+        );
+      } else {
+        // Damaged: quarantine only
+        await Item.updateOne(
+          { code: new RegExp(`^${pLine.itemCode}$`, 'i') },
+          { $inc: { damagedStock: pLine.returnedQuantity } }
+        );
+
+        // Record DamageStockMovement
+        try {
+          const damageMovement = new DamageStockMovement({
+            movementNumber: `DSM-${String(nextNo).padStart(4, '0')}`,
+            no: nextNo,
+            date: new Date(),
+            itemCode: pLine.itemCode,
+            description: pLine.description,
+            quantity: pLine.returnedQuantity,
+            movementType: 'IN_CUSTOMER_RETURN',
+            origin: 'CUSTOMER RETURN',
+            referenceNumber: returnNumber,
+            invoiceNumber: invNum,
+            customerName: invoice.customerName || 'Walk In Customer',
+            unitCost: pLine.unitPrice,
+            totalValue: pLine.lineRefundAmount,
+            damageReason: pLine.returnReason,
+            notes: returnNotes || `Invoice Return from #${invNum}`,
+            recordedBy: req.user?.username || 'Admin',
+          });
+          await damageMovement.save();
+        } catch (dsmErr) {
+          console.warn('DSM audit log error:', dsmErr);
+        }
+      }
+
+      // Save CustomerDamageReturn document
+      const retDoc = new CustomerDamageReturn({
+        returnNumber,
+        claimNumber,
+        claimDate: new Date(),
+        no: nextNo,
+        date: new Date(),
+        invoiceId: invoice._id,
+        invoiceNumber: invNum,
+        invoiceDate: invoice.date,
+        customerCode: invoice.customerCode || invoice.cuscode || '',
+        customerName: invoice.customerName || invoice.cusname || 'Walk-in Customer',
+        customerTelephone: invoice.customerTelephone || invoice.telephone || '',
+        customerAddress: invoice.customerAddress || '',
+        returnedItem: {
+          itemCode: pLine.itemCode,
+          description: pLine.description,
+          purchasedQuantity: pLine.purchasedQuantity,
+          unitPrice: pLine.unitPrice,
+          returnedQuantity: pLine.returnedQuantity,
+          returnReason: pLine.returnReason,
+          damageReason: pLine.returnReason,
+          itemCondition: pLine.itemCondition,
+          damageNotes: returnNotes || '',
+        },
+        workflowType: pLine.isGoodCondition ? 'EXCHANGE' : 'DAMAGE_RETURN',
+        itemCondition: pLine.itemCondition,
+        disposition: 'REFUND',
+        damageStatus: pLine.isGoodCondition ? 'COMPLETED_RETURN' : 'RECEIVED',
+        inspection: {
+          inspected: true,
+          inspectedBy: req.user?.username || 'Admin',
+          inspectionDate: new Date(),
+          conditionResult: pLine.isGoodCondition ? 'SELLABLE_STOCK' : 'DAMAGED_QUARANTINE',
+          inspectionNotes: returnNotes || '',
+        },
+        refundAmount: pLine.lineRefundAmount,
+        notes: returnNotes || `Invoice Return #${invNum}`,
+        remarks: returnNotes || '',
+        status: 'COMPLETED',
+      });
+
+      await retDoc.save();
+      savedReturnRecords.push(retDoc);
+    }
+
+    // Update CDR docnumbers counter in db
+    await db.collection('docnumbers').updateOne(
+      { docType: 'CDR' },
+      { $set: { currentNumber: nextNo, prefix: 'CDR', padding: 4 } },
+      { upsert: true }
+    );
+
+    // Update Customer Due Balance / Financial Adjustment if customer had outstanding due
+    let balanceAdjusted = 0;
+    const cusCode = invoice.customerCode || invoice.cuscode;
+    if (adjustCustomerBalance && cusCode) {
+      const customerRecord = await Customer.findOne({
+        $or: [{ code: cusCode }, { customerCode: cusCode }],
+      });
+      if (customerRecord) {
+        const curDue = Number(customerRecord.dueAmount || 0);
+        if (curDue > 0) {
+          balanceAdjusted = Math.min(curDue, totalReturnAmount);
+          const newDue = Math.max(0, Math.round((curDue - balanceAdjusted) * 100) / 100);
+          await Customer.updateOne(
+            { _id: customerRecord._id },
+            { $set: { dueAmount: newDue } }
+          );
+        }
+      }
+
+      // Also adjust invoice dueAmount/balance if invoice had outstanding due
+      const invDue = Number(invoice.dueAmount || 0);
+      if (invDue > 0) {
+        const newInvDue = Math.max(0, Math.round((invDue - totalReturnAmount) * 100) / 100);
+        await Invoice.updateOne(
+          { _id: invoice._id },
+          { $set: { dueAmount: newInvDue } }
+        );
+      }
+    }
+
+    if (useSession) {
+      await session.commitTransaction();
+    }
+
+    const firstReturnNumber = savedReturnRecords[0]?.returnNumber || `CDR-${String(nextNo).padStart(4, '0')}`;
+
+    return res.status(200).json({
+      success: true,
+      message: `Return processed successfully for Invoice '${invNum}'. Total Return: Rs. ${totalReturnAmount.toFixed(2)}`,
+      data: {
+        returnNumber: firstReturnNumber,
+        invoiceNumber: invNum,
+        totalReturnAmount,
+        balanceAdjusted,
+        refundPaid: Math.max(0, Math.round((totalReturnAmount - balanceAdjusted) * 100) / 100),
+        processedItems: processedLines,
+        records: savedReturnRecords,
+      },
+    });
+  } catch (error) {
+    if (useSession) {
+      try {
+        await session.abortTransaction();
+      } catch (e) {}
+    }
+    next(error);
+  } finally {
+    session.endSession();
+  }
+};

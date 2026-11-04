@@ -14,7 +14,7 @@ import './Invoice.css';
 function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { confirmDelete, confirmInvoicePrint } = useConfirmDialog();
+  const { showConfirm, confirmSave, confirmDelete, confirmInvoicePrint } = useConfirmDialog();
 
   // F6 & Alternative Items Selection State
   const [altModalTargetIndex, setAltModalTargetIndex] = useState(-1);
@@ -26,6 +26,21 @@ function Invoice() {
   const rateInputRef = useRef(null);
   const priceInputRef = useRef(null);
   const entryDiscountInputRef = useRef(null);
+
+  // Invoice Return Mode State
+  const [isReturnMode, setIsReturnMode] = useState(false);
+  const [returnItems, setReturnItems] = useState([]);
+  const [selectedReturnItemIndex, setSelectedReturnItemIndex] = useState(-1);
+  const [lastReturnNumber, setLastReturnNumber] = useState('');
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const isSubmittingReturnRef = useRef(false);
+  const returnQtyInputsRef = useRef([]);
+  const invoiceNumberInputRef = useRef(null);
+  const [invoiceSearchState, setInvoiceSearchState] = useState({
+    status: 'idle', // 'idle' | 'searching' | 'matched' | 'not_found'
+    matchedInvoiceNumber: '',
+    matchedInvoiceData: null,
+  });
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -1091,7 +1106,424 @@ function Invoice() {
   // Select Invoice from Lookup Modal
   const handleSelectInvoiceFromLookup = (inv) => {
     loadInvoiceData(inv);
+    const invNum = inv.invoiceNumber || String(inv.no || '');
+    setInvoiceSearchState({
+      status: 'matched',
+      matchedInvoiceNumber: invNum,
+    });
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+  };
+
+  // Handle typing in Invoice Number field
+  const handleInvoiceNumberChange = (e) => {
+    const val = e.target.value;
+    setInvoiceHeader((prev) => ({ ...prev, invoiceNumber: val }));
+    if (invoiceSearchState.status !== 'idle') {
+      setInvoiceSearchState({
+        status: 'idle',
+        matchedInvoiceNumber: '',
+        matchedInvoiceData: null,
+      });
+    }
+  };
+
+  // Helper to fetch invoice details for return with seamless fallback between endpoints
+  const fetchInvoiceReturnData = async (invoiceNumber) => {
+    const encNum = encodeURIComponent(invoiceNumber);
+    try {
+      const res = await api.get(`/invoices/return-details/${encNum}`);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 404 || err.response?.data?.message?.includes('Resource not found') || err.response?.data?.message?.includes('not found')) {
+        // Seamless fallback to /damage-returns/invoice/:invoiceNumber
+        try {
+          const fallbackRes = await api.get(`/damage-returns/invoice/${encNum}`);
+          if (fallbackRes.data?.success && fallbackRes.data?.data) {
+            return fallbackRes.data.data;
+          }
+        } catch (fallbackErr) {
+          throw fallbackErr;
+        }
+      }
+      throw err;
+    }
+    throw new Error('Invoice not found.');
+  };
+
+  // Activate Invoice Return Mode directly in the Sales Invoice screen
+  const handleActivateReturnMode = async (targetInvNum = null, cachedData = null) => {
+    const rawNum = targetInvNum !== null ? targetInvNum : invoiceHeader.invoiceNumber;
+    const queryNum = String(rawNum || '').trim();
+    if (!queryNum) {
+      showNotification('Please enter an Invoice Number to search for return', 'warning');
+      invoiceNumberInputRef.current?.focus();
+      return;
+    }
+
+    let returnData = cachedData;
+    if (!returnData) {
+      try {
+        setLoading(true);
+        showNotification(`Searching for Invoice '${queryNum}'...`, 'info');
+        returnData = await fetchInvoiceReturnData(queryNum);
+      } catch (err) {
+        setInvoiceSearchState({
+          status: 'not_found',
+          matchedInvoiceNumber: queryNum,
+          matchedInvoiceData: null,
+        });
+        showNotification(err.response?.data?.message || err.message || 'Invoice not found.', 'error');
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    const { invoice, lineItems } = returnData;
+    const canonicalNum = invoice.invoiceNumber || String(invoice.no || queryNum);
+
+    // Load original invoice details into header and form
+    loadInvoiceData(invoice);
+
+    // Map all original invoice line items into Return Mode items
+    const mappedItems = (lineItems || []).map((li) => {
+      const soldQty = Number(li.purchasedQuantity || 0);
+      const prevRet = Number(li.previousReturnedQuantity || 0);
+      const availRet = Math.max(0, Math.round((soldQty - prevRet) * 100) / 100);
+      const unitPrice = Number(li.unitPrice || 0);
+      const discPct = Number(li.discountPercentage || 0);
+      const discAmt = Number(li.discountAmount || 0);
+      const effectiveUnitPrice = Number(li.effectiveUnitPrice || unitPrice);
+
+      return {
+        itemCode: li.itemCode,
+        description: li.description || '',
+        originalSoldQuantity: soldQty,
+        previouslyReturnedQuantity: prevRet,
+        availableReturnQuantity: availRet,
+        returnQuantity: '',
+        sellingPrice: unitPrice,
+        discountPercentage: discPct,
+        discountAmount: discAmt,
+        effectiveUnitPrice: effectiveUnitPrice,
+        returnValue: 0,
+        canReturn: availRet > 0,
+      };
+    });
+
+    setReturnItems(mappedItems);
+    setIsReturnMode(true);
+    setSelectedReturnItemIndex(mappedItems.findIndex((it) => it.canReturn));
+    setInvoiceSearchState({
+      status: 'matched',
+      matchedInvoiceNumber: canonicalNum,
+      matchedInvoiceData: returnData,
+    });
+
+    const allFullyReturned = mappedItems.length > 0 && mappedItems.every((it) => it.availableReturnQuantity === 0);
+    if (allFullyReturned) {
+      showNotification('This invoice has already been fully returned.', 'warning');
+    } else {
+      showNotification(
+        `Invoice Return Mode activated for Invoice #${canonicalNum}. Enter return quantities in the table below.`,
+        'success'
+      );
+    }
+
+    setTimeout(() => {
+      const firstEditableInput = document.querySelector('.sofast-return-table-qty-input:not([disabled])');
+      firstEditableInput?.focus();
+      firstEditableInput?.select();
+    }, 120);
+  };
+
+  // Exit Return Mode and switch back to normal Sales Invoice mode
+  const handleExitReturnMode = () => {
+    setIsReturnMode(false);
+    setReturnItems([]);
+    setSelectedReturnItemIndex(-1);
+    setInvoiceSearchState({
+      status: 'idle',
+      matchedInvoiceNumber: '',
+      matchedInvoiceData: null,
+    });
+    showNotification('Exited Invoice Return Mode.', 'info');
+  };
+
+  // Keyboard shortcut handler for Invoice Number field:
+  // First Enter: Search and validate the invoice number in MongoDB.
+  // Second Enter: Open the matching invoice in Return Mode.
+  const handleInvoiceNumberKeyDown = async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const inputVal = String(invoiceHeader.invoiceNumber || '').trim();
+      if (!inputVal) {
+        showNotification('Please enter an Invoice Number', 'warning');
+        return;
+      }
+
+      // Second Enter: If invoice was already validated and matches inputVal, open Return Mode!
+      if (
+        invoiceSearchState.status === 'matched' &&
+        invoiceSearchState.matchedInvoiceNumber.toUpperCase() === inputVal.toUpperCase()
+      ) {
+        handleActivateReturnMode(inputVal, invoiceSearchState.matchedInvoiceData);
+        return;
+      }
+
+      // First Enter: Search and validate the invoice number against MongoDB
+      try {
+        setLoading(true);
+        showNotification(`Searching for Invoice '${inputVal}'...`, 'info');
+        const returnData = await fetchInvoiceReturnData(inputVal);
+        const { invoice } = returnData;
+        const canonicalNum = invoice.invoiceNumber || String(invoice.no || inputVal);
+
+        // Load original invoice details onto screen so user sees the validated invoice
+        loadInvoiceData(invoice);
+
+        setInvoiceSearchState({
+          status: 'matched',
+          matchedInvoiceNumber: canonicalNum,
+          matchedInvoiceData: returnData,
+        });
+
+        showNotification(
+          `Invoice #${canonicalNum} validated. Press Enter again or click Return to open Return Mode.`,
+          'info'
+        );
+      } catch (err) {
+        setInvoiceSearchState({
+          status: 'not_found',
+          matchedInvoiceNumber: inputVal,
+          matchedInvoiceData: null,
+        });
+        showNotification(err.response?.data?.message || err.message || 'Invoice not found.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    } else if (e.key === 'Escape') {
+      if (isReturnMode) {
+        handleExitReturnMode();
+      }
+    }
+  };
+
+  // Handle return quantity change in Return Mode table
+  const handleReturnItemQtyChange = (idx, rawVal) => {
+    setReturnItems((prev) => {
+      const next = [...prev];
+      const target = next[idx];
+      if (!target) return prev;
+
+      if (!target.canReturn) {
+        showNotification(`Item '${target.itemCode}' has already been fully returned.`, 'warning');
+        return prev;
+      }
+
+      if (rawVal === '' || rawVal === null) {
+        next[idx] = { ...target, returnQuantity: '', returnValue: 0 };
+        return next;
+      }
+
+      let numVal = Number(rawVal);
+      if (isNaN(numVal) || numVal < 0) {
+        showNotification('Return quantity must be greater than zero and not negative.', 'warning');
+        numVal = 0;
+      }
+
+      if (numVal > target.availableReturnQuantity) {
+        showNotification(
+          `Cannot return ${numVal}. Maximum available return quantity for ${target.itemCode} is ${target.availableReturnQuantity}.`,
+          'warning'
+        );
+        numVal = target.availableReturnQuantity;
+      }
+
+      const lineVal = Math.round(numVal * target.effectiveUnitPrice * 100) / 100;
+      next[idx] = {
+        ...target,
+        returnQuantity: numVal === 0 ? '' : numVal,
+        returnValue: lineVal,
+      };
+      return next;
+    });
+  };
+
+  // Keyboard navigation inside Return Mode table
+  const handleReturnQtyKeyDown = (e, index) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const nextIndex = returnItems.findIndex((it, i) => i > index && it.canReturn);
+      if (nextIndex !== -1 && returnQtyInputsRef.current[nextIndex]) {
+        returnQtyInputsRef.current[nextIndex].focus();
+        returnQtyInputsRef.current[nextIndex].select();
+        setSelectedReturnItemIndex(nextIndex);
+      } else {
+        handleConfirmAndProcessReturn();
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = returnItems.findIndex((it, i) => i > index && it.canReturn);
+      if (nextIndex !== -1 && returnQtyInputsRef.current[nextIndex]) {
+        returnQtyInputsRef.current[nextIndex].focus();
+        setSelectedReturnItemIndex(nextIndex);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      for (let i = index - 1; i >= 0; i--) {
+        if (returnItems[i]?.canReturn && returnQtyInputsRef.current[i]) {
+          returnQtyInputsRef.current[i].focus();
+          setSelectedReturnItemIndex(i);
+          break;
+        }
+      }
+    } else if (e.key === 'Escape') {
+      handleExitReturnMode();
+    }
+  };
+
+  // Confirm and Process Invoice Return
+  const handleConfirmAndProcessReturn = async () => {
+    if (isSubmittingReturnRef.current) return;
+
+    const selectedLines = returnItems.filter((it) => Number(it.returnQuantity) > 0);
+
+    if (selectedLines.length === 0) {
+      showNotification('Please enter return quantity (> 0) for at least one item.', 'warning');
+      return;
+    }
+
+    for (const it of selectedLines) {
+      const qty = Number(it.returnQuantity);
+      if (qty <= 0) {
+        showNotification(`Invalid return quantity for item ${it.itemCode}`, 'error');
+        return;
+      }
+      if (qty > it.availableReturnQuantity) {
+        showNotification(
+          `Cannot return ${qty} of ${it.itemCode}. Max available is ${it.availableReturnQuantity}.`,
+          'error'
+        );
+        return;
+      }
+    }
+
+    const invNum = invoiceHeader.invoiceNumber || String(invoiceHeader.no || '');
+
+    // Confirmation message matching exact specification:
+    // Message: "Do you wish to return this invoice?"
+    // Buttons: YES / NO
+    const confirmedAction = await showConfirm({
+      title: 'Confirm Invoice Return',
+      message: 'Do you wish to return this invoice?',
+      type: 'question',
+      buttons: [
+        { key: 'yes', label: 'YES', isPrimary: true, isDefault: true, title: 'Confirm Return' },
+        { key: 'no', label: 'NO', isDefault: false, title: 'Cancel Return' },
+      ],
+    });
+
+    if (confirmedAction !== 'yes') {
+      return; // NO: Cancel the return confirmation and keep current return screen open
+    }
+
+    try {
+      setIsSubmittingReturn(true);
+      isSubmittingReturnRef.current = true;
+
+      const payload = {
+        invoiceNumber: invNum,
+        returnedItems: selectedLines.map((it) => ({
+          itemCode: it.itemCode,
+          returnedQuantity: Number(it.returnQuantity),
+          itemCondition: 'GOOD',
+          returnReason: 'Customer Return',
+        })),
+        returnReason: 'Customer Return',
+        returnNotes: `Invoice Return #${invNum}`,
+        adjustCustomerBalance: true,
+      };
+
+      let res;
+      try {
+        res = await api.post(`/invoices/${encodeURIComponent(invNum)}/return`, payload);
+      } catch (postErr) {
+        if (postErr.response?.status === 404) {
+          res = await api.post('/damage-returns/process-return', {
+            ...payload,
+            invoiceNumber: invNum,
+          });
+        } else {
+          throw postErr;
+        }
+      }
+
+      if (res.data?.success) {
+        const returnNumber = res.data.data?.returnNumber || 'CDR-0001';
+        setLastReturnNumber(returnNumber);
+
+        // Display: "Invoice Return Successfully Completed."
+        showNotification('Invoice Return Successfully Completed.', 'success');
+
+        // Refresh live item stock in background
+        api.get('/items?limit=all').then((r) => {
+          if (r.data?.data) setItemsList(r.data.data);
+        }).catch(() => null);
+
+        // Refresh invoices list
+        api.get('/invoices').then((r) => {
+          if (r.data?.data) setInvoicesList(r.data.data);
+        }).catch(() => null);
+
+        // Reload fresh invoice details & return limits
+        const refreshedData = await fetchInvoiceReturnData(invNum).catch(() => null);
+        if (refreshedData) {
+          const { invoice, lineItems } = refreshedData;
+          loadInvoiceData(invoice);
+
+          const updatedReturnItems = (lineItems || []).map((li) => {
+            const soldQty = Number(li.purchasedQuantity || 0);
+            const prevRet = Number(li.previousReturnedQuantity || 0);
+            const availRet = Math.max(0, Math.round((soldQty - prevRet) * 100) / 100);
+            return {
+              itemCode: li.itemCode,
+              description: li.description || '',
+              originalSoldQuantity: soldQty,
+              previouslyReturnedQuantity: prevRet,
+              availableReturnQuantity: availRet,
+              returnQuantity: '',
+              sellingPrice: Number(li.unitPrice || 0),
+              discountPercentage: Number(li.discountPercentage || 0),
+              discountAmount: Number(li.discountAmount || 0),
+              effectiveUnitPrice: Number(li.effectiveUnitPrice || li.unitPrice || 0),
+              returnValue: 0,
+              canReturn: availRet > 0,
+            };
+          });
+
+          setReturnItems(updatedReturnItems);
+
+          const allFullyReturned = updatedReturnItems.every((it) => it.availableReturnQuantity === 0);
+          if (allFullyReturned) {
+            showNotification('This invoice has already been fully returned.', 'warning');
+          }
+        }
+      } else {
+        showNotification(res.data?.message || 'Failed to process return', 'error');
+      }
+    } catch (err) {
+      showNotification(err.response?.data?.message || err.message || 'Failed to process return', 'error');
+    } finally {
+      setIsSubmittingReturn(false);
+      isSubmittingReturnRef.current = false;
+    }
   };
 
   // =========================================================================
@@ -2097,6 +2529,9 @@ function Invoice() {
 
   // BUTTON: NEW INVOICE
   const handleNew = async (force = false) => {
+    if (isReturnMode) {
+      handleExitReturnMode();
+    }
     if (!force && lineItems.length > 0 && !activeInvoiceId) {
       const confirmClear = window.confirm(
         'Current invoice contains unsaved items. Would you like to discard them and create a New invoice?'
@@ -2105,6 +2540,11 @@ function Invoice() {
     }
 
     setActiveInvoiceId(null);
+    setInvoiceSearchState({
+      status: 'idle',
+      matchedInvoiceNumber: '',
+      matchedInvoiceData: null,
+    });
     setLineItems([]);
     setSelectedLineIndex(-1);
     setSelectedItemPreview(null);
@@ -2372,6 +2812,12 @@ function Invoice() {
   // No — Save the invoice without printing.
   // Cancel — Return to the invoice without saving.
   const handleSaveInvoiceWithPrintConfirmation = async () => {
+    // In Return Mode, Save button or Enter confirms and processes the Return!
+    if (isReturnMode) {
+      handleConfirmAndProcessReturn();
+      return;
+    }
+
     if (lineItems.length === 0) {
       showNotification('Please add at least one item before saving the invoice', 'error');
       return;
@@ -2868,22 +3314,33 @@ function Invoice() {
                     })}
                   </div>
 
-                  {/* Invoice No under listbox */}
+                  {/* Invoice No under listbox with green Return button */}
                   <div className="sofast-inv-no-row">
                     <span className="sofast-navy-label" style={{ minWidth: '65px' }}>Invoice No .</span>
-                    <div className="sofast-combo-box" style={{ flex: 1 }}>
+                    <div className="sofast-combo-box" style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <input
+                        ref={invoiceNumberInputRef}
                         type="text"
-                        className="sofast-input"
+                        className={`sofast-input ${isReturnMode ? 'invoice-return-mode-input' : invoiceSearchState.status === 'not_found' ? 'invoice-not-found-input' : ''}`}
                         value={invoiceHeader.invoiceNumber || ''}
-                        readOnly={!invoiceHeader.isManualInvoice}
-                        onChange={(e) =>
-                          setInvoiceHeader({ ...invoiceHeader, invoiceNumber: e.target.value })
-                        }
+                        onChange={handleInvoiceNumberChange}
+                        onKeyDown={handleInvoiceNumberKeyDown}
+                        placeholder="Invoice No"
+                        title="Enter an existing invoice number and click Return or press Enter to activate Invoice Return Mode"
                       />
                       <button
                         type="button"
+                        className="sofast-return-green-btn"
+                        title="Search original invoice in MongoDB and activate Invoice Return Mode"
+                        onClick={() => handleActivateReturnMode()}
+                        disabled={isSubmittingReturn}
+                      >
+                        Return
+                      </button>
+                      <button
+                        type="button"
                         className="sofast-combo-btn"
+                        title="Browse existing invoices"
                         onClick={() =>
                           setLookupModal({
                             isOpen: true,
@@ -3708,147 +4165,316 @@ function Invoice() {
             </div>
           </div>
 
-          {/* BOTTOM FULL-WIDTH MAIN INVOICE GRID */}
-          <div className="sofast-bottom-grid-container">
-            <table className="sofast-grid-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '130px' }}>Code</th>
-                  <th style={{ minWidth: '400px' }}>Description</th>
-                  <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
-                  <th style={{ width: '70px', textAlign: 'center' }}>Quantity</th>
-                  <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
-                  <th style={{ width: '95px', textAlign: 'right' }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineItems.length === 0 ? (
-                  Array.from({ length: 7 }).map((_, emptyIdx) => (
-                    <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                    </tr>
-                  ))
-                ) : (
-                  lineItems.map((item, index) => (
-                    <tr
-                      key={index}
-                      className={selectedLineIndex === index ? 'selected-row' : ''}
-                      onClick={() => handleRowClick(index)}
-                      title="Click to edit, Double click to remove"
-                      onDoubleClick={(e) => handleRemoveLineItem(index, e)}
-                    >
-                      <td className="sofast-cell-code">{item.code}</td>
-                      <td>{item.description}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {Number(item.sellingPrice || item.price || 0).toFixed(2)}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        {item.discountPercentage ? `${item.discountPercentage}%` : '0%'}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {Number(item.finalPrice || item.value || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-                {/* Visual grid filler rows */}
-                {lineItems.length > 0 && Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
-                  <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* BOTTOM ACTIONS BAR (New | Bill Print | Save | Delete) & Summary Totals */}
-          <div className="sofast-bottom-action-bar">
-            <div className="sofast-bottom-buttons-group">
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-new"
-                onClick={() => handleNew(false)}
-                title="Start a new invoice (clears unsaved items with confirmation)"
-              >
-                New
-              </button>
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-print"
-                onClick={handleBillPrint}
-                title="Save invoice (if unsaved) and print thermal bill receipt"
-              >
-                Bill Print
-              </button>
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-save"
-                onClick={handleSaveInvoiceWithPrintConfirmation}
-                disabled={loading}
-                title="Save invoice to database and update stock (Enter / Click)"
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-delete"
-                onClick={handleDeleteInvoice}
-                disabled={loading}
-                title="Delete or cancel invoice and restore stock"
-              >
-                Delete
-              </button>
-            </div>
-
-            {/* Quick summary totals on the right of the bottom bar */}
-            <div className="sofast-bottom-summary">
-              <span
-                className="sofast-bottom-summary-item"
-                title={
-                  lineItems.some((li) => li.jobType === 'Labour' || li.isService)
-                    ? `${lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} Stock, ${lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} Service`
-                    : `${lineItems.length} Items`
-                }
-              >
-                <span className="summary-label">Items:</span>
-                <span className="summary-value">
-                  {lineItems.length}
-                  {lineItems.some((li) => li.jobType === 'Labour' || li.isService) && (
-                    <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#555', marginLeft: '4px' }}>
-                      ({lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} stock, {lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} service)
+          {/* BOTTOM FULL-WIDTH MAIN INVOICE GRID OR RETURN MODE GRID */}
+          {isReturnMode ? (
+            <div className="sofast-bottom-grid-container sofast-return-mode-grid">
+              {/* Return Mode Banner Bar */}
+              <div className="sofast-return-mode-banner">
+                <div className="sofast-return-banner-left">
+                  <span className="sofast-return-tag">↩ INVOICE RETURN MODE</span>
+                  <span className="sofast-return-inv-title">
+                    Invoice: <strong>#{invoiceHeader.invoiceNumber || invoiceHeader.no}</strong>
+                    {invoiceHeader.customerName && ` — ${invoiceHeader.customerName}`}
+                  </span>
+                  {lastReturnNumber && (
+                    <span className="sofast-last-return-badge">
+                      Last Return: <strong>{lastReturnNumber}</strong>
                     </span>
                   )}
-                </span>
-              </span>
-              <span className="sofast-bottom-summary-item">
-                <span className="summary-label">Sub Total:</span>
-                <span className="summary-value">{invoiceSubTotal.toFixed(2)}</span>
-              </span>
-              {specialDiscVal > 0 && (
-                <span className="sofast-bottom-summary-item">
-                  <span className="summary-label">Discount:</span>
-                  <span className="summary-value">{specialDiscVal.toFixed(2)}</span>
-                </span>
-              )}
-              <span className="sofast-bottom-summary-item grand-total-item">
-                <span className="summary-label">Net Total:</span>
-                <span className="summary-value grand-total-value">
-                  {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </span>
+                </div>
+                <div className="sofast-return-banner-right">
+                  <button
+                    type="button"
+                    className="sofast-exit-return-btn"
+                    onClick={handleExitReturnMode}
+                    title="Exit Return Mode and switch back to normal sales invoice"
+                  >
+                    ✕ Exit Return Mode
+                  </button>
+                </div>
+              </div>
+
+              <table className="sofast-grid-table sofast-return-grid-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '110px' }}>Item Code</th>
+                    <th style={{ minWidth: '260px' }}>Description</th>
+                    <th style={{ width: '90px', textAlign: 'right' }}>Original Sold Quantity</th>
+                    <th style={{ width: '90px', textAlign: 'right' }}>Previously Returned Quantity</th>
+                    <th style={{ width: '95px', textAlign: 'right' }}>Remaining Returnable Quantity</th>
+                    <th style={{ width: '85px', textAlign: 'center' }}>Return Quantity</th>
+                    <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
+                    <th style={{ width: '95px', textAlign: 'right' }}>Return Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {returnItems.length === 0 ? (
+                    Array.from({ length: 6 }).map((_, emptyIdx) => (
+                      <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                      </tr>
+                    ))
+                  ) : (
+                    returnItems.map((item, index) => {
+                      const isSelected = selectedReturnItemIndex === index;
+                      const hasQty = Number(item.returnQuantity) > 0;
+                      const isFullyReturned = item.availableReturnQuantity === 0;
+
+                      return (
+                        <tr
+                          key={item.itemCode || index}
+                          className={`${isSelected ? 'selected-row' : ''} ${hasQty ? 'return-item-active-row' : ''} ${isFullyReturned ? 'return-item-fully-returned' : ''}`}
+                          onClick={() => {
+                            setSelectedReturnItemIndex(index);
+                            returnQtyInputsRef.current[index]?.focus();
+                          }}
+                        >
+                          <td className="sofast-cell-code" style={{ fontWeight: 'bold' }}>{item.itemCode}</td>
+                          <td>{item.description}</td>
+                          <td style={{ textAlign: 'right' }}>{item.originalSoldQuantity}</td>
+                          <td style={{ textAlign: 'right', color: item.previouslyReturnedQuantity > 0 ? '#b91c1c' : '#555' }}>
+                            {item.previouslyReturnedQuantity}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: item.availableReturnQuantity > 0 ? '#15803d' : '#888' }}>
+                            {item.availableReturnQuantity}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '2px 4px' }}>
+                            <input
+                              ref={(el) => (returnQtyInputsRef.current[index] = el)}
+                              type="number"
+                              min="0"
+                              max={item.availableReturnQuantity}
+                              step="any"
+                              className="sofast-return-table-qty-input"
+                              value={item.returnQuantity}
+                              disabled={!item.canReturn || isSubmittingReturn}
+                              placeholder={item.canReturn ? '0' : '—'}
+                              onChange={(e) => handleReturnItemQtyChange(index, e.target.value)}
+                              onKeyDown={(e) => handleReturnQtyKeyDown(e, index)}
+                              onFocus={() => setSelectedReturnItemIndex(index)}
+                            />
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {Number(item.sellingPrice || 0).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {item.discountPercentage ? `${item.discountPercentage}%` : (item.discountAmount > 0 ? `${item.discountAmount.toFixed(2)}` : '0%')}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: item.returnValue > 0 ? '#000080' : '#444' }}>
+                            {Number(item.returnValue || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
+          ) : (
+            <div className="sofast-bottom-grid-container">
+              <table className="sofast-grid-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '130px' }}>Code</th>
+                    <th style={{ minWidth: '400px' }}>Description</th>
+                    <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Quantity</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
+                    <th style={{ width: '95px', textAlign: 'right' }}>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.length === 0 ? (
+                    Array.from({ length: 7 }).map((_, emptyIdx) => (
+                      <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                      </tr>
+                    ))
+                  ) : (
+                    lineItems.map((item, index) => (
+                      <tr
+                        key={index}
+                        className={selectedLineIndex === index ? 'selected-row' : ''}
+                        onClick={() => handleRowClick(index)}
+                        title="Click to edit, Double click to remove"
+                        onDoubleClick={(e) => handleRemoveLineItem(index, e)}
+                      >
+                        <td className="sofast-cell-code">{item.code}</td>
+                        <td>{item.description}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(item.sellingPrice || item.price || 0).toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          {item.discountPercentage ? `${item.discountPercentage}%` : '0%'}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(item.finalPrice || item.value || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                  {/* Visual grid filler rows */}
+                  {lineItems.length > 0 && Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
+                    <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* BOTTOM ACTIONS BAR & SUMMARY TOTALS */}
+          {isReturnMode ? (
+            <div className="sofast-bottom-action-bar sofast-return-action-bar">
+              <div className="sofast-bottom-buttons-group">
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-new"
+                  onClick={() => handleNew(false)}
+                  title="Start a new normal invoice (F2)"
+                >
+                  New (F2)
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-return-confirm"
+                  onClick={handleConfirmAndProcessReturn}
+                  disabled={isSubmittingReturn || returnItems.every((it) => !Number(it.returnQuantity))}
+                  title="Confirm and process return for selected items (Enter)"
+                >
+                  {isSubmittingReturn ? 'Processing...' : 'Confirm Return (Enter)'}
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-exit-return"
+                  onClick={handleExitReturnMode}
+                  title="Exit Return Mode without processing"
+                >
+                  Exit Return Mode
+                </button>
+              </div>
+
+              {/* Quick return summary totals on the right */}
+              <div className="sofast-bottom-summary">
+                <span className="sofast-bottom-summary-item">
+                  <span className="summary-label">Items Selected:</span>
+                  <span className="summary-value">
+                    {returnItems.filter((it) => Number(it.returnQuantity) > 0).length} of {returnItems.length}
+                  </span>
+                </span>
+                <span className="sofast-bottom-summary-item">
+                  <span className="summary-label">Return Qty:</span>
+                  <span className="summary-value">
+                    {returnItems.reduce((acc, it) => acc + (Number(it.returnQuantity) || 0), 0)}
+                  </span>
+                </span>
+                <span className="sofast-bottom-summary-item grand-total-item">
+                  <span className="summary-label">Return Total:</span>
+                  <span className="summary-value grand-total-value">
+                    Rs. {returnItems.reduce((acc, it) => acc + (Number(it.returnValue) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="sofast-bottom-action-bar">
+              <div className="sofast-bottom-buttons-group">
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-new"
+                  onClick={() => handleNew(false)}
+                  title="Start a new invoice (clears unsaved items with confirmation)"
+                >
+                  New
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-print"
+                  onClick={handleBillPrint}
+                  title="Save invoice (if unsaved) and print thermal bill receipt"
+                >
+                  Bill Print
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-save"
+                  onClick={handleSaveInvoiceWithPrintConfirmation}
+                  disabled={loading}
+                  title="Save invoice to database and update stock (Enter / Click)"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-delete"
+                  onClick={handleDeleteInvoice}
+                  disabled={loading}
+                  title="Delete or cancel invoice and restore stock"
+                >
+                  Delete
+                </button>
+              </div>
+
+              {/* Quick summary totals on the right of the bottom bar */}
+              <div className="sofast-bottom-summary">
+                <span
+                  className="sofast-bottom-summary-item"
+                  title={
+                    lineItems.some((li) => li.jobType === 'Labour' || li.isService)
+                      ? `${lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} Stock, ${lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} Service`
+                      : `${lineItems.length} Items`
+                  }
+                >
+                  <span className="summary-label">Items:</span>
+                  <span className="summary-value">
+                    {lineItems.length}
+                    {lineItems.some((li) => li.jobType === 'Labour' || li.isService) && (
+                      <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#555', marginLeft: '4px' }}>
+                        ({lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} stock, {lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} service)
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <span className="sofast-bottom-summary-item">
+                  <span className="summary-label">Sub Total:</span>
+                  <span className="summary-value">{invoiceSubTotal.toFixed(2)}</span>
+                </span>
+                {specialDiscVal > 0 && (
+                  <span className="sofast-bottom-summary-item">
+                    <span className="summary-label">Discount:</span>
+                    <span className="summary-value">{specialDiscVal.toFixed(2)}</span>
+                  </span>
+                )}
+                <span className="sofast-bottom-summary-item grand-total-item">
+                  <span className="summary-label">Net Total:</span>
+                  <span className="summary-value grand-total-value">
+                    {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
