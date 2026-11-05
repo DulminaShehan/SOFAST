@@ -431,9 +431,12 @@ function DamageClaim() {
     setShowInvoiceModal(true);
     setLoadingInvoicesList(true);
     try {
-      const res = await api.get('/invoices?limit=25');
+      const res = await api.get('/invoices?type=standard&limit=25');
       if (res.data && res.data.data) {
-        setRecentInvoices(res.data.data);
+        const standardOnly = res.data.data.filter(
+          (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+        );
+        setRecentInvoices(standardOnly);
       }
     } catch (e) {
       console.warn('Failed to load recent invoices:', e);

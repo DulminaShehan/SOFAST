@@ -128,6 +128,9 @@ export const getItems = async (req, res, next) => {
         { code: { $regex: term, $options: 'i' } },
         { description: { $regex: term, $options: 'i' } },
         { category: { $regex: term, $options: 'i' } },
+        { barcode: { $regex: term, $options: 'i' } },
+        { supplierCode: { $regex: term, $options: 'i' } },
+        { suppCode: { $regex: term, $options: 'i' } },
       ];
     }
 

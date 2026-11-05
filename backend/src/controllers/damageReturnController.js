@@ -127,6 +127,13 @@ export const getInvoiceForReturn = async (req, res, next) => {
       });
     }
 
+    if (invoice.isManualInvoice || invoice.invoiceType === 'Manual' || /^MAN-/i.test(invoice.invoiceNumber || '')) {
+      return res.status(400).json({
+        success: false,
+        message: `Invoice '${invoice.invoiceNumber || cleanInv}' is a Manual Invoice. Manual invoices do not affect inventory and cannot be returned into stock.`,
+      });
+    }
+
     const invNum = invoice.invoiceNumber || String(invoice.no);
 
     // Fetch customer details if phone or address are missing
@@ -1585,6 +1592,14 @@ export const processInvoiceReturn = async (req, res, next) => {
     if (invoice.status === 'cancelled') {
       if (useSession) await session.abortTransaction();
       return res.status(400).json({ success: false, message: `Cannot process return for cancelled invoice '${invoice.invoiceNumber || cleanInv}'` });
+    }
+
+    if (invoice.isManualInvoice || invoice.invoiceType === 'Manual' || /^MAN-/i.test(invoice.invoiceNumber || '')) {
+      if (useSession) await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: `Cannot process return for Manual Invoice '${invoice.invoiceNumber || cleanInv}'. Manual invoices do not affect inventory stock.`,
+      });
     }
 
     const rawItems = req.body.returnedItems || req.body.lines || req.body.items || [];

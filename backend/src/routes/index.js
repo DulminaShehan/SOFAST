@@ -16,6 +16,7 @@ import goodReturnRoutes from './goodReturn.routes.js';
 import userRoutes from './user.routes.js';
 import approvementRoutes from './approvement.routes.js';
 import reportRoutes from './report.routes.js';
+import manualItemRoutes from './manualItem.routes.js';
 
 const router = Router();
 
@@ -43,6 +44,9 @@ router.use('/damage-claims', damageReturnRoutes);
 router.use('/damage-claim', damageReturnRoutes);
 router.use('/damage-items', damageItemRoutes);
 
+// Manual Items & Manual Stock System
+router.use('/manual-items', manualItemRoutes);
+router.use('/manual-item', manualItemRoutes);
 
 router.use('/supplier-claims', supplierClaimRoutes);
 router.use('/supplier-damage-claims', supplierClaimRoutes);
@@ -63,4 +67,3 @@ router.use('/reports', reportRoutes);
 router.use('/report', reportRoutes);
 
 export default router;
-

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import ManualInvoice from '../ManualInvoice/ManualInvoice';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import api from '../../services/api';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
@@ -15,6 +17,9 @@ function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showConfirm, confirmSave, confirmDelete, confirmInvoicePrint } = useConfirmDialog();
+
+  // Manual Invoice Modal State
+  const [manualInvoiceModalOpen, setManualInvoiceModalOpen] = useState(false);
 
   // F6 & Alternative Items Selection State
   const [altModalTargetIndex, setAltModalTargetIndex] = useState(-1);
@@ -391,7 +396,7 @@ function Invoice() {
         api.get('/invoices/next-number').catch(() => null),
         api.get('/customers').catch(() => null),
         api.get('/items?limit=all').catch(() => null),
-        api.get('/invoices?limit=50').catch(() => null),
+        api.get('/invoices?type=standard&limit=50').catch(() => null),
       ]);
 
       if (nextNumRes?.data?.data) {
@@ -409,7 +414,10 @@ function Invoice() {
         setItemsList(itemsRes.data.data);
       }
       if (invsRes?.data?.data) {
-        setInvoicesList(invsRes.data.data);
+        const standardOnly = invsRes.data.data.filter(
+          (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+        );
+        setInvoicesList(standardOnly);
       }
 
       // Fetch dynamic locations list from Item Master metadata
@@ -606,7 +614,12 @@ function Invoice() {
       api.get(`/invoices/${encodeURIComponent(target)}`)
         .then((res) => {
           if (res.data?.success && res.data?.data) {
-            loadInvoiceData(res.data.data);
+            const loaded = res.data.data;
+            if (loaded.isManualInvoice || loaded.invoiceType === 'Manual' || String(loaded.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+              showNotification(`Invoice '${loaded.invoiceNumber || target}' is a Manual Invoice. Please use the Manual Invoice screen to manage manual invoices.`, 'warning');
+              return;
+            }
+            loadInvoiceData(loaded);
           }
         })
         .catch(() => null);
@@ -1105,6 +1118,10 @@ function Invoice() {
 
   // Select Invoice from Lookup Modal
   const handleSelectInvoiceFromLookup = (inv) => {
+    if (inv.isManualInvoice || inv.invoiceType === 'Manual' || String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+      showNotification(`Invoice '${inv.invoiceNumber}' is a Manual Invoice. Please use the Manual Invoice screen to manage manual invoices.`, 'warning');
+      return;
+    }
     loadInvoiceData(inv);
     const invNum = inv.invoiceNumber || String(inv.no || '');
     setInvoiceSearchState({
@@ -1182,6 +1199,10 @@ function Invoice() {
     }
 
     const { invoice, lineItems } = returnData;
+    if (invoice.isManualInvoice || invoice.invoiceType === 'Manual' || String(invoice.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+      showNotification(`Invoice '${invoice.invoiceNumber || queryNum}' is a Manual Invoice. Manual invoices cannot be processed in Sales Return.`, 'warning');
+      return;
+    }
     const canonicalNum = invoice.invoiceNumber || String(invoice.no || queryNum);
 
     // Load original invoice details into header and form
@@ -1281,6 +1302,10 @@ function Invoice() {
         showNotification(`Searching for Invoice '${inputVal}'...`, 'info');
         const returnData = await fetchInvoiceReturnData(inputVal);
         const { invoice } = returnData;
+        if (invoice.isManualInvoice || invoice.invoiceType === 'Manual' || String(invoice.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+          showNotification(`Invoice '${inputVal}' is a Manual Invoice. Please use the Manual Invoice screen to manage manual invoices.`, 'warning');
+          return;
+        }
         const canonicalNum = invoice.invoiceNumber || String(invoice.no || inputVal);
 
         // Load original invoice details onto screen so user sees the validated invoice
@@ -1478,8 +1503,13 @@ function Invoice() {
         }).catch(() => null);
 
         // Refresh invoices list
-        api.get('/invoices').then((r) => {
-          if (r.data?.data) setInvoicesList(r.data.data);
+        api.get('/invoices?type=standard&limit=50').then((r) => {
+          if (r.data?.data) {
+            const standardOnly = r.data.data.filter(
+              (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+            );
+            setInvoicesList(standardOnly);
+          }
         }).catch(() => null);
 
         // Reload fresh invoice details & return limits
@@ -2638,9 +2668,9 @@ function Invoice() {
     showNotification('Prepared New Invoice', 'info');
   };
 
-  // BUTTON: MANUAL INVOICE - Open dedicated Manual Invoice form
+  // BUTTON: MANUAL INVOICE - Open dedicated Manual Invoice form modal over Sales Invoice
   const handleManualInvoiceClick = () => {
-    navigate('/manual-invoice');
+    setManualInvoiceModalOpen(true);
   };
 
 
@@ -2764,10 +2794,15 @@ function Invoice() {
 
         // Refresh invoices list and items in background
         Promise.all([
-          api.get('/invoices?limit=50').catch(() => null),
+          api.get('/invoices?type=standard&limit=50').catch(() => null),
           api.get('/items?limit=all').catch(() => null),
         ]).then(([invsRes, itemsRes]) => {
-          if (invsRes?.data?.data) setInvoicesList(invsRes.data.data);
+          if (invsRes?.data?.data) {
+            const standardOnly = invsRes.data.data.filter(
+              (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+            );
+            setInvoicesList(standardOnly);
+          }
           if (itemsRes?.data?.data) setItemsList(itemsRes.data.data);
         });
 
@@ -3033,8 +3068,14 @@ function Invoice() {
 
   const filteredInvoices = useMemo(() => {
     const q = lookupModal.search.toLowerCase().trim();
-    if (!q) return invoicesList;
-    return invoicesList.filter(
+    const standardInvoices = invoicesList.filter(
+      (inv) =>
+        !inv.isManualInvoice &&
+        inv.invoiceType !== 'Manual' &&
+        !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+    );
+    if (!q) return standardInvoices;
+    return standardInvoices.filter(
       (inv) =>
         inv.invoiceNumber?.toLowerCase().includes(q) ||
         String(inv.no || '').toLowerCase().includes(q) ||
@@ -5287,6 +5328,25 @@ function Invoice() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* DEDICATED MANUAL INVOICE MODAL DIALOG */}
+      {manualInvoiceModalOpen && (
+        <ErrorBoundary
+          title="Manual Invoice Form Error"
+          onReset={() => setManualInvoiceModalOpen(false)}
+        >
+          <ManualInvoice
+            isModal={true}
+            onClose={() => setManualInvoiceModalOpen(false)}
+            onInvoiceSaved={(savedDoc) => {
+              showNotification(
+                `Manual Invoice '${savedDoc?.invoiceNumber || ''}' saved successfully!`,
+                'success'
+              );
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {/* DEDICATED PRINT AREA FOR 80MM/58MM THERMAL RECEIPT */}
