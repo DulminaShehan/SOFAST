@@ -467,7 +467,33 @@ function ItemMaster() {
       return;
     }
 
-    const confirmed = await confirmSave('Do you want to save this record?');
+    // Duplicate Validation on Creation:
+    // Before adding a new item, validate whether the entered Item Code already exists in the system.
+    // If it already exists, prevent duplicate entry and display an alert or error message stating: "Already Exists".
+    if (!selectedId) {
+      try {
+        const checkRes = await api.get(`/items/${encodeURIComponent(formData.code.trim())}`);
+        if (checkRes.data && checkRes.data.success && checkRes.data.data) {
+          alert('Already Exists');
+          showNotification('Already Exists', 'error');
+          if (codeInputRef.current) {
+            codeInputRef.current.focus();
+            codeInputRef.current.select();
+          }
+          return;
+        }
+      } catch (checkErr) {
+        // If 404, it means the item code does not exist yet, which is expected for creation
+        if (checkErr.response && checkErr.response.status !== 404) {
+          console.warn('Code pre-check encountered non-404 status:', checkErr);
+        }
+      }
+    }
+
+    const confirmMessage = selectedId
+      ? `Do you want to update item '${formData.description}' (${formData.code})?`
+      : 'Do you want to save this record?';
+    const confirmed = await confirmSave(confirmMessage);
     if (!confirmed) return;
 
     const payload = {
@@ -477,6 +503,13 @@ function ItemMaster() {
       category: formData.category ? formData.category.trim() : '',
       subCategory: formData.subCategory ? formData.subCategory.trim() : '',
       location: formData.location ? formData.location.trim() : 'Main Store',
+      rackBin: formData.rackBin ? formData.rackBin.trim() : '',
+      quantity: formData.quantity !== '' && formData.quantity !== undefined ? Number(formData.quantity) || 0 : 0,
+      stockInHand: formData.quantity !== '' && formData.quantity !== undefined ? Number(formData.quantity) || 0 : 0,
+      costPrice: formData.costPrice !== '' && formData.costPrice !== undefined ? Number(formData.costPrice) || 0 : 0,
+      value: formData.value !== '' && formData.value !== undefined
+        ? Number(formData.value) || 0
+        : (Number(formData.quantity) || 0) * (Number(formData.costPrice) || 0),
       reorderLevel: formData.reorderLevel !== '' ? Math.max(0, Number(formData.reorderLevel) || 0) : 0,
       reorderQty: formData.reorderQty !== '' ? Math.max(0, Number(formData.reorderQty) || 0) : 0,
       maxStockLevel: formData.maxStockLevel !== '' ? Math.max(0, Number(formData.maxStockLevel) || 0) : 0,
@@ -516,7 +549,20 @@ function ItemMaster() {
       }
     } catch (error) {
       const msg = error.response?.data?.message || 'Error saving item record.';
-      showNotification(msg, 'error');
+      if (
+        msg === 'Already Exists' ||
+        msg.toLowerCase().includes('already exists') ||
+        error.response?.status === 400
+      ) {
+        alert('Already Exists');
+        showNotification('Already Exists', 'error');
+        if (codeInputRef.current) {
+          codeInputRef.current.focus();
+          codeInputRef.current.select();
+        }
+      } else {
+        showNotification(msg, 'error');
+      }
     }
   };
 
@@ -1145,8 +1191,8 @@ function ItemMaster() {
   };
 
   // Row selection from lower grid
-  const handleRowClick = (item) => {
-    if (isDirty) {
+  const handleRowClick = (item, force = false) => {
+    if (!force && isDirty && selectedId) {
       const confirmDiscard = window.confirm('Discard unsaved changes and load selected item?');
       if (!confirmDiscard) return;
     }
@@ -1199,6 +1245,39 @@ function ItemMaster() {
       roundOffOption: item.roundOffOption || 'No Round Off',
       discountPercentage: item.discountPercentage !== undefined ? item.discountPercentage : '',
     });
+  };
+
+  // Search item by Item Code (from search bar or Item Code input field)
+  const handleSearchByCode = async (codeToSearch) => {
+    const code = (codeToSearch || formData.code || '').trim();
+    if (!code) {
+      showNotification('Please enter an Item Code to search.', 'error');
+      if (codeInputRef.current) codeInputRef.current.focus();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.get(`/items/${encodeURIComponent(code)}`);
+      if (res.data && res.data.success && res.data.data) {
+        const foundItem = res.data.data;
+        handleRowClick(foundItem, true);
+        showNotification(`Item '${foundItem.code}' found. Details loaded and editable.`, 'success');
+      } else {
+        showNotification('Item Not Found', 'error');
+      }
+    } catch (error) {
+      if (error.response?.status === 404) {
+        showNotification('Item Not Found', 'error');
+      } else {
+        showNotification(error.response?.data?.message || 'Item Not Found', 'error');
+      }
+      if (codeInputRef.current) {
+        codeInputRef.current.focus();
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Open Lookup Modal
@@ -1331,16 +1410,72 @@ function ItemMaster() {
                 <label className="field-label top-label-code" htmlFor="item-code">
                   Item Code . . . . . .
                 </label>
-                <input
-                  id="item-code"
-                  name="code"
-                  type="text"
-                  className="input-classic input-item-code top-input-code"
-                  value={formData.code}
-                  onChange={handleInputChange}
-                  ref={codeInputRef}
-                  autoComplete="off"
-                />
+                <div className="top-code-field-wrapper" style={{ gridColumn: '2 / span 2', gridRow: '1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    id="item-code"
+                    name="code"
+                    type="text"
+                    className="input-classic input-item-code"
+                    style={{ width: '160px' }}
+                    value={formData.code}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSearchByCode(formData.code);
+                      }
+                    }}
+                    ref={codeInputRef}
+                    placeholder="Enter Code..."
+                    autoComplete="off"
+                    title="Enter Item Code and press Enter or click Search"
+                  />
+                  <button
+                    type="button"
+                    className="btn-classic btn-code-search"
+                    style={{ height: '26px', padding: '0 9px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                    onClick={() => handleSearchByCode(formData.code)}
+                    title="Search record by Item Code (or press Enter)"
+                  >
+                    🔍 Search
+                  </button>
+                  {selectedId ? (
+                    <span
+                      className="badge-editing-mode"
+                      style={{
+                        fontSize: '11px',
+                        color: '#1e40af',
+                        fontWeight: 'bold',
+                        backgroundColor: '#eff6ff',
+                        padding: '2px 8px',
+                        borderRadius: '3px',
+                        border: '1px solid #93c5fd',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Item record loaded for editing. Modify fields and click Update to save changes."
+                    >
+                      ✏️ Edit Mode
+                    </span>
+                  ) : (
+                    <span
+                      className="badge-new-mode"
+                      style={{
+                        fontSize: '11px',
+                        color: '#15803d',
+                        fontWeight: 'bold',
+                        backgroundColor: '#f0fdf4',
+                        padding: '2px 8px',
+                        borderRadius: '3px',
+                        border: '1px solid #bbf7d0',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="New item creation mode"
+                    >
+                      ➕ New Item
+                    </span>
+                  )}
+                </div>
 
                 {/* Row 1 Right: Item Image Label */}
                 <span className="field-label top-label-image">
@@ -1507,11 +1642,12 @@ function ItemMaster() {
                   id="item-quantity"
                   name="quantity"
                   type="number"
+                  min="0"
                   className="input-classic input-num-small"
-                  style={{ width: '90px', fontWeight: 'bold', color: '#002D62', backgroundColor: '#f8fafc' }}
+                  style={{ width: '90px', fontWeight: 'bold', color: '#002D62' }}
                   value={formData.quantity !== undefined && formData.quantity !== '' ? formData.quantity : 0}
-                  readOnly
-                  title="Closing Stock Quantity from Closing Stock Report / Inventory"
+                  onChange={handleInputChange}
+                  title="Closing Stock Quantity / Stock in Hand"
                 />
               </div>
 
@@ -1654,12 +1790,15 @@ function ItemMaster() {
                 <input
                   id="item-cost-price"
                   name="costPrice"
-                  type="text"
+                  type="number"
+                  step="any"
+                  min="0"
                   className="input-classic"
-                  style={{ width: '130px', backgroundColor: '#f8fafc', color: '#475569' }}
-                  value={Number(formData.costPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  readOnly
-                  title="Unit Cost Price from Closing Stock Report"
+                  style={{ width: '130px', color: '#475569' }}
+                  value={formData.costPrice !== undefined ? formData.costPrice : ''}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  title="Unit Cost Price"
                 />
 
                 <label className="field-label" htmlFor="item-stock-value" style={{ marginLeft: '24px', width: '110px' }}>
@@ -1671,7 +1810,11 @@ function ItemMaster() {
                   type="text"
                   className="input-classic"
                   style={{ width: '110px', backgroundColor: '#f8fafc', fontWeight: 'bold', color: '#047857' }}
-                  value={Number(formData.value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  value={
+                    formData.value !== undefined && formData.value !== '' && Number(formData.value) > 0
+                      ? Number(formData.value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : ((Number(formData.quantity) || 0) * (Number(formData.costPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }
                   readOnly
                   title="Total Stock Valuation (Closing Stock Qty x Cost)"
                 />
@@ -1916,8 +2059,10 @@ function ItemMaster() {
                 <button
                   type="submit"
                   className="btn-classic"
+                  style={selectedId ? { backgroundColor: '#1d4ed8', color: '#ffffff', fontWeight: 'bold' } : { fontWeight: 'bold' }}
+                  title={selectedId ? 'Update existing item record in database' : 'Save new item record to database'}
                 >
-                  Save
+                  {selectedId ? 'Update' : 'Save'}
                 </button>
                 <button
                   type="button"
@@ -2097,13 +2242,36 @@ function ItemMaster() {
                   <input
                     type="text"
                     className="input-classic input-table-search"
-                    placeholder="Filter by code, description, bin, or category..."
+                    placeholder="Search by code or description..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
                       fetchItems(e.target.value, 1, pageSize);
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (searchTerm && searchTerm.trim()) {
+                          handleSearchByCode(searchTerm.trim());
+                        }
+                      }
+                    }}
                   />
+                  <button
+                    type="button"
+                    className="btn-classic"
+                    style={{ height: '24px', padding: '0 8px', fontSize: '11px', fontWeight: 'bold' }}
+                    onClick={() => {
+                      if (searchTerm && searchTerm.trim()) {
+                        handleSearchByCode(searchTerm.trim());
+                      } else {
+                        showNotification('Please enter Item Code to search.', 'error');
+                      }
+                    }}
+                    title="Search and load record into form (or press Enter)"
+                  >
+                    Load Item
+                  </button>
                   {searchTerm && (
                     <button
                       type="button"

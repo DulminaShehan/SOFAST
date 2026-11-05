@@ -119,10 +119,14 @@ export const getItems = async (req, res, next) => {
       });
     }
 
-    const { search = '', category = '', limit = 1000, page = 1 } = req.query;
+    const { search = '', category = '', code = '', limit = 1000, page = 1 } = req.query;
     const query = {};
 
-    if (search && search.trim()) {
+    if (code && code.trim()) {
+      const cleanCode = code.trim();
+      const escaped = cleanCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.code = { $regex: new RegExp(`^${escaped}$`, 'i') };
+    } else if (search && search.trim()) {
       const term = search.trim();
       query.$or = [
         { code: { $regex: term, $options: 'i' } },
@@ -351,21 +355,21 @@ export const getItemById = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Database offline' });
     }
 
+    const decodedId = decodeURIComponent(id || '').trim();
     let item = null;
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      item = await Item.findById(id).lean();
+    if (mongoose.Types.ObjectId.isValid(decodedId)) {
+      item = await Item.findById(decodedId).lean();
     }
     if (!item) {
-      item = await Item.findOne({ code: id.trim() }).lean();
+      item = await Item.findOne({ code: decodedId }).lean();
     }
     if (!item) {
-      const trimmed = id.trim();
-      const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escaped = decodedId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       item = await Item.findOne({
         $or: [
           { code: new RegExp(`^${escaped}$`, 'i') },
-          { barcode: trimmed },
-          { barCode: trimmed },
+          { barcode: decodedId },
+          { barCode: decodedId },
           { description: new RegExp(`^${escaped}$`, 'i') },
         ],
       }).lean();
@@ -448,11 +452,12 @@ export const createItem = async (req, res, next) => {
     }
 
     const cleanCode = code.trim();
-    const existing = await Item.findOne({ code: { $regex: new RegExp(`^${cleanCode}$`, 'i') } });
+    const escapedCode = cleanCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existing = await Item.findOne({ code: { $regex: new RegExp(`^${escapedCode}$`, 'i') } });
     if (existing) {
       return res.status(400).json({
         success: false,
-        message: `Item with code '${cleanCode}' already exists`,
+        message: 'Already Exists',
       });
     }
 
@@ -524,6 +529,7 @@ export const createItem = async (req, res, next) => {
       category: (category || '').trim(),
       subCategory: (subCategory || '').trim(),
       location: (location || 'Main Store').trim(),
+      rackBin: (req.body.rackBin || '').trim(),
       reorderLevel: Math.max(0, Number(reorderLevel) || 0),
       reorderQty: Math.max(0, Number(reorderQty) || 0),
       maxStockLevel: Math.max(0, Number(maxStockLevel) || 0),
@@ -554,6 +560,7 @@ export const createItem = async (req, res, next) => {
       costChange: Boolean(costChange),
       status: (status || 'A').trim(),
       averageCost: Number(averageCost) || 0,
+      costPrice: Number(req.body.costPrice) || Number(averageCost) || 0,
       value: Number(value) || 0,
     });
 
@@ -596,17 +603,19 @@ export const updateItem = async (req, res, next) => {
     }
 
     if (updateData.code && updateData.code.trim().toLowerCase() !== item.code.toLowerCase()) {
+      const cleanNewCode = updateData.code.trim();
+      const escapedNewCode = cleanNewCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const dup = await Item.findOne({
         _id: { $ne: item._id },
-        code: { $regex: new RegExp(`^${updateData.code.trim()}$`, 'i') },
+        code: { $regex: new RegExp(`^${escapedNewCode}$`, 'i') },
       });
       if (dup) {
         return res.status(400).json({
           success: false,
-          message: `Item with code '${updateData.code.trim()}' already exists`,
+          message: 'Already Exists',
         });
       }
-      item.code = updateData.code.trim();
+      item.code = cleanNewCode;
     }
 
     if (updateData.description !== undefined) item.description = updateData.description.trim();
@@ -614,6 +623,9 @@ export const updateItem = async (req, res, next) => {
     if (updateData.category !== undefined) item.category = updateData.category.trim();
     if (updateData.subCategory !== undefined) item.subCategory = updateData.subCategory.trim();
     if (updateData.location !== undefined) item.location = updateData.location.trim();
+    if (updateData.rackBin !== undefined) item.rackBin = (updateData.rackBin || '').trim();
+    if (updateData.costPrice !== undefined) item.costPrice = Number(updateData.costPrice) || 0;
+    if (updateData.value !== undefined) item.value = Number(updateData.value) || 0;
     if (updateData.reorderLevel !== undefined) item.reorderLevel = Math.max(0, Number(updateData.reorderLevel) || 0);
     if (updateData.reorderQty !== undefined) item.reorderQty = Math.max(0, Number(updateData.reorderQty) || 0);
     if (updateData.maxStockLevel !== undefined) item.maxStockLevel = Math.max(0, Number(updateData.maxStockLevel) || 0);

@@ -586,11 +586,37 @@ function GoodReceiveNote() {
         if (grnHeader.useBarcode) {
           addLineItemDirectly(itemObj);
         } else {
-          handleAddOrUpdateLineItem();
+          // Move focus to Price or Quantity field so user can enter received values
+          if (grnPriceInputRef.current) {
+            grnPriceInputRef.current.focus();
+            grnPriceInputRef.current.select();
+          } else if (grnQtyInputRef.current) {
+            grnQtyInputRef.current.focus();
+            grnQtyInputRef.current.select();
+          }
         }
       } else {
-        fetchItemHistory(query);
-        handleAddOrUpdateLineItem();
+        // Fallback live server lookup
+        api.get(`/items?search=${encodeURIComponent(query)}&limit=5`)
+          .then((res) => {
+            if (res.data?.data?.length > 0) {
+              const exact = res.data.data.find((i) => i.code?.toLowerCase() === query) || res.data.data[0];
+              const itemObj = populateItemDetails(exact, 1, '0');
+              setItemEntry(itemObj);
+              fetchItemHistory(exact.code, exact.location);
+              if (grnHeader.useBarcode) {
+                addLineItemDirectly(itemObj);
+              } else {
+                grnPriceInputRef.current?.focus();
+                grnPriceInputRef.current?.select();
+              }
+            } else {
+              showNotification(`Item '${query}' not found in Item Master`, 'error');
+            }
+          })
+          .catch(() => {
+            showNotification(`Item '${query}' not found in Item Master`, 'error');
+          });
       }
     }
   };
@@ -684,8 +710,8 @@ function GoodReceiveNote() {
       return;
     }
 
-    const qty = parseFloat(itemEntry.quantity);
-    if (isNaN(qty) || qty <= 0) {
+    const qty = parseFloat(itemEntry.quantity) || 1;
+    if (qty <= 0) {
       showNotification('Please enter a valid Quantity (> 0)', 'error');
       return;
     }
@@ -905,30 +931,55 @@ function GoodReceiveNote() {
       showNotification('Please select a Supplier before saving', 'error');
       return;
     }
-    if (lineItems.length === 0) {
+
+    // Auto-include any item currently typed in the item entry bar
+    let currentLineItems = [...lineItems];
+    if (itemEntry.code && itemEntry.code.trim()) {
+      const qty = parseFloat(itemEntry.quantity) || 1;
+      const price = parseFloat(itemEntry.price) || 0;
+      const sellPrice = parseFloat(itemEntry.sellPrice) || 0;
+      const disc = parseFloat(itemEntry.discount) || 0;
+      const val = parseFloat(computeItemValue(price, qty, disc));
+
+      const pendingItem = {
+        code: itemEntry.code.trim(),
+        description: itemEntry.description || '',
+        price,
+        sellPrice,
+        quantity: qty,
+        discount: disc,
+        value: val,
+        location: itemEntry.location || 'Main Store',
+      };
+
+      currentLineItems.push(pendingItem);
+      setLineItems(currentLineItems);
+    }
+
+    if (currentLineItems.length === 0) {
       showNotification('Please add at least one Item before saving', 'error');
+      itemCodeInputRef.current?.focus();
       return;
     }
 
-    // Confirm Save
-    const confirmed = await confirmSave('Do you want to save this record?');
-    if (!confirmed) return;
-
-    // Prompt user to choose between posting stock or saving as draft
+    // Prompt user to choose between posting stock or saving as draft (single clean confirmation)
     let willPost = isRecordPosted;
     if (!isRecordPosted) {
       const postChoice = await showConfirm({
-        title: 'Post to Stock',
-        message: "Do you want to post this GRN to stock now?\n\n• Yes — Post to Stock (Stock increases immediately in Item Master & Sales Invoice)\n• No — Save as Draft (Stock will NOT change)",
-        iconType: 'question',
+        title: 'Save GRN - Post to Stock',
+        message: 'Do you want to post this GRN to stock now?\n\n• Post to Stock — Stock increases immediately in Item Master & Sales Invoice\n• Save as Draft — Stock will NOT change\n• Cancel — Abort saving',
+        type: 'question',
         buttons: [
-          { label: 'Yes', value: true, variant: 'primary' },
-          { label: 'No', value: false, variant: 'default' },
-          { label: 'Cancel', value: 'cancel', variant: 'default' }
-        ]
+          { key: 'post', label: 'Post to Stock', isPrimary: true, isDefault: true, title: 'Post to Stock immediately' },
+          { key: 'draft', label: 'Save as Draft', isDefault: false, title: 'Save as Draft without changing stock' },
+          { key: 'cancel', label: 'Cancel', isDefault: false, title: 'Cancel saving' },
+        ],
       });
-      if (postChoice === 'cancel') return;
-      willPost = Boolean(postChoice);
+      if (postChoice === 'cancel' || !postChoice) return;
+      willPost = postChoice === 'post';
+    } else {
+      const confirmed = await confirmSave('Do you want to update this posted GRN record?');
+      if (!confirmed) return;
     }
 
     const payload = {
@@ -942,7 +993,7 @@ function GoodReceiveNote() {
       useBarcode: grnHeader.useBarcode,
       date: grnHeader.date,
       remark: grnHeader.remark,
-      lineItems: lineItems.map((li) => ({
+      lineItems: currentLineItems.map((li) => ({
         code: li.code,
         itemCode: li.code,
         description: li.description,
@@ -1003,8 +1054,34 @@ function GoodReceiveNote() {
       showNotification('Please select a Supplier before updating', 'error');
       return;
     }
-    if (lineItems.length === 0) {
+
+    // Auto-include any item currently typed in the item entry bar
+    let currentLineItems = [...lineItems];
+    if (itemEntry.code && itemEntry.code.trim()) {
+      const qty = parseFloat(itemEntry.quantity) || 1;
+      const price = parseFloat(itemEntry.price) || 0;
+      const sellPrice = parseFloat(itemEntry.sellPrice) || 0;
+      const disc = parseFloat(itemEntry.discount) || 0;
+      const val = parseFloat(computeItemValue(price, qty, disc));
+
+      const pendingItem = {
+        code: itemEntry.code.trim(),
+        description: itemEntry.description || '',
+        price,
+        sellPrice,
+        quantity: qty,
+        discount: disc,
+        value: val,
+        location: itemEntry.location || 'Main Store',
+      };
+
+      currentLineItems.push(pendingItem);
+      setLineItems(currentLineItems);
+    }
+
+    if (currentLineItems.length === 0) {
       showNotification('Please add at least one Item before updating', 'error');
+      itemCodeInputRef.current?.focus();
       return;
     }
 
@@ -1019,7 +1096,7 @@ function GoodReceiveNote() {
       useBarcode: grnHeader.useBarcode,
       date: grnHeader.date,
       remark: grnHeader.remark,
-      lineItems: lineItems.map((li) => ({
+      lineItems: currentLineItems.map((li) => ({
         code: li.code,
         itemCode: li.code,
         description: li.description,
@@ -1087,12 +1164,12 @@ function GoodReceiveNote() {
       return;
     }
 
-    const confirmDelete = await confirmDelete(
+    const isConfirmed = await confirmDelete(
       `Are you sure you want to delete GRN '${grnHeader.grnNumber}'?${
         isRecordPosted ? ' This will revert updated stock quantities!' : ''
       }`
     );
-    if (!confirmDelete) return;
+    if (!isConfirmed) return;
 
     try {
       setLoading(true);
@@ -1282,7 +1359,7 @@ function GoodReceiveNote() {
                       type="text"
                       name="grnNumber"
                       className="grn-input"
-                      style={{ width: '90px', fontWeight: 'bold', color: '#000080' }}
+                      style={{ width: '105px', fontWeight: 'bold', color: '#000080', fontSize: '15px' }}
                       value={grnHeader.grnNumber}
                       onChange={handleHeaderChange}
                       title="GRN Number"
@@ -1290,7 +1367,7 @@ function GoodReceiveNote() {
                     {grnList.length > 0 && (
                       <select
                         className="grn-select"
-                        style={{ width: '18px', marginLeft: '-18px', opacity: 0 }}
+                        style={{ width: '20px', marginLeft: '-20px', opacity: 0 }}
                         onChange={(e) => handleSelectExistingGrn(e.target.value)}
                         value=""
                         title="Select previous saved GRN"
@@ -1308,8 +1385,8 @@ function GoodReceiveNote() {
                         title="Stock has been posted to Item Master & Sales Invoice"
                         style={{
                           marginLeft: '6px',
-                          padding: '1px 5px',
-                          fontSize: '10px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
                           fontWeight: 'bold',
                           backgroundColor: '#d1fae5',
                           color: '#065f46',
@@ -1324,8 +1401,8 @@ function GoodReceiveNote() {
                         title="Draft only - Stock has NOT been posted yet. Click Update or Process to post."
                         style={{
                           marginLeft: '6px',
-                          padding: '1px 5px',
-                          fontSize: '10px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
                           fontWeight: 'bold',
                           backgroundColor: '#fef3c7',
                           color: '#92400e',
@@ -1338,23 +1415,23 @@ function GoodReceiveNote() {
                     ) : null}
                   </div>
 
-                  <span className="grn-label-blue" style={{ marginLeft: '12px' }}>Date</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '14px' }}>Date</span>
                   <input
                     type="date"
                     name="date"
                     className="grn-input"
-                    style={{ width: '130px' }}
+                    style={{ width: '145px' }}
                     value={grnHeader.date}
                     onChange={handleHeaderChange}
                   />
 
-                  <span className="grn-label-blue" style={{ marginLeft: '12px' }}>Supplier</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '14px' }}>Supplier</span>
                   <input
                     type="text"
                     name="supplierCode"
                     list="grn-supplier-code-datalist"
                     className="grn-input"
-                    style={{ width: '95px' }}
+                    style={{ width: '105px' }}
                     placeholder="Code..."
                     value={grnHeader.supplierCode}
                     onChange={handleHeaderChange}
@@ -1377,7 +1454,7 @@ function GoodReceiveNote() {
                   </button>
                   <select
                     className="grn-select"
-                    style={{ width: '130px', marginLeft: '2px' }}
+                    style={{ width: '160px', marginLeft: '3px' }}
                     value={grnHeader.supplierCode}
                     onChange={(e) => {
                       const code = e.target.value;
@@ -1402,7 +1479,7 @@ function GoodReceiveNote() {
                     name="supplierName"
                     list="grn-supplier-name-datalist"
                     className="grn-input"
-                    style={{ width: '220px', marginLeft: '2px' }}
+                    style={{ width: '300px', marginLeft: '3px' }}
                     placeholder="Supplier Name"
                     value={grnHeader.supplierName}
                     onChange={(e) => {
@@ -1438,12 +1515,12 @@ function GoodReceiveNote() {
                 </div>
 
                 {/* Row 2: Paid By | Invoice No | Process | Download | Master P.O. */}
-                <div className="grn-row" style={{ marginTop: '4px' }}>
+                <div className="grn-row" style={{ marginTop: '6px' }}>
                   <span className="grn-label-blue">Paid By</span>
                   <select
                     name="paidBy"
                     className="grn-select"
-                    style={{ width: '125px' }}
+                    style={{ width: '140px' }}
                     value={grnHeader.paidBy}
                     onChange={handleHeaderChange}
                   >
@@ -1453,12 +1530,12 @@ function GoodReceiveNote() {
                     <option value="Online Transfer">Online Transfer</option>
                   </select>
 
-                  <span className="grn-label-blue" style={{ marginLeft: '12px' }}>Invoice No</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '14px' }}>Invoice No</span>
                   <input
                     type="text"
                     name="supplierInvoiceNo"
                     className="grn-input"
-                    style={{ width: '150px' }}
+                    style={{ width: '170px' }}
                     placeholder="INV-..."
                     value={grnHeader.supplierInvoiceNo}
                     onChange={handleHeaderChange}
@@ -1467,7 +1544,7 @@ function GoodReceiveNote() {
                   <button
                     type="button"
                     className="grn-btn-classic"
-                    style={{ marginLeft: '10px' }}
+                    style={{ marginLeft: '12px', minWidth: '85px', height: '28px' }}
                     onClick={handleValidate}
                   >
                     Process
@@ -1476,18 +1553,18 @@ function GoodReceiveNote() {
                   <button
                     type="button"
                     className="grn-btn-classic"
-                    style={{ marginLeft: '6px' }}
+                    style={{ marginLeft: '8px', minWidth: '90px', height: '28px' }}
                     onClick={handleDownloadReport}
                   >
                     Download
                   </button>
 
-                  <span className="grn-label-blue" style={{ marginLeft: '20px' }}>Master P.O.</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '24px' }}>Master P.O.</span>
                   <input
                     type="text"
                     name="masterPo"
                     className="grn-input"
-                    style={{ width: '140px' }}
+                    style={{ width: '160px' }}
                     placeholder="PO-..."
                     value={grnHeader.masterPo}
                     onChange={handleHeaderChange}
@@ -1522,7 +1599,7 @@ function GoodReceiveNote() {
                       name="code"
                       list="grn-item-code-datalist"
                       className="grn-input"
-                      style={{ width: '95px' }}
+                      style={{ width: '110px' }}
                       placeholder="Code..."
                       value={itemEntry.code}
                       onChange={handleItemEntryChange}
@@ -1681,7 +1758,7 @@ function GoodReceiveNote() {
                   <button
                     type="button"
                     className="grn-btn-classic"
-                    style={{ width: '42px', height: '22px', padding: 0 }}
+                    style={{ width: '56px', height: '28px', padding: 0, fontSize: '13px', fontWeight: 'bold' }}
                     title={selectedLineIndex >= 0 ? 'Update row' : 'Add to GRN table'}
                     onClick={handleAddOrUpdateLineItem}
                   >
@@ -1854,20 +1931,20 @@ function GoodReceiveNote() {
                 <div className="grn-info-grid">
                   {/* Row 1: Closing Stock | Location */}
                   <div className="grn-info-row">
-                    <span className="grn-label-blue" style={{ width: '85px' }}>Closing Stock</span>
+                    <span className="grn-label-blue" style={{ width: '100px' }}>Closing Stock</span>
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '80px', textAlign: 'center' }}
+                      style={{ width: '95px', textAlign: 'center' }}
                       readOnly
                       value={itemEntry.closingStock !== '' ? itemEntry.closingStock : '-'}
                     />
 
-                    <span className="grn-label-blue" style={{ marginLeft: '12px', width: '60px' }}>Location</span>
+                    <span className="grn-label-blue" style={{ marginLeft: '16px', width: '70px' }}>Location</span>
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '130px' }}
+                      style={{ width: '160px' }}
                       readOnly
                       value={itemEntry.location || 'Main Store'}
                     />
@@ -1877,7 +1954,7 @@ function GoodReceiveNote() {
                   <div className="grn-info-row">
                     <span
                       className="grn-label-blue"
-                      style={{ width: '85px', cursor: 'pointer' }}
+                      style={{ width: '100px', cursor: 'pointer' }}
                       onClick={toggleGridMode}
                       title={gridMode === 'history' ? "Click to view Current GRN items" : "Click to view Item GRN History"}
                     >
@@ -1886,18 +1963,18 @@ function GoodReceiveNote() {
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '180px', cursor: 'pointer' }}
+                      style={{ width: '220px', cursor: 'pointer' }}
                       readOnly
                       value={itemEntry.lastGrn || '-'}
                       onClick={toggleGridMode}
                       title={gridMode === 'history' ? "Click to view Current GRN items" : "Click to view Item GRN History"}
                     />
 
-                    <span className="grn-label-blue" style={{ marginLeft: '12px', width: '45px' }}>L.P.C.</span>
+                    <span className="grn-label-blue" style={{ marginLeft: '16px', width: '55px' }}>L.P.C.</span>
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '85px', textAlign: 'right' }}
+                      style={{ width: '95px', textAlign: 'right' }}
                       readOnly
                       value={itemEntry.lpc !== '' && itemEntry.lpc !== '-' ? Number(itemEntry.lpc).toFixed(2) : '-'}
                     />

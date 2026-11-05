@@ -349,10 +349,21 @@
   width: 140px;
 }
 
-.top-input-code {
-  grid-column: 2;
+.top-code-field-wrapper {
+  grid-column: 2 / span 2;
   grid-row: 1;
-  width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.top-input-code {
+  width: 160px;
+}
+
+.btn-code-search:hover {
+  background: #e2e8f0;
+  border-color: #002D62;
 }
 
 .top-label-image {

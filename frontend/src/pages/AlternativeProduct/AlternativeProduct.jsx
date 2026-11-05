@@ -20,6 +20,7 @@ function AlternativeProduct() {
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState('master-files');
   const menuRef = useRef(null);
+  const itemCodeInputRef = useRef(null);
 
   // Notification Banner
   const [notification, setNotification] = useState(null);
@@ -42,12 +43,17 @@ function AlternativeProduct() {
     description: '',
     status: 'Active',
     stock: 0,
+    price: 0,
+    location: 'Main Store',
   });
 
-  // Alternative Products currently linked to the selected Main Item
+  // Items currently in the First Grid (Alternative Products group)
   const [alternativeItems, setAlternativeItems] = useState([]);
 
-  // Lower Section Table Search / Filter
+  // State when searched item is already an alternative product
+  const [alreadyAltState, setAlreadyAltState] = useState(null);
+
+  // Lower Section Table Search / Filter (Second Grid)
   const [recordsFilter, setRecordsFilter] = useState('');
 
   // Main Item Search Modal State
@@ -176,19 +182,58 @@ function AlternativeProduct() {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Handle Main Item Code Input (as user types)
+  // Check if an item is already an alternative product (or main item) in any saved relationship
+  const checkIfAlreadyAlternative = (code) => {
+    if (!code) return null;
+    const upper = String(code).trim().toUpperCase();
+
+    // Check savedRelationships
+    let found = savedRelationships.find(
+      (r) => r.mainItemCode?.toUpperCase() === upper
+    );
+    let isMain = true;
+
+    if (!found) {
+      found = savedRelationships.find(
+        (r) =>
+          r.alternativeItemCodes &&
+          r.alternativeItemCodes.some((ac) => ac?.toUpperCase() === upper)
+      );
+      isMain = false;
+    }
+
+    if (found) {
+      const stateObj = {
+        itemCode: upper,
+        mainItemCode: found.mainItemCode,
+        isMain,
+        message: 'This item is already alternative',
+        record: found,
+      };
+      setAlreadyAltState(stateObj);
+      setRecordsFilter(found.mainItemCode);
+      loadExistingMappingForCode(found.mainItemCode);
+      showNotification(`This item is already alternative (Configured under '${found.mainItemCode}')`, 'warning');
+      return stateObj;
+    } else {
+      setAlreadyAltState(null);
+      return null;
+    }
+  };
+
+  // Handle Main Item Code Input (as user types or selects)
   const handleItemCodeInputChange = (e) => {
     const val = e.target.value;
     setFormData((prev) => ({ ...prev, itemCode: val }));
+    setAlreadyAltState(null);
 
     const trimmed = val.trim().toUpperCase();
     if (!trimmed) {
-      setFormData((prev) => ({ ...prev, description: '', stock: 0 }));
-      setAlternativeItems([]);
+      setFormData((prev) => ({ ...prev, description: '', stock: 0, price: 0 }));
       return;
     }
 
-    // Only auto-fill description if the entered code is an EXACT match
+    // Auto-fill description immediately if matching item found in itemsList
     const matchedItem = itemsList.find(
       (item) =>
         item.code?.toUpperCase() === trimmed ||
@@ -206,12 +251,16 @@ function AlternativeProduct() {
 
       setFormData((prev) => ({
         ...prev,
+        itemCode: matchedItem.code,
         description: matchedItem.description || '',
         status: 'Active',
         stock: Number(stock),
+        price: Number(matchedItem.finalSellingPrice || matchedItem.sellingPrice || 0),
+        location: matchedItem.location || 'Main Store',
       }));
 
-      loadExistingMappingForCode(matchedItem.code);
+      // Check if this item is already alternative
+      checkIfAlreadyAlternative(matchedItem.code);
     }
   };
 
@@ -257,8 +306,10 @@ function AlternativeProduct() {
         description: matchedItem.description || '',
         status: 'Active',
         stock: Number(stock),
+        price: Number(matchedItem.finalSellingPrice || matchedItem.sellingPrice || 0),
+        location: matchedItem.location || 'Main Store',
       }));
-      loadExistingMappingForCode(matchedItem.code);
+      checkIfAlreadyAlternative(matchedItem.code);
     } else {
       showNotification(`Item '${trimmed}' not found in Item Master`, 'error');
     }
@@ -267,26 +318,76 @@ function AlternativeProduct() {
   // Load existing relationship for a given main item code
   const loadExistingMappingForCode = async (code) => {
     try {
-      const res = await api.get(`/alternative-products/${encodeURIComponent(code)}?direct=true`);
-      if (res.data?.data && Array.isArray(res.data.data.alternativeItems)) {
-        setAlternativeItems(res.data.data.alternativeItems);
-        if (res.data.data.description) {
-          setFormData((prev) => ({
-            ...prev,
-            description: res.data.data.description,
-            stock: res.data.data.mainItemStock !== undefined ? res.data.data.mainItemStock : prev.stock,
-          }));
+      const upper = String(code).trim().toUpperCase();
+
+      // Check local saved relationships first
+      let rel = savedRelationships.find(
+        (r) =>
+          r.mainItemCode?.toUpperCase() === upper ||
+          (r.alternativeItemCodes && r.alternativeItemCodes.some((ac) => ac?.toUpperCase() === upper))
+      );
+
+      // If not cached, fetch from server
+      if (!rel) {
+        const res = await api.get(`/alternative-products/${encodeURIComponent(upper)}`);
+        if (res.data?.data) {
+          rel = res.data.data;
         }
+      }
+
+      if (rel) {
+        const mainObj = itemsList.find((i) => i.code?.toUpperCase() === rel.mainItemCode?.toUpperCase()) || {
+          code: rel.mainItemCode,
+          description: rel.description || rel.mainItemDescription || '',
+          stock: rel.mainItemStock || 0,
+          location: 'Main Store',
+          price: 0,
+        };
+
+        const altList = Array.isArray(rel.alternativeItems) ? rel.alternativeItems : [];
+
+        // In first grid, load the entire group (main item as row 1 + all alternatives)
+        const allGroupItems = [
+          {
+            ...mainObj,
+            isMain: true,
+          },
+          ...altList.map((ai) => ({
+            ...ai,
+            isMain: false,
+          })),
+        ];
+
+        setAlternativeItems(allGroupItems);
+        setFormData({
+          itemCode: mainObj.code,
+          description: mainObj.description || '',
+          status: rel.status || 'Active',
+          stock: mainObj.stock || 0,
+          price: mainObj.price || 0,
+          location: mainObj.location || 'Main Store',
+        });
+
+        setAlreadyAltState({
+          itemCode: upper,
+          mainItemCode: rel.mainItemCode,
+          message: 'This item is already alternative',
+          record: rel,
+        });
+
+        setRecordsFilter(rel.mainItemCode);
       } else {
         setAlternativeItems([]);
+        setAlreadyAltState(null);
       }
     } catch (err) {
-      // If none exists yet, clear alternative items
+      console.error('Error loading mapping:', err);
       setAlternativeItems([]);
+      setAlreadyAltState(null);
     }
   };
 
-  // Select Main Item from Search Modal
+  // Select Item from Search Modal
   const handleSelectMainItem = (item) => {
     const stock =
       item.quantity !== undefined
@@ -300,31 +401,180 @@ function AlternativeProduct() {
       description: item.description || '',
       status: 'Active',
       stock: Number(stock),
+      price: Number(item.finalSellingPrice || item.sellingPrice || 0),
+      location: item.location || 'Main Store',
     });
 
-    const shouldAutoOpenAlt = Boolean(mainItemModal.autoOpenAltAfterSelect);
     setMainItemModal({ isOpen: false, search: '', autoOpenAltAfterSelect: false });
 
-    // Load any existing alternative mapping for this main item
-    loadExistingMappingForCode(item.code);
-
-    if (shouldAutoOpenAlt) {
-      setTimeout(() => {
-        setAddAltModal({ isOpen: true, search: '' });
-      }, 150);
-    }
+    // Check if already alternative
+    checkIfAlreadyAlternative(item.code);
   };
 
-  // Load Record from Lower Section Table
+  // Load Record from Lower Section Table (Second Grid)
   const handleLoadRecord = (record) => {
-    setFormData({
-      itemCode: record.mainItemCode,
+    const mainObj = itemsList.find((i) => i.code?.toUpperCase() === record.mainItemCode?.toUpperCase()) || {
+      code: record.mainItemCode,
       description: record.description || record.mainItemDescription || '',
-      status: record.status || 'Active',
       stock: record.mainItemStock || 0,
+      location: 'Main Store',
+      price: 0,
+    };
+
+    const altList = Array.isArray(record.alternativeItems) ? record.alternativeItems : [];
+
+    const allGroupItems = [
+      {
+        ...mainObj,
+        isMain: true,
+      },
+      ...altList.map((ai) => ({
+        ...ai,
+        isMain: false,
+      })),
+    ];
+
+    setAlternativeItems(allGroupItems);
+    setFormData({
+      itemCode: mainObj.code,
+      description: mainObj.description || '',
+      status: record.status || 'Active',
+      stock: mainObj.stock || 0,
+      price: mainObj.price || 0,
+      location: mainObj.location || 'Main Store',
     });
-    setAlternativeItems(record.alternativeItems || []);
-    showNotification(`Loaded Alternative Product mapping for '${record.mainItemCode}'`, 'info');
+
+    setAlreadyAltState({
+      itemCode: record.mainItemCode,
+      mainItemCode: record.mainItemCode,
+      message: 'This item is already alternative',
+      record,
+    });
+
+    setRecordsFilter(record.mainItemCode);
+    showNotification(`Loaded Alternative Product mapping for '${record.mainItemCode}' (${allGroupItems.length} items)`, 'info');
+  };
+
+  // Add Item to First Grid
+  const handleAddItemToFirstGrid = async () => {
+    const raw = formData.itemCode.trim();
+    if (!raw) {
+      showNotification('Please enter or select an Item Code first', 'error');
+      itemCodeInputRef.current?.focus();
+      return;
+    }
+
+    const upper = raw.toUpperCase();
+
+    // 1. Verify item exists in Item Master
+    let item = itemsList.find(
+      (i) =>
+        i.code?.toUpperCase() === upper ||
+        (i.barcode && String(i.barcode).toUpperCase() === upper) ||
+        (i.suppCode && String(i.suppCode).toUpperCase() === upper)
+    );
+
+    if (!item) {
+      try {
+        const res = await api.get(`/items?search=${encodeURIComponent(raw)}&limit=10`);
+        if (res.data?.data?.length > 0) {
+          item = res.data.data.find(
+            (i) =>
+              i.code?.toUpperCase() === upper ||
+              (i.barcode && String(i.barcode).toUpperCase() === upper) ||
+              (i.suppCode && String(i.suppCode).toUpperCase() === upper)
+          );
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    if (!item) {
+      showNotification(`Item '${raw}' not found in Item Master`, 'error');
+      return;
+    }
+
+    // 2. Check if this item is ALREADY an alternative product in the system
+    const existing = checkIfAlreadyAlternative(item.code);
+    if (existing) {
+      showNotification(`This item is already alternative! (Configured under '${existing.mainItemCode}')`, 'warning');
+      return;
+    }
+
+    // 3. Check if already added to first grid
+    const alreadyInGrid = alternativeItems.some(
+      (ai) => ai.code?.toUpperCase() === item.code.toUpperCase()
+    );
+    if (alreadyInGrid) {
+      showNotification(`Item '${item.code}' is already added to the grid!`, 'info');
+      return;
+    }
+
+    // 4. Add to first grid
+    const stock =
+      item.quantity !== undefined
+        ? item.quantity
+        : item.stockInHand !== undefined
+        ? item.stockInHand
+        : 0;
+
+    const isFirstItem = alternativeItems.length === 0;
+
+    const newEntry = {
+      _id: item._id,
+      code: item.code,
+      description: item.description || '',
+      stock: Number(stock),
+      location: item.location || 'Main Store',
+      price: Number(item.finalSellingPrice || item.sellingPrice || 0),
+      category: item.category || '',
+      isMain: isFirstItem,
+    };
+
+    setAlternativeItems((prev) => [...prev, newEntry]);
+
+    showNotification(
+      isFirstItem
+        ? `Added '${item.code}' as Primary Item. Now enter the alternative product and click [Add].`
+        : `Added '${item.code}' to alternative products grid.`,
+      'success'
+    );
+
+    // 5. Clear input fields for next entry
+    setFormData({
+      itemCode: '',
+      description: '',
+      status: 'Active',
+      stock: 0,
+      price: 0,
+      location: 'Main Store',
+    });
+
+    setTimeout(() => {
+      itemCodeInputRef.current?.focus();
+    }, 50);
+  };
+
+  // Remove an item from the first grid
+  const handleRemoveItemFromGrid = (indexToRemove) => {
+    const itemToRemove = alternativeItems[indexToRemove];
+    if (!itemToRemove) return;
+
+    const confirmRemove = window.confirm(
+      `Remove '${itemToRemove.code} - ${itemToRemove.description}' from the grid?`
+    );
+    if (!confirmRemove) return;
+
+    setAlternativeItems((prev) => {
+      const updated = prev.filter((_, idx) => idx !== indexToRemove);
+      if (updated.length > 0) {
+        updated[0] = { ...updated[0], isMain: true };
+      }
+      return updated;
+    });
+
+    showNotification(`Removed '${itemToRemove.code}' from the grid.`, 'info');
   };
 
   // Add Alternative Item from Dialog
@@ -470,49 +720,81 @@ function AlternativeProduct() {
       description: '',
       status: 'Active',
       stock: 0,
+      price: 0,
+      location: 'Main Store',
     });
     setAlternativeItems([]);
+    setAlreadyAltState(null);
+    setRecordsFilter('');
     showNotification('Form cleared. Ready for new Alternative Product mapping.', 'info');
+    setTimeout(() => {
+      itemCodeInputRef.current?.focus();
+    }, 50);
   };
 
   // BUTTON: SAVE / UPDATE
   const handleSaveOrUpdate = async () => {
-    if (!formData.itemCode || !formData.itemCode.trim()) {
-      showNotification('Please enter or select a Main Item Code', 'error');
+    // Collect all items to link:
+    let itemsToSave = [...alternativeItems];
+
+    // If an item code is currently typed in the input field and not yet added to grid, auto-include it:
+    const pendingCode = formData.itemCode?.trim().toUpperCase();
+    if (pendingCode) {
+      const alreadyInList = itemsToSave.some((it) => it.code?.toUpperCase() === pendingCode);
+      if (!alreadyInList) {
+        let matched = itemsList.find((it) => it.code?.toUpperCase() === pendingCode);
+        if (!matched) {
+          try {
+            const res = await api.get(`/items?search=${encodeURIComponent(pendingCode)}&limit=5`);
+            if (res.data?.data?.length > 0) {
+              matched = res.data.data.find((i) => i.code?.toUpperCase() === pendingCode);
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+        if (matched) {
+          itemsToSave.push({
+            _id: matched._id,
+            code: matched.code,
+            description: matched.description || formData.description || '',
+            stock: matched.quantity ?? matched.stockInHand ?? 0,
+            location: matched.location || 'Main Store',
+            price: Number(matched.finalSellingPrice || matched.sellingPrice || 0),
+            isMain: itemsToSave.length === 0,
+          });
+        }
+      }
+    }
+
+    if (itemsToSave.length < 2) {
+      showNotification('Please add at least 2 items to the grid (e.g. Primary Item and Alternative Item) before saving.', 'error');
+      itemCodeInputRef.current?.focus();
       return;
     }
 
-    const confirmed = await confirmSave('Do you want to save this record?');
+    const primaryItem = itemsToSave[0];
+    const altCodes = itemsToSave.slice(1).map((a) => a.code).filter(Boolean);
+
+    const confirmed = await confirmSave(`Do you want to save alternative product relationships for '${primaryItem.code}' with ${altCodes.join(', ')}?`);
     if (!confirmed) return;
-
-    const trimmedCode = formData.itemCode.trim().toUpperCase();
-
-    // Verify main item exists (prefer cached code for casing)
-    let finalCode = trimmedCode;
-    const mainItemObj = itemsList.find(
-      (i) => i.code?.toUpperCase() === trimmedCode
-    );
-    if (mainItemObj?.code) {
-      finalCode = mainItemObj.code;
-    }
 
     try {
       setIsSaving(true);
-      const altCodes = alternativeItems.map((a) => a.code).filter(Boolean);
-
       const payload = {
-        mainItemCode: finalCode,
+        mainItemCode: primaryItem.code,
         alternativeItemCodes: altCodes,
         status: formData.status || 'Active',
       };
 
       const res = await api.post('/alternative-products', payload);
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showNotification(
-          `Alternative Product mapping for '${finalCode}' saved successfully! (${altCodes.length} alternative items linked)`,
+          `Alternative Product mapping for '${primaryItem.code}' saved successfully! (${itemsToSave.length} items linked)`,
           'success'
         );
-        fetchRelationships();
+        await fetchRelationships();
+        handleNew();
       }
     } catch (err) {
       const errMsg = err.response?.data?.message || 'Failed to save alternative product relationship';
@@ -524,22 +806,24 @@ function AlternativeProduct() {
 
   // BUTTON: DELETE RELATIONSHIP
   const handleDeleteRelationship = async () => {
-    if (!formData.itemCode || !formData.itemCode.trim()) {
-      showNotification('No Main Item selected to delete relationship', 'error');
+    const targetCode =
+      alreadyAltState?.mainItemCode ||
+      (alternativeItems.length > 0 ? alternativeItems[0].code : formData.itemCode?.trim());
+
+    if (!targetCode) {
+      showNotification('No alternative product relationship selected to delete', 'error');
       return;
     }
 
-    const trimmedCode = formData.itemCode.trim().toUpperCase();
-
     const confirmDel = await confirmDelete(
-      `Are you sure you want to delete the Alternative Product mapping for '${trimmedCode}'?\n\nIMPORTANT: This will ONLY delete the relationship. No items in Item Master will be deleted.`
+      `Are you sure you want to delete the Alternative Product mapping for '${targetCode}'?\n\nIMPORTANT: This will ONLY delete the relationship mapping. Products in Item Master will NOT be deleted.`
     );
     if (!confirmDel) return;
 
     try {
-      const res = await api.delete(`/alternative-products/${encodeURIComponent(trimmedCode)}`);
+      const res = await api.delete(`/alternative-products/${encodeURIComponent(targetCode)}`);
       if (res.data?.success) {
-        showNotification(`Alternative Product mapping for '${trimmedCode}' deleted successfully`, 'success');
+        showNotification(`Alternative Product mapping for '${targetCode}' deleted successfully`, 'success');
         handleNew();
         fetchRelationships();
       }
@@ -589,17 +873,30 @@ function AlternativeProduct() {
     return [...filteredAltCandidateItems.slice(0, 100), ...altServerResults];
   }, [filteredAltCandidateItems, altServerResults]);
 
-  // Filter for Lower Records List
+  // Filter for Lower Records List (Second Grid)
   const filteredRecords = useMemo(() => {
     const q = recordsFilter.toLowerCase().trim();
     if (!q) return savedRelationships;
-    return savedRelationships.filter(
-      (r) =>
+    return savedRelationships.filter((r) => {
+      const mainMatch =
         r.mainItemCode?.toLowerCase().includes(q) ||
         r.description?.toLowerCase().includes(q) ||
-        (r.alternativeItemCodes &&
-          r.alternativeItemCodes.some((ac) => ac.toLowerCase().includes(q)))
-    );
+        r.mainItemDescription?.toLowerCase().includes(q);
+
+      const altCodeMatch =
+        Array.isArray(r.alternativeItemCodes) &&
+        r.alternativeItemCodes.some((ac) => ac?.toLowerCase().includes(q));
+
+      const altObjMatch =
+        Array.isArray(r.alternativeItems) &&
+        r.alternativeItems.some(
+          (ai) =>
+            ai.code?.toLowerCase().includes(q) ||
+            ai.description?.toLowerCase().includes(q)
+        );
+
+      return mainMatch || altCodeMatch || altObjMatch;
+    });
   }, [savedRelationships, recordsFilter]);
 
   // Debounced server search fallback for Main Item Modal
@@ -748,45 +1045,73 @@ function AlternativeProduct() {
           </div>
         )}
 
+        {/* Already Alternative Alert Banner */}
+        {alreadyAltState && (
+          <div className="already-alt-banner" style={{ marginBottom: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '16px' }}>⚠️</span>
+              <span>
+                <strong>This item is already alternative:</strong> Item <strong>'{alreadyAltState.itemCode}'</strong> is already an alternative product (configured under <strong>{alreadyAltState.mainItemCode}</strong>). See all linked alternatives below in Grid 1 and listed in Grid 2.
+              </span>
+            </div>
+            <button
+              type="button"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold', color: '#92400e', fontSize: '15px' }}
+              onClick={() => setAlreadyAltState(null)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Form Container Panel */}
         <div className="alt-prod-panel-container" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.alt-prod-btn-classic' })}>
-          {/* Top Controls: Item Code, Save, Update, New, Delete, Description, Active */}
+          {/* Top Controls: Item Code, Add, Save, Update, New, Delete, Description, Active */}
           <div className="alt-prod-top-controls">
-            {/* Row 1: Item Code + Buttons */}
+            {/* Row 1: Item Code + Add Button + Action Buttons */}
             <div className="alt-prod-row-1">
               <span className="dotted-label-blue">Item Code . . . . .</span>
               <div className="item-code-input-wrapper">
                 <input
+                  ref={itemCodeInputRef}
                   type="text"
                   name="itemCode"
                   list="alt-item-code-datalist"
                   className="alt-prod-input"
-                  style={{ width: '175px', fontWeight: '700', color: '#000080' }}
+                  style={{ width: '185px', fontWeight: '700', color: '#000080' }}
                   value={formData.itemCode}
                   onChange={handleItemCodeInputChange}
                   onBlur={handleItemCodeBlur}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      handleItemCodeBlur();
+                      handleAddItemToFirstGrid();
                     }
                   }}
-                  placeholder={loadingItems ? 'Loading all items...' : 'Enter Item Code...'}
-                  title={loadingItems ? 'Loading all items from Item Master...' : 'Enter or select Item Code'}
+                  placeholder={loadingItems ? 'Loading all items...' : 'Enter / Search Item Code...'}
+                  title="Type or select Item Code, then click Add or press Enter"
                   autoComplete="off"
                 />
                 <button
                   type="button"
                   className="alt-prod-btn-lookup"
-                  title="Search Main Item in Item Master"
+                  title="Search Item in Item Master"
                   onClick={() => setMainItemModal({ isOpen: true, search: '' })}
                 >
                   ...
                 </button>
+                <button
+                  type="button"
+                  className="alt-prod-btn-classic alt-add-btn"
+                  onClick={handleAddItemToFirstGrid}
+                  title="Add item to the first grid"
+                >
+                  Add
+                </button>
               </div>
 
               <datalist id="alt-item-code-datalist">
-                {itemsList.slice(0, 50).map((item) => (
+                {itemsList.slice(0, 100).map((item) => (
                   <option key={item._id || item.code} value={item.code}>
                     {item.description ? `${item.description}` : item.code}
                   </option>
@@ -842,74 +1167,39 @@ function AlternativeProduct() {
                 style={{ flex: 1, backgroundColor: '#fcfcfc' }}
                 value={formData.description}
                 readOnly
-                placeholder="Main Item Description (loaded from Item Master)"
+                placeholder="Description automatically fills when Item Code is entered or selected..."
               />
-              <div className="alt-prod-status-indicator" title="Active Status">
-                [Active]
-              </div>
+              {alreadyAltState ? (
+                <span className="badge-already-alt">
+                  ⚠️ This item is already alternative
+                </span>
+              ) : (
+                <div className="alt-prod-status-indicator" title="Active Status">
+                  [Active]
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Upper Bordered Section: Alternative Products Table */}
+          {/* Upper Bordered Section: First Grid (Alternative Products Table) */}
           <div className="alt-prod-section-box upper">
             <div className="section-header-bar">
               <div className="section-title">
-                <span>ALTERNATIVE PRODUCTS</span>
-                {formData.itemCode && (
-                  <span className="section-subtitle">
-                    (Linked alternatives for: <strong>{formData.itemCode}</strong> - {formData.description})
-                  </span>
-                )}
+                <span>ALTERNATIVE PRODUCTS (First Grid)</span>
+                <span className="section-subtitle">
+                  ({alternativeItems.length} item{alternativeItems.length === 1 ? '' : 's'} staged in group)
+                </span>
               </div>
-              <button
-                type="button"
-                className="alt-prod-btn-classic add-alt-btn"
-                onClick={handleOpenAddAltModal}
-                title="Search and select from Item Master"
-              >
-                + Add Alternative Item (Search Dialog)
-              </button>
-            </div>
-
-            {/* Quick Inline Entry for Alternative Products */}
-            <div className="alt-prod-quick-add-bar">
-              <span className="dotted-label-blue" style={{ fontSize: '12px' }}>
-                Quick Add Alternative:
-              </span>
-              <input
-                type="text"
-                className="alt-prod-input"
-                style={{ width: '220px', fontWeight: 'bold', color: '#000080' }}
-                placeholder="Type/Scan Alt Item Code or Barcode..."
-                value={quickAltCode}
-                onChange={(e) => setQuickAltCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleQuickAddAlternative();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="alt-prod-btn-classic"
-                style={{ fontWeight: 'bold' }}
-                onClick={handleQuickAddAlternative}
-                title="Add to alternative list"
-              >
-                + Add
-              </button>
-              <button
-                type="button"
-                className="alt-prod-btn-classic"
-                onClick={handleOpenAddAltModal}
-                title="Browse all items"
-              >
-                🔍 Browse Items...
-              </button>
-              <span style={{ fontSize: '11px', color: '#555', marginLeft: 'auto' }}>
-                Total Linked: <strong>{alternativeItems.length}</strong>
-              </span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="alt-prod-btn-classic add-alt-btn"
+                  onClick={() => setMainItemModal({ isOpen: true, search: '' })}
+                  title="Search and select from Item Master"
+                >
+                  🔍 Browse Item Master...
+                </button>
+              </div>
             </div>
 
             <div className="table-viewport upper-table-scroll">
@@ -917,26 +1207,22 @@ function AlternativeProduct() {
                 <thead>
                   <tr>
                     <th style={{ width: '40px', textAlign: 'center' }}>#</th>
-                    <th style={{ width: '130px' }}>Code</th>
+                    <th style={{ width: '140px' }}>Code</th>
                     <th>Description</th>
                     <th style={{ width: '90px', textAlign: 'center' }}>Stock</th>
                     <th style={{ width: '110px' }}>Location</th>
                     <th style={{ width: '110px', textAlign: 'right' }}>Selling Price</th>
+                    <th style={{ width: '110px', textAlign: 'center' }}>Role</th>
                     <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {alternativeItems.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="empty-table-message">
-                        {formData.itemCode ? (
-                          <span>
-                            No alternative products linked yet for <strong>{formData.itemCode}</strong>.
-                            Click <strong>[+ Add Alternative Item]</strong> to link compatible products from Item Master.
-                          </span>
-                        ) : (
-                          <span>Please select or enter a Main Item Code above to view or link alternative products.</span>
-                        )}
+                      <td colSpan="8" className="empty-table-message">
+                        <span>
+                          No items loaded in First Grid yet. Enter an Item Code above and click <strong>[Add]</strong> to add items to this alternative group.
+                        </span>
                       </td>
                     </tr>
                   ) : (
@@ -953,11 +1239,18 @@ function AlternativeProduct() {
                           {Number(alt.price || alt.finalSellingPrice || alt.sellingPrice || 0).toFixed(2)}
                         </td>
                         <td style={{ textAlign: 'center' }}>
+                          {idx === 0 ? (
+                            <span className="role-badge-main">Main Item</span>
+                          ) : (
+                            <span className="role-badge-alt">Alternative</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
                           <button
                             type="button"
                             className="alt-prod-btn-remove"
-                            title="Remove alternative relationship"
-                            onClick={() => handleRemoveAlternative(alt)}
+                            title="Remove from this alternative group"
+                            onClick={() => handleRemoveItemFromGrid(idx)}
                           >
                             Remove
                           </button>
@@ -970,23 +1263,33 @@ function AlternativeProduct() {
             </div>
           </div>
 
-          {/* Lower Bordered Section: Saved Alternative Product Records */}
+          {/* Lower Bordered Section: Second Grid (Saved Alternative Product Records) */}
           <div className="alt-prod-section-box lower">
             <div className="section-header-bar">
               <div className="section-title">
-                <span>SAVED ALTERNATIVE PRODUCT MAPPINGS</span>
-                <span className="section-subtitle">({savedRelationships.length} items configured)</span>
+                <span>SAVED ALTERNATIVE PRODUCT MAPPINGS (Second Grid)</span>
+                <span className="section-subtitle">({savedRelationships.length} relationships configured)</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '11px', color: '#333' }}>Filter:</span>
+                <span style={{ fontSize: '11px', color: '#333', fontWeight: 'bold' }}>Filter / Search:</span>
                 <input
                   type="text"
                   className="alt-prod-input"
-                  style={{ width: '180px', height: '22px' }}
-                  placeholder="Filter records..."
+                  style={{ width: '200px', height: '24px' }}
+                  placeholder="Search code or alternative..."
                   value={recordsFilter}
                   onChange={(e) => setRecordsFilter(e.target.value)}
                 />
+                {recordsFilter && (
+                  <button
+                    type="button"
+                    className="alt-prod-btn-classic"
+                    style={{ height: '24px', minWidth: '65px', padding: '0 6px', fontSize: '11px' }}
+                    onClick={() => setRecordsFilter('')}
+                  >
+                    Show All
+                  </button>
+                )}
               </div>
             </div>
 
@@ -998,9 +1301,9 @@ function AlternativeProduct() {
                     <th style={{ width: '130px' }}>Main Item Code</th>
                     <th>Main Item Description</th>
                     <th style={{ width: '90px', textAlign: 'center' }}>Main Stock</th>
-                    <th style={{ width: '130px', textAlign: 'center' }}>Linked Alternatives</th>
-                    <th style={{ width: '80px', textAlign: 'center' }}>Status</th>
-                    <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
+                    <th>Linked Alternatives</th>
+                    <th style={{ width: '210px', textAlign: 'center' }}>Status</th>
+                    <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1010,7 +1313,7 @@ function AlternativeProduct() {
                         {loadingRelationships ? (
                           <span>Loading saved alternative product mappings...</span>
                         ) : savedRelationships.length === 0 ? (
-                          <span>No Alternative Product relationship records found in the database. Enter a Main Item Code above to create one.</span>
+                          <span>No Alternative Product relationship records found in the database. Enter items above and click Save to create one.</span>
                         ) : (
                           <span>No matching records found for "{recordsFilter}".</span>
                         )}
@@ -1018,11 +1321,20 @@ function AlternativeProduct() {
                     </tr>
                   ) : (
                     filteredRecords.map((rec, idx) => {
-                      const isSelected = rec.mainItemCode === formData.itemCode;
+                      const isSelected =
+                        rec.mainItemCode?.toUpperCase() === formData.itemCode?.toUpperCase() ||
+                        rec.mainItemCode?.toUpperCase() === alreadyAltState?.mainItemCode?.toUpperCase();
+
+                      const isMatchedAlt =
+                        alreadyAltState &&
+                        (rec.mainItemCode?.toUpperCase() === alreadyAltState.itemCode?.toUpperCase() ||
+                          (rec.alternativeItemCodes &&
+                            rec.alternativeItemCodes.some((ac) => ac?.toUpperCase() === alreadyAltState.itemCode?.toUpperCase())));
+
                       return (
                         <tr
                           key={rec._id || rec.mainItemCode}
-                          className={isSelected ? 'selected' : ''}
+                          className={`${isSelected ? 'selected' : ''} ${isMatchedAlt ? 'highlight-already-alt' : ''}`}
                           onClick={() => handleLoadRecord(rec)}
                         >
                           <td style={{ textAlign: 'center', color: isSelected ? '#fff' : '#666' }}>{idx + 1}</td>
@@ -1033,17 +1345,28 @@ function AlternativeProduct() {
                           <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
                             {rec.mainItemStock ?? 0}
                           </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <span className="badge-count" style={{ alignSelf: 'flex-start' }}>
+                                {rec.alternativeCount ?? rec.alternativeItemCodes?.length ?? 0} Alternatives
+                              </span>
+                              <div style={{ fontSize: '12px', color: isSelected ? '#ffffff' : '#333333' }}>
+                                {rec.alternativeItems && rec.alternativeItems.length > 0
+                                  ? rec.alternativeItems.map((ai) => `${ai.code} (${ai.description || ''})`).join(' | ')
+                                  : (rec.alternativeItemCodes || []).join(', ')}
+                              </div>
+                            </div>
+                          </td>
                           <td style={{ textAlign: 'center' }}>
-                            <span className="badge-count">
-                              {rec.alternativeCount ?? rec.alternativeItemCodes?.length ?? 0} Items
+                            <span className="badge-already-alt">
+                              This item is already alternative
                             </span>
                           </td>
-                          <td style={{ textAlign: 'center' }}>{rec.status || 'Active'}</td>
                           <td style={{ textAlign: 'center' }}>
                             <button
                               type="button"
                               className="alt-prod-btn-classic"
-                              style={{ height: '20px', minWidth: '55px', padding: '0 4px', fontSize: '11px' }}
+                              style={{ height: '22px', minWidth: '55px', padding: '0 4px', fontSize: '11px' }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleLoadRecord(rec);
