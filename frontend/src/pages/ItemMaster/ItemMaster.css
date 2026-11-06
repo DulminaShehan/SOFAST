@@ -1357,3 +1357,129 @@
   border-radius: 8px;
 }
 
+
+
+/* ==========================================================================
+   12. Item Master Search & Lookup Modal (Search Every Item)
+   ========================================================================== */
+.item-search-modal-dialog {
+  width: 940px;
+  max-width: 96vw;
+  max-height: 90vh;
+  background-color: #ece9d8;
+  border: 3px solid #005bb7;
+  border-radius: 4px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+.item-search-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, #005bb7 0%, #004696 100%);
+  color: #ffffff;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.item-search-modal-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.item-search-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #7f9db9;
+  border-radius: 3px;
+  padding: 5px 10px;
+}
+
+.item-search-bar-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  font-family: inherit;
+  color: #002D62;
+  font-weight: 600;
+}
+
+.item-search-table-scroll {
+  flex: 1;
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid #7f9db9;
+  background-color: #ffffff;
+}
+
+.item-search-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.item-search-table thead th {
+  position: sticky;
+  top: 0;
+  background: #002D62;
+  color: #ffffff;
+  padding: 7px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+  border-right: 1px solid #004080;
+  z-index: 2;
+}
+
+.item-search-table tbody tr {
+  cursor: pointer;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background-color 0.1s ease;
+}
+
+.item-search-table tbody tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.item-search-table tbody tr:hover,
+.item-search-table tbody tr.highlighted {
+  background-color: #bbf7d0 !important;
+}
+
+.item-search-table tbody tr.selected {
+  background-color: #bfdbfe !important;
+}
+
+.item-search-table tbody td {
+  padding: 6px 8px;
+  color: #1e293b;
+  font-size: 11px;
+  white-space: nowrap;
+  border-right: 1px solid #f1f5f9;
+}
+
+.item-search-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: #ece9d8;
+  border-top: 1px solid #d4d0c8;
+}

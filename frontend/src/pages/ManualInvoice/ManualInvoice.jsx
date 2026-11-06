@@ -313,6 +313,10 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
       }
 
       // If no match found:
+      if (codeVal) {
+        handleOpenItemLookup(codeVal);
+        return;
+      }
       if (itemEntry.description.trim()) {
         qtyInputRef.current?.focus();
         qtyInputRef.current?.select();
