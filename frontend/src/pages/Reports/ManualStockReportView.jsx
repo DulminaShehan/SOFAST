@@ -529,7 +529,7 @@ function ManualStockReportView({ onNavigateTab }) {
         <div className="ms-kpi-card kpi-blue">
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Total Manual Items</span>
-            <span className="ms-kpi-icon">📦</span>
+            <span className="ms-kpi-icon-wrap icon-blue">📦</span>
           </div>
           <div className="ms-kpi-value">{kpiStats.totalManualItems}</div>
           <div className="ms-kpi-desc">Total catalogued unregistered items</div>
@@ -539,19 +539,19 @@ function ManualStockReportView({ onNavigateTab }) {
         <div className="ms-kpi-card kpi-amber">
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Active (Unconverted)</span>
-            <span className="ms-kpi-icon">⏳</span>
+            <span className="ms-kpi-icon-wrap icon-amber">⏳</span>
           </div>
-          <div className="ms-kpi-value" style={{ color: '#d97706' }}>{kpiStats.activeUnconverted}</div>
+          <div className="ms-kpi-value text-amber">{kpiStats.activeUnconverted}</div>
           <div className="ms-kpi-desc">Currently managed as manual stock</div>
         </div>
 
         {/* Card 3: Pending Item Master Registration */}
         <div className="ms-kpi-card kpi-indigo">
           <div className="ms-kpi-top">
-            <span className="ms-kpi-title">Pending Master Registration</span>
-            <span className="ms-kpi-icon">📝</span>
+            <span className="ms-kpi-title">Pending Item Master Registration</span>
+            <span className="ms-kpi-icon-wrap icon-indigo">📝</span>
           </div>
-          <div className="ms-kpi-value" style={{ color: '#4f46e5' }}>{kpiStats.pendingRegistration}</div>
+          <div className="ms-kpi-value text-indigo">{kpiStats.pendingRegistration}</div>
           <div className="ms-kpi-desc">Eligible for promotion to Item Master</div>
         </div>
 
@@ -559,11 +559,10 @@ function ManualStockReportView({ onNavigateTab }) {
         <div className="ms-kpi-card kpi-green">
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Available Manual Stock</span>
-            <span className="ms-kpi-icon">📊</span>
+            <span className="ms-kpi-icon-wrap icon-green">📊</span>
           </div>
           <div
-            className="ms-kpi-value"
-            style={{ color: kpiStats.availableStock < 0 ? '#dc2626' : '#16a34a' }}
+            className={`ms-kpi-value ${kpiStats.availableStock < 0 ? 'text-red' : 'text-green'}`}
           >
             {kpiStats.availableStock}
           </div>
@@ -574,19 +573,19 @@ function ManualStockReportView({ onNavigateTab }) {
         <div className="ms-kpi-card kpi-purple">
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Total Manual Sales</span>
-            <span className="ms-kpi-icon">🛒</span>
+            <span className="ms-kpi-icon-wrap icon-purple">🛒</span>
           </div>
-          <div className="ms-kpi-value">{kpiStats.totalSales}</div>
+          <div className="ms-kpi-value text-purple">{kpiStats.totalSales}</div>
           <div className="ms-kpi-desc">Cumulative units sold via manual bills</div>
         </div>
 
         {/* Card 6: Total Stock Added */}
-        <div className="ms-kpi-card kpi-emerald">
+        <div className="ms-kpi-card kpi-teal">
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Total Stock Added</span>
-            <span className="ms-kpi-icon">📥</span>
+            <span className="ms-kpi-icon-wrap icon-teal">📥</span>
           </div>
-          <div className="ms-kpi-value" style={{ color: '#059669' }}>{kpiStats.totalAdded}</div>
+          <div className="ms-kpi-value text-teal">{kpiStats.totalAdded}</div>
           <div className="ms-kpi-desc">Physical stock received via receipts</div>
         </div>
 
@@ -594,9 +593,9 @@ function ManualStockReportView({ onNavigateTab }) {
         <div className="ms-kpi-card kpi-navy">
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Converted Items</span>
-            <span className="ms-kpi-icon">⭐</span>
+            <span className="ms-kpi-icon-wrap icon-navy">⭐</span>
           </div>
-          <div className="ms-kpi-value" style={{ color: '#003366' }}>{kpiStats.convertedItems}</div>
+          <div className="ms-kpi-value text-navy">{kpiStats.convertedItems}</div>
           <div className="ms-kpi-desc">Promoted to authoritative Item Master</div>
         </div>
 
@@ -604,9 +603,9 @@ function ManualStockReportView({ onNavigateTab }) {
         <div className="ms-kpi-card kpi-red">
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Estimated Valuation</span>
-            <span className="ms-kpi-icon">💰</span>
+            <span className="ms-kpi-icon-wrap icon-red">💰</span>
           </div>
-          <div className="ms-kpi-value" style={{ fontSize: '18px', color: '#b91c1c' }}>
+          <div className="ms-kpi-value val-currency text-red">
             Rs. {kpiStats.estimatedValuation.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="ms-kpi-desc">Available manual stock × cost price</div>
@@ -615,7 +614,13 @@ function ManualStockReportView({ onNavigateTab }) {
 
       {/* 3. Search and Filter Section (Requirement 4) */}
       <div className="ms-filter-panel no-print">
-        <div className="ms-filter-grid">
+        <form
+          className="ms-filter-grid"
+          onSubmit={(e) => {
+            e.preventDefault();
+            fetchReport();
+          }}
+        >
           {/* Search Item / Code */}
           <div className="ms-filter-field">
             <label className="ms-filter-label" htmlFor="ms-filter-search">Search Item / Code</label>
@@ -702,7 +707,7 @@ function ManualStockReportView({ onNavigateTab }) {
 
           {/* Rows Per Page */}
           <div className="ms-filter-field">
-            <label className="ms-filter-label" htmlFor="ms-filter-limit">Rows</label>
+            <label className="ms-filter-label" htmlFor="ms-filter-limit">Rows Per Page</label>
             <select
               id="ms-filter-limit"
               className="ms-select"
@@ -720,8 +725,15 @@ function ManualStockReportView({ onNavigateTab }) {
             </select>
           </div>
 
-          {/* Clear Filters Action */}
+          {/* Apply & Clear Filters Actions */}
           <div className="ms-filter-actions">
+            <button
+              type="submit"
+              className="ms-btn ms-btn-primary ms-btn-apply"
+              title="Apply filters"
+            >
+              🔍 Apply Filters
+            </button>
             {(search || statusFilter !== 'all' || startDate || endDate) && (
               <button
                 type="button"
@@ -733,7 +745,7 @@ function ManualStockReportView({ onNavigateTab }) {
               </button>
             )}
           </div>
-        </div>
+        </form>
       </div>
 
       {/* 4. Manual Stock Data Table (Requirement 5) */}
@@ -746,15 +758,15 @@ function ManualStockReportView({ onNavigateTab }) {
                 <th style={{ width: '110px' }}>Item Code</th>
                 <th style={{ minWidth: '220px' }}>Description</th>
                 <th style={{ width: '55px', textAlign: 'center' }}>Unit</th>
-                <th style={{ width: '90px', textAlign: 'right' }}>Sales Qty</th>
-                <th style={{ width: '95px', textAlign: 'right' }}>Stock Added</th>
-                <th style={{ width: '105px', textAlign: 'right' }}>Available Stock</th>
+                <th style={{ width: '120px', textAlign: 'right' }}>Total Manual Sales Quantity</th>
+                <th style={{ width: '100px', textAlign: 'right' }}>Total Stock Added</th>
+                <th style={{ width: '115px', textAlign: 'right' }}>Available Manual Stock</th>
                 <th style={{ width: '100px', textAlign: 'right' }}>Selling Price</th>
                 <th style={{ width: '95px', textAlign: 'right' }}>Cost Price</th>
-                <th style={{ width: '95px', textAlign: 'center' }}>First Date</th>
-                <th style={{ width: '95px', textAlign: 'center' }}>Last Date</th>
+                <th style={{ width: '110px', textAlign: 'center' }}>First Transaction Date</th>
+                <th style={{ width: '110px', textAlign: 'center' }}>Last Transaction Date</th>
                 <th style={{ width: '140px', textAlign: 'center' }}>Conversion Status</th>
-                <th style={{ width: '230px', textAlign: 'center' }} className="no-print">Actions</th>
+                <th style={{ width: '260px', textAlign: 'center' }} className="no-print">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -860,7 +872,7 @@ function ManualStockReportView({ onNavigateTab }) {
                             onClick={() => handleOpenDetails(item)}
                             title="View detailed product profile & histories"
                           >
-                            👁️ Details
+                            👁️ View Details
                           </button>
 
                           {!isConverted && (
@@ -871,7 +883,7 @@ function ManualStockReportView({ onNavigateTab }) {
                                 onClick={() => handleOpenAddStock(item)}
                                 title="Record stock receipt"
                               >
-                                ➕ Stock
+                                ➕ Add Stock
                               </button>
                               <button
                                 type="button"
@@ -879,7 +891,7 @@ function ManualStockReportView({ onNavigateTab }) {
                                 onClick={() => handleOpenConvert(item)}
                                 title="Promote to Item Master"
                               >
-                                ⭐ Convert
+                                ⭐ Convert to Master
                               </button>
                             </>
                           )}
@@ -1187,7 +1199,7 @@ function ManualStockReportView({ onNavigateTab }) {
               )}
             </div>
             <div className="ms-modal-footer">
-              {!detailsItem.status === 'Converted' && (
+              {detailsItem.status !== 'Converted' && (
                 <button
                   type="button"
                   className="ms-btn ms-btn-primary"
