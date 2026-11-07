@@ -504,43 +504,9 @@ function GoodReceiveNote() {
     const { name, value } = e.target;
     const updated = { ...itemEntry, [name]: value };
 
-    // Auto-match Item by Code
+    // When typing Item Code: allow user to freely type without premature auto-filling or overwriting!
     if (name === 'code') {
-      const trimmed = value.trim();
-      const lower = trimmed.toLowerCase();
-      let match = itemsList.find(
-        (i) => i.code?.toLowerCase() === lower
-      );
-      if (!match && trimmed.includes(' - ')) {
-        const codePart = trimmed.split(' - ')[0].trim().toLowerCase();
-        match = itemsList.find((i) => i.code?.toLowerCase() === codePart);
-      }
-      if (match) {
-        Object.assign(updated, populateItemDetails(match, updated.quantity || 1, updated.discount || '0'));
-        fetchItemHistory(match.code, match.location);
-      } else if (trimmed.length >= 2) {
-        // Fallback live search from backend to ensure every item in DB is reachable
-        api.get(`/items?search=${encodeURIComponent(trimmed)}&limit=10`)
-          .then((res) => {
-            if (res.data?.data?.length > 0) {
-              const exact = res.data.data.find((i) => i.code?.toLowerCase() === lower) || res.data.data[0];
-              if (exact) {
-                setItemEntry((prev) => {
-                  if (prev.code.trim().toLowerCase() === lower) {
-                    return { ...prev, ...populateItemDetails(exact, prev.quantity || 1, prev.discount || '0') };
-                  }
-                  return prev;
-                });
-                fetchItemHistory(exact.code, exact.location);
-              }
-            } else {
-              fetchItemHistory(trimmed);
-            }
-          })
-          .catch(() => {
-            fetchItemHistory(trimmed);
-          });
-      } else if (trimmed === '') {
+      if (value.trim() === '') {
         setItemHistory([]);
         if (lineItems.length > 0) setGridMode('current');
       }
@@ -557,24 +523,45 @@ function GoodReceiveNote() {
     setItemEntry(updated);
   };
 
-  // Handle Barcode Scanner on Code field (Enter key press)
-  const handleCodeKeyDown = (e) => {
+  // Handle Barcode Scanner / Enter key press on Code field
+  const handleCodeKeyDown = async (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const query = itemEntry.code.trim().toLowerCase();
-      if (!query) return;
+      const query = (itemEntry.code || '').trim().toLowerCase();
+      if (!query) {
+        setLookupModal({
+          isOpen: true,
+          type: 'item',
+          title: 'Select Item from Item Master',
+          search: '',
+        });
+        return;
+      }
 
-      // Match item by barcode or code
+      // 1. Check local itemsList for exact match by code or barcode
       let match = null;
       if (grnHeader.useBarcode) {
         match = itemsList.find(
           (i) =>
-            i.barcode?.toLowerCase() === query ||
-            i.barCode?.toLowerCase() === query ||
-            i.code?.toLowerCase() === query
+            i.barcode?.trim().toLowerCase() === query ||
+            i.barCode?.trim().toLowerCase() === query ||
+            i.code?.trim().toLowerCase() === query
         );
       } else {
-        match = itemsList.find((i) => i.code?.toLowerCase() === query);
+        match = itemsList.find((i) => i.code?.trim().toLowerCase() === query);
+        if (!match) {
+          match = itemsList.find(
+            (i) =>
+              i.barcode?.trim().toLowerCase() === query ||
+              i.barCode?.trim().toLowerCase() === query
+          );
+        }
+      }
+
+      // If user entered "CODE - DESC" format
+      if (!match && query.includes(' - ')) {
+        const codePart = query.split(' - ')[0].trim().toLowerCase();
+        match = itemsList.find((i) => i.code?.trim().toLowerCase() === codePart);
       }
 
       if (match) {
@@ -582,7 +569,6 @@ function GoodReceiveNote() {
         setItemEntry(itemObj);
         fetchItemHistory(match.code, match.location);
 
-        // Auto-add to line items if barcode mode is on
         if (grnHeader.useBarcode) {
           addLineItemDirectly(itemObj);
         } else {
@@ -595,29 +581,88 @@ function GoodReceiveNote() {
             grnQtyInputRef.current.select();
           }
         }
-      } else {
-        // Fallback live server lookup
-        api.get(`/items?search=${encodeURIComponent(query)}&limit=5`)
-          .then((res) => {
-            if (res.data?.data?.length > 0) {
-              const exact = res.data.data.find((i) => i.code?.toLowerCase() === query) || res.data.data[0];
-              const itemObj = populateItemDetails(exact, 1, '0');
-              setItemEntry(itemObj);
-              fetchItemHistory(exact.code, exact.location);
-              if (grnHeader.useBarcode) {
-                addLineItemDirectly(itemObj);
-              } else {
-                grnPriceInputRef.current?.focus();
-                grnPriceInputRef.current?.select();
-              }
-            } else {
-              showNotification(`Item '${query}' not found in Item Master`, 'error');
-            }
-          })
-          .catch(() => {
-            showNotification(`Item '${query}' not found in Item Master`, 'error');
-          });
+        return;
       }
+
+      // 2. Fallback live server lookup for exact match
+      try {
+        setLoading(true);
+        // Direct code lookup
+        const directRes = await api.get(`/items/${encodeURIComponent(query)}`).catch(() => null);
+        if (directRes?.data?.success && directRes?.data?.data) {
+          const exact = directRes.data.data;
+          const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');
+          setItemEntry(itemObj);
+          fetchItemHistory(exact.code, exact.location);
+          if (grnHeader.useBarcode) {
+            addLineItemDirectly(itemObj);
+          } else {
+            grnPriceInputRef.current?.focus();
+            grnPriceInputRef.current?.select();
+          }
+          return;
+        }
+
+        // Search query
+        const searchRes = await api.get(`/items?search=${encodeURIComponent(query)}&limit=10`);
+        if (searchRes.data?.data?.length > 0) {
+          const exact = searchRes.data.data.find(
+            (i) =>
+              (i.code && i.code.trim().toLowerCase() === query) ||
+              (i.barcode && i.barcode.trim().toLowerCase() === query) ||
+              (i.barCode && i.barCode.trim().toLowerCase() === query)
+          );
+          if (exact) {
+            const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');
+            setItemEntry(itemObj);
+            fetchItemHistory(exact.code, exact.location);
+            if (grnHeader.useBarcode) {
+              addLineItemDirectly(itemObj);
+            } else {
+              grnPriceInputRef.current?.focus();
+              grnPriceInputRef.current?.select();
+            }
+            return;
+          }
+        }
+
+        showNotification(`Item code '${itemEntry.code.trim()}' not found in Item Master`, 'warning');
+      } catch (err) {
+        showNotification(`Item code '${query}' not found in Item Master`, 'warning');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Handle Blur on Code field: if user typed an exact code and description is still empty, populate details
+  const handleCodeBlur = async () => {
+    const query = (itemEntry.code || '').trim().toLowerCase();
+    if (!query || itemEntry.description) return;
+
+    let match = itemsList.find(
+      (i) =>
+        (i.code && i.code.trim().toLowerCase() === query) ||
+        (i.barcode && i.barcode.trim().toLowerCase() === query)
+    );
+
+    if (match) {
+      const itemObj = populateItemDetails(match, itemEntry.quantity || 1, itemEntry.discount || '0');
+      setItemEntry(itemObj);
+      fetchItemHistory(match.code, match.location);
+      return;
+    }
+
+    try {
+      const directRes = await api.get(`/items/${encodeURIComponent(query)}`).catch(() => null);
+      if (directRes?.data?.success && directRes?.data?.data) {
+        const exact = directRes.data.data;
+        const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');
+        setItemEntry(itemObj);
+        fetchItemHistory(exact.code, exact.location);
+      }
+    } catch (e) {
+      // ignore blur lookup error
     }
   };
 
@@ -1597,22 +1642,15 @@ function GoodReceiveNote() {
                       ref={itemCodeInputRef}
                       type="text"
                       name="code"
-                      list="grn-item-code-datalist"
                       className="grn-input"
                       style={{ width: '110px' }}
                       placeholder="Code..."
                       value={itemEntry.code}
                       onChange={handleItemEntryChange}
                       onKeyDown={handleCodeKeyDown}
+                      onBlur={handleCodeBlur}
                       autoComplete="off"
                     />
-                    <datalist id="grn-item-code-datalist">
-                      {itemsList.map((i) => (
-                        <option key={i._id || i.code} value={i.code}>
-                          {i.description}
-                        </option>
-                      ))}
-                    </datalist>
                     <button
                       type="button"
                       className="grn-btn-lookup"
@@ -1622,7 +1660,7 @@ function GoodReceiveNote() {
                           isOpen: true,
                           type: 'item',
                           title: 'Select Item from Item Master',
-                          search: '',
+                          search: itemEntry.code || '',
                         })
                       }
                     >
