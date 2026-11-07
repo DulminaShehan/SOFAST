@@ -18,6 +18,7 @@ const router = Router();
  * Item Master Routes
  */
 router.get('/lookup-options', getLookupOptions);
+router.get('/meta/dropdowns', getLookupOptions);
 router.get('/next-code', getNextItemCode);
 router.get('/next-barcode', getNextBarcode);
 router.post('/bulk-import-preview', previewBulkImport);

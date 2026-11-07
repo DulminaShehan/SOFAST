@@ -364,6 +364,16 @@ export const createInvoice = async (req, res, next) => {
       }
     }
 
+    // Auto-advance manual invoice number if conflict exists in database
+    if (isManual && finalInvoiceNumber) {
+      const existingInv = await Invoice.findOne({ invoiceNumber: finalInvoiceNumber });
+      if (existingInv) {
+        const nextData = await computeNextManualInvoiceNumber(db);
+        finalNo = nextData.no;
+        finalInvoiceNumber = nextData.invoiceNumber;
+      }
+    }
+
     // Lookup customer name/address/telephone if not provided
     let finalCusName = customerName;
     let finalCusAddress = customerAddress;
@@ -600,7 +610,31 @@ export const createInvoice = async (req, res, next) => {
           { $inc: { quantity: rolled.qty, stockInHand: rolled.qty } }
         );
       }
-      throw saveError;
+      appliedDeductions = [];
+
+      // If race condition on manual invoice number (11000 duplicate key), auto-retry once with fresh number
+      if (saveError.code === 11000 && isManual) {
+        try {
+          const freshManual = await computeNextManualInvoiceNumber(db);
+          newInvoice.no = freshManual.no;
+          newInvoice.invoiceNumber = freshManual.invoiceNumber;
+          await newInvoice.save();
+        } catch (retryErr) {
+          return res.status(409).json({
+            success: false,
+            message: 'Manual invoice number conflict. Please refresh the invoice number.',
+            conflict: true,
+          });
+        }
+      } else if (saveError.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: 'An invoice with this number already exists',
+          conflict: true,
+        });
+      } else {
+        throw saveError;
+      }
     }
 
     // Update docnumbers sequence for 4-digit sequential invoice numbers
@@ -651,9 +685,10 @@ export const createInvoice = async (req, res, next) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: 'An invoice with this number already exists',
+        conflict: true,
       });
     }
     next(error);

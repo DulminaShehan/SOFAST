@@ -565,8 +565,18 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
       }
     } catch (err) {
       console.error('Error saving manual invoice:', err);
-      const errMsg = err.response?.data?.message || err.message || 'Error saving invoice';
-      showNotification(`Failed to save invoice: ${errMsg}`, 'error');
+      const isConflict = err.response?.status === 409 || err.response?.data?.conflict;
+      if (isConflict) {
+        // Auto-refresh the manual invoice number so the user can easily re-save
+        await fetchNextManualNumber();
+        showNotification(
+          err.response?.data?.message || 'Invoice number conflict detected. A new number was assigned. Please click Save again.',
+          'warning'
+        );
+      } else {
+        const errMsg = err.response?.data?.message || err.message || 'Error saving invoice';
+        showNotification(`Failed to save invoice: ${errMsg}`, 'error');
+      }
       return null;
     } finally {
       setIsSubmitting(false);

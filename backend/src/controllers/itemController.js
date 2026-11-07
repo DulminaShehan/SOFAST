@@ -455,9 +455,10 @@ export const createItem = async (req, res, next) => {
     const escapedCode = cleanCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const existing = await Item.findOne({ code: { $regex: new RegExp(`^${escapedCode}$`, 'i') } });
     if (existing) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
-        message: 'Already Exists',
+        message: `An Item with code '${cleanCode}' already exists in Item Master`,
+        conflict: true,
       });
     }
 
@@ -570,6 +571,13 @@ export const createItem = async (req, res, next) => {
       data: normalizeItem(newItem.toObject()),
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Duplicate key conflict: An item with this code or barcode already exists in Item Master',
+        conflict: true,
+      });
+    }
     next(error);
   }
 };

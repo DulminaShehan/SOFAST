@@ -421,7 +421,7 @@ function Invoice() {
       }
 
       // Fetch dynamic locations list from Item Master metadata
-      api.get('/items/meta/dropdowns').then((mRes) => {
+      api.get('/items/lookup-options').then((mRes) => {
         if (mRes.data?.data?.locations && Array.isArray(mRes.data.data.locations)) {
           setLocationsList((prev) => Array.from(new Set([...prev, ...mRes.data.data.locations])).filter(Boolean));
         }

@@ -28,7 +28,14 @@ export const computeNextManualItemCode = async () => {
   const totalCount = await ManualItem.countDocuments();
   if (totalCount > maxNum) maxNum = totalCount;
 
-  return `MI-${String(maxNum + 1).padStart(4, '0')}`;
+  let nextNo = maxNum + 1;
+  let candidate = `MI-${String(nextNo).padStart(4, '0')}`;
+  while (await ManualItem.findOne({ manualCode: candidate })) {
+    nextNo++;
+    candidate = `MI-${String(nextNo).padStart(4, '0')}`;
+  }
+
+  return candidate;
 };
 
 /**
@@ -516,6 +523,13 @@ export const addManualStock = async (req, res, next) => {
       transaction: tx,
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Conflict: An item or reference with this identifier already exists.',
+        conflict: true,
+      });
+    }
     next(error);
   }
 };
@@ -594,9 +608,10 @@ export const convertManualItem = async (req, res, next) => {
     });
 
     if (existingMaster) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: `An Item with code '${finalCode}' already exists in Item Master. Please provide a unique Item Code.`,
+        conflict: true,
       });
     }
 
@@ -672,6 +687,13 @@ export const convertManualItem = async (req, res, next) => {
       transaction: convTx,
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Duplicate key conflict: An item with this code or barcode already exists in Item Master.',
+        conflict: true,
+      });
+    }
     next(error);
   }
 };

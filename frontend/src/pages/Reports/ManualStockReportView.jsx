@@ -163,7 +163,7 @@ function ManualStockReportView({ onNavigateTab }) {
       if (r.data?.data) setSuppliersList(r.data.data);
     }).catch(() => null);
 
-    api.get('/items/meta/dropdowns').then((r) => {
+    api.get('/items/lookup-options').then((r) => {
       if (r.data?.data?.categories) setCategoriesList(r.data.data.categories);
     }).catch(() => null);
   }, []);
@@ -292,7 +292,11 @@ function ManualStockReportView({ onNavigateTab }) {
         showNotification(res.data?.message || 'Failed to add stock', 'error');
       }
     } catch (err) {
-      showNotification(err.response?.data?.message || err.message || 'Error adding stock', 'error');
+      if (err.response?.status === 409 || err.response?.data?.conflict) {
+        showNotification(err.response?.data?.message || 'Conflict: Stock addition collision. Please try again.', 'warning');
+      } else {
+        showNotification(err.response?.data?.message || err.message || 'Error adding stock', 'error');
+      }
     } finally {
       setStockSubmitting(false);
     }
@@ -388,7 +392,17 @@ function ManualStockReportView({ onNavigateTab }) {
         showNotification(res.data?.message || 'Failed to convert item', 'error');
       }
     } catch (err) {
-      showNotification(err.response?.data?.message || err.message || 'Conversion error', 'error');
+      if (err.response?.status === 409 || err.response?.data?.conflict) {
+        // Code conflict: Auto-fetch next available code
+        api.get('/items/next-code').then((r) => {
+          if (r.data?.nextCode) {
+            setConvertFormData((prev) => ({ ...prev, targetCode: r.data.nextCode }));
+          }
+        }).catch(() => null);
+        showNotification(err.response?.data?.message || 'Item code already exists in Item Master. Updated to next available code.', 'warning');
+      } else {
+        showNotification(err.response?.data?.message || err.message || 'Conversion error', 'error');
+      }
     } finally {
       setConvertSubmitting(false);
     }
