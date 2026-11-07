@@ -7,7 +7,9 @@ import {
   convertManualItem,
   lookupManualItems,
   syncHistoricalManualInvoices,
+  computeNextManualItemCode,
 } from '../controllers/manualItemController.js';
+import { getNextManualInvoiceNumber } from '../controllers/invoiceController.js';
 
 const router = Router();
 
@@ -20,6 +22,23 @@ router.use((req, res, next) => {
 });
 
 router.get('/lookup', lookupManualItems);
+router.get('/next-code', async (req, res, next) => {
+  try {
+    const code = await computeNextManualItemCode();
+    res.json({ success: true, nextCode: code, code });
+  } catch (e) {
+    next(e);
+  }
+});
+router.get('/next-number', async (req, res, next) => {
+  try {
+    const code = await computeNextManualItemCode();
+    res.json({ success: true, nextCode: code, code });
+  } catch (e) {
+    next(e);
+  }
+});
+router.get('/next-manual-number', getNextManualInvoiceNumber);
 router.post('/add-stock', addManualStock);
 router.post('/convert', convertManualItem);
 router.post('/sync-history', syncHistoricalManualInvoices);

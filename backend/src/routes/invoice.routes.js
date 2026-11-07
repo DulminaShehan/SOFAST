@@ -17,6 +17,11 @@ const router = Router();
 
 router.get('/next-number', getNextInvoiceNumber);
 router.get('/next-manual-number', getNextManualInvoiceNumber);
+router.get('/next-manual', getNextManualInvoiceNumber);
+router.get('/manual-next-number', getNextManualInvoiceNumber);
+router.get('/manual/next-number', getNextManualInvoiceNumber);
+router.get('/manual/next', getNextManualInvoiceNumber);
+router.get('/manual', getInvoices);
 router.get('/remaining-balances', getRemainingBalances);
 router.get('/return-details/:invoiceNumber', getInvoiceForReturn);
 router.post('/:invoiceNumber/return', processInvoiceReturn);

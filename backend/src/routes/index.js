@@ -47,6 +47,8 @@ router.use('/damage-items', damageItemRoutes);
 // Manual Items & Manual Stock System
 router.use('/manual-items', manualItemRoutes);
 router.use('/manual-item', manualItemRoutes);
+router.use('/manual-invoices', invoiceRoutes);
+router.use('/manual-invoice', invoiceRoutes);
 
 router.use('/supplier-claims', supplierClaimRoutes);
 router.use('/supplier-damage-claims', supplierClaimRoutes);

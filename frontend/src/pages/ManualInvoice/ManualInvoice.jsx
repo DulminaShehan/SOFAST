@@ -129,9 +129,22 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
           ...prev,
           invoiceNumber: res.data.data.invoiceNumber,
         }));
+        return;
       }
     } catch (err) {
-      console.error('Failed to fetch next manual invoice number:', err);
+      console.warn('Primary next-manual-number attempt failed, trying fallback...', err);
+    }
+    try {
+      const fallbackRes = await api.get('/invoices/next-number?type=manual');
+      if (fallbackRes.data?.success && fallbackRes.data.data?.invoiceNumber) {
+        setInvoiceHeader((prev) => ({
+          ...prev,
+          invoiceNumber: fallbackRes.data.data.invoiceNumber,
+        }));
+        return;
+      }
+    } catch (fErr) {
+      console.error('Failed to fetch next manual invoice number:', fErr);
       showNotification('Could not load next manual invoice number', 'error');
     }
   };
@@ -166,9 +179,18 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
       const res = await api.get('/manual-items/lookup?limit=all');
       if (res.data?.success && Array.isArray(res.data.data)) {
         setManualItemsList(res.data.data);
+        return;
       }
     } catch (err) {
-      console.warn('Failed to load manual items catalogue:', err);
+      console.warn('Failed to load manual items via /lookup, attempting fallback:', err);
+    }
+    try {
+      const fb = await api.get('/manual-items?limit=all');
+      if (fb.data?.success && Array.isArray(fb.data.data)) {
+        setManualItemsList(fb.data.data);
+      }
+    } catch (fbErr) {
+      console.warn('Failed to load manual items catalogue:', fbErr);
     }
   };
 
