@@ -8,6 +8,7 @@ import {
   lookupManualItems,
   syncHistoricalManualInvoices,
   computeNextManualItemCode,
+  getIssuedManualInvoices,
 } from '../controllers/manualItemController.js';
 import { getNextManualInvoiceNumber } from '../controllers/invoiceController.js';
 
@@ -22,6 +23,7 @@ router.use((req, res, next) => {
 });
 
 router.get('/lookup', lookupManualItems);
+router.get('/invoices', getIssuedManualInvoices);
 router.get('/next-code', async (req, res, next) => {
   try {
     const code = await computeNextManualItemCode();

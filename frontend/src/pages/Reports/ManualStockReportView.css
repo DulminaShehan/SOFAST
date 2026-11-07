@@ -166,21 +166,9 @@
    -------------------------------------------------------------------------- */
 .ms-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 12px;
   margin-bottom: 14px;
-}
-
-@media (max-width: 1280px) {
-  .ms-kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 680px) {
-  .ms-kpi-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .ms-kpi-card {
@@ -220,6 +208,18 @@
 .ms-kpi-card.kpi-purple::before { background: var(--ms-purple); }
 .ms-kpi-card.kpi-teal::before { background: var(--ms-teal); }
 .ms-kpi-card.kpi-navy::before { background: var(--ms-blue-navy); }
+.ms-kpi-card.kpi-cyan::before { background: #0284c7; }
+
+.ms-kpi-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.ms-kpi-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 85, 170, 0.12);
+  border-color: #0055aa;
+}
 
 .ms-kpi-top {
   display: flex;
@@ -254,6 +254,7 @@
 .icon-teal { background: #ccfbf1; color: #0f766e; }
 .icon-navy { background: #e2e8f0; color: #003366; }
 .icon-red { background: #fee2e2; color: #b91c1c; }
+.icon-cyan { background: #e0f2fe; color: #0284c7; }
 
 .ms-kpi-value {
   font-size: 22px;
@@ -276,6 +277,7 @@
 .text-purple { color: #9333ea; }
 .text-teal { color: #0d9488; }
 .text-navy { color: #003366; }
+.text-cyan { color: #0284c7; }
 
 .ms-kpi-desc {
   font-size: 11px;
@@ -908,6 +910,233 @@
   line-height: 1;
   color: inherit;
   margin-left: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   VIEW MODE TABS (Manual Stock Inventory vs Issued Manual Invoices)
+   -------------------------------------------------------------------------- */
+.ms-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid var(--ms-border);
+  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.ms-view-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+}
+
+.ms-view-tab-btn:hover:not(.active) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.ms-view-tab-btn.active {
+  background: linear-gradient(180deg, #0066cc 0%, #0055aa 100%);
+  color: #ffffff;
+  border-color: #004488;
+  box-shadow: 0 2px 4px rgba(0, 85, 170, 0.25);
+}
+
+.ms-view-tab-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #e2e8f0;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.ms-view-tab-btn.active .ms-view-tab-pill {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.ms-view-tab-pill.pill-blue {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.ms-view-tab-btn.active .ms-view-tab-pill.pill-blue {
+  background: #ffffff;
+  color: #0055aa;
+}
+
+/* Invoice Number Pills in Stock Table */
+.ms-inv-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+
+.ms-inv-tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #0055aa;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ms-inv-tag-btn:hover {
+  background: #0055aa;
+  color: #ffffff;
+  border-color: #004488;
+  box-shadow: 0 1px 3px rgba(0, 85, 170, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Invoices Summary Banner */
+.ms-invoices-summary-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.ms-invoices-summary-text {
+  font-size: 12px;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-invoices-summary-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ms-invoices-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #0369a1;
+  letter-spacing: 0.4px;
+}
+
+/* Invoice Line Items Chips */
+.ms-inv-items-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 280px;
+}
+
+.ms-inv-item-chip {
+  font-size: 11px;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Invoice Details Modal Specifics */
+.ms-inv-modal-header {
+  background: linear-gradient(180deg, #004488 0%, #003366 100%);
+  color: #ffffff;
+}
+
+.ms-inv-meta-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1.2fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 768px) {
+  .ms-inv-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ms-inv-meta-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ms-inv-meta-amount {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ms-inv-meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.ms-inv-totals-box {
+  margin-top: 14px;
+  margin-left: auto;
+  width: 260px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.ms-inv-totals-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #475569;
+}
+
+.ms-inv-totals-net {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0055aa;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 6px;
+  margin-top: 6px;
 }
 
 /* Printable Header */

@@ -23,8 +23,14 @@ function ManualStockReportView({ onNavigateTab }) {
   const [notification, setNotification] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(null);
 
+  const [reportViewTab, setReportViewTab] = useState('items'); // 'items' or 'invoices'
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
+  const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
+
   const [data, setData] = useState({
     items: [],
+    manualInvoices: [],
     summary: {
       totalManualItems: 0,
       totalActiveItems: 0,
@@ -33,6 +39,9 @@ function ManualStockReportView({ onNavigateTab }) {
       totalManualSales: 0,
       totalAvailableStock: 0,
       totalValuation: 0,
+      totalManualInvoicesIssued: 0,
+      totalManualInvoicesAmount: 0,
+      allIssuedInvoiceNumbers: [],
     },
     pagination: {
       page: 1,
@@ -125,6 +134,7 @@ function ManualStockReportView({ onNavigateTab }) {
       if (res.data?.success) {
         setData({
           items: res.data.data || [],
+          manualInvoices: res.data.manualInvoices || [],
           summary: res.data.summary || {
             totalManualItems: 0,
             totalActiveItems: 0,
@@ -133,6 +143,9 @@ function ManualStockReportView({ onNavigateTab }) {
             totalManualSales: 0,
             totalAvailableStock: 0,
             totalValuation: 0,
+            totalManualInvoicesIssued: 0,
+            totalManualInvoicesAmount: 0,
+            allIssuedInvoiceNumbers: [],
           },
           pagination: res.data.pagination || {
             page,
@@ -408,8 +421,117 @@ function ManualStockReportView({ onNavigateTab }) {
     }
   };
 
+  // Open full manual invoice modal
+  const handleOpenInvoiceByNumber = async (invNumber) => {
+    if (!invNumber) return;
+    const cleanNo = String(invNumber).trim();
+    // 1. Check in cached data.manualInvoices
+    const found = (data.manualInvoices || []).find(
+      (inv) => String(inv.invoiceNumber).toUpperCase() === cleanNo.toUpperCase()
+    );
+    if (found) {
+      setSelectedInvoiceModal(found);
+      return;
+    }
+
+    // 2. Fetch directly from server
+    try {
+      setInvoiceModalLoading(true);
+      const res = await api.get(`/manual-items/invoices?search=${encodeURIComponent(cleanNo)}`);
+      if (res.data?.success && res.data.data?.length > 0) {
+        const match = res.data.data.find(
+          (inv) => String(inv.invoiceNumber).toUpperCase() === cleanNo.toUpperCase()
+        ) || res.data.data[0];
+        setSelectedInvoiceModal(match);
+      } else {
+        const fallbackRes = await api.get(`/invoices?search=${encodeURIComponent(cleanNo)}`);
+        if (fallbackRes.data?.data?.length > 0) {
+          const inv = fallbackRes.data.data[0];
+          setSelectedInvoiceModal(inv);
+        } else {
+          showNotification(`Invoice '${cleanNo}' details not found`, 'warning');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching invoice details:', err);
+      showNotification(`Failed to load invoice ${cleanNo}`, 'error');
+    } finally {
+      setInvoiceModalLoading(false);
+    }
+  };
+
+  // Filtered manual invoices list for the "Issued Manual Invoices" tab
+  const filteredManualInvoices = useMemo(() => {
+    const list = data.manualInvoices || [];
+    if (!invoiceSearch.trim()) return list;
+    const q = invoiceSearch.trim().toLowerCase();
+    return list.filter((inv) => {
+      const invNo = String(inv.invoiceNumber || '').toLowerCase();
+      const cus = String(inv.customerName || '').toLowerCase();
+      const code = String(inv.customerCode || '').toLowerCase();
+      const phone = String(inv.telephone || '').toLowerCase();
+      const itemsMatch = (inv.lineItems || []).some((li) =>
+        String(li.description || '').toLowerCase().includes(q) ||
+        String(li.code || '').toLowerCase().includes(q)
+      );
+      return invNo.includes(q) || cus.includes(q) || code.includes(q) || phone.includes(q) || itemsMatch;
+    });
+  }, [data.manualInvoices, invoiceSearch]);
+
   // Export CSV
   const handleExportCSV = () => {
+    if (reportViewTab === 'invoices') {
+      const invoicesToExport = filteredManualInvoices;
+      if (!invoicesToExport || invoicesToExport.length === 0) {
+        showNotification('No manual invoices to export', 'warning');
+        return;
+      }
+      const headers = [
+        'Invoice Number',
+        'Date',
+        'Customer Name',
+        'Customer Code',
+        'Phone',
+        'Items Count',
+        'Items Details',
+        'Gross Amount',
+        'Discount Amount',
+        'Net Total',
+        'Payment Method',
+        'Cashier',
+      ];
+      const rows = invoicesToExport.map((inv) => {
+        const itemsSummary = (inv.lineItems || [])
+          .map((li) => `${li.code ? `[${li.code}] ` : ''}${li.description} (${li.quantity} ${li.unit || 'PCS'} @ ${li.unitPrice})`)
+          .join('; ');
+        return [
+          `"${inv.invoiceNumber || ''}"`,
+          inv.date ? new Date(inv.date).toISOString().split('T')[0] : '',
+          `"${(inv.customerName || 'Walk In Customer').replace(/"/g, '""')}"`,
+          `"${inv.customerCode || ''}"`,
+          `"${inv.telephone || ''}"`,
+          (inv.lineItems || []).length,
+          `"${itemsSummary.replace(/"/g, '""')}"`,
+          (inv.grossTotal || inv.netTotal || 0).toFixed(2),
+          (inv.discountAmount || 0).toFixed(2),
+          (inv.netTotal || 0).toFixed(2),
+          `"${inv.paymentMethod || 'Cash'}"`,
+          `"${inv.cashier || 'Cashier'}"`,
+        ];
+      });
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SOFAST_Issued_Manual_Invoices_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showNotification('Issued Manual Invoices exported to CSV', 'success');
+      return;
+    }
+
     if (!data.items || data.items.length === 0) {
       showNotification('No data to export', 'warning');
       return;
@@ -423,6 +545,7 @@ function ManualStockReportView({ onNavigateTab }) {
       'Available Stock',
       'Selling Price',
       'Cost Price',
+      'Issued Invoice Numbers',
       'First Sale Date',
       'Last Transaction Date',
       'Status',
@@ -438,6 +561,7 @@ function ManualStockReportView({ onNavigateTab }) {
       it.availableStock || 0,
       (it.sellingPrice || 0).toFixed(2),
       (it.costPrice || 0).toFixed(2),
+      `"${(it.associatedInvoiceNumbers || []).join(', ')}"`,
       it.firstTransactionDate ? new Date(it.firstTransactionDate).toISOString().split('T')[0] : '',
       it.lastTransactionDate ? new Date(it.lastTransactionDate).toISOString().split('T')[0] : '',
       `"${it.status || 'Active'}"`,
@@ -467,7 +591,7 @@ function ManualStockReportView({ onNavigateTab }) {
     setPage(1);
   };
 
-  // Calculate 8 exact KPI card statistics (Requirement 3)
+  // Calculate KPI card statistics
   const kpiStats = useMemo(() => {
     const s = data.summary;
     const pendingCount = s.totalActiveItems || 0;
@@ -480,8 +604,11 @@ function ManualStockReportView({ onNavigateTab }) {
       totalAdded: s.totalStockAdded || 0,
       convertedItems: s.totalConvertedItems || 0,
       estimatedValuation: s.totalValuation || 0,
+      totalManualInvoicesIssued: s.totalManualInvoicesIssued || (data.manualInvoices || []).length || 0,
+      totalManualInvoicesAmount: s.totalManualInvoicesAmount || 0,
+      allIssuedInvoiceNumbers: s.allIssuedInvoiceNumbers || (data.manualInvoices || []).map((i) => i.invoiceNumber).filter(Boolean) || [],
     };
-  }, [data.summary]);
+  }, [data.summary, data.manualInvoices]);
 
   // Split details history into categories for Item Details modal
   const categorizedHistory = useMemo(() => {
@@ -624,6 +751,32 @@ function ManualStockReportView({ onNavigateTab }) {
           </div>
           <div className="ms-kpi-desc">Available manual stock × cost price</div>
         </div>
+
+        {/* Card 9: Manual Invoices Issued */}
+        <div
+          className="ms-kpi-card kpi-cyan ms-kpi-clickable"
+          onClick={() => setReportViewTab('invoices')}
+          title="Click to view all issued manual invoice numbers"
+        >
+          <div className="ms-kpi-top">
+            <span className="ms-kpi-title">Manual Invoices Issued</span>
+            <span className="ms-kpi-icon-wrap icon-cyan">🧾</span>
+          </div>
+          <div className="ms-kpi-value text-cyan">
+            {kpiStats.totalManualInvoicesIssued}
+            <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b', marginLeft: '6px' }}>bills</span>
+          </div>
+          <div className="ms-kpi-desc">
+            {kpiStats.allIssuedInvoiceNumbers.length > 0 ? (
+              <span style={{ color: '#0055aa', fontWeight: 600 }}>
+                {kpiStats.allIssuedInvoiceNumbers.slice(0, 3).join(', ')}
+                {kpiStats.allIssuedInvoiceNumbers.length > 3 ? ` +${kpiStats.allIssuedInvoiceNumbers.length - 3} more` : ''} ➜
+              </span>
+            ) : (
+              'Click to view issued invoices'
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 3. Search and Filter Section (Requirement 4) */}
@@ -762,226 +915,456 @@ function ManualStockReportView({ onNavigateTab }) {
         </form>
       </div>
 
-      {/* 4. Manual Stock Data Table (Requirement 5) */}
-      <div className="ms-table-wrapper">
-        <div className="ms-table-scroll">
-          <table className="ms-table">
-            <thead>
-              <tr>
-                <th style={{ width: '38px', textAlign: 'center' }}>#</th>
-                <th style={{ width: '110px' }}>Item Code</th>
-                <th style={{ minWidth: '220px' }}>Description</th>
-                <th style={{ width: '55px', textAlign: 'center' }}>Unit</th>
-                <th style={{ width: '120px', textAlign: 'right' }}>Total Manual Sales Quantity</th>
-                <th style={{ width: '100px', textAlign: 'right' }}>Total Stock Added</th>
-                <th style={{ width: '115px', textAlign: 'right' }}>Available Manual Stock</th>
-                <th style={{ width: '100px', textAlign: 'right' }}>Selling Price</th>
-                <th style={{ width: '95px', textAlign: 'right' }}>Cost Price</th>
-                <th style={{ width: '110px', textAlign: 'center' }}>First Transaction Date</th>
-                <th style={{ width: '110px', textAlign: 'center' }}>Last Transaction Date</th>
-                <th style={{ width: '140px', textAlign: 'center' }}>Conversion Status</th>
-                <th style={{ width: '260px', textAlign: 'center' }} className="no-print">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={13} className="cell-center" style={{ padding: '30px' }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#0055aa', fontWeight: 600 }}>
-                      <span className="sr-spin-icon-large">🔄</span>
-                      <span>Loading live manual stock data from MongoDB...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={13} className="cell-center" style={{ padding: '24px', color: '#dc2626' }}>
-                    ⚠️ {error}
-                    <button type="button" onClick={fetchReport} className="ms-btn" style={{ marginLeft: '10px' }}>
-                      Retry
-                    </button>
-                  </td>
-                </tr>
-              ) : data.items.length === 0 ? (
-                <tr>
-                  <td colSpan={13} className="cell-center" style={{ padding: '40px 20px' }}>
-                    <div style={{ fontSize: '30px', marginBottom: '8px' }}>📦</div>
-                    <div style={{ fontWeight: 600, color: '#334155' }}>No manual items match the current criteria.</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      Items sold via Manual Invoices that do not exist in Item Master will automatically appear here.
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                data.items.map((item, idx) => {
-                  const rowNum = (page - 1) * (limit === 'all' ? 0 : limit) + idx + 1;
-                  const avail = item.availableStock || 0;
-                  const isConverted = item.status === 'Converted';
+      {/* View Switcher Tabs: Items vs Issued Manual Invoices */}
+      <div className="ms-view-tabs no-print">
+        <button
+          type="button"
+          className={`ms-view-tab-btn ${reportViewTab === 'items' ? 'active' : ''}`}
+          onClick={() => setReportViewTab('items')}
+        >
+          <span>📦 Manual Stock Inventory</span>
+          <span className="ms-view-tab-pill">{data.pagination.totalRecords || data.items.length} Items</span>
+        </button>
+        <button
+          type="button"
+          className={`ms-view-tab-btn ${reportViewTab === 'invoices' ? 'active' : ''}`}
+          onClick={() => setReportViewTab('invoices')}
+        >
+          <span>🧾 Issued Manual Invoices</span>
+          <span className="ms-view-tab-pill pill-blue">
+            {kpiStats.totalManualInvoicesIssued} Invoices Issued
+          </span>
+        </button>
+      </div>
 
-                  return (
-                    <tr key={item._id || item.manualCode}>
-                      <td className="cell-center" style={{ color: '#64748b', fontSize: '11px' }}>{rowNum}</td>
-                      <td className="cell-code">{item.manualCode}</td>
-                      <td className="cell-desc">
-                        <div>{item.description}</div>
-                        {item.supplier && (
+      {/* VIEW MODE 1: Manual Stock Items Table */}
+      {reportViewTab === 'items' ? (
+        <div className="ms-table-wrapper">
+          <div className="ms-table-scroll">
+            <table className="ms-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '38px', textAlign: 'center' }}>#</th>
+                  <th style={{ width: '110px' }}>Item Code</th>
+                  <th style={{ minWidth: '220px' }}>Description</th>
+                  <th style={{ width: '55px', textAlign: 'center' }}>Unit</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Total Manual Sales Quantity</th>
+                  <th style={{ width: '100px', textAlign: 'right' }}>Total Stock Added</th>
+                  <th style={{ width: '115px', textAlign: 'right' }}>Available Manual Stock</th>
+                  <th style={{ width: '100px', textAlign: 'right' }}>Selling Price</th>
+                  <th style={{ width: '95px', textAlign: 'right' }}>Cost Price</th>
+                  <th style={{ width: '130px', textAlign: 'center' }}>Issued Invoices</th>
+                  <th style={{ width: '110px', textAlign: 'center' }}>First Transaction Date</th>
+                  <th style={{ width: '110px', textAlign: 'center' }}>Last Transaction Date</th>
+                  <th style={{ width: '140px', textAlign: 'center' }}>Conversion Status</th>
+                  <th style={{ width: '260px', textAlign: 'center' }} className="no-print">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={14} className="cell-center" style={{ padding: '30px' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#0055aa', fontWeight: 600 }}>
+                        <span className="sr-spin-icon-large">🔄</span>
+                        <span>Loading live manual stock data from MongoDB...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={14} className="cell-center" style={{ padding: '24px', color: '#dc2626' }}>
+                      ⚠️ {error}
+                      <button type="button" onClick={fetchReport} className="ms-btn" style={{ marginLeft: '10px' }}>
+                        Retry
+                      </button>
+                    </td>
+                  </tr>
+                ) : data.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={14} className="cell-center" style={{ padding: '40px 20px' }}>
+                      <div style={{ fontSize: '30px', marginBottom: '8px' }}>📦</div>
+                      <div style={{ fontWeight: 600, color: '#334155' }}>No manual items match the current criteria.</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                        Items sold via Manual Invoices that do not exist in Item Master will automatically appear here.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  data.items.map((item, idx) => {
+                    const rowNum = (page - 1) * (limit === 'all' ? 0 : limit) + idx + 1;
+                    const avail = item.availableStock || 0;
+                    const isConverted = item.status === 'Converted';
+
+                    return (
+                      <tr key={item._id || item.manualCode}>
+                        <td className="cell-center" style={{ color: '#64748b', fontSize: '11px' }}>{rowNum}</td>
+                        <td className="cell-code">{item.manualCode}</td>
+                        <td className="cell-desc">
+                          <div>{item.description}</div>
+                          {item.supplier && (
+                            <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'normal' }}>
+                              Supplier: {item.supplier}
+                            </div>
+                          )}
+                        </td>
+                        <td className="cell-center">{item.unit || 'PCS'}</td>
+                        <td className="cell-num" style={{ fontWeight: 600 }}>{item.totalSalesQty || 0}</td>
+                        <td className="cell-num" style={{ color: '#15803d', fontWeight: 600 }}>{item.totalStockAdded || 0}</td>
+
+                        {/* Available Manual Stock with Status Colors */}
+                        <td className="cell-num">
+                          {avail > 0 ? (
+                            <span className="ms-badge ms-badge-available">
+                              ● {avail}
+                            </span>
+                          ) : avail < 0 ? (
+                            <span className="ms-badge ms-badge-negative" title="Negative stock: Sales exceed recorded receipts">
+                              ▲ {avail}
+                            </span>
+                          ) : (
+                            <span className="ms-badge ms-badge-zero">0</span>
+                          )}
+                        </td>
+
+                        <td className="cell-num">Rs. {(item.sellingPrice || 0).toFixed(2)}</td>
+                        <td className="cell-num" style={{ color: '#64748b' }}>
+                          {item.costPrice > 0 ? `Rs. ${item.costPrice.toFixed(2)}` : '-'}
+                        </td>
+
+                        {/* Issued Invoice Numbers */}
+                        <td className="cell-center">
+                          {item.associatedInvoiceNumbers && item.associatedInvoiceNumbers.length > 0 ? (
+                            <div className="ms-inv-tags-container">
+                              {item.associatedInvoiceNumbers.map((invNo) => (
+                                <button
+                                  key={invNo}
+                                  type="button"
+                                  className="ms-inv-tag-btn"
+                                  onClick={() => handleOpenInvoiceByNumber(invNo)}
+                                  title={`Click to view manual invoice ${invNo}`}
+                                >
+                                  🧾 {invNo}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '11px' }}>-</span>
+                          )}
+                        </td>
+
+                        <td className="cell-center" style={{ fontSize: '11px', color: '#64748b' }}>
+                          {item.firstTransactionDate ? new Date(item.firstTransactionDate).toISOString().split('T')[0] : '-'}
+                        </td>
+                        <td className="cell-center" style={{ fontSize: '11px', color: '#64748b' }}>
+                          {item.lastTransactionDate ? new Date(item.lastTransactionDate).toISOString().split('T')[0] : '-'}
+                        </td>
+
+                        {/* Conversion Status Badge */}
+                        <td className="cell-center">
+                          {isConverted ? (
+                            <span className="ms-badge ms-badge-converted" title={`Converted to Item Master: ${item.convertedItemCode}`}>
+                              ✓ Converted ({item.convertedItemCode})
+                            </span>
+                          ) : avail > 0 ? (
+                            <span className="ms-badge ms-badge-pending" title="Available stock ready for conversion">
+                              ⏳ Ready to Convert
+                            </span>
+                          ) : (
+                            <span className="ms-badge ms-badge-pending">
+                              ● Active Manual
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions Menu */}
+                        <td className="cell-center no-print">
+                          <div className="ms-action-cell">
+                            <button
+                              type="button"
+                              className="ms-row-btn btn-details"
+                              onClick={() => handleOpenDetails(item)}
+                              title="View detailed product profile & histories"
+                            >
+                              👁️ View Details
+                            </button>
+
+                            {!isConverted && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="ms-row-btn btn-stock"
+                                  onClick={() => handleOpenAddStock(item)}
+                                  title="Record stock receipt"
+                                >
+                                  ➕ Add Stock
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ms-row-btn btn-convert"
+                                  onClick={() => handleOpenConvert(item)}
+                                  title="Promote to Item Master"
+                                >
+                                  ⭐ Convert to Master
+                                </button>
+                              </>
+                            )}
+
+                            <button
+                              type="button"
+                              className="ms-row-btn btn-history"
+                              onClick={() => handleOpenHistory(item)}
+                              title="Audit log timeline"
+                            >
+                              📜 History
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="ms-footer no-print">
+            <div>
+              Showing {data.items.length > 0 ? (page - 1) * (limit === 'all' ? 0 : limit) + 1 : 0} to{' '}
+              {Math.min(page * (limit === 'all' ? data.pagination.totalRecords : limit), data.pagination.totalRecords)} of{' '}
+              {data.pagination.totalRecords} manual items
+              {lastRefreshed && <span style={{ marginLeft: '12px', color: '#94a3b8' }}>• Updated: {lastRefreshed}</span>}
+            </div>
+
+            {limit !== 'all' && data.pagination.totalPages > 1 && (
+              <div className="ms-pagination">
+                <button
+                  type="button"
+                  className="ms-page-btn"
+                  disabled={page <= 1}
+                  onClick={() => setPage(1)}
+                  title="First Page"
+                >
+                  ««
+                </button>
+                <button
+                  type="button"
+                  className="ms-page-btn"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  title="Previous Page"
+                >
+                  « Prev
+                </button>
+                <span className="ms-page-indicator">
+                  Page <strong>{page}</strong> of <strong>{data.pagination.totalPages}</strong>
+                </span>
+                <button
+                  type="button"
+                  className="ms-page-btn"
+                  disabled={page >= data.pagination.totalPages}
+                  onClick={() => setPage((p) => Math.min(data.pagination.totalPages, p + 1))}
+                  title="Next Page"
+                >
+                  Next »
+                </button>
+                <button
+                  type="button"
+                  className="ms-page-btn"
+                  disabled={page >= data.pagination.totalPages}
+                  onClick={() => setPage(data.pagination.totalPages)}
+                  title="Last Page"
+                >
+                  »»
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* VIEW MODE 2: Issued Manual Invoices Table */
+        <div className="ms-table-wrapper">
+          {/* Summary Banner with all invoice numbers */}
+          <div className="ms-invoices-summary-banner no-print">
+            <div className="ms-invoices-summary-text">
+              <span style={{ fontSize: '18px' }}>🧾</span>
+              <div>
+                <strong>Total Manual Invoices Issued: {kpiStats.totalManualInvoicesIssued}</strong>
+                <span style={{ margin: '0 8px', color: '#cbd5e1' }}>|</span>
+                <span>Total Revenue: <strong>Rs. {kpiStats.totalManualInvoicesAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+              </div>
+            </div>
+
+            {/* Quick Chips of all invoice numbers */}
+            {kpiStats.allIssuedInvoiceNumbers && kpiStats.allIssuedInvoiceNumbers.length > 0 && (
+              <div className="ms-invoices-summary-tags">
+                <span className="ms-invoices-summary-label">Invoice Numbers:</span>
+                {kpiStats.allIssuedInvoiceNumbers.map((invNo) => (
+                  <button
+                    key={invNo}
+                    type="button"
+                    className="ms-inv-tag-btn"
+                    onClick={() => handleOpenInvoiceByNumber(invNo)}
+                    title={`Click to view full details of ${invNo}`}
+                  >
+                    🧾 {invNo}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Filter Search for Invoices */}
+          <div className="ms-filter-panel no-print" style={{ marginBottom: '10px', padding: '8px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                Filter Invoices:
+              </span>
+              <input
+                type="text"
+                className="ms-input"
+                style={{ flex: 1, maxWidth: '400px' }}
+                placeholder="Search invoice number (e.g. MAN-0001), customer, item description..."
+                value={invoiceSearch}
+                onChange={(e) => setInvoiceSearch(e.target.value)}
+              />
+              {invoiceSearch && (
+                <button
+                  type="button"
+                  className="ms-btn-clear"
+                  onClick={() => setInvoiceSearch('')}
+                >
+                  ✕ Clear
+                </button>
+              )}
+              <span style={{ fontSize: '11px', color: '#64748b', marginLeft: 'auto' }}>
+                Showing {filteredManualInvoices.length} of {data.manualInvoices.length} manual invoices
+              </span>
+            </div>
+          </div>
+
+          {/* Invoices Table */}
+          <div className="ms-table-scroll">
+            <table className="ms-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                  <th style={{ width: '130px', textAlign: 'center' }}>Invoice Number</th>
+                  <th style={{ width: '120px', textAlign: 'center' }}>Date &amp; Time</th>
+                  <th style={{ minWidth: '180px' }}>Customer Name</th>
+                  <th style={{ width: '110px' }}>Telephone</th>
+                  <th style={{ minWidth: '240px' }}>Items Sold</th>
+                  <th style={{ width: '110px', textAlign: 'right' }}>Gross Total</th>
+                  <th style={{ width: '90px', textAlign: 'right' }}>Discount</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Net Total</th>
+                  <th style={{ width: '90px', textAlign: 'center' }}>Payment</th>
+                  <th style={{ width: '90px', textAlign: 'center' }}>Cashier</th>
+                  <th style={{ width: '140px', textAlign: 'center' }} className="no-print">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredManualInvoices.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="cell-center" style={{ padding: '36px' }}>
+                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>🧾</div>
+                      <div style={{ fontWeight: 600, color: '#334155' }}>No manual invoices found.</div>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                        Invoices issued with invoice numbers starting with MAN- or created via Manual Invoicing will appear here.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredManualInvoices.map((inv, idx) => (
+                    <tr key={inv._id || inv.invoiceNumber}>
+                      <td className="cell-center" style={{ color: '#64748b', fontSize: '11px' }}>{idx + 1}</td>
+                      <td className="cell-center">
+                        <button
+                          type="button"
+                          className="ms-inv-tag-btn"
+                          style={{ fontSize: '12px', padding: '3px 8px' }}
+                          onClick={() => handleOpenInvoiceByNumber(inv.invoiceNumber)}
+                          title={`Click to view full details of ${inv.invoiceNumber}`}
+                        >
+                          🧾 {inv.invoiceNumber}
+                        </button>
+                      </td>
+                      <td className="cell-center" style={{ fontSize: '11px', color: '#475569' }}>
+                        {inv.date ? new Date(inv.date).toLocaleDateString() : '-'}
+                      </td>
+                      <td style={{ fontWeight: 600, color: '#0f172a' }}>
+                        {inv.customerName || 'Walk In Customer'}
+                        {inv.customerCode && (
                           <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'normal' }}>
-                            Supplier: {item.supplier}
+                            Code: {inv.customerCode}
                           </div>
                         )}
                       </td>
-                      <td className="cell-center">{item.unit || 'PCS'}</td>
-                      <td className="cell-num" style={{ fontWeight: 600 }}>{item.totalSalesQty || 0}</td>
-                      <td className="cell-num" style={{ color: '#15803d', fontWeight: 600 }}>{item.totalStockAdded || 0}</td>
-
-                      {/* Available Manual Stock with Requirement 5 Status Colors */}
-                      <td className="cell-num">
-                        {avail > 0 ? (
-                          <span className="ms-badge ms-badge-available">
-                            ● {avail}
-                          </span>
-                        ) : avail < 0 ? (
-                          <span className="ms-badge ms-badge-negative" title="Negative stock: Sales exceed recorded receipts">
-                            ▲ {avail}
-                          </span>
-                        ) : (
-                          <span className="ms-badge ms-badge-zero">0</span>
-                        )}
+                      <td style={{ fontSize: '11px', color: '#64748b' }}>
+                        {inv.telephone || '-'}
                       </td>
-
-                      <td className="cell-num">Rs. {(item.sellingPrice || 0).toFixed(2)}</td>
-                      <td className="cell-num" style={{ color: '#64748b' }}>
-                        {item.costPrice > 0 ? `Rs. ${item.costPrice.toFixed(2)}` : '-'}
+                      <td>
+                        <div className="ms-inv-items-chips">
+                          {(inv.lineItems || []).map((li, liIdx) => (
+                            <div key={liIdx} className="ms-inv-item-chip" title={`${li.description} (${li.quantity} ${li.unit || 'PCS'} @ Rs. ${li.unitPrice})`}>
+                              • <strong>{li.quantity} {li.unit || 'PCS'}</strong> {li.description}
+                            </div>
+                          ))}
+                        </div>
                       </td>
-                      <td className="cell-center" style={{ fontSize: '11px', color: '#64748b' }}>
-                        {item.firstTransactionDate ? new Date(item.firstTransactionDate).toISOString().split('T')[0] : '-'}
+                      <td className="cell-num">Rs. {(inv.grossTotal || inv.netTotal || 0).toFixed(2)}</td>
+                      <td className="cell-num" style={{ color: inv.discountAmount > 0 ? '#dc2626' : '#94a3b8' }}>
+                        {inv.discountAmount > 0 ? `-Rs. ${inv.discountAmount.toFixed(2)}` : '-'}
                       </td>
-                      <td className="cell-center" style={{ fontSize: '11px', color: '#64748b' }}>
-                        {item.lastTransactionDate ? new Date(item.lastTransactionDate).toISOString().split('T')[0] : '-'}
+                      <td className="cell-num" style={{ fontWeight: 800, color: '#0055aa', fontSize: '13px' }}>
+                        Rs. {(inv.netTotal || 0).toFixed(2)}
                       </td>
-
-                      {/* Conversion Status Badge */}
                       <td className="cell-center">
-                        {isConverted ? (
-                          <span className="ms-badge ms-badge-converted" title={`Converted to Item Master: ${item.convertedItemCode}`}>
-                            ✓ Converted ({item.convertedItemCode})
-                          </span>
-                        ) : avail > 0 ? (
-                          <span className="ms-badge ms-badge-pending" title="Available stock ready for conversion">
-                            ⏳ Ready to Convert
-                          </span>
-                        ) : (
-                          <span className="ms-badge ms-badge-pending">
-                            ● Active Manual
-                          </span>
-                        )}
+                        <span className="ms-badge ms-badge-zero" style={{ background: '#f1f5f9', color: '#334155' }}>
+                          {inv.paymentMethod || 'Cash'}
+                        </span>
                       </td>
-
-                      {/* Actions Menu (Requirement 5) */}
+                      <td className="cell-center" style={{ fontSize: '11px', color: '#64748b' }}>
+                        {inv.cashier || 'Cashier'}
+                      </td>
                       <td className="cell-center no-print">
                         <div className="ms-action-cell">
                           <button
                             type="button"
                             className="ms-row-btn btn-details"
-                            onClick={() => handleOpenDetails(item)}
-                            title="View detailed product profile & histories"
+                            onClick={() => setSelectedInvoiceModal(inv)}
+                            title="View full invoice modal"
                           >
-                            👁️ View Details
+                            👁️ View
                           </button>
-
-                          {!isConverted && (
-                            <>
-                              <button
-                                type="button"
-                                className="ms-row-btn btn-stock"
-                                onClick={() => handleOpenAddStock(item)}
-                                title="Record stock receipt"
-                              >
-                                ➕ Add Stock
-                              </button>
-                              <button
-                                type="button"
-                                className="ms-row-btn btn-convert"
-                                onClick={() => handleOpenConvert(item)}
-                                title="Promote to Item Master"
-                              >
-                                ⭐ Convert to Master
-                              </button>
-                            </>
-                          )}
-
                           <button
                             type="button"
                             className="ms-row-btn btn-history"
-                            onClick={() => handleOpenHistory(item)}
-                            title="Audit log timeline"
+                            onClick={() => {
+                              setSelectedInvoiceModal(inv);
+                              setTimeout(() => window.print(), 200);
+                            }}
+                            title="Print invoice"
                           >
-                            📜 History
+                            🖨️ Print
                           </button>
                         </div>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 5. Pagination Footer */}
-        <div className="ms-footer no-print">
-          <div>
-            Showing {data.items.length > 0 ? (page - 1) * (limit === 'all' ? 0 : limit) + 1 : 0} to{' '}
-            {Math.min(page * (limit === 'all' ? data.pagination.totalRecords : limit), data.pagination.totalRecords)} of{' '}
-            {data.pagination.totalRecords} manual items
-            {lastRefreshed && <span style={{ marginLeft: '12px', color: '#94a3b8' }}>• Updated: {lastRefreshed}</span>}
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
-          {limit !== 'all' && data.pagination.totalPages > 1 && (
-            <div className="ms-pagination">
-              <button
-                type="button"
-                className="ms-page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(1)}
-                title="First Page"
-              >
-                ««
-              </button>
-              <button
-                type="button"
-                className="ms-page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                title="Previous Page"
-              >
-                « Prev
-              </button>
-              <span className="ms-page-indicator">
-                Page <strong>{page}</strong> of <strong>{data.pagination.totalPages}</strong>
-              </span>
-              <button
-                type="button"
-                className="ms-page-btn"
-                disabled={page >= data.pagination.totalPages}
-                onClick={() => setPage((p) => Math.min(data.pagination.totalPages, p + 1))}
-                title="Next Page"
-              >
-                Next »
-              </button>
-              <button
-                type="button"
-                className="ms-page-btn"
-                disabled={page >= data.pagination.totalPages}
-                onClick={() => setPage(data.pagination.totalPages)}
-                title="Last Page"
-              >
-                »»
-              </button>
+          {/* Invoices Footer */}
+          <div className="ms-footer no-print">
+            <div>
+              Showing {filteredManualInvoices.length} of {data.manualInvoices.length} manual invoices
+              {lastRefreshed && <span style={{ marginLeft: '12px', color: '#94a3b8' }}>• Updated: {lastRefreshed}</span>}
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 6. ITEM DETAILS MODAL (Requirement 6)                                     */}
@@ -1105,7 +1488,16 @@ function ManualStockReportView({ onNavigateTab }) {
                             categorizedHistory.sales.map((s) => (
                               <tr key={s._id}>
                                 <td>{new Date(s.date || s.createdAt).toLocaleString()}</td>
-                                <td style={{ fontWeight: 600 }}>{s.referenceNumber}</td>
+                                <td style={{ fontWeight: 600 }}>
+                                  <button
+                                    type="button"
+                                    className="ms-inv-tag-btn"
+                                    onClick={() => handleOpenInvoiceByNumber(s.referenceNumber)}
+                                    title={`Click to view invoice details for ${s.referenceNumber}`}
+                                  >
+                                    🧾 {s.referenceNumber}
+                                  </button>
+                                </td>
                                 <td className="cell-num">{s.quantity}</td>
                                 <td className="cell-num">Rs. {(s.unitPrice || 0).toFixed(2)}</td>
                                 <td className="cell-num">Rs. {((s.quantity || 0) * (s.unitPrice || 0)).toFixed(2)}</td>
@@ -1616,6 +2008,159 @@ function ManualStockReportView({ onNavigateTab }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 5. MANUAL INVOICE DETAILS MODAL                                           */}
+      {/* ========================================================================= */}
+      {selectedInvoiceModal && (
+        <div className="ms-modal-overlay" onClick={() => setSelectedInvoiceModal(null)}>
+          <div className="ms-modal-dialog ms-modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="ms-modal-header ms-inv-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>🧾</span>
+                <div>
+                  <h3 style={{ margin: 0, color: '#ffffff' }}>
+                    MANUAL INVOICE: {selectedInvoiceModal.invoiceNumber}
+                  </h3>
+                  <div style={{ fontSize: '11px', color: '#e0f2fe', marginTop: '2px' }}>
+                    Issued Date: {new Date(selectedInvoiceModal.date || selectedInvoiceModal.createdAt).toLocaleDateString()} | Status: Completed
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="ms-modal-close"
+                style={{ color: '#ffffff' }}
+                onClick={() => setSelectedInvoiceModal(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="ms-modal-body">
+              {/* Customer & Invoice Meta Details */}
+              <div className="ms-inv-meta-grid">
+                <div className="ms-inv-meta-card">
+                  <div className="ms-inv-meta-label">Customer Information</div>
+                  <div style={{ fontWeight: 700, fontSize: '13px', color: '#003366' }}>
+                    {selectedInvoiceModal.customerName || selectedInvoiceModal.cusname || 'Walk In Customer'}
+                  </div>
+                  {selectedInvoiceModal.customerCode && (
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Code: {selectedInvoiceModal.customerCode}</div>
+                  )}
+                  {selectedInvoiceModal.telephone && (
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Phone: {selectedInvoiceModal.telephone}</div>
+                  )}
+                  {selectedInvoiceModal.address && (
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Address: {selectedInvoiceModal.address}</div>
+                  )}
+                </div>
+
+                <div className="ms-inv-meta-card">
+                  <div className="ms-inv-meta-label">Invoice Information</div>
+                  <div style={{ fontSize: '12px', color: '#334155', marginTop: '2px' }}>
+                    Invoice No: <strong>{selectedInvoiceModal.invoiceNumber}</strong>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#334155' }}>
+                    Payment Method: <strong>{selectedInvoiceModal.paymentMethod || 'Cash'}</strong>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#334155' }}>
+                    Cashier / User: <strong>{selectedInvoiceModal.cashier || 'Cashier'}</strong>
+                  </div>
+                </div>
+
+                <div className="ms-inv-meta-card ms-inv-meta-amount">
+                  <div className="ms-inv-meta-label">Net Total Payable</div>
+                  <div style={{ fontSize: '20px', fontWeight: 800, color: '#0055aa' }}>
+                    Rs. {(Number(selectedInvoiceModal.netTotal || selectedInvoiceModal.totalAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    {(selectedInvoiceModal.lineItems || []).length} items in invoice
+                  </div>
+                </div>
+              </div>
+
+              {/* Line Items Table */}
+              <div style={{ marginTop: '16px' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#003366', fontWeight: 700 }}>
+                  INVOICE ITEMS ({(selectedInvoiceModal.lineItems || []).length})
+                </h4>
+                <div style={{ maxHeight: '280px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
+                  <table className="ms-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                        <th style={{ width: '120px' }}>Item Code</th>
+                        <th>Description</th>
+                        <th style={{ width: '60px', textAlign: 'center' }}>Unit</th>
+                        <th style={{ width: '90px', textAlign: 'right' }}>Qty</th>
+                        <th style={{ width: '110px', textAlign: 'right' }}>Unit Price</th>
+                        <th style={{ width: '120px', textAlign: 'right' }}>Line Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedInvoiceModal.lineItems || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="cell-center" style={{ padding: '16px', color: '#64748b' }}>
+                            No line item details found for this invoice.
+                          </td>
+                        </tr>
+                      ) : (
+                        selectedInvoiceModal.lineItems.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="cell-center" style={{ color: '#64748b', fontSize: '11px' }}>{idx + 1}</td>
+                            <td className="cell-code">{item.code || item.itemCode || '-'}</td>
+                            <td className="cell-desc" style={{ fontWeight: 600 }}>{item.description}</td>
+                            <td className="cell-center">{item.unit || 'PCS'}</td>
+                            <td className="cell-num" style={{ fontWeight: 600 }}>{item.quantity || item.qty || 1}</td>
+                            <td className="cell-num">Rs. {(Number(item.price || item.unitPrice || 0)).toFixed(2)}</td>
+                            <td className="cell-num" style={{ fontWeight: 700, color: '#0055aa' }}>
+                              Rs. {((Number(item.quantity || item.qty || 1)) * (Number(item.price || item.unitPrice || 0))).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Totals Summary */}
+              <div className="ms-inv-totals-box">
+                <div className="ms-inv-totals-row">
+                  <span>Gross Subtotal:</span>
+                  <span>Rs. {(Number(selectedInvoiceModal.grossTotal || selectedInvoiceModal.subtotal || selectedInvoiceModal.netTotal || 0)).toFixed(2)}</span>
+                </div>
+                {Number(selectedInvoiceModal.discountAmount) > 0 && (
+                  <div className="ms-inv-totals-row" style={{ color: '#dc2626' }}>
+                    <span>Discount:</span>
+                    <span>- Rs. {Number(selectedInvoiceModal.discountAmount).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="ms-inv-totals-row ms-inv-totals-net">
+                  <span>Net Total:</span>
+                  <span>Rs. {(Number(selectedInvoiceModal.netTotal || selectedInvoiceModal.totalAmount || 0)).toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="ms-modal-footer">
+              <button
+                type="button"
+                className="ms-btn ms-btn-primary"
+                onClick={() => window.print()}
+              >
+                🖨️ Print Invoice
+              </button>
+              <button
+                type="button"
+                className="ms-btn"
+                onClick={() => setSelectedInvoiceModal(null)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

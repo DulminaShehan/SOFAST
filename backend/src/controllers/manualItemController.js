@@ -246,7 +246,7 @@ export const getManualItems = async (req, res, next) => {
     const limitNum = limit === 'all' ? 10000 : Math.max(1, parseInt(limit, 10) || 25);
     const skip = (pageNum - 1) * limitNum;
 
-    const [items, totalRecords, allItemsForSummary] = await Promise.all([
+    const [items, totalRecords, allItemsForSummary, manualInvoices, saleTxs] = await Promise.all([
       ManualItem.find(query)
         .sort(sortOptions)
         .skip(skip)
@@ -254,7 +254,94 @@ export const getManualItems = async (req, res, next) => {
         .lean(),
       ManualItem.countDocuments(query),
       ManualItem.find({}).lean(),
+      Invoice.find({
+        $or: [
+          { isManualInvoice: true },
+          { invoiceType: 'Manual' },
+          { invoiceNumber: { $regex: /^MAN-/i } },
+        ],
+      })
+        .sort({ date: -1, createdAt: -1 })
+        .lean(),
+      ManualStockTransaction.find({
+        transactionType: 'MANUAL_SALE',
+      }).lean(),
     ]);
+
+    // Format all issued manual invoices for report
+    const manualInvoicesList = manualInvoices.map((inv) => ({
+      _id: inv._id,
+      invoiceNumber: inv.invoiceNumber,
+      date: inv.date || inv.createdAt,
+      customerName: inv.customerName || inv.cusname || 'Walk In Customer',
+      customerCode: inv.customerCode || inv.cuscode || '',
+      telephone: inv.customerTelephone || inv.telephone || '',
+      address: inv.customerAddress || '',
+      paymentMethod: inv.paymentMethod || 'Cash',
+      grossTotal: Number(inv.grossTotal || inv.subtotal || 0),
+      discountAmount: Number(inv.discountAmount || 0),
+      netTotal: Number(inv.netTotal || inv.totalAmount || 0),
+      cashier: inv.cashier || 'Cashier',
+      itemCount: (inv.lineItems || []).length,
+      lineItems: (inv.lineItems || []).map((li) => ({
+        code: li.code || li.itemCode || '',
+        description: li.description || '',
+        quantity: Number(li.quantity || li.qty || 1),
+        unitPrice: Number(li.price || li.unitPrice || 0),
+        unit: li.unit || 'PCS',
+        total: Number(li.total || ((li.quantity || li.qty || 1) * (li.price || li.unitPrice || 0))),
+      })),
+    }));
+
+    const totalManualInvoicesIssued = manualInvoices.length;
+    const totalManualInvoicesAmount = manualInvoices.reduce(
+      (sum, inv) => sum + (Number(inv.netTotal) || 0),
+      0
+    );
+
+    // Attach associated invoice numbers to each manual item
+    const itemsWithInvoices = items.map((it) => {
+      const normDesc = (it.description || '').trim().toLowerCase();
+      const mCode = (it.manualCode || '').trim().toUpperCase();
+      const cCode = (it.convertedItemCode || '').trim().toUpperCase();
+
+      const invSet = new Set();
+
+      // 1. Check transactions
+      for (const tx of saleTxs) {
+        if (
+          (tx.manualItemId && String(tx.manualItemId) === String(it._id)) ||
+          (tx.manualCode && tx.manualCode.toUpperCase() === mCode) ||
+          (tx.description && tx.description.trim().toLowerCase() === normDesc)
+        ) {
+          if (tx.referenceNumber) invSet.add(tx.referenceNumber);
+        }
+      }
+
+      // 2. Cross-reference invoice line items
+      for (const inv of manualInvoices) {
+        if (Array.isArray(inv.lineItems)) {
+          for (const li of inv.lineItems) {
+            const liCode = (li.code || li.itemCode || '').trim().toUpperCase();
+            const liDesc = (li.description || '').trim().toLowerCase();
+            if (
+              (mCode && liCode === mCode) ||
+              (cCode && liCode === cCode) ||
+              (normDesc && liDesc === normDesc)
+            ) {
+              if (inv.invoiceNumber) invSet.add(inv.invoiceNumber);
+            }
+          }
+        }
+      }
+
+      const associatedInvoiceNumbers = Array.from(invSet).sort((a, b) => b.localeCompare(a));
+      return {
+        ...it,
+        associatedInvoiceNumbers,
+        invoiceCount: associatedInvoiceNumbers.length,
+      };
+    });
 
     // Compute KPI Summary over all manual items
     let totalStockAdded = 0;
@@ -287,7 +374,8 @@ export const getManualItems = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Manual items retrieved successfully',
-      data: items,
+      data: itemsWithInvoices,
+      manualInvoices: manualInvoicesList,
       summary: {
         totalManualItems: allItemsForSummary.length,
         totalActiveItems: activeCount,
@@ -296,6 +384,9 @@ export const getManualItems = async (req, res, next) => {
         totalManualSales: Math.round(totalManualSales * 100) / 100,
         totalAvailableStock: Math.round(totalAvailableStock * 100) / 100,
         totalValuation: Math.round(totalValuation * 100) / 100,
+        totalManualInvoicesIssued,
+        totalManualInvoicesAmount: Math.round(totalManualInvoicesAmount * 100) / 100,
+        allIssuedInvoiceNumbers: manualInvoices.map((i) => i.invoiceNumber).filter(Boolean),
       },
       pagination: {
         page: pageNum,
@@ -799,4 +890,97 @@ export const syncHistoricalManualInvoices = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * GET /api/manual-items/invoices
+ * Retrieve all issued manual invoices with item summaries, numbers, and revenue totals.
+ */
+export const getIssuedManualInvoices = async (req, res, next) => {
+  try {
+    const { search = '', startDate, endDate } = req.query;
+    const query = {
+      $or: [
+        { isManualInvoice: true },
+        { invoiceType: 'Manual' },
+        { invoiceNumber: { $regex: /^MAN-/i } },
+      ],
+    };
+
+    const andClauses = [];
+
+    if (search && search.trim()) {
+      const term = search.trim();
+      andClauses.push({
+        $or: [
+          { invoiceNumber: { $regex: term, $options: 'i' } },
+          { customerName: { $regex: term, $options: 'i' } },
+          { cusname: { $regex: term, $options: 'i' } },
+          { 'lineItems.description': { $regex: term, $options: 'i' } },
+          { 'lineItems.code': { $regex: term, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (startDate || endDate) {
+      const dateQuery = {};
+      if (startDate) {
+        const s = new Date(startDate);
+        s.setHours(0, 0, 0, 0);
+        dateQuery.$gte = s;
+      }
+      if (endDate) {
+        const e = new Date(endDate);
+        e.setHours(23, 59, 59, 999);
+        dateQuery.$lte = e;
+      }
+      andClauses.push({ date: dateQuery });
+    }
+
+    if (andClauses.length > 0) {
+      query.$and = andClauses;
+    }
+
+    const invoices = await Invoice.find(query)
+      .sort({ date: -1, createdAt: -1 })
+      .lean();
+
+    const formatted = invoices.map((inv) => ({
+      _id: inv._id,
+      invoiceNumber: inv.invoiceNumber,
+      date: inv.date || inv.createdAt,
+      customerName: inv.customerName || inv.cusname || 'Walk In Customer',
+      customerCode: inv.customerCode || inv.cuscode || '',
+      telephone: inv.customerTelephone || inv.telephone || '',
+      address: inv.customerAddress || '',
+      paymentMethod: inv.paymentMethod || 'Cash',
+      grossTotal: Number(inv.grossTotal || inv.subtotal || 0),
+      discountAmount: Number(inv.discountAmount || 0),
+      netTotal: Number(inv.netTotal || inv.totalAmount || 0),
+      cashier: inv.cashier || 'Cashier',
+      itemCount: (inv.lineItems || []).length,
+      lineItems: (inv.lineItems || []).map((li) => ({
+        code: li.code || li.itemCode || '',
+        description: li.description || '',
+        quantity: Number(li.quantity || li.qty || 1),
+        unitPrice: Number(li.price || li.unitPrice || 0),
+        unit: li.unit || 'PCS',
+        total: Number(li.total || ((li.quantity || li.qty || 1) * (li.price || li.unitPrice || 0))),
+      })),
+    }));
+
+    const totalIssued = invoices.length;
+    const totalAmount = invoices.reduce((sum, inv) => sum + (Number(inv.netTotal) || 0), 0);
+
+    return res.status(200).json({
+      success: true,
+      count: totalIssued,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+      invoiceNumbers: invoices.map((i) => i.invoiceNumber).filter(Boolean),
+      data: formatted,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
