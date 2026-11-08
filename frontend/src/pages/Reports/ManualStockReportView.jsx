@@ -639,10 +639,7 @@ function ManualStockReportView({ onNavigateTab }) {
           </p>
         </div>
         <div className="ms-header-actions">
-          <button type="button" className="ms-btn ms-btn-primary" onClick={() => handleOpenAddStock()} title="Add stock to any manual item">
-            ➕ Add Manual Stock
-          </button>
-          <button type="button" className="ms-btn" onClick={handleSyncHistorical} title="Sync past unregistered manual invoices">
+          <button type="button" className="ms-btn ms-btn-primary" onClick={handleSyncHistorical} title="Sync past unregistered manual invoices">
             🔄 Sync Past Invoices
           </button>
           <button type="button" className="ms-btn" onClick={fetchReport} title="Refresh live data" disabled={loading}>
@@ -1089,24 +1086,14 @@ function ManualStockReportView({ onNavigateTab }) {
                             </button>
 
                             {!isConverted && (
-                              <>
-                                <button
-                                  type="button"
-                                  className="ms-row-btn btn-stock"
-                                  onClick={() => handleOpenAddStock(item)}
-                                  title="Record stock receipt"
-                                >
-                                  ➕ Add Stock
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ms-row-btn btn-convert"
-                                  onClick={() => handleOpenConvert(item)}
-                                  title="Promote to Item Master"
-                                >
-                                  ⭐ Convert to Master
-                                </button>
-                              </>
+                              <button
+                                type="button"
+                                className="ms-row-btn btn-convert"
+                                onClick={() => handleOpenConvert(item)}
+                                title="Promote to Item Master"
+                              >
+                                ⭐ Convert to Master
+                              </button>
                             )}
 
                             <button
