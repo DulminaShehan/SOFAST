@@ -1139,6 +1139,10 @@
   margin-top: 6px;
 }
 
+.ms-inv-modal-overlay {
+  z-index: 10050;
+}
+
 /* Printable Header */
 .print-only {
   display: none;

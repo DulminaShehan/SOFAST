@@ -25,8 +25,10 @@ function ManualStockReportView({ onNavigateTab }) {
 
   const [reportViewTab, setReportViewTab] = useState('items'); // 'items' or 'invoices'
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceConversionFilter, setInvoiceConversionFilter] = useState('all'); // 'all' | 'converted' | 'pending'
   const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
   const [invoiceModalLoading, setInvoiceModalLoading] = useState(false);
+  const [allManualCatalog, setAllManualCatalog] = useState([]);
 
   const [data, setData] = useState({
     items: [],
@@ -170,7 +172,39 @@ function ManualStockReportView({ onNavigateTab }) {
     fetchReport();
   }, [fetchReport]);
 
-  // Load suppliers and categories for modals
+  // Load suppliers, categories, and full manual catalog for lookups
+  const refreshCatalog = useCallback(async () => {
+    try {
+      const res = await api.get('/manual-items/lookup?limit=all');
+      if (res.data?.data) {
+        setAllManualCatalog(res.data.data);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCatalog();
+  }, [refreshCatalog]);
+
+  const findManualItemForLine = useCallback((lineItem) => {
+    if (!lineItem) return null;
+    const pool = (allManualCatalog && allManualCatalog.length > 0) ? allManualCatalog : (data.items || []);
+    const code = (lineItem.code || lineItem.itemCode || '').trim().toLowerCase();
+    const desc = (lineItem.description || '').trim().toLowerCase();
+
+    return pool.find((m) => {
+      const mCode = (m.manualCode || '').trim().toLowerCase();
+      const cCode = (m.convertedItemCode || '').trim().toLowerCase();
+      const mDesc = (m.description || '').trim().toLowerCase();
+      const normDesc = (m.normalizedDescription || '').trim().toLowerCase();
+      if (code && (mCode === code || cCode === code)) return true;
+      if (desc && (mDesc === desc || normDesc === desc)) return true;
+      return false;
+    });
+  }, [allManualCatalog, data.items]);
+
   useEffect(() => {
     api.get('/suppliers?limit=100').then((r) => {
       if (r.data?.data) setSuppliersList(r.data.data);
@@ -189,6 +223,7 @@ function ManualStockReportView({ onNavigateTab }) {
       if (res.data?.success) {
         showNotification(res.data.message || 'Historical manual invoices synchronized', 'success');
         fetchReport();
+        refreshCatalog();
       } else {
         showNotification(res.data?.message || 'Sync failed', 'error');
       }
@@ -200,9 +235,10 @@ function ManualStockReportView({ onNavigateTab }) {
   };
 
   // Open Item Details Modal (Requirement 6)
-  const handleOpenDetails = async (item) => {
+  const handleOpenDetails = async (item, initialTab = null) => {
+    if (!item) return;
     setDetailsItem(item);
-    setDetailsTab('invoices');
+    setDetailsTab(initialTab || (item.status === 'Converted' ? 'conversion' : 'invoices'));
     setDetailsModalOpen(true);
     setDetailsLoading(true);
     try {
@@ -468,9 +504,28 @@ function ManualStockReportView({ onNavigateTab }) {
   // Filtered manual invoices list for the "Issued Manual Invoices" tab
   const filteredManualInvoices = useMemo(() => {
     const list = data.manualInvoices || [];
-    if (!invoiceSearch.trim()) return list;
+    let result = list;
+
+    // Filter by conversion status
+    if (invoiceConversionFilter === 'converted') {
+      result = result.filter((inv) =>
+        (inv.lineItems || []).some((li) => {
+          const m = findManualItemForLine(li);
+          return m && m.status === 'Converted';
+        })
+      );
+    } else if (invoiceConversionFilter === 'pending') {
+      result = result.filter((inv) =>
+        (inv.lineItems || []).some((li) => {
+          const m = findManualItemForLine(li);
+          return m && m.status !== 'Converted';
+        })
+      );
+    }
+
+    if (!invoiceSearch.trim()) return result;
     const q = invoiceSearch.trim().toLowerCase();
-    return list.filter((inv) => {
+    return result.filter((inv) => {
       const invNo = String(inv.invoiceNumber || '').toLowerCase();
       const cus = String(inv.customerName || '').toLowerCase();
       const code = String(inv.customerCode || '').toLowerCase();
@@ -481,7 +536,7 @@ function ManualStockReportView({ onNavigateTab }) {
       );
       return invNo.includes(q) || cus.includes(q) || code.includes(q) || phone.includes(q) || itemsMatch;
     });
-  }, [data.manualInvoices, invoiceSearch]);
+  }, [data.manualInvoices, invoiceSearch, invoiceConversionFilter, findManualItemForLine]);
 
   // Export CSV
   const handleExportCSV = () => {
@@ -672,23 +727,43 @@ function ManualStockReportView({ onNavigateTab }) {
       {/* 2. Statistics Dashboard - 8 Responsive KPI Cards (Requirement 3) */}
       <div className="ms-kpi-grid no-print">
         {/* Card 1: Total Manual Items */}
-        <div className="ms-kpi-card kpi-blue">
+        <div
+          className="ms-kpi-card kpi-blue ms-kpi-clickable"
+          onClick={() => {
+            setReportViewTab('items');
+            setStatusFilter('all');
+            setPage(1);
+          }}
+          title="Click to view all manual stock items"
+        >
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Total Manual Items</span>
             <span className="ms-kpi-icon-wrap icon-blue">📦</span>
           </div>
           <div className="ms-kpi-value">{kpiStats.totalManualItems}</div>
-          <div className="ms-kpi-desc">Total catalogued unregistered items</div>
+          <div className="ms-kpi-desc">
+            <span style={{ color: '#0055aa', fontWeight: 600 }}>Click to view all items ➜</span>
+          </div>
         </div>
 
         {/* Card 2: Active (Unconverted) */}
-        <div className="ms-kpi-card kpi-amber">
+        <div
+          className="ms-kpi-card kpi-amber ms-kpi-clickable"
+          onClick={() => {
+            setReportViewTab('items');
+            setStatusFilter('Active');
+            setPage(1);
+          }}
+          title="Click to view Active Unconverted items"
+        >
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Active (Unconverted)</span>
             <span className="ms-kpi-icon-wrap icon-amber">⏳</span>
           </div>
           <div className="ms-kpi-value text-amber">{kpiStats.activeUnconverted}</div>
-          <div className="ms-kpi-desc">Currently managed as manual stock</div>
+          <div className="ms-kpi-desc">
+            <span style={{ color: '#b45309', fontWeight: 600 }}>Click to view pending items ➜</span>
+          </div>
         </div>
 
         {/* Card 3: Pending Item Master Registration */}
@@ -736,13 +811,23 @@ function ManualStockReportView({ onNavigateTab }) {
         </div>
 
         {/* Card 7: Converted Items */}
-        <div className="ms-kpi-card kpi-navy">
+        <div
+          className="ms-kpi-card kpi-navy ms-kpi-clickable"
+          onClick={() => {
+            setReportViewTab('items');
+            setStatusFilter('Converted');
+            setPage(1);
+          }}
+          title="Click to view Converted Items Report"
+        >
           <div className="ms-kpi-top">
             <span className="ms-kpi-title">Converted Items</span>
             <span className="ms-kpi-icon-wrap icon-navy">⭐</span>
           </div>
           <div className="ms-kpi-value text-navy">{kpiStats.convertedItems}</div>
-          <div className="ms-kpi-desc">Promoted to authoritative Item Master</div>
+          <div className="ms-kpi-desc">
+            <span style={{ color: '#003366', fontWeight: 600 }}>Click to view converted items ➜</span>
+          </div>
         </div>
 
         {/* Card 8: Estimated Valuation */}
@@ -924,11 +1009,45 @@ function ManualStockReportView({ onNavigateTab }) {
       <div className="ms-view-tabs no-print">
         <button
           type="button"
-          className={`ms-view-tab-btn ${reportViewTab === 'items' ? 'active' : ''}`}
-          onClick={() => setReportViewTab('items')}
+          className={`ms-view-tab-btn ${reportViewTab === 'items' && statusFilter === 'all' ? 'active' : ''}`}
+          onClick={() => {
+            setReportViewTab('items');
+            setStatusFilter('all');
+            setPage(1);
+          }}
         >
-          <span>📦 Manual Stock Inventory</span>
-          <span className="ms-view-tab-pill">{data.pagination.totalRecords || data.items.length} Items</span>
+          <span>📦 All Manual Items</span>
+          <span className="ms-view-tab-pill">{kpiStats.totalManualItems} Items</span>
+        </button>
+        <button
+          type="button"
+          className={`ms-view-tab-btn ${reportViewTab === 'items' && statusFilter === 'Active' ? 'active' : ''}`}
+          onClick={() => {
+            setReportViewTab('items');
+            setStatusFilter('Active');
+            setPage(1);
+          }}
+          style={reportViewTab === 'items' && statusFilter === 'Active' ? { background: '#d97706', borderColor: '#b45309' } : {}}
+        >
+          <span>⏳ Active / Pending</span>
+          <span className="ms-view-tab-pill" style={{ background: '#fef3c7', color: '#92400e' }}>
+            {kpiStats.activeUnconverted} Pending
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`ms-view-tab-btn ${reportViewTab === 'items' && statusFilter === 'Converted' ? 'active' : ''}`}
+          onClick={() => {
+            setReportViewTab('items');
+            setStatusFilter('Converted');
+            setPage(1);
+          }}
+          style={reportViewTab === 'items' && statusFilter === 'Converted' ? { background: '#003366', borderColor: '#001f3f' } : {}}
+        >
+          <span>⭐ Converted Items</span>
+          <span className="ms-view-tab-pill" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+            {kpiStats.convertedItems} Converted
+          </span>
         </button>
         <button
           type="button"
@@ -1219,29 +1338,84 @@ function ManualStockReportView({ onNavigateTab }) {
             )}
           </div>
 
-          {/* Quick Filter Search for Invoices */}
-          <div className="ms-filter-panel no-print" style={{ marginBottom: '10px', padding: '8px 12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
-                Filter Invoices:
-              </span>
-              <input
-                type="text"
-                className="ms-input"
-                style={{ flex: 1, maxWidth: '400px' }}
-                placeholder="Search invoice number (e.g. MAN-0001), customer, item description..."
-                value={invoiceSearch}
-                onChange={(e) => setInvoiceSearch(e.target.value)}
-              />
-              {invoiceSearch && (
+          {/* Quick Filter Search and Conversion Pills for Invoices */}
+          <div className="ms-filter-panel no-print" style={{ marginBottom: '10px', padding: '10px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '300px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                  Filter Invoices:
+                </span>
+                <input
+                  type="text"
+                  className="ms-input"
+                  style={{ flex: 1, maxWidth: '380px' }}
+                  placeholder="Search invoice number (e.g. MAN-0001), customer, item description..."
+                  value={invoiceSearch}
+                  onChange={(e) => setInvoiceSearch(e.target.value)}
+                />
+                {invoiceSearch && (
+                  <button
+                    type="button"
+                    className="ms-btn-clear"
+                    onClick={() => setInvoiceSearch('')}
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Conversion Status Pills for Invoices */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>Show:</span>
                 <button
                   type="button"
-                  className="ms-btn-clear"
-                  onClick={() => setInvoiceSearch('')}
+                  className="ms-row-btn"
+                  style={{
+                    height: '24px',
+                    fontSize: '11px',
+                    fontWeight: invoiceConversionFilter === 'all' ? 700 : 500,
+                    background: invoiceConversionFilter === 'all' ? '#0055aa' : '#f1f5f9',
+                    color: invoiceConversionFilter === 'all' ? '#ffffff' : '#334155',
+                    borderColor: invoiceConversionFilter === 'all' ? '#004488' : '#cbd5e1',
+                  }}
+                  onClick={() => setInvoiceConversionFilter('all')}
                 >
-                  ✕ Clear
+                  All Invoices ({data.manualInvoices.length})
                 </button>
-              )}
+                <button
+                  type="button"
+                  className="ms-row-btn"
+                  style={{
+                    height: '24px',
+                    fontSize: '11px',
+                    fontWeight: invoiceConversionFilter === 'converted' ? 700 : 500,
+                    background: invoiceConversionFilter === 'converted' ? '#003366' : '#eff6ff',
+                    color: invoiceConversionFilter === 'converted' ? '#ffffff' : '#1e40af',
+                    borderColor: invoiceConversionFilter === 'converted' ? '#002244' : '#bfdbfe',
+                  }}
+                  onClick={() => setInvoiceConversionFilter('converted')}
+                  title="Show only manual invoices containing items converted to Item Master"
+                >
+                  ⭐ With Converted Items
+                </button>
+                <button
+                  type="button"
+                  className="ms-row-btn"
+                  style={{
+                    height: '24px',
+                    fontSize: '11px',
+                    fontWeight: invoiceConversionFilter === 'pending' ? 700 : 500,
+                    background: invoiceConversionFilter === 'pending' ? '#d97706' : '#fffbeb',
+                    color: invoiceConversionFilter === 'pending' ? '#ffffff' : '#b45309',
+                    borderColor: invoiceConversionFilter === 'pending' ? '#b45309' : '#fde68a',
+                  }}
+                  onClick={() => setInvoiceConversionFilter('pending')}
+                  title="Show manual invoices containing pending/unconverted items"
+                >
+                  ⏳ With Pending Items
+                </button>
+              </div>
+
               <span style={{ fontSize: '11px', color: '#64748b', marginLeft: 'auto' }}>
                 Showing {filteredManualInvoices.length} of {data.manualInvoices.length} manual invoices
               </span>
@@ -1309,11 +1483,72 @@ function ManualStockReportView({ onNavigateTab }) {
                       </td>
                       <td>
                         <div className="ms-inv-items-chips">
-                          {(inv.lineItems || []).map((li, liIdx) => (
-                            <div key={liIdx} className="ms-inv-item-chip" title={`${li.description} (${li.quantity} ${li.unit || 'PCS'} @ Rs. ${li.unitPrice})`}>
-                              • <strong>{li.quantity} {li.unit || 'PCS'}</strong> {li.description}
-                            </div>
-                          ))}
+                          {(inv.lineItems || []).map((li, liIdx) => {
+                            const mItem = findManualItemForLine(li);
+                            const isConverted = mItem?.status === 'Converted';
+                            const isActive = mItem?.status === 'Active';
+                            return (
+                              <div
+                                key={liIdx}
+                                className="ms-inv-item-chip"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: '8px',
+                                  padding: '4px 8px',
+                                  marginBottom: '3px',
+                                  background: isConverted ? '#f0fdf4' : '#f8fafc',
+                                  border: isConverted ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                                  borderRadius: '4px',
+                                }}
+                              >
+                                <span style={{ fontSize: '11px', color: '#0f172a' }}>
+                                  • <strong>{li.quantity || li.qty || 1} {li.unit || 'PCS'}</strong> {li.description}
+                                </span>
+                                {isConverted ? (
+                                  <button
+                                    type="button"
+                                    className="ms-row-btn btn-details"
+                                    style={{
+                                      height: '20px',
+                                      padding: '0 6px',
+                                      fontSize: '10px',
+                                      fontWeight: 700,
+                                      background: '#dcfce7',
+                                      color: '#15803d',
+                                      border: '1px solid #86efac',
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    onClick={() => handleOpenDetails(mItem, 'conversion')}
+                                    title={`Converted to Item Master: ${mItem.convertedItemCode}. Click to view details & stock.`}
+                                  >
+                                    ✓ Converted: {mItem.convertedItemCode} 👁️
+                                  </button>
+                                ) : isActive ? (
+                                  <button
+                                    type="button"
+                                    className="ms-row-btn btn-convert"
+                                    style={{
+                                      height: '20px',
+                                      padding: '0 6px',
+                                      fontSize: '10px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                    onClick={() => handleOpenConvert(mItem)}
+                                    title={`Click to convert ${mItem.manualCode} to Item Master`}
+                                  >
+                                    ⭐ Convert
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: '10px', color: '#64748b' }}>Master Item</span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </td>
                       <td className="cell-num">Rs. {(inv.grossTotal || inv.netTotal || 0).toFixed(2)}</td>
@@ -1557,14 +1792,67 @@ function ManualStockReportView({ onNavigateTab }) {
 
                   {/* Tab 3: Conversion Details */}
                   {detailsTab === 'conversion' && detailsItem.status === 'Converted' && (
-                    <div className="ms-alert-box" style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af' }}>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: '14px' }}>⭐ Authoritative Item Master Record</h4>
-                      <p style={{ margin: '0 0 6px 0' }}>
-                        This manual product was converted into Item Master under official code <strong>{detailsItem.convertedItemCode}</strong>.
-                      </p>
-                      <div style={{ fontSize: '11px', color: '#475569' }}>
-                        Conversion Date: <strong>{detailsItem.convertedAt ? new Date(detailsItem.convertedAt).toLocaleString() : 'N/A'}</strong> |
-                        Converted By: <strong>{detailsItem.convertedBy || 'Admin'}</strong>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div className="ms-alert-box" style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <h4 style={{ margin: 0, fontSize: '15px', color: '#1e3a8a' }}>⭐ Authoritative Item Master Record</h4>
+                          <span className="ms-badge ms-badge-converted" style={{ padding: '4px 10px', fontSize: '12px', fontWeight: 700 }}>
+                            Official Master Code: {detailsItem.convertedItemCode}
+                          </span>
+                        </div>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '13px' }}>
+                          This manual product was converted into Item Master under official code <strong>{detailsItem.convertedItemCode}</strong>.
+                          Historical manual invoices remain permanently linked, and future sales deduct live stock from Item Master.
+                        </p>
+
+                        {/* Stock Reconciliation Summary Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', background: '#ffffff', padding: '10px', borderRadius: '4px', border: '1px solid #bfdbfe', margin: '8px 0', textAlign: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '10px', color: '#64748b' }}>CONFIRMED RECEIVED</div>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7' }}>{detailsItem.totalStockAdded || 0} {detailsItem.unit || 'PCS'}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '10px', color: '#64748b' }}>PREVIOUSLY SOLD</div>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#dc2626' }}>{detailsItem.totalSalesQty || 0} {detailsItem.unit || 'PCS'}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '10px', color: '#64748b' }}>INITIAL MASTER STOCK</div>
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#16a34a' }}>{Math.max(0, (detailsItem.totalStockAdded || 0) - (detailsItem.totalSalesQty || 0))} {detailsItem.unit || 'PCS'}</div>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: '11px', color: '#475569', marginTop: '6px' }}>
+                          Conversion Date: <strong>{detailsItem.convertedAt ? new Date(detailsItem.convertedAt).toLocaleString() : 'N/A'}</strong> |
+                          Converted By: <strong>{detailsItem.convertedBy || 'Admin'}</strong>
+                        </div>
+                      </div>
+
+                      {/* Linked Manual Invoices Section */}
+                      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <h4 style={{ margin: 0, fontSize: '13px', color: '#0f172a', fontWeight: 700 }}>
+                            🧾 LINKED MANUAL INVOICES ({(detailsItem.associatedInvoiceNumbers || []).length})
+                          </h4>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>Click any invoice to view its complete report</span>
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                          {(detailsItem.associatedInvoiceNumbers || []).length === 0 ? (
+                            <span style={{ fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>No linked manual invoices recorded.</span>
+                          ) : (
+                            detailsItem.associatedInvoiceNumbers.map((invNo) => (
+                              <button
+                                key={invNo}
+                                type="button"
+                                className="ms-inv-tag-btn"
+                                style={{ fontSize: '12px', padding: '5px 12px', fontWeight: 700, background: '#eff6ff', color: '#0055aa', border: '1px solid #93c5fd' }}
+                                onClick={() => handleOpenInvoiceByNumber(invNo)}
+                                title={`Click to view full Manual Invoice Report for ${invNo}`}
+                              >
+                                🧾 View Manual Invoice: <strong>{invNo}</strong> ➜
+                              </button>
+                            ))
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -2054,7 +2342,7 @@ function ManualStockReportView({ onNavigateTab }) {
       {/* 5. MANUAL INVOICE DETAILS MODAL                                           */}
       {/* ========================================================================= */}
       {selectedInvoiceModal && (
-        <div className="ms-modal-overlay" onClick={() => setSelectedInvoiceModal(null)}>
+        <div className="ms-modal-overlay ms-inv-modal-overlay" onClick={() => setSelectedInvoiceModal(null)}>
           <div className="ms-modal-dialog ms-modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="ms-modal-header ms-inv-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2133,32 +2421,83 @@ function ManualStockReportView({ onNavigateTab }) {
                         <th style={{ width: '120px' }}>Item Code</th>
                         <th>Description</th>
                         <th style={{ width: '60px', textAlign: 'center' }}>Unit</th>
-                        <th style={{ width: '90px', textAlign: 'right' }}>Qty</th>
-                        <th style={{ width: '110px', textAlign: 'right' }}>Unit Price</th>
-                        <th style={{ width: '120px', textAlign: 'right' }}>Line Total</th>
+                        <th style={{ width: '70px', textAlign: 'right' }}>Qty</th>
+                        <th style={{ width: '100px', textAlign: 'right' }}>Unit Price</th>
+                        <th style={{ width: '110px', textAlign: 'right' }}>Line Total</th>
+                        <th style={{ width: '170px', textAlign: 'center' }}>Conversion &amp; Master</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(selectedInvoiceModal.lineItems || []).length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="cell-center" style={{ padding: '16px', color: '#64748b' }}>
+                          <td colSpan={8} className="cell-center" style={{ padding: '16px', color: '#64748b' }}>
                             No line item details found for this invoice.
                           </td>
                         </tr>
                       ) : (
-                        selectedInvoiceModal.lineItems.map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="cell-center" style={{ color: '#64748b', fontSize: '11px' }}>{idx + 1}</td>
-                            <td className="cell-code">{item.code || item.itemCode || '-'}</td>
-                            <td className="cell-desc" style={{ fontWeight: 600 }}>{item.description}</td>
-                            <td className="cell-center">{item.unit || 'PCS'}</td>
-                            <td className="cell-num" style={{ fontWeight: 600 }}>{item.quantity || item.qty || 1}</td>
-                            <td className="cell-num">Rs. {(Number(item.price || item.unitPrice || 0)).toFixed(2)}</td>
-                            <td className="cell-num" style={{ fontWeight: 700, color: '#0055aa' }}>
-                              Rs. {((Number(item.quantity || item.qty || 1)) * (Number(item.price || item.unitPrice || 0))).toFixed(2)}
-                            </td>
-                          </tr>
-                        ))
+                        selectedInvoiceModal.lineItems.map((item, idx) => {
+                          const mItem = findManualItemForLine(item);
+                          const isConverted = mItem?.status === 'Converted';
+                          const isActive = mItem?.status === 'Active';
+
+                          return (
+                            <tr key={idx}>
+                              <td className="cell-center" style={{ color: '#64748b', fontSize: '11px' }}>{idx + 1}</td>
+                              <td className="cell-code">{item.code || item.itemCode || '-'}</td>
+                              <td className="cell-desc" style={{ fontWeight: 600 }}>{item.description}</td>
+                              <td className="cell-center">{item.unit || 'PCS'}</td>
+                              <td className="cell-num" style={{ fontWeight: 600 }}>{item.quantity || item.qty || 1}</td>
+                              <td className="cell-num">Rs. {(Number(item.price || item.unitPrice || 0)).toFixed(2)}</td>
+                              <td className="cell-num" style={{ fontWeight: 700, color: '#0055aa' }}>
+                                Rs. {((Number(item.quantity || item.qty || 1)) * (Number(item.price || item.unitPrice || 0))).toFixed(2)}
+                              </td>
+                              <td className="cell-center">
+                                {isConverted ? (
+                                  <button
+                                    type="button"
+                                    className="ms-badge ms-badge-converted"
+                                    style={{
+                                      cursor: 'pointer',
+                                      padding: '3px 8px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      background: '#dcfce7',
+                                      color: '#15803d',
+                                      border: '1px solid #86efac',
+                                      borderRadius: '4px',
+                                    }}
+                                    onClick={() => {
+                                      handleOpenDetails(mItem, 'conversion');
+                                    }}
+                                    title={`Click to view Converted Item Master: ${mItem.convertedItemCode}`}
+                                  >
+                                    ✓ Converted: {mItem.convertedItemCode} 👁️
+                                  </button>
+                                ) : isActive ? (
+                                  <button
+                                    type="button"
+                                    className="ms-row-btn btn-convert"
+                                    style={{
+                                      height: '24px',
+                                      padding: '0 8px',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                    }}
+                                    onClick={() => {
+                                      handleOpenConvert(mItem);
+                                    }}
+                                    title="Click to convert this item to Item Master"
+                                  >
+                                    ⭐ Convert to Master
+                                  </button>
+                                ) : (
+                                  <span style={{ fontSize: '11px', color: '#64748b' }}>Master Item</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
