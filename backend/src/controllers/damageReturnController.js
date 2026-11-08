@@ -175,8 +175,6 @@ export const getInvoiceForReturn = async (req, res, next) => {
         message: `Invoice '${invoice.invoiceNumber || cleanInv}' is a Manual Invoice. Manual invoices do not affect inventory and cannot be returned into stock.`,
       });
     }
-      });
-    }
 
     const invNum = invoice.invoiceNumber || String(invoice.no);
 
