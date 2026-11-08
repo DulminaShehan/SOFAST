@@ -60,7 +60,16 @@ function GoodReceiveNote() {
     closingStock: '',
     lastGrn: '',
     lpc: '',
+    isManualItem: false,
+    manualItemId: null,
+    manualCode: '',
+    previouslySoldQty: 0,
   });
+
+  // Tracked Unregistered Manual Items from Manual Stock Report
+  const [trackedManualItems, setTrackedManualItems] = useState([]);
+  const [potentialManualMatch, setPotentialManualMatch] = useState(null);
+  const [lookupItemTab, setLookupItemTab] = useState('master'); // 'master' | 'manual'
 
   // Item GRN History State
   const [itemHistory, setItemHistory] = useState([]);
@@ -242,11 +251,12 @@ function GoodReceiveNote() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [suppRes, nextNumRes, grnsRes, itemsRes] = await Promise.all([
+      const [suppRes, nextNumRes, grnsRes, itemsRes, manualRes] = await Promise.all([
         api.get('/suppliers').catch(() => null),
         api.get('/grn/next-number').catch(() => null),
         api.get('/grn?limit=100').catch(() => null),
         api.get('/items?limit=all').catch(() => null),
+        api.get('/manual-items/lookup?limit=all').catch(() => null),
       ]);
 
       if (suppRes?.data?.data) {
@@ -264,6 +274,9 @@ function GoodReceiveNote() {
       }
       if (itemsRes?.data?.data) {
         setItemsList(itemsRes.data.data);
+      }
+      if (manualRes?.data?.data) {
+        setTrackedManualItems(manualRes.data.data.filter((it) => it.status !== 'Converted'));
       }
     } catch (e) {
       showNotification('Failed to initialize GRN form data', 'error');
@@ -506,9 +519,22 @@ function GoodReceiveNote() {
 
     // When typing Item Code: allow user to freely type without premature auto-filling or overwriting!
     if (name === 'code') {
-      if (value.trim() === '') {
+      const clean = value.trim().toLowerCase();
+      if (!clean) {
         setItemHistory([]);
+        setPotentialManualMatch(null);
         if (lineItems.length > 0) setGridMode('current');
+      } else {
+        const mMatch = trackedManualItems.find(
+          (m) =>
+            m.manualCode?.toLowerCase() === clean ||
+            (clean.length >= 3 && m.description?.toLowerCase().includes(clean))
+        );
+        if (mMatch && !itemEntry.isManualItem) {
+          setPotentialManualMatch(mMatch);
+        } else {
+          setPotentialManualMatch(null);
+        }
       }
     }
 
@@ -626,9 +652,21 @@ function GoodReceiveNote() {
           }
         }
 
-        showNotification(`Item code '${itemEntry.code.trim()}' not found in Item Master`, 'warning');
+        // Check if query matches a tracked manual item
+        const manualMatch = trackedManualItems.find(
+          (m) =>
+            m.manualCode?.toLowerCase() === query ||
+            m.description?.toLowerCase() === query
+        );
+        if (manualMatch) {
+          setPotentialManualMatch(manualMatch);
+          showNotification(`Item code '${query}' matches tracked manual item '${manualMatch.description}'. Confirm link to proceed.`, 'info');
+          return;
+        }
+
+        showNotification(`Item code '${itemEntry.code.trim()}' not found in Item Master or Manual Stock`, 'warning');
       } catch (err) {
-        showNotification(`Item code '${query}' not found in Item Master`, 'warning');
+        showNotification(`Item code '${query}' not found in Item Master or Manual Stock`, 'warning');
       } finally {
         setLoading(false);
       }
@@ -669,9 +707,49 @@ function GoodReceiveNote() {
   // Select Item from Lookup Modal
   const handleSelectItemFromLookup = (item) => {
     const itemObj = populateItemDetails(item, 1, 0);
-    setItemEntry(itemObj);
+    setItemEntry({
+      ...itemObj,
+      isManualItem: false,
+      manualItemId: null,
+      manualCode: '',
+      previouslySoldQty: 0,
+    });
+    setPotentialManualMatch(null);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
     fetchItemHistory(item.code, item.location);
+  };
+
+  // Select Tracked Manual Item from Lookup or Identification Banner (Requirement 5)
+  const handleSelectManualItemForGrn = (manualItem) => {
+    const cost = manualItem.costPrice || 0;
+    const sell = manualItem.sellingPrice || 0;
+    const soldQty = Number(manualItem.totalSalesQty) || 0;
+    const initialQty = soldQty > 0 ? soldQty : 1;
+
+    setItemEntry({
+      code: manualItem.manualCode,
+      description: manualItem.description || '',
+      price: cost > 0 ? String(cost) : '',
+      sellPrice: sell > 0 ? String(sell) : '',
+      quantity: String(initialQty),
+      discount: '0',
+      value: computeItemValue(cost, initialQty, '0'),
+      location: manualItem.location || 'Main Store',
+      closingStock: manualItem.availableStock !== undefined ? manualItem.availableStock : -soldQty,
+      lastGrn: 'Pending Master',
+      lpc: cost > 0 ? Number(cost).toFixed(2) : '-',
+      isManualItem: true,
+      manualItemId: manualItem._id,
+      manualCode: manualItem.manualCode,
+      previouslySoldQty: soldQty,
+    });
+    setPotentialManualMatch(null);
+    setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+    showNotification(`Linked to Tracked Manual Item '${manualItem.manualCode}' (Previously Sold: ${soldQty} PCS)`, 'info');
+    if (grnPriceInputRef.current) {
+      grnPriceInputRef.current.focus();
+      grnPriceInputRef.current.select();
+    }
   };
 
   // Select Supplier from Lookup Modal
@@ -778,6 +856,10 @@ function GoodReceiveNote() {
       closingStock: itemEntry.closingStock,
       lastGrn: itemEntry.lastGrn,
       lpc: itemEntry.lpc,
+      isManualItem: Boolean(itemEntry.isManualItem),
+      manualItemId: itemEntry.manualItemId || null,
+      manualCode: itemEntry.manualCode || '',
+      previouslySoldQty: itemEntry.previouslySoldQty || 0,
     };
 
     if (selectedLineIndex >= 0) {
@@ -828,7 +910,12 @@ function GoodReceiveNote() {
       closingStock: '',
       lastGrn: '',
       lpc: '',
+      isManualItem: false,
+      manualItemId: null,
+      manualCode: '',
+      previouslySoldQty: 0,
     });
+    setPotentialManualMatch(null);
 
     itemCodeInputRef.current?.focus();
   };
@@ -952,6 +1039,9 @@ function GoodReceiveNote() {
       if (!li.code) errors.push(`Row ${idx + 1}: Missing item code.`);
       if (li.quantity <= 0) errors.push(`Row ${idx + 1} (${li.code}): Quantity must be > 0.`);
       if (li.price < 0) errors.push(`Row ${idx + 1} (${li.code}): Price cannot be negative.`);
+      if (li.isManualItem && li.previouslySoldQty > 0 && li.quantity < li.previouslySoldQty) {
+        errors.push(`Row ${idx + 1} (${li.code}): Discrepancy Alert — Received quantity (${li.quantity}) is less than previously sold manual quantity (${li.previouslySoldQty}). Reconciled stock will be negative (${li.quantity - li.previouslySoldQty} PCS).`);
+      }
     });
 
     const totalQty = lineItems.reduce((acc, li) => acc + li.quantity, 0);
@@ -995,6 +1085,10 @@ function GoodReceiveNote() {
         discount: disc,
         value: val,
         location: itemEntry.location || 'Main Store',
+        isManualItem: Boolean(itemEntry.isManualItem),
+        manualItemId: itemEntry.manualItemId || null,
+        manualCode: itemEntry.manualCode || '',
+        previouslySoldQty: itemEntry.previouslySoldQty || 0,
       };
 
       currentLineItems.push(pendingItem);
@@ -1050,6 +1144,10 @@ function GoodReceiveNote() {
         discount: li.discount,
         value: li.value,
         locationCode: li.location || 'MAIN',
+        isManualItem: Boolean(li.isManualItem),
+        manualItemId: li.manualItemId || null,
+        manualCode: li.manualCode || '',
+        previouslySoldQty: li.previouslySoldQty || 0,
       })),
       isPosted: willPost,
     };
@@ -1118,6 +1216,10 @@ function GoodReceiveNote() {
         discount: disc,
         value: val,
         location: itemEntry.location || 'Main Store',
+        isManualItem: Boolean(itemEntry.isManualItem),
+        manualItemId: itemEntry.manualItemId || null,
+        manualCode: itemEntry.manualCode || '',
+        previouslySoldQty: itemEntry.previouslySoldQty || 0,
       };
 
       currentLineItems.push(pendingItem);
@@ -1153,6 +1255,10 @@ function GoodReceiveNote() {
         discount: li.discount,
         value: li.value,
         locationCode: li.location || 'MAIN',
+        isManualItem: Boolean(li.isManualItem),
+        manualItemId: li.manualItemId || null,
+        manualCode: li.manualCode || '',
+        previouslySoldQty: li.previouslySoldQty || 0,
       })),
       isPosted: true, // Post to stock!
     };
@@ -1325,6 +1431,15 @@ function GoodReceiveNote() {
       i.code?.toLowerCase().includes(q) ||
       i.description?.toLowerCase().includes(q) ||
       i.category?.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredManualItems = trackedManualItems.filter((m) => {
+    const q = lookupModal.search.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      m.itemCode?.toLowerCase().includes(q) ||
+      m.description?.toLowerCase().includes(q)
     );
   });
 
@@ -1631,6 +1746,84 @@ function GoodReceiveNote() {
               </div>
             </div>
 
+            {/* Manual Item Identification & Confirmation Banner */}
+            {potentialManualMatch && (
+              <div
+                style={{
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #3b82f6',
+                  borderLeft: '4px solid #1d4ed8',
+                  padding: '6px 12px',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  color: '#1e3a8a',
+                  borderRadius: '2px',
+                }}
+              >
+                <div>
+                  <strong>Tracked Manual Item Found:</strong> <code>{potentialManualMatch.itemCode}</code> — {potentialManualMatch.description}{' '}
+                  <span style={{ marginLeft: '8px', color: '#b91c1c', fontWeight: 'bold' }}>
+                    (Previously Sold: {potentialManualMatch.totalManualSales || 0} PCS | Current Manual Stock: {potentialManualMatch.availableStock ?? 0})
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{ height: '22px', fontSize: '11px', fontWeight: 'bold', color: '#1e40af' }}
+                    onClick={() => handleSelectManualItemForGrn(potentialManualMatch)}
+                  >
+                    Confirm & Link to this Manual Item
+                  </button>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{ height: '22px', fontSize: '11px' }}
+                    onClick={() => setPotentialManualMatch(null)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Manual Item Reconciled Active Link Banner */}
+            {itemEntry.isManualItem && (
+              <div
+                style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #22c55e',
+                  borderLeft: '4px solid #15803d',
+                  padding: '5px 12px',
+                  marginBottom: '8px',
+                  fontSize: '11px',
+                  color: '#166534',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderRadius: '2px',
+                }}
+              >
+                <span>
+                  🔗 <strong>Linked to Manual Stock Item:</strong> <code>{itemEntry.manualCode}</code> | Previously Sold:{' '}
+                  <strong>{itemEntry.previouslySoldQty} PCS</strong> | Reconciliation: Received (
+                  <strong>{parseFloat(itemEntry.quantity) || 0}</strong>) - Sold (
+                  <strong>{itemEntry.previouslySoldQty}</strong>) = Net Available Stock (
+                  <strong style={{ color: (parseFloat(itemEntry.quantity) || 0) < itemEntry.previouslySoldQty ? '#b91c1c' : '#15803d' }}>
+                    {(parseFloat(itemEntry.quantity) || 0) - itemEntry.previouslySoldQty}
+                  </strong>)
+                </span>
+                {(parseFloat(itemEntry.quantity) || 0) < itemEntry.previouslySoldQty && (
+                  <span style={{ color: '#b91c1c', fontWeight: 'bold', marginLeft: '8px' }}>
+                    ⚠️ Warning: Received Qty is less than previously sold Qty!
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Item Entry Row Section (Above Grid) */}
             <div className="grn-item-entry-bar">
               <div className="grn-entry-grid">
@@ -1914,8 +2107,42 @@ function GoodReceiveNote() {
                         onClick={() => handleRowClick(index)}
                       >
                         <td style={{ textAlign: 'center', color: '#666' }}>{index + 1}</td>
-                        <td style={{ fontWeight: '600' }}>{item.code}</td>
-                        <td>{item.description}</td>
+                        <td style={{ fontWeight: '600' }}>
+                          {item.code}
+                          {item.isManualItem && (
+                            <span
+                              style={{
+                                marginLeft: '5px',
+                                fontSize: '10px',
+                                padding: '1px 4px',
+                                backgroundColor: '#dbeafe',
+                                color: '#1e40af',
+                                borderRadius: '3px',
+                                border: '1px solid #93c5fd',
+                                verticalAlign: 'middle',
+                              }}
+                              title={`Linked to Manual Item: ${item.manualCode} (Previously Sold: ${item.previouslySoldQty || 0} PCS)`}
+                            >
+                              🔗 Manual
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {item.description}
+                          {item.isManualItem && item.previouslySoldQty > 0 && (
+                            <div
+                              style={{
+                                fontSize: '10px',
+                                color: item.quantity < item.previouslySoldQty ? '#b91c1c' : '#4b5563',
+                                fontWeight: item.quantity < item.previouslySoldQty ? 'bold' : 'normal',
+                                marginTop: '1px',
+                              }}
+                            >
+                              Reconciliation: Rec: {item.quantity} - Sold: {item.previouslySoldQty} = Net: {item.quantity - item.previouslySoldQty}
+                              {item.quantity < item.previouslySoldQty && ' ⚠️ [Shortage Warning]'}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ textAlign: 'right' }}>
                           {Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
@@ -2088,10 +2315,47 @@ function GoodReceiveNote() {
                 onChange={(e) => setLookupModal({ ...lookupModal, search: e.target.value })}
               />
 
+              {lookupModal.type === 'item' && (
+                <div style={{ display: 'flex', gap: '6px', margin: '6px 0' }}>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{
+                      height: '24px',
+                      fontSize: '11px',
+                      fontWeight: lookupItemTab === 'master' ? 'bold' : 'normal',
+                      backgroundColor: lookupItemTab === 'master' ? '#d0d7de' : '#f6f8fa',
+                      border: lookupItemTab === 'master' ? '1px solid #0969da' : '1px solid #d0d7de',
+                      color: lookupItemTab === 'master' ? '#0969da' : '#24292f',
+                    }}
+                    onClick={() => setLookupItemTab('master')}
+                  >
+                    📦 Item Master ({itemsList.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{
+                      height: '24px',
+                      fontSize: '11px',
+                      fontWeight: lookupItemTab === 'manual' ? 'bold' : 'normal',
+                      backgroundColor: lookupItemTab === 'manual' ? '#eff6ff' : '#f6f8fa',
+                      border: lookupItemTab === 'manual' ? '1px solid #2563eb' : '1px solid #d0d7de',
+                      color: lookupItemTab === 'manual' ? '#1d4ed8' : '#24292f',
+                    }}
+                    onClick={() => setLookupItemTab('manual')}
+                  >
+                    📋 Tracked Manual Items ({trackedManualItems.length})
+                  </button>
+                </div>
+              )}
+
               <div style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', margin: '3px 2px' }}>
-                {lookupModal.type === 'item'
+                {lookupModal.type === 'supplier'
+                  ? `Showing ${filteredSuppliers.length} suppliers`
+                  : lookupItemTab === 'master'
                   ? `Showing ${filteredItems.length} items (Total: ${itemsList.length} items in Item Master)`
-                  : `Showing ${filteredSuppliers.length} suppliers`}
+                  : `Showing ${filteredManualItems.length} tracked manual items (Total: ${trackedManualItems.length})`}
               </div>
 
               <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
@@ -2137,6 +2401,61 @@ function GoodReceiveNote() {
                                 }}
                               >
                                 Select
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                ) : lookupItemTab === 'manual' ? (
+                  <table className="grn-lookup-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '110px' }}>Manual Code</th>
+                        <th>Description</th>
+                        <th style={{ width: '65px', textAlign: 'center' }}>Sold Qty</th>
+                        <th style={{ width: '65px', textAlign: 'center' }}>Added Qty</th>
+                        <th style={{ width: '65px', textAlign: 'center' }}>Net Stock</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>Cost</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>Sell Price</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredManualItems.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
+                            No tracked manual items found matching "{lookupModal.search}"
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredManualItems.map((m) => (
+                          <tr key={m._id || m.itemCode} onClick={() => handleSelectManualItemForGrn(m)}>
+                            <td style={{ fontWeight: 'bold', color: '#1d4ed8' }}>{m.itemCode}</td>
+                            <td>{m.description}</td>
+                            <td style={{ textAlign: 'center', color: '#b91c1c', fontWeight: 'bold' }}>
+                              {m.totalManualSales || 0}
+                            </td>
+                            <td style={{ textAlign: 'center', color: '#15803d', fontWeight: 'bold' }}>
+                              {m.totalStockAdded || 0}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                              {m.availableStock ?? 0}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>{Number(m.purchaseCost || 0).toFixed(2)}</td>
+                            <td style={{ textAlign: 'right' }}>{Number(m.sellingPrice || 0).toFixed(2)}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="grn-btn-classic"
+                                style={{ height: '20px', padding: '0 6px', fontSize: '11px', color: '#1e40af', fontWeight: 'bold' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectManualItemForGrn(m);
+                                }}
+                              >
+                                Select & Link
                               </button>
                             </td>
                           </tr>

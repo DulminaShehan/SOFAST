@@ -328,6 +328,7 @@ function ManualStockReportView({ onNavigateTab }) {
 
     setConvertFormData({
       manualItemId: item._id,
+      manualCode: item.manualCode,
       targetCode: candidateCode || '',
       description: item.description,
       category: item.category || 'General',
@@ -341,6 +342,10 @@ function ManualStockReportView({ onNavigateTab }) {
       supplierCode: item.supplierCode || '',
       barcode: '',
       unit: item.unit || 'PCS',
+      totalStockAdded: item.totalStockAdded || 0,
+      totalSalesQty: item.totalSalesQty || 0,
+      availableStock: item.availableStock || 0,
+      associatedInvoiceNumbers: item.associatedInvoiceNumbers || [],
       notes: `Converted from manual item ${item.manualCode}`,
     });
     setCodeAvailability({ checking: false, available: null, message: '' });
@@ -639,7 +644,10 @@ function ManualStockReportView({ onNavigateTab }) {
           </p>
         </div>
         <div className="ms-header-actions">
-          <button type="button" className="ms-btn ms-btn-primary" onClick={handleSyncHistorical} title="Sync past unregistered manual invoices">
+          <button type="button" className="ms-btn ms-btn-primary" onClick={() => handleOpenAddStock()} title="Add stock to any manual item">
+            ➕ Add Manual Stock
+          </button>
+          <button type="button" className="ms-btn" onClick={handleSyncHistorical} title="Sync past unregistered manual invoices">
             🔄 Sync Past Invoices
           </button>
           <button type="button" className="ms-btn" onClick={fetchReport} title="Refresh live data" disabled={loading}>
@@ -1086,14 +1094,24 @@ function ManualStockReportView({ onNavigateTab }) {
                             </button>
 
                             {!isConverted && (
-                              <button
-                                type="button"
-                                className="ms-row-btn btn-convert"
-                                onClick={() => handleOpenConvert(item)}
-                                title="Promote to Item Master"
-                              >
-                                ⭐ Convert to Master
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  className="ms-row-btn btn-stock"
+                                  onClick={() => handleOpenAddStock(item)}
+                                  title="Record stock receipt"
+                                >
+                                  ➕ Add Stock
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ms-row-btn btn-convert"
+                                  onClick={() => handleOpenConvert(item)}
+                                  title="Promote to Item Master"
+                                >
+                                  ⭐ Convert to Master
+                                </button>
+                              </>
                             )}
 
                             <button
@@ -1861,6 +1879,39 @@ function ManualStockReportView({ onNavigateTab }) {
                   <div>
                     This action creates an authoritative Item Master record and transfers available manual stock exactly once.
                     Historical manual invoices remain unchanged. Once converted, normal Sales Invoices will deduct live stock.
+                  </div>
+                </div>
+
+                {/* Stock Reconciliation Summary Banner (Requirement 6 & 7) */}
+                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '10px 14px', marginBottom: '14px', fontSize: '12px' }}>
+                  <div style={{ fontWeight: 700, color: '#1e293b', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>⚖️ Stock Calculation & Reconciliation:</span>
+                    <span style={{ background: '#e2e8f0', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontFamily: 'monospace' }}>
+                      {convertFormData.manualCode}
+                    </span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center' }}>
+                    <div style={{ background: '#fff', padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>CONFIRMED RECEIVED</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#0284c7' }}>
+                        {convertFormData.totalStockAdded || 0} {convertFormData.unit}
+                      </div>
+                    </div>
+                    <div style={{ background: '#fff', padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>PREVIOUSLY SOLD</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#dc2626' }}>
+                        {convertFormData.totalSalesQty || 0} {convertFormData.unit}
+                      </div>
+                    </div>
+                    <div style={{ background: '#fff', padding: '6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '10px', color: '#64748b' }}>INITIAL MASTER STOCK</div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#16a34a' }}>
+                        {Math.max(0, (convertFormData.totalStockAdded || 0) - (convertFormData.totalSalesQty || 0))} {convertFormData.unit}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#475569', fontStyle: 'italic' }}>
+                    Available Stock = Confirmed Received ({convertFormData.totalStockAdded || 0}) - Previously Sold ({convertFormData.totalSalesQty || 0}) = {Math.max(0, (convertFormData.totalStockAdded || 0) - (convertFormData.totalSalesQty || 0))} {convertFormData.unit}
                   </div>
                 </div>
 

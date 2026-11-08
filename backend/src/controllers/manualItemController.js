@@ -635,7 +635,7 @@ export const convertManualItem = async (req, res, next) => {
   try {
     const {
       manualItemId,
-      targetCode,
+      targetCode: rawTargetCode,
       description,
       category = 'General',
       subCategory = '',
@@ -650,6 +650,8 @@ export const convertManualItem = async (req, res, next) => {
       unit = 'PCS',
       notes = '',
     } = req.body;
+
+    const targetCode = rawTargetCode || req.body.itemCode || req.body.code;
 
     if (!manualItemId) {
       return res.status(400).json({
@@ -712,6 +714,17 @@ export const convertManualItem = async (req, res, next) => {
     const finalSp = Math.max(0, parseFloat(sellingPrice !== undefined ? sellingPrice : manualItem.sellingPrice) || 0);
     const finalCp = Math.max(0, parseFloat(costPrice !== undefined ? costPrice : manualItem.costPrice) || 0);
 
+    // Retrieve all linked manual invoice numbers for audit retention
+    const linkedInvoicesDocs = await Invoice.find({
+      $or: [
+        { isManualInvoice: true },
+        { invoiceType: 'Manual' },
+        { invoiceNumber: { $regex: /^MAN-/i } },
+      ],
+      'lineItems.description': new RegExp(`^${manualItem.description.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+    }, { invoiceNumber: 1 }).lean();
+    const linkedInvNumbers = Array.from(new Set(linkedInvoicesDocs.map((i) => i.invoiceNumber).filter(Boolean)));
+
     // 1. Create standard Item Master document
     const newItem = new Item({
       code: finalCode,
@@ -736,6 +749,12 @@ export const convertManualItem = async (req, res, next) => {
       unit: unit ? unit.trim() : (manualItem.unit || 'PCS'),
       status: 'A',
       remark: notes ? notes.trim() : `Converted from Manual Item ${manualItem.manualCode}`,
+      manualItemCode: manualItem.manualCode,
+      manualItemId: manualItem._id,
+      convertedFromManual: true,
+      originalInvoiceNumbers: linkedInvNumbers,
+      totalManualSales: manualItem.totalSalesQty || 0,
+      totalStockAdded: manualItem.totalStockAdded || 0,
     });
 
     await newItem.save();
