@@ -1,0 +1,204 @@
+/**
+ * SOFAST POS - Windows Desktop Standard Confirmation Dialog Styles
+ * Exact replica of classic Windows XP / 2000 MessageBox (MessageBoxButtons.YesNo)
+ * Reference: SOFAST POS - Print Invoice confirmation dialog
+ */
+
+.sofast-msgbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999999;
+  font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+  user-select: none;
+}
+
+.sofast-msgbox-window {
+  background-color: #ece9d8;
+  border: 2px solid #0055ea;
+  border-radius: 4px 4px 2px 2px;
+  box-shadow: 2px 3px 12px rgba(0, 0, 0, 0.5);
+  width: 410px;
+  max-width: 95vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: sofastPopIn 0.12s ease-out;
+}
+
+@keyframes sofastPopIn {
+  from {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Classic Windows XP / 2000 Gradient Titlebar */
+.sofast-msgbox-titlebar {
+  background: linear-gradient(to right, #0055ea 0%, #3a80f7 50%, #68a3f9 100%);
+  color: #ffffff;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #003db3;
+  height: 25px;
+  box-sizing: border-box;
+}
+
+.sofast-msgbox-title-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sofast-msgbox-app-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.sofast-msgbox-title-text {
+  font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+  font-size: 11.5px;
+  font-weight: bold;
+  letter-spacing: 0.2px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.4);
+}
+
+/* Close [X] Button */
+.sofast-msgbox-close-btn {
+  background: #d4d0c8;
+  border: 1px outset #ffffff;
+  color: #000000;
+  width: 17px;
+  height: 15px;
+  font-size: 9px;
+  font-weight: bold;
+  line-height: 13px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+
+.sofast-msgbox-close-btn:hover {
+  background: #e81123;
+  color: #ffffff;
+  border-color: #b30000;
+}
+
+.sofast-msgbox-close-btn:active {
+  border-style: inset;
+}
+
+/* Dialog Body */
+.sofast-msgbox-body {
+  padding: 16px 20px 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background-color: #ece9d8;
+  min-height: 58px;
+}
+
+.sofast-msgbox-icon-container {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sofast-msgbox-icon-img {
+  display: block;
+}
+
+.sofast-msgbox-text-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.sofast-msgbox-message {
+  font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  color: #000000;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+/* Dialog Actions: Centered / Evenly Spaced Yes & No Only */
+.sofast-msgbox-actions {
+  background-color: #ece9d8;
+  border-top: 1px solid #d4d0c8;
+  padding: 10px 16px 14px 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px; /* Evenly spaced */
+}
+
+/* Classic Windows 3D Yes/No Buttons */
+.sofast-msgbox-btn {
+  min-width: 80px;
+  height: 25px;
+  padding: 2px 16px;
+  font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+  font-size: 11.5px;
+  font-weight: bold;
+  color: #000000;
+  background: #ece9d8;
+  border: 1px solid #7f9db9;
+  border-radius: 2px;
+  cursor: pointer;
+  outline: none;
+  box-shadow: inset 1px 1px 0 #ffffff, inset -1px -1px 0 #d4d0c8;
+  position: relative;
+  transition: all 0.05s ease-in-out;
+}
+
+.sofast-msgbox-btn:hover {
+  background: #f5f3e9;
+  border-color: #0055ea;
+}
+
+.sofast-msgbox-btn:active {
+  background: #dfdcd1;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+/* Classic Windows Dotted Focus Outline on Default/Focused Button */
+.sofast-msgbox-btn.has-focus,
+.sofast-msgbox-btn:focus {
+  border-color: #000080;
+  box-shadow: 0 0 1px #000080;
+}
+
+.sofast-msgbox-btn.has-focus::after,
+.sofast-msgbox-btn:focus::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  border: 1px dotted #000000;
+  pointer-events: none;
+}
+

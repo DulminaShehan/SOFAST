@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import './Invoice.css';
 
 /**
@@ -11,6 +12,7 @@ import './Invoice.css';
 function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirm } = useConfirm();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -1942,9 +1944,12 @@ function Invoice() {
   // BUTTON: NEW INVOICE
   const handleNew = async (force = false) => {
     if (!force && lineItems.length > 0 && !activeInvoiceId) {
-      const confirmClear = window.confirm(
-        'Current invoice contains unsaved items. Would you like to discard them and create a New invoice?'
-      );
+      const confirmClear = await confirm({
+        title: 'SOFAST POS - New Invoice',
+        message: 'Current invoice contains unsaved items. Would you like to discard them and create a New invoice?',
+        icon: 'question',
+        defaultFocus: 'yes',
+      });
       if (!confirmClear) return;
     }
 
@@ -2166,6 +2171,21 @@ function Invoice() {
           'success'
         );
 
+        // Prompt: "Do you wish to print this invoice?" (Standard Windows Yes/No dialog)
+        if (!forceHold && !isHoldVal) {
+          setTimeout(async () => {
+            const shouldPrint = await confirm({
+              title: 'SOFAST POS - Print Invoice',
+              message: 'Do you wish to print this invoice?',
+              icon: 'print',
+              defaultFocus: 'yes',
+            });
+            if (shouldPrint) {
+              handlePrint();
+            }
+          }, 150);
+        }
+
         // Refresh invoices list and items in background
         Promise.all([
           api.get('/invoices?limit=50').catch(() => null),
@@ -2213,9 +2233,12 @@ function Invoice() {
   const handleDeleteInvoice = async () => {
     // 1. If an active saved invoice is loaded
     if (activeInvoiceId) {
-      const confirmDel = window.confirm(
-        `Are you sure you want to delete / cancel Invoice '${invoiceHeader.invoiceNumber}'?\n\nThis will restore deducted inventory stock and update customer outstanding balance.`
-      );
+      const confirmDel = await confirm({
+        title: 'SOFAST POS - Delete Invoice',
+        message: `Are you sure you want to delete / cancel Invoice '${invoiceHeader.invoiceNumber}'?\n\nThis will restore deducted inventory stock and update customer outstanding balance.`,
+        icon: 'warning',
+        defaultFocus: 'no',
+      });
       if (!confirmDel) return;
 
       try {
@@ -2244,9 +2267,12 @@ function Invoice() {
     // 2. If a line item is selected in the bottom table
     if (selectedLineIndex >= 0 && selectedLineIndex < lineItems.length) {
       const itemToDelete = lineItems[selectedLineIndex];
-      const confirmItem = window.confirm(
-        `Remove item '${itemToDelete?.code || 'selected'}' from invoice?`
-      );
+      const confirmItem = await confirm({
+        title: 'SOFAST POS - Remove Item',
+        message: `Remove item '${itemToDelete?.code || 'selected'}' from invoice?`,
+        icon: 'question',
+        defaultFocus: 'yes',
+      });
       if (confirmItem) {
         handleRemoveLineItem(selectedLineIndex);
         showNotification(`Removed item '${itemToDelete?.code || ''}' from invoice`, 'info');
@@ -2256,7 +2282,12 @@ function Invoice() {
 
     // 3. If there are unsaved line items in the table
     if (lineItems.length > 0) {
-      const confirmLines = window.confirm('Clear all unsaved line items from the invoice?');
+      const confirmLines = await confirm({
+        title: 'SOFAST POS - Clear Line Items',
+        message: 'Clear all unsaved line items from the invoice?',
+        icon: 'warning',
+        defaultFocus: 'no',
+      });
       if (confirmLines) {
         setLineItems([]);
         showNotification('Cleared unsaved invoice lines', 'info');
@@ -2440,6 +2471,14 @@ function Invoice() {
 
   // Reusable Compact Thermal Receipt component for both Print and Preview
   const renderThermalReceiptContent = () => {
+    // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+    // Applied exclusively to print preview and physical print layout without altering scan/db order
+    const sortedPrintLineItems = [...lineItems].sort((a, b) => {
+      const nameA = (a.description || a.name || a.itemName || (a.jobType === 'Labour' || a.isService ? 'Delivery Charge' : '') || a.code || '').trim();
+      const nameB = (b.description || b.name || b.itemName || (b.jobType === 'Labour' || b.isService ? 'Delivery Charge' : '') || b.code || '').trim();
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
+    });
+
     const grossTotal = lineItems.reduce((acc, item) => {
       const p = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
       const q = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
@@ -2486,14 +2525,14 @@ function Invoice() {
             </tr>
           </thead>
           <tbody>
-            {lineItems.length === 0 ? (
+            {sortedPrintLineItems.length === 0 ? (
               <tr>
                 <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '2px 0' }}>
                   No line items
                 </td>
               </tr>
             ) : (
-              lineItems.map((item, idx) => {
+              sortedPrintLineItems.map((item, idx) => {
                 const itemQty = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
                 const itemRate = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
                 const itemTotal = parseFloat(item.value !== undefined && item.value !== '' ? item.value : (item.finalPrice !== undefined ? item.finalPrice : itemRate * itemQty)) || 0;

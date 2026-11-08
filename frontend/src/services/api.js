@@ -12,9 +12,24 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Request interceptor (for future auth tokens, logging, etc.)
+// Request interceptor: attach current session authentication headers
 api.interceptors.request.use(
   (config) => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const userStr = localStorage.getItem('sofast_auth_user');
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          if (user) {
+            config.headers['x-user-role'] = user.role || 'user';
+            config.headers['x-username'] = user.username || '';
+            config.headers['x-user-id'] = user.id || user._id || '';
+          }
+        }
+      }
+    } catch {
+      // Fallback if localStorage is inaccessible
+    }
     return config;
   },
   (error) => {

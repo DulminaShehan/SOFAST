@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import './ManualInvoice.css';
 
 /**
@@ -11,6 +12,7 @@ import './ManualInvoice.css';
  */
 function ManualInvoice() {
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   // Active loaded invoice ID (null for new unsaved invoice)
   const [activeInvoiceId, setActiveInvoiceId] = useState(null);
@@ -333,6 +335,19 @@ function ManualInvoice() {
             `Manual Invoice "${savedDoc.invoiceNumber}" saved successfully! Zero stock impact.`,
             'success'
           );
+
+          // Prompt: "Do you wish to print this invoice?" (Standard Windows Yes/No dialog)
+          setTimeout(async () => {
+            const shouldPrint = await confirm({
+              title: 'SOFAST POS - Print Invoice',
+              message: 'Do you wish to print this invoice?',
+              icon: 'print',
+              defaultFocus: 'yes',
+            });
+            if (shouldPrint) {
+              handleBillPrint();
+            }
+          }, 150);
         }
         return savedDoc;
       } else {
@@ -384,9 +399,12 @@ function ManualInvoice() {
       return;
     }
 
-    const confirmDel = window.confirm(
-      `Are you sure you want to delete Manual Invoice "${invoiceHeader.invoiceNumber}"?\n\nThis will remove the invoice record permanently without affecting stock.`
-    );
+    const confirmDel = await confirm({
+      title: 'SOFAST POS - Delete Manual Invoice',
+      message: `Are you sure you want to delete Manual Invoice "${invoiceHeader.invoiceNumber}"?\n\nThis will remove the invoice record permanently without affecting stock.`,
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
     if (!confirmDel) return;
 
     setIsSubmitting(true);
@@ -515,6 +533,14 @@ function ManualInvoice() {
 
   // Render Thermal Bill Content
   const renderThermalReceiptContent = () => {
+    // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+    // Applied exclusively to print preview and physical print layout without altering scan/db order
+    const sortedPrintLineItems = [...lineItems].sort((a, b) => {
+      const nameA = (a.description || a.name || a.itemName || a.code || '').trim();
+      const nameB = (b.description || b.name || b.itemName || b.code || '').trim();
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
+    });
+
     const net = invoiceCalculations.netTotal;
     const rcvd = amountReceived === '' ? net : parseFloat(amountReceived) || 0;
     const bal = rcvd - net;
@@ -560,7 +586,7 @@ function ManualInvoice() {
             </tr>
           </thead>
           <tbody>
-            {lineItems.map((item, idx) => {
+            {sortedPrintLineItems.map((item, idx) => {
               const gross = (item.quantity || 0) * (item.sellingPrice || 0);
               const disc = item.discountAmount || 0;
               const val = gross - disc;

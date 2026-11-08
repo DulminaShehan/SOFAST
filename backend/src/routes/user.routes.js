@@ -7,6 +7,7 @@ import {
   loginUser,
   getPermissionsList,
 } from '../controllers/userController.js';
+import { requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -16,10 +17,10 @@ router.post('/login', loginUser);
 // Permissions metadata
 router.get('/permissions-list', getPermissionsList);
 
-// User CRUD
-router.get('/', getUsers);
-router.post('/', createUser);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
+// User CRUD - Strictly Admin only
+router.get('/', requireAdmin, getUsers);
+router.post('/', requireAdmin, createUser);
+router.put('/:id', requireAdmin, updateUser);
+router.delete('/:id', requireAdmin, deleteUser);
 
 export default router;

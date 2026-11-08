@@ -35,6 +35,22 @@ export const SYSTEM_PERMISSIONS = [
   { id: 'accounting', label: 'Accounting', category: 'Other Modules', path: '/accounting' },
 ];
 
+// Standard operational permissions for standard/cashier users
+export const DEFAULT_STANDARD_PERMISSIONS = [
+  'invoice',
+  'settlement-invoice',
+  'remaining-balance',
+  'customer-details',
+];
+
+// Strictly restricted administrative permissions
+export const RESTRICTED_ADMIN_PERMISSIONS = [
+  'printer-setup',
+  'new-user',
+  'user-management',
+  'administration',
+];
+
 // Helper to hash password for in-memory or mongo
 const hashPasswordHelper = (password, salt = crypto.randomBytes(16).toString('hex')) => {
   const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -307,6 +323,22 @@ export const createUser = async (req, res, next) => {
     }
 
     const cleanUsername = username.trim().toLowerCase();
+    const cleanRole = role === 'admin' ? 'admin' : 'user';
+
+    // Role-based permission assignment:
+    // Administrators get full access; standard users are strictly restricted to operational modules only
+    let assignedPermissions = [];
+    if (cleanRole === 'admin') {
+      assignedPermissions = SYSTEM_PERMISSIONS.map((p) => p.id);
+    } else {
+      const requested = Array.isArray(permissions) && permissions.length > 0
+        ? permissions
+        : DEFAULT_STANDARD_PERMISSIONS;
+      assignedPermissions = requested.filter((p) => !RESTRICTED_ADMIN_PERMISSIONS.includes(p));
+      if (assignedPermissions.length === 0) {
+        assignedPermissions = [...DEFAULT_STANDARD_PERMISSIONS];
+      }
+    }
 
     if (isDbConnected()) {
       const existingUser = await User.findOne({ username: cleanUsername });
@@ -320,8 +352,8 @@ export const createUser = async (req, res, next) => {
       const newUser = new User({
         username: cleanUsername,
         fullName: fullName.trim(),
-        role: role === 'admin' ? 'admin' : 'user',
-        permissions: Array.isArray(permissions) ? permissions : [],
+        role: cleanRole,
+        permissions: assignedPermissions,
         isActive: isActive !== false,
       });
 
@@ -352,8 +384,8 @@ export const createUser = async (req, res, next) => {
       fullName: fullName.trim(),
       passwordHash: hash,
       salt,
-      role: role === 'admin' ? 'admin' : 'user',
-      permissions: Array.isArray(permissions) ? permissions : [],
+      role: cleanRole,
+      permissions: assignedPermissions,
       isActive: isActive !== false,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -398,8 +430,20 @@ export const updateUser = async (req, res, next) => {
       }
 
       if (fullName) user.fullName = fullName.trim();
-      if (role && ['admin', 'user'].includes(role)) user.role = role;
-      if (Array.isArray(permissions)) user.permissions = permissions;
+      const updatedRole = role && ['admin', 'user'].includes(role) ? role : user.role;
+      user.role = updatedRole;
+
+      if (Array.isArray(permissions)) {
+        if (updatedRole === 'admin') {
+          user.permissions = SYSTEM_PERMISSIONS.map((p) => p.id);
+        } else {
+          const filtered = permissions.filter((p) => !RESTRICTED_ADMIN_PERMISSIONS.includes(p));
+          user.permissions = filtered.length > 0 ? filtered : [...DEFAULT_STANDARD_PERMISSIONS];
+        }
+      } else if (updatedRole === 'user' && Array.isArray(user.permissions)) {
+        user.permissions = user.permissions.filter((p) => !RESTRICTED_ADMIN_PERMISSIONS.includes(p));
+      }
+
       if (typeof isActive === 'boolean') user.isActive = isActive;
       if (password && password.trim().length >= 4) {
         user.setPassword(password.trim());
@@ -424,8 +468,20 @@ export const updateUser = async (req, res, next) => {
     }
 
     if (fullName) memUser.fullName = fullName.trim();
-    if (role && ['admin', 'user'].includes(role)) memUser.role = role;
-    if (Array.isArray(permissions)) memUser.permissions = permissions;
+    const updatedMemRole = role && ['admin', 'user'].includes(role) ? role : memUser.role;
+    memUser.role = updatedMemRole;
+
+    if (Array.isArray(permissions)) {
+      if (updatedMemRole === 'admin') {
+        memUser.permissions = SYSTEM_PERMISSIONS.map((p) => p.id);
+      } else {
+        const filtered = permissions.filter((p) => !RESTRICTED_ADMIN_PERMISSIONS.includes(p));
+        memUser.permissions = filtered.length > 0 ? filtered : [...DEFAULT_STANDARD_PERMISSIONS];
+      }
+    } else if (updatedMemRole === 'user' && Array.isArray(memUser.permissions)) {
+      memUser.permissions = memUser.permissions.filter((p) => !RESTRICTED_ADMIN_PERMISSIONS.includes(p));
+    }
+
     if (typeof isActive === 'boolean') memUser.isActive = isActive;
     if (password && password.trim().length >= 4) {
       const { hash, salt } = hashPasswordHelper(password.trim());

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirm } from '../../context/ConfirmContext';
 import api from '../../services/api';
 import './Damage.css';
 
@@ -14,6 +15,7 @@ import './Damage.css';
  */
 function Damage() {
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   // Top ERP Menubar navigation state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -350,11 +352,14 @@ function Damage() {
   // ==========================================================
 
   // 1. New Button
-  const handleNew = () => {
+  const handleNew = async () => {
     if (tableItems.length > 0 && !isSavedRecord) {
-      const confirmDiscard = window.confirm(
-        'The current damage record has unsaved items. Start a new record and discard unsaved entries?'
-      );
+      const confirmDiscard = await confirm({
+        title: 'SOFAST POS - Discard Changes',
+        message: 'The current damage record has unsaved items. Start a new record and discard unsaved entries?',
+        icon: 'warning',
+        defaultFocus: 'yes',
+      });
       if (!confirmDiscard) return;
     }
 

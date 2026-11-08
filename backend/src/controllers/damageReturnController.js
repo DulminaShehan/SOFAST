@@ -9,6 +9,36 @@ import Supplier from '../models/Supplier.js';
 import Customer from '../models/Customer.js';
 
 /**
+ * Same-Day Return Policy Restriction:
+ * Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight).
+ * Once the system clock passes 12:00 AM (midnight), invoices created on previous days must be locked from being returned.
+ * Check: InvoiceDate.Date == CurrentDate.Date
+ */
+export const isSameCalendarDay = (invoiceDate, currentDate = new Date()) => {
+  if (!invoiceDate) return false;
+  const inv = new Date(invoiceDate);
+  const now = new Date(currentDate);
+
+  if (isNaN(inv.getTime()) || isNaN(now.getTime())) return false;
+
+  const isSameLocalDate = (
+    inv.getFullYear() === now.getFullYear() &&
+    inv.getMonth() === now.getMonth() &&
+    inv.getDate() === now.getDate()
+  );
+
+  const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  let invDateStr = '';
+  if (typeof invoiceDate === 'string' && invoiceDate.length >= 10) {
+    invDateStr = invoiceDate.slice(0, 10);
+  } else {
+    invDateStr = `${inv.getFullYear()}-${String(inv.getMonth() + 1).padStart(2, '0')}-${String(inv.getDate()).padStart(2, '0')}`;
+  }
+
+  return isSameLocalDate || invDateStr === localTodayStr;
+};
+
+/**
  * Get next sequential return number (e.g. CDR-0001)
  */
 export const getNextReturnNumber = async (req, res, next) => {
@@ -121,6 +151,18 @@ export const getInvoiceForReturn = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: `Invoice '${cleanInv}' not found`,
+      });
+    }
+
+    // Same-Day Return Policy Restriction:
+    // Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight).
+    // Once the system clock passes 12:00 AM (midnight), invoices created on previous days must be locked from being returned.
+    const invoiceDateVal = invoice.date || invoice.createdAt;
+    if (!isSameCalendarDay(invoiceDateVal)) {
+      return res.status(400).json({
+        success: false,
+        sameDayPolicyViolated: true,
+        message: 'Returns can only be processed on the date of purchase (before midnight). This invoice is no longer eligible for return.',
       });
     }
 
@@ -424,6 +466,16 @@ export const createCustomerDamageReturn = async (req, res, next) => {
     });
     if (!invoice) {
       return res.status(404).json({ success: false, message: `Invoice '${cleanInv}' does not exist` });
+    }
+
+    // Same-Day Return Policy Restriction:
+    const invoiceDateVal = invoice.date || invoice.createdAt;
+    if (!isSameCalendarDay(invoiceDateVal)) {
+      return res.status(400).json({
+        success: false,
+        sameDayPolicyViolated: true,
+        message: 'Returns can only be processed on the date of purchase (before midnight). This invoice is no longer eligible for return.',
+      });
     }
 
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import './CustomerMaster.css';
 
 /**
@@ -12,6 +13,7 @@ import './CustomerMaster.css';
 function CustomerMaster() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { confirm } = useConfirm();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState('master-files');
@@ -336,9 +338,12 @@ function CustomerMaster() {
     }
 
     const customerName = formData.name || formData.code;
-    const confirmDel = window.confirm(
-      `Are you sure you want to delete Customer '${formData.code} - ${customerName}'?\n\nIMPORTANT: Customers with active sales invoices, payments, settlements, or outstanding balances cannot be deleted.`
-    );
+    const confirmDel = await confirm({
+      title: 'SOFAST POS - Delete Customer',
+      message: `Are you sure you want to delete Customer '${formData.code} - ${customerName}'?\n\nIMPORTANT: Customers with active sales invoices, payments, settlements, or outstanding balances cannot be deleted.`,
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
     if (!confirmDel) return;
 
     try {

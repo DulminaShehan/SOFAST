@@ -57,6 +57,17 @@ function InvoiceReportView({ onNavigateTab }) {
   const [printReceiptOpen, setPrintReceiptOpen] = useState(false);
   const [printInvoiceData, setPrintInvoiceData] = useState(null);
 
+  // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+  // Applied exclusively to print preview and physical print layout without altering database order
+  const sortedPrintLineItems = useMemo(() => {
+    if (!printInvoiceData?.lineItems) return [];
+    return [...printInvoiceData.lineItems].sort((a, b) => {
+      const nameA = (a.description || a.name || a.itemName || a.itemCode || a.code || '').trim();
+      const nameB = (b.description || b.name || b.itemName || b.itemCode || b.code || '').trim();
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
+    });
+  }, [printInvoiceData]);
+
   // Fetch Report Data from Backend
   const fetchInvoiceReport = useCallback(async () => {
     try {
@@ -929,7 +940,7 @@ function InvoiceReportView({ onNavigateTab }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(printInvoiceData.lineItems || []).map((li, i) => (
+                    {sortedPrintLineItems.map((li, i) => (
                       <tr key={i}>
                         <td style={{ maxWidth: '32mm', overflow: 'hidden' }}>{li.description || li.itemCode}</td>
                         <td style={{ textAlign: 'right' }}>{li.quantity}</td>
@@ -1024,7 +1035,7 @@ function InvoiceReportView({ onNavigateTab }) {
                 </tr>
               </thead>
               <tbody>
-                {(printInvoiceData.lineItems || []).map((li, i) => (
+                {sortedPrintLineItems.map((li, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
                     <td style={{ padding: '6px' }}>{i + 1}</td>
                     <td style={{ padding: '6px' }}>{li.itemCode || li.code}</td>

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import './SettlementInvoice.css';
 
 /**
@@ -15,6 +16,7 @@ function SettlementInvoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAdmin } = useAuth();
+  const { confirm } = useConfirm();
 
   // Top Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -473,6 +475,19 @@ function SettlementInvoice() {
         setSelectedSettlementId(null);
         setCalculatedState(null);
         setIsCalculated(false);
+
+        // Prompt: "Do you wish to print this settlement receipt?" (Standard Windows Yes/No dialog)
+        setTimeout(async () => {
+          const shouldPrint = await confirm({
+            title: 'SOFAST POS - Print Settlement',
+            message: 'Do you wish to print this settlement receipt?',
+            icon: 'print',
+            defaultFocus: 'yes',
+          });
+          if (shouldPrint) {
+            handlePrintReceipt();
+          }
+        }, 150);
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to save Settlement';
@@ -490,9 +505,12 @@ function SettlementInvoice() {
       return;
     }
 
-    const confirmDel = window.confirm(
-      'Are you sure you want to delete this settlement record? The amount will be restored to the invoice balance.'
-    );
+    const confirmDel = await confirm({
+      title: 'SOFAST POS - Delete Settlement',
+      message: 'Are you sure you want to delete this settlement record? The amount will be restored to the invoice balance.',
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
     if (!confirmDel) return;
 
     try {
@@ -557,70 +575,79 @@ function SettlementInvoice() {
   });
 
   // Reusable Compact Thermal Receipt Component
-  const renderThermalReceiptContent = () => (
-    <div className="thermal-receipt">
-      <div className="thermal-receipt-header">
-        <div className="thermal-receipt-title">SOFA ST (PVT) LTD</div>
-        <div className="thermal-receipt-subtitle">Dealer for David Peris Motor Company</div>
-        <div className="thermal-receipt-address">7E, MADDE GODA ROAD, MATHUGAMA</div>
-        <div className="thermal-receipt-address">034-2210680, 074-0295088</div>
-      </div>
+  const renderThermalReceiptContent = () => {
+    // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+    // Applied exclusively to print preview and physical print layout without altering database order
+    const sortedPrintLineItems = [...displayLineItems].sort((a, b) => {
+      const nameA = (a.description || a.name || a.itemName || (a.jobType === 'Labour' || a.isService ? 'Delivery Charge' : '') || a.code || a.itemCode || '').trim();
+      const nameB = (b.description || b.name || b.itemName || (b.jobType === 'Labour' || b.isService ? 'Delivery Charge' : '') || b.code || b.itemCode || '').trim();
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
+    });
 
-      <div className="thermal-receipt-dashed"></div>
+    return (
+      <div className="thermal-receipt">
+        <div className="thermal-receipt-header">
+          <div className="thermal-receipt-title">SOFA ST (PVT) LTD</div>
+          <div className="thermal-receipt-subtitle">Dealer for David Peris Motor Company</div>
+          <div className="thermal-receipt-address">7E, MADDE GODA ROAD, MATHUGAMA</div>
+          <div className="thermal-receipt-address">034-2210680, 074-0295088</div>
+        </div>
 
-      <div className="thermal-receipt-meta">
-        <div className="thermal-receipt-meta-row">
-          <span>Date: {invoiceDate}</span>
-          <span>Time: {currentTime}</span>
-        </div>
-        <div className="thermal-receipt-meta-row">
-          <span>Inv No: {selectedInvoiceNumber || '-'}</span>
-          <span>User: {cashierUser}</span>
-        </div>
-        {customerName && (
+        <div className="thermal-receipt-dashed"></div>
+
+        <div className="thermal-receipt-meta">
           <div className="thermal-receipt-meta-row">
-            <span>Customer: {customerName}</span>
+            <span>Date: {invoiceDate}</span>
+            <span>Time: {currentTime}</span>
           </div>
-        )}
-      </div>
+          <div className="thermal-receipt-meta-row">
+            <span>Inv No: {selectedInvoiceNumber || '-'}</span>
+            <span>User: {cashierUser}</span>
+          </div>
+          {customerName && (
+            <div className="thermal-receipt-meta-row">
+              <span>Customer: {customerName}</span>
+            </div>
+          )}
+        </div>
 
-      <div className="thermal-receipt-dashed"></div>
+        <div className="thermal-receipt-dashed"></div>
 
-      {/* Items Table */}
-      <table className="thermal-receipt-table">
-        <thead>
-          <tr>
-            <th className="thermal-th-item" style={{ textAlign: 'left' }}>Item</th>
-            <th className="thermal-th-qtyrate" style={{ textAlign: 'right' }}>Qty x Rate</th>
-            <th className="thermal-th-amount" style={{ textAlign: 'right' }}>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {displayLineItems.length === 0 ? (
+        {/* Items Table */}
+        <table className="thermal-receipt-table">
+          <thead>
             <tr>
-              <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '2px 0' }}>
-                No line items
-              </td>
+              <th className="thermal-th-item" style={{ textAlign: 'left' }}>Item</th>
+              <th className="thermal-th-qtyrate" style={{ textAlign: 'right' }}>Qty x Rate</th>
+              <th className="thermal-th-amount" style={{ textAlign: 'right' }}>Amount</th>
             </tr>
-          ) : (
-            displayLineItems.map((li, idx) => (
-              <tr key={idx} className="thermal-tr-item">
-                <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
-                  {li.jobType === 'Labour' || li.isService
-                    ? (li.description || 'Delivery Charge')
-                    : `${li.code || li.itemCode ? `${li.code || li.itemCode} - ` : ''}${li.description || ''}`}
-                </td>
-                <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  {Number(li.quantity || li.qty || 1).toFixed(2)} x {Number(li.price || li.unitPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td className="thermal-td-amount" style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                  {Number(li.value || (li.price * li.quantity) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </thead>
+          <tbody>
+            {sortedPrintLineItems.length === 0 ? (
+              <tr>
+                <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '2px 0' }}>
+                  No line items
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              sortedPrintLineItems.map((li, idx) => (
+                <tr key={idx} className="thermal-tr-item">
+                  <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
+                    {li.jobType === 'Labour' || li.isService
+                      ? (li.description || 'Delivery Charge')
+                      : `${li.code || li.itemCode ? `${li.code || li.itemCode} - ` : ''}${li.description || ''}`}
+                  </td>
+                  <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {Number(li.quantity || li.qty || 1).toFixed(2)} x {Number(li.price || li.unitPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="thermal-td-amount" style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                    {Number(li.value || (li.price * li.quantity) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
 
       <div className="thermal-receipt-dashed"></div>
 
@@ -679,6 +706,7 @@ function SettlementInvoice() {
       </div>
     </div>
   );
+};
 
   // Settlement History Summary Totals
   const totalSettledAmount = round2(settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0));

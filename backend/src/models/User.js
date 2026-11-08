@@ -2,6 +2,14 @@ import mongoose from 'mongoose';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
+// Default authorized operational permissions for standard/cashier users
+export const DEFAULT_STANDARD_PERMISSIONS = [
+  'invoice',
+  'settlement-invoice',
+  'remaining-balance',
+  'customer-details',
+];
+
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -32,15 +40,17 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
+      enum: ['admin', 'user'],
       default: 'user',
     },
     type: {
       type: String,
+      enum: ['admin', 'user'],
       default: 'user',
     },
     permissions: {
       type: mongoose.Schema.Types.Mixed,
-      default: [],
+      default: () => [...DEFAULT_STANDARD_PERMISSIONS],
     },
     isActive: {
       type: Boolean,
@@ -127,6 +137,16 @@ userSchema.methods.toSafeJSON = function () {
     normalizedPermissions = this.permissions;
   } else if (this.permissions && Array.isArray(this.permissions.pages)) {
     normalizedPermissions = this.permissions.pages;
+  }
+
+  // Enforce RBAC: Non-admin users are strictly restricted to operational modules only
+  // Administrative and configuration keys are completely stripped for standard users
+  if (resolvedRole !== 'admin') {
+    const RESTRICTED_ADMIN_KEYS = ['printer-setup', 'new-user', 'user-management', 'administration'];
+    normalizedPermissions = normalizedPermissions.filter((p) => !RESTRICTED_ADMIN_KEYS.includes(p));
+    if (normalizedPermissions.length === 0) {
+      normalizedPermissions = [...DEFAULT_STANDARD_PERMISSIONS];
+    }
   }
 
   return {

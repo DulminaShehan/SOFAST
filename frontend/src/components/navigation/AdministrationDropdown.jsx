@@ -7,27 +7,26 @@ import { useAuth } from '../../context/AuthContext';
  * - New User (shown ONLY for Administrators)
  */
 function AdministrationDropdown({ onItemClick, activePath = '' }) {
-  const { isAdmin, hasPermission } = useAuth();
+  const { isAdmin } = useAuth();
+
+  if (!isAdmin) {
+    return null;
+  }
 
   const adminItems = [
     {
       id: 'printer-setup',
       label: 'Printer Setup',
       path: '/printer-setup',
-      permitted: hasPermission('printer-setup'),
+      permitted: true,
     },
-    // New User: strictly restricted to Administrators
-    ...(isAdmin
-      ? [
-          {
-            id: 'new-user',
-            label: 'New User',
-            path: '/new-user',
-            permitted: true,
-            badge: 'Admin Only',
-          },
-        ]
-      : []),
+    {
+      id: 'new-user',
+      label: 'New User',
+      path: '/new-user',
+      permitted: true,
+      badge: 'Admin Only',
+    },
   ];
 
   const visibleItems = adminItems.filter((item) => item.permitted);

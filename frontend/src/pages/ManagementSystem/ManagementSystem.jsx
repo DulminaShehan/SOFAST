@@ -335,43 +335,41 @@ function ManagementSystem({ defaultModule }) {
     },
   ];
 
-  const administrationItems = [
-    {
-      id: 'printer-setup',
-      label: 'Printer Setup',
-      path: '/printer-setup',
-      iconColor: '#2563eb',
-      badgeBg: '#dbeafe',
-      description: 'Configure POS thermal printers, A4 report printers, and default printing hardware.',
-      renderIcon: (size = 20) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 6 2 18 2 18 9" />
-          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-          <rect x="6" y="14" width="12" height="8" />
-        </svg>
-      ),
-    },
-    ...(isAdmin
-      ? [
-          {
-            id: 'new-user',
-            label: 'New User',
-            path: '/new-user',
-            iconColor: '#f59e0b',
-            badgeBg: '#fef3c7',
-            description: 'Create user accounts, set login credentials, and configure page access permissions.',
-            renderIcon: (size = 20) => (
-              <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="8.5" cy="7" r="4" />
-                <line x1="20" y1="8" x2="20" y2="14" />
-                <line x1="23" y1="11" x2="17" y2="11" />
-              </svg>
-            ),
-          },
-        ]
-      : []),
-  ];
+  const administrationItems = isAdmin
+    ? [
+        {
+          id: 'printer-setup',
+          label: 'Printer Setup',
+          path: '/printer-setup',
+          iconColor: '#2563eb',
+          badgeBg: '#dbeafe',
+          description: 'Configure POS thermal printers, A4 report printers, and default printing hardware.',
+          renderIcon: (size = 20) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+          ),
+        },
+        {
+          id: 'new-user',
+          label: 'New User',
+          path: '/new-user',
+          iconColor: '#f59e0b',
+          badgeBg: '#fef3c7',
+          description: 'Create user accounts, set login credentials, and configure page access permissions.',
+          renderIcon: (size = 20) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="8.5" cy="7" r="4" />
+              <line x1="20" y1="8" x2="20" y2="14" />
+              <line x1="23" y1="11" x2="17" y2="11" />
+            </svg>
+          ),
+        },
+      ]
+    : [];
 
   const approvementItems = [
     {
@@ -624,7 +622,9 @@ function ManagementSystem({ defaultModule }) {
     { id: 'approvement', label: 'Approvement', hasDropdown: true, description: 'Payment vouchers, petty cash claims, and employee leave authorization.' },
     { id: 'reports', label: 'Reports', hasDropdown: true, path: '/reports', description: 'Financial, inventory, sales, audit and alternative product reporting.' },
     { id: 'accounting', label: 'Accounting', description: 'General ledger, accounts receivable, payable and banking.' },
-    { id: 'administration', label: 'Administration', hasDropdown: true, description: 'System configuration, user permissions, printer setup and audit logs.' },
+    ...(isAdmin
+      ? [{ id: 'administration', label: 'Administration', hasDropdown: true, description: 'System configuration, user permissions, printer setup and audit logs.' }]
+      : []),
   ];
 
   // Close dropdown on outside click

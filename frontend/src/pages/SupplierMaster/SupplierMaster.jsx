@@ -4,6 +4,7 @@ import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import './SupplierMaster.css';
 import '../ManagementSystem/ManagementSystem.css';
 
@@ -14,6 +15,7 @@ import '../ManagementSystem/ManagementSystem.css';
  */
 function SupplierMaster() {
   const { isAdmin } = useAuth();
+  const { confirm } = useConfirm();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -166,7 +168,12 @@ function SupplierMaster() {
   // 1. Button: New
   const handleNew = async () => {
     if (isDirty) {
-      const confirmDiscard = window.confirm('Discard unsaved changes?');
+      const confirmDiscard = await confirm({
+        title: 'SOFAST POS - Discard Changes',
+        message: 'Discard unsaved changes and start a new supplier entry?',
+        icon: 'warning',
+        defaultFocus: 'yes',
+      });
       if (!confirmDiscard) return;
     }
     await fetchNextCode();
@@ -178,7 +185,12 @@ function SupplierMaster() {
   // 4. Button: Cancel
   const handleCancel = async () => {
     if (isDirty) {
-      const confirmDiscard = window.confirm('Discard changes and restore form?');
+      const confirmDiscard = await confirm({
+        title: 'SOFAST POS - Discard Changes',
+        message: 'Discard changes and restore form?',
+        icon: 'warning',
+        defaultFocus: 'yes',
+      });
       if (!confirmDiscard) return;
     }
     await fetchNextCode();
@@ -242,9 +254,12 @@ function SupplierMaster() {
       return;
     }
 
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete supplier '${formData.name}' (${formData.code})?`
-    );
+    const confirmDelete = await confirm({
+      title: 'SOFAST POS - Delete Supplier',
+      message: `Are you sure you want to delete supplier '${formData.name}' (${formData.code})?`,
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
 
     if (!confirmDelete) return;
 
@@ -262,9 +277,14 @@ function SupplierMaster() {
   };
 
   // 5. Lower panel row selection
-  const handleRowClick = (supplier) => {
+  const handleRowClick = async (supplier) => {
     if (isDirty) {
-      const confirmDiscard = window.confirm('Discard unsaved changes and load selected supplier?');
+      const confirmDiscard = await confirm({
+        title: 'SOFAST POS - Discard Changes',
+        message: 'Discard unsaved changes and load selected supplier?',
+        icon: 'warning',
+        defaultFocus: 'yes',
+      });
       if (!confirmDiscard) return;
     }
 
@@ -281,9 +301,14 @@ function SupplierMaster() {
   };
 
   // Window Close
-  const handleClose = () => {
+  const handleClose = async () => {
     if (isDirty) {
-      const confirmClose = window.confirm('Close Supplier Master File? Unsaved changes will be discarded.');
+      const confirmClose = await confirm({
+        title: 'SOFAST POS - Exit Confirmation',
+        message: 'Close Supplier Master File? Unsaved changes will be discarded.',
+        icon: 'warning',
+        defaultFocus: 'no',
+      });
       if (!confirmClose) return;
     }
     navigate('/management');

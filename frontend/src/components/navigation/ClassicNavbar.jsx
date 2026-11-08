@@ -12,74 +12,116 @@ function ClassicNavbar({ activeMenu = '', className = '' }) {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
-  const { currentUser, isAdmin, logout } = useAuth();
+  const { currentUser, isAdmin, hasPermission, logout } = useAuth();
 
   const topMenuItems = [
-    { id: 'master-files', label: 'Master Files', hasDropdown: true, defaultPath: '/management' },
-    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, defaultPath: '/grn' },
-    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true, defaultPath: '/invoice' },
-    { id: 'approvement', label: 'Approvement', hasDropdown: true, defaultPath: '/approvement' },
-    { id: 'reports', label: 'Reports', hasDropdown: true, defaultPath: '/reports' },
-    { id: 'accounting', label: 'Accounting', path: '/management' },
-    { id: 'administration', label: 'Administration', hasDropdown: true, defaultPath: '/printer-setup' },
-  ];
+    {
+      id: 'master-files',
+      label: 'Master Files',
+      hasDropdown: true,
+      defaultPath: '/management',
+      permitted: isAdmin || hasPermission('item-master') || hasPermission('supplier-master') || hasPermission('customer-details') || hasPermission('alternative-product'),
+    },
+    {
+      id: 'stock-control',
+      label: 'Stock Control System',
+      hasDropdown: true,
+      defaultPath: '/grn',
+      permitted: isAdmin || hasPermission('grn') || hasPermission('good-return-note') || hasPermission('damage'),
+    },
+    {
+      id: 'sales-service',
+      label: 'Sales and Service',
+      hasDropdown: true,
+      defaultPath: '/invoice',
+      permitted: true,
+    },
+    {
+      id: 'approvement',
+      label: 'Approvement',
+      hasDropdown: true,
+      defaultPath: '/approvement',
+      permitted: isAdmin || hasPermission('payment-voucher') || hasPermission('petty-cash') || hasPermission('leave-request'),
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      hasDropdown: true,
+      defaultPath: '/reports',
+      permitted: isAdmin || hasPermission('reports'),
+    },
+    {
+      id: 'accounting',
+      label: 'Accounting',
+      path: '/management',
+      permitted: isAdmin || hasPermission('accounting'),
+    },
+    // Administration is strictly hidden from non-admin accounts
+    ...(isAdmin
+      ? [{ id: 'administration', label: 'Administration', hasDropdown: true, defaultPath: '/printer-setup', permitted: true }]
+      : []),
+  ].filter((item) => item.permitted !== false);
 
-  const reportsDropdownItems = [
-    { id: 'reports-dashboard', label: '📊 Reports Dashboard', path: '/reports?tab=dashboard', badge: 'New' },
-    { id: 'invoice-report', label: '🧾 Invoice Report (All Invoices)', path: '/reports?tab=invoices', badge: 'New' },
-    { id: 'stock-report', label: '📋 Stock Report', path: '/reports?tab=stock_report', badge: 'New' },
-    { id: 'daily-settlements', label: '💰 Daily Settlements Details', path: '/reports?tab=settlements' },
-    { id: 'grn-report', label: '📥 Goods Received Notes (GRN)', path: '/reports?tab=grn' },
-    { id: 'invoice-returns', label: '🔄 Invoice Returns Report', path: '/reports?tab=invoice_returns' },
-    { id: 'daily-sales', label: '📈 Daily Sales & Profit Report', path: '/reports?tab=daily_sales' },
-    { id: 'closing-stock', label: '📦 Closing Stock Report (170-Page Inventory)', path: '/reports?tab=closing_stock' },
-    { id: 'alternative-products', label: '🔄 Alternative Products Report', path: '/reports?tab=alternative_products' },
-    { id: 'supplier-purchases', label: '🚚 Supplier Wise Purchases', path: '/reports?tab=supplier_purchases' },
-    { id: 'top-selling', label: '🔥 Top Selling Items Report', path: '/reports?tab=top_selling' },
-    { id: 'non-moving', label: '⏳ Non Moving Inventory Report', path: '/reports?tab=non_moving' },
-    { id: 'goods-return-notes', label: '↩️ Goods Return Notes (G.R.E.N.)', path: '/reports?tab=goods_return_notes' },
-    { id: 'open-reports-center', label: '📊 Open Reports Center', path: '/reports', badge: 'Hub' },
-  ];
+  const reportsDropdownItems = (isAdmin || hasPermission('reports'))
+    ? [
+        { id: 'reports-dashboard', label: '📊 Reports Dashboard', path: '/reports?tab=dashboard', badge: 'New' },
+        { id: 'invoice-report', label: '🧾 Invoice Report (All Invoices)', path: '/reports?tab=invoices', badge: 'New' },
+        { id: 'stock-report', label: '📋 Stock Report', path: '/reports?tab=stock_report', badge: 'New' },
+        { id: 'daily-settlements', label: '💰 Daily Settlements Details', path: '/reports?tab=settlements' },
+        { id: 'grn-report', label: '📥 Goods Received Notes (GRN)', path: '/reports?tab=grn' },
+        { id: 'invoice-returns', label: '🔄 Invoice Returns Report', path: '/reports?tab=invoice_returns' },
+        { id: 'daily-sales', label: '📈 Daily Sales & Profit Report', path: '/reports?tab=daily_sales' },
+        { id: 'closing-stock', label: '📦 Closing Stock Report (170-Page Inventory)', path: '/reports?tab=closing_stock' },
+        { id: 'alternative-products', label: '🔄 Alternative Products Report', path: '/reports?tab=alternative_products' },
+        { id: 'supplier-purchases', label: '🚚 Supplier Wise Purchases', path: '/reports?tab=supplier_purchases' },
+        { id: 'top-selling', label: '🔥 Top Selling Items Report', path: '/reports?tab=top_selling' },
+        { id: 'non-moving', label: '⏳ Non Moving Inventory Report', path: '/reports?tab=non_moving' },
+        { id: 'goods-return-notes', label: '↩️ Goods Return Notes (G.R.E.N.)', path: '/reports?tab=goods_return_notes' },
+        { id: 'open-reports-center', label: '📊 Open Reports Center', path: '/reports', badge: 'Hub' },
+      ]
+    : [];
 
   const masterFilesDropdownItems = [
-    { id: 'master-files-hub', label: '📁 Master Files (Main Hub)', path: '/management', badge: 'Hub' },
-    { id: 'item-master', label: '📦 Item Master', path: '/item-master' },
-    { id: 'supplier-master', label: '🚚 Supplier Master', path: '/supplier-master' },
-    { id: 'customer-details', label: '👥 Customer Details', path: '/customer-details' },
-    { id: 'alternative-product', label: '🔄 Alternative Product', path: '/alternative-product' },
-  ];
+    ...(isAdmin ? [{ id: 'master-files-hub', label: '📁 Master Files (Main Hub)', path: '/management', badge: 'Hub' }] : []),
+    { id: 'item-master', label: '📦 Item Master', path: '/item-master', permKey: 'item-master' },
+    { id: 'supplier-master', label: '🚚 Supplier Master', path: '/supplier-master', permKey: 'supplier-master' },
+    { id: 'customer-details', label: '👥 Customer Details', path: '/customer-details', permKey: 'customer-details' },
+    { id: 'alternative-product', label: '🔄 Alternative Product', path: '/alternative-product', permKey: 'alternative-product' },
+  ].filter((item) => isAdmin || !item.permKey || hasPermission(item.permKey));
 
   const stockControlDropdownItems = [
-    { id: 'stock-control-hub', label: '📦 Stock Control (Overview)', path: '/grn', badge: 'Hub' },
-    { id: 'good-receive-note', label: '📥 Good Receive Note (GRN)', path: '/grn' },
-    { id: 'good-return-note', label: '↩️ Good Return Note (GREN)', path: '/good-return-note' },
-    { id: 'damage', label: '⚠️ Damage', path: '/damage' },
-  ];
+    ...(isAdmin ? [{ id: 'stock-control-hub', label: '📦 Stock Control (Overview)', path: '/grn', badge: 'Hub' }] : []),
+    { id: 'good-receive-note', label: '📥 Good Receive Note (GRN)', path: '/grn', permKey: 'grn' },
+    { id: 'good-return-note', label: '↩️ Good Return Note (GREN)', path: '/good-return-note', permKey: 'good-return-note' },
+    { id: 'damage', label: '⚠️ Damage', path: '/damage', permKey: 'damage' },
+  ].filter((item) => isAdmin || !item.permKey || hasPermission(item.permKey));
 
   const salesServiceDropdownItems = [
-    { id: 'sales-service-hub', label: '🧾 Sales & Service (Overview)', path: '/invoice', badge: 'Hub' },
-    { id: 'create-invoice', label: '🧾 Create Invoice', path: '/invoice' },
-    { id: 'manual-invoice', label: '📝 Manual Invoice', path: '/manual-invoice' },
-    { id: 'settlement-invoice', label: '💰 Settlement Invoice', path: '/settlement-invoice' },
-    { id: 'remaining-balance', label: '⚖️ Remaining Balance', path: '/remaining-balance' },
-  ];
+    ...(isAdmin ? [{ id: 'sales-service-hub', label: '🧾 Sales & Service (Overview)', path: '/invoice', badge: 'Hub' }] : []),
+    { id: 'create-invoice', label: '🧾 Create Invoice', path: '/invoice', permKey: 'invoice' },
+    { id: 'manual-invoice', label: '📝 Manual Invoice', path: '/manual-invoice', permKey: 'invoice' },
+    { id: 'settlement-invoice', label: '💰 Settlement Invoice', path: '/settlement-invoice', permKey: 'settlement-invoice' },
+    { id: 'remaining-balance', label: '⚖️ Remaining Balance', path: '/remaining-balance', permKey: 'remaining-balance' },
+    { id: 'invoice-return', label: '🔄 Invoice Return / Exchange', path: '/invoice-return', permKey: 'invoice' },
+  ].filter((item) => isAdmin || !item.permKey || hasPermission(item.permKey));
 
   const approvementDropdownItems = [
-    { id: 'approvement-hub', label: '🛡️ Approvement System (Overview)', path: '/approvement', badge: 'Hub' },
-    { id: 'payment-voucher', label: '💳 Payment Voucher', path: '/payment-voucher' },
-    { id: 'petty-cash', label: '💵 Petty Cash', path: '/petty-cash' },
-    { id: 'leave-request', label: '📝 Leave Request', path: '/leave-request' },
+    ...(isAdmin ? [{ id: 'approvement-hub', label: '🛡️ Approvement System (Overview)', path: '/approvement', badge: 'Hub' }] : []),
+    { id: 'payment-voucher', label: '💳 Payment Voucher', path: '/payment-voucher', permKey: 'payment-voucher' },
+    { id: 'petty-cash', label: '💵 Petty Cash', path: '/petty-cash', permKey: 'petty-cash' },
+    { id: 'leave-request', label: '📝 Leave Request', path: '/leave-request', permKey: 'leave-request' },
     ...(isAdmin
       ? [{ id: 'receive-inbox', label: '📥 Admin Receive Inbox', path: '/receive-inbox', badge: 'Admin' }]
       : []),
-  ];
+  ].filter((item) => isAdmin || !item.permKey || hasPermission(item.permKey));
 
-  const administrationDropdownItems = [
-    { id: 'printer-setup', label: '🖨️ Printer Setup', path: '/printer-setup' },
-    ...(isAdmin
-      ? [{ id: 'new-user', label: '👤 New User & Permissions', path: '/new-user', badge: 'Admin' }]
-      : []),
-  ];
+  // Administration dropdown is strictly empty for non-admin accounts
+  const administrationDropdownItems = isAdmin
+    ? [
+        { id: 'printer-setup', label: '🖨️ Printer Setup', path: '/printer-setup' },
+        { id: 'new-user', label: '👤 New User & Permissions', path: '/new-user', badge: 'Admin' },
+      ]
+    : [];
 
   // Close dropdown on outside click or Escape key
   useEffect(() => {

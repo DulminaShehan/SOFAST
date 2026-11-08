@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import { useAuth, SYSTEM_MODULES } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
 import './NewUser.css';
@@ -12,6 +13,7 @@ import './NewUser.css';
  */
 function NewUser() {
   const { currentUser, isAdmin, switchUser } = useAuth();
+  const { confirm } = useConfirm();
   const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
@@ -37,8 +39,13 @@ function NewUser() {
   const [showPassword, setShowPassword] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
-  // Categorize system permissions for the matrix
+  // Categorize system permissions for the matrix (strictly operational modules only)
+  // Administration section & hardware configuration settings are strictly restricted to Administrators
   const permissionCategories = [
+    {
+      name: 'Sales and Service (Primary POS Operations)',
+      keys: ['invoice', 'settlement-invoice', 'remaining-balance'],
+    },
     {
       name: 'Master Files',
       keys: ['item-master', 'supplier-master', 'customer-details', 'alternative-product'],
@@ -46,14 +53,6 @@ function NewUser() {
     {
       name: 'Stock Control System',
       keys: ['grn', 'good-return-note', 'damage'],
-    },
-    {
-      name: 'Sales and Service',
-      keys: ['invoice', 'settlement-invoice', 'remaining-balance'],
-    },
-    {
-      name: 'Administration',
-      keys: ['printer-setup'],
     },
     {
       name: 'Approvement System',
@@ -130,11 +129,13 @@ function NewUser() {
       return;
     }
 
-    if (
-      !window.confirm(
-        `Are you sure you want to permanently delete user "${user.username}" (${user.fullName})?`
-      )
-    ) {
+    const ok = await confirm({
+      title: 'SOFAST POS - Delete User',
+      message: `Are you sure you want to permanently delete user "${user.username}" (${user.fullName})?`,
+      icon: 'warning',
+      defaultFocus: 'yes',
+    });
+    if (!ok) {
       return;
     }
 
@@ -185,8 +186,9 @@ function NewUser() {
   // Presets
   const applyPreset = (presetName) => {
     if (presetName === 'all') {
-      const allKeys = SYSTEM_MODULES.map((m) => m.id);
-      setFormData((prev) => ({ ...prev, permissions: allKeys }));
+      // Select all authorized operational modules (never admin/hardware config)
+      const operationalKeys = permissionCategories.flatMap((c) => c.keys);
+      setFormData((prev) => ({ ...prev, permissions: operationalKeys }));
     } else if (presetName === 'clear') {
       setFormData((prev) => ({ ...prev, permissions: [] }));
     } else if (presetName === 'cashier') {
@@ -233,11 +235,17 @@ function NewUser() {
 
     try {
       setFormSubmitting(true);
+      const RESTRICTED_ADMIN = ['printer-setup', 'new-user', 'user-management', 'administration'];
+      const sanitizedUserPerms = (formData.permissions || []).filter((p) => !RESTRICTED_ADMIN.includes(p));
+      const finalPerms = formData.role === 'admin'
+        ? SYSTEM_MODULES.map((m) => m.id)
+        : (sanitizedUserPerms.length > 0 ? sanitizedUserPerms : ['invoice', 'settlement-invoice', 'remaining-balance', 'customer-details']);
+
       if (isEditing) {
         const payload = {
           fullName: formData.fullName,
           role: formData.role,
-          permissions: formData.role === 'admin' ? SYSTEM_MODULES.map((m) => m.id) : formData.permissions,
+          permissions: finalPerms,
           isActive: formData.isActive,
         };
         if (formData.password && formData.password.trim()) {
@@ -256,7 +264,7 @@ function NewUser() {
           fullName: formData.fullName.trim(),
           password: formData.password.trim(),
           role: formData.role,
-          permissions: formData.role === 'admin' ? SYSTEM_MODULES.map((m) => m.id) : formData.permissions,
+          permissions: finalPerms,
           isActive: formData.isActive,
         };
 

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import './PrinterSetup.css';
 
 /**
@@ -11,6 +12,7 @@ import './PrinterSetup.css';
 function PrinterSetup() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { confirm } = useConfirm();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState('administration');
@@ -259,13 +261,18 @@ function PrinterSetup() {
   };
 
   // BUTTON: DELETE
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!formData.code) {
       showNotification('No printer selected to delete', 'error');
       return;
     }
 
-    const confirmDelete = window.confirm(`Are you sure you want to delete printer '${formData.code}'?`);
+    const confirmDelete = await confirm({
+      title: 'SOFAST POS - Delete Printer',
+      message: `Are you sure you want to delete printer '${formData.code}'?`,
+      icon: 'warning',
+      defaultFocus: 'yes',
+    });
     if (!confirmDelete) return;
 
     const filtered = printersList.filter((p) => p.code.toUpperCase() !== formData.code.trim().toUpperCase());
@@ -288,6 +295,58 @@ function PrinterSetup() {
       description: printer.description,
     });
   };
+
+  // Enforce Form-Load Access Control: Strictly block non-admin users from viewing or configuring printers
+  if (!isAdmin) {
+    return (
+      <div className="printer-setup-page">
+        <header className="printer-titlebar">
+          <div className="printer-titlebar-brand">
+            <svg className="printer-titlebar-car-icon" viewBox="0 0 24 24">
+              <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+            </svg>
+            <span className="printer-titlebar-heading">SOFAST Administration - Access Control</span>
+          </div>
+        </header>
+        <ClassicNavbar activeMenu="administration" />
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', padding: '24px' }}>
+          <div style={{
+            background: '#ffffff',
+            border: '2px solid #dc2626',
+            borderRadius: '6px',
+            padding: '36px 40px',
+            maxWidth: '520px',
+            textAlign: 'center',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '14px' }}>🔒</div>
+            <h2 style={{ color: '#b91c1c', margin: '0 0 12px 0', fontSize: '20px' }}>Access Denied</h2>
+            <p style={{ color: '#374151', fontSize: '13px', lineHeight: '1.6', margin: '0 0 24px 0' }}>
+              The <strong>Printer Setup & Hardware Configuration</strong> console is strictly restricted to
+              <strong> Administrators</strong>. Standard user accounts do not have permission to view,
+              modify, or manage printing hardware and system settings.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/invoice')}
+              style={{
+                background: '#0055ea',
+                color: '#ffffff',
+                border: 'none',
+                padding: '9px 24px',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Return to Billing / POS
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="printer-setup-page">
@@ -557,9 +616,14 @@ function PrinterSetup() {
                         className="printer-action-btn"
                         title="Delete Printer"
                         style={{ color: '#e81123', marginLeft: '6px' }}
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          const confirmDelete = window.confirm(`Are you sure you want to delete printer '${prn.code}'?`);
+                          const confirmDelete = await confirm({
+                            title: 'SOFAST POS - Delete Printer',
+                            message: `Are you sure you want to delete printer '${prn.code}'?`,
+                            icon: 'warning',
+                            defaultFocus: 'yes',
+                          });
                           if (confirmDelete) {
                             setPrintersList((prev) => prev.filter((p) => p.code !== prn.code));
                             if (selectedPrinterIndex === idx) handleNew();

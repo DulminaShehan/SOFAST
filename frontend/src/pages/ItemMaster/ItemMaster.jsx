@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import * as XLSX from 'xlsx';
+import { useConfirm } from '../../context/ConfirmContext';
 import './ItemMaster.css';
 
 // Window Icon (SVG data URI for classic window titlebar)
@@ -73,6 +74,7 @@ const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal
  * Recreates the exact 20-field Visual Basic SOFAST POS interface from the reference screenshot
  */
 function ItemMaster() {
+  const { confirm } = useConfirm();
   const [items, setItems] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -408,7 +410,12 @@ function ItemMaster() {
   // Button: New
   const handleNew = async () => {
     if (isDirty) {
-      const confirmDiscard = window.confirm('Discard unsaved changes?');
+      const confirmDiscard = await confirm({
+        title: 'SOFAST POS - Discard Changes',
+        message: 'Discard unsaved changes and start a new item entry?',
+        icon: 'warning',
+        defaultFocus: 'yes',
+      });
       if (!confirmDiscard) return;
     }
 
@@ -521,9 +528,12 @@ function ItemMaster() {
       return;
     }
 
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete item '${formData.description}' (${formData.code})?`
-    );
+    const confirmDelete = await confirm({
+      title: 'SOFAST POS - Delete Item',
+      message: `Are you sure you want to delete item '${formData.description}' (${formData.code})?`,
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
 
     if (!confirmDelete) return;
 
@@ -879,7 +889,14 @@ function ItemMaster() {
         : `• Existing Items: ${importPreviewSummary.existingCount} (Will be safely preserved / skipped)\n`) +
       `\nItems will be processed in safe batches of 500 records with progress tracking. Proceed?`;
 
-    if (!window.confirm(confirmMsg)) {
+    const confirmed = await confirm({
+      title: 'SOFAST POS - Confirm Bulk Import',
+      message: confirmMsg,
+      icon: 'question',
+      defaultFocus: 'yes',
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -1139,9 +1156,14 @@ function ItemMaster() {
   };
 
   // Row selection from lower grid
-  const handleRowClick = (item) => {
+  const handleRowClick = async (item) => {
     if (isDirty) {
-      const confirmDiscard = window.confirm('Discard unsaved changes and load selected item?');
+      const confirmDiscard = await confirm({
+        title: 'SOFAST POS - Discard Changes',
+        message: 'Discard unsaved changes and load selected item?',
+        icon: 'warning',
+        defaultFocus: 'yes',
+      });
       if (!confirmDiscard) return;
     }
 

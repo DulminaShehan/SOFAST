@@ -77,8 +77,17 @@ export function AuthProvider({ children }) {
   const hasPermission = (permissionId) => {
     if (!currentUser) return false;
 
-    // "New User" is strictly for Admin only
-    if (permissionId === 'new-user' || permissionId === 'administration/new-user') {
+    // All Administration section pages and settings are strictly restricted to Administrators only
+    if (
+      permissionId === 'administration' ||
+      permissionId === 'new-user' ||
+      permissionId === 'administration/new-user' ||
+      permissionId === 'admin/new-user' ||
+      permissionId === 'user-management' ||
+      permissionId === 'printer-setup' ||
+      permissionId === 'administration/printer-setup' ||
+      permissionId === 'admin/printer-setup'
+    ) {
       return isAdmin;
     }
 

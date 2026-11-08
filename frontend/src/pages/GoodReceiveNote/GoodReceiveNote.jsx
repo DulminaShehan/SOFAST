@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import './GoodReceiveNote.css';
 
 // Classic window icon
@@ -13,6 +14,7 @@ const windowIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'
  */
 function GoodReceiveNote() {
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -906,11 +908,15 @@ function GoodReceiveNote() {
     // Prompt user to choose between posting stock or saving as draft
     let willPost = isRecordPosted;
     if (!isRecordPosted) {
-      const confirmPost = window.confirm(
-        "Do you want to post this GRN to stock now?\n\n" +
-        "• Click 'OK' to Post to Stock (Stock increases immediately in Item Master & Sales Invoice)\n" +
-        "• Click 'Cancel' to Save as Draft (Stock will NOT change)"
-      );
+      const confirmPost = await confirm({
+        title: 'SOFAST POS - Post GRN to Stock',
+        message:
+          "Do you want to post this GRN to stock now?\n\n" +
+          "• Yes: Post to Stock immediately (Stock increases in Item Master & Sales Invoice)\n" +
+          "• No: Save as Draft without updating stock",
+        icon: 'question',
+        defaultFocus: 'yes',
+      });
       willPost = Boolean(confirmPost);
     }
 
@@ -1070,11 +1076,14 @@ function GoodReceiveNote() {
       return;
     }
 
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete GRN '${grnHeader.grnNumber}'?${
+    const confirmDelete = await confirm({
+      title: 'SOFAST POS - Delete GRN',
+      message: `Are you sure you want to delete GRN '${grnHeader.grnNumber}'?${
         isRecordPosted ? ' This will revert updated stock quantities!' : ''
-      }`
-    );
+      }`,
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
     if (!confirmDelete) return;
 
     try {

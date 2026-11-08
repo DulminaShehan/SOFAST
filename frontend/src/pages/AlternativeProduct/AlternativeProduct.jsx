@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import './AlternativeProduct.css';
 
 /**
@@ -13,6 +14,7 @@ import './AlternativeProduct.css';
 function AlternativeProduct() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { confirm } = useConfirm();
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState('master-files');
@@ -450,10 +452,13 @@ function AlternativeProduct() {
   };
 
   // Remove Alternative Item from List
-  const handleRemoveAlternative = (altItem) => {
-    const confirmRemove = window.confirm(
-      `Remove alternative relationship for '${altItem.code} - ${altItem.description}'?\n\n(Note: This will NOT delete the item from Item Master)`
-    );
+  const handleRemoveAlternative = async (altItem) => {
+    const confirmRemove = await confirm({
+      title: 'SOFAST POS - Remove Alternative',
+      message: `Remove alternative relationship for '${altItem.code} - ${altItem.description}'?\n\n(Note: This will NOT delete the item from Item Master)`,
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
     if (!confirmRemove) return;
 
     setAlternativeItems((prev) => prev.filter((ai) => ai.code !== altItem.code));
@@ -525,9 +530,12 @@ function AlternativeProduct() {
 
     const trimmedCode = formData.itemCode.trim().toUpperCase();
 
-    const confirmDel = window.confirm(
-      `Are you sure you want to delete the Alternative Product mapping for '${trimmedCode}'?\n\nIMPORTANT: This will ONLY delete the relationship. No items in Item Master will be deleted.`
-    );
+    const confirmDel = await confirm({
+      title: 'SOFAST POS - Delete Alternative Mapping',
+      message: `Are you sure you want to delete the Alternative Product mapping for '${trimmedCode}'?\n\nIMPORTANT: This will ONLY delete the relationship. No items in Item Master will be deleted.`,
+      icon: 'warning',
+      defaultFocus: 'no',
+    });
     if (!confirmDel) return;
 
     try {

@@ -4,6 +4,39 @@ import api from '../../services/api';
 import './DamageClaim.css';
 
 /**
+ * Same-Day Return Policy Validator:
+ * Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight).
+ * Once system clock passes 12:00 AM midnight, previous days' invoices are locked.
+ * Checks InvoiceDate.Date == CurrentDate.Date.
+ */
+export const isSameCalendarDay = (invoiceDate, currentDate = new Date()) => {
+  if (!invoiceDate) return false;
+  const inv = new Date(invoiceDate);
+  const now = new Date(currentDate);
+
+  if (isNaN(inv.getTime()) || isNaN(now.getTime())) return false;
+
+  const isSameLocalDate = (
+    inv.getFullYear() === now.getFullYear() &&
+    inv.getMonth() === now.getMonth() &&
+    inv.getDate() === now.getDate()
+  );
+
+  const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  let invDateStr = '';
+  if (typeof invoiceDate === 'string' && invoiceDate.length >= 10) {
+    invDateStr = invoiceDate.slice(0, 10);
+  } else {
+    invDateStr = `${inv.getFullYear()}-${String(inv.getMonth() + 1).padStart(2, '0')}-${String(inv.getDate()).padStart(2, '0')}`;
+  }
+
+  return isSameLocalDate || invDateStr === localTodayStr;
+};
+
+export const SAME_DAY_RESTRICTION_MESSAGE =
+  'Returns can only be processed on the date of purchase (before midnight). This invoice is no longer eligible for return.';
+
+/**
  * SOFAST MOTORS - Damage Claim Form (Stock Control System)
  * Classic Windows Desktop ERP interface matching reference screenshot.
  * Handles both:
@@ -148,6 +181,20 @@ function DamageClaim() {
       const res = await api.get(`/damage-claims/invoice/${encodeURIComponent(invQuery)}`);
       if (res.data && res.data.success && res.data.data) {
         const { invoice, lineItems } = res.data.data;
+
+        // Same-Day Return Policy Restriction:
+        // Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight).
+        if (!isSameCalendarDay(invoice.date)) {
+          setInvoiceRecord(null);
+          setInvoiceItems([]);
+          resetItemSelection();
+          setNotification({
+            type: 'error',
+            message: SAME_DAY_RESTRICTION_MESSAGE,
+          });
+          return;
+        }
+
         setInvoiceRecord(invoice);
         setInvoiceNo(invoice.invoiceNumber);
         setInvoiceDate(invoice.date ? invoice.date.split('T')[0] : '');
@@ -186,6 +233,14 @@ function DamageClaim() {
   const selectInvoiceItem = async (item, index) => {
     setSelectedItemIndex(index);
     if (!item) return;
+
+    if (invoiceRecord && !isSameCalendarDay(invoiceRecord.date)) {
+      setNotification({
+        type: 'error',
+        message: SAME_DAY_RESTRICTION_MESSAGE,
+      });
+      return;
+    }
 
     const code = item.itemCode || item.code || '';
     setItemCode(code);
@@ -275,6 +330,10 @@ function DamageClaim() {
   const validateForm = () => {
     if (!invoiceNo.trim()) {
       setNotification({ type: 'error', message: 'Invoice Number is required' });
+      return false;
+    }
+    if (invoiceRecord && !isSameCalendarDay(invoiceRecord.date)) {
+      setNotification({ type: 'error', message: SAME_DAY_RESTRICTION_MESSAGE });
       return false;
     }
     if (!itemCode.trim()) {
@@ -1234,28 +1293,51 @@ function DamageClaim() {
                           String(inv.customerName || inv.cusname || '').toLowerCase().includes(q)
                         );
                       })
-                      .map((inv, idx) => (
-                        <tr key={idx}>
-                          <td style={{ fontWeight: 600 }}>{inv.invoiceNumber || inv.no}</td>
-                          <td>{inv.date ? inv.date.split('T')[0] : ''}</td>
-                          <td>{inv.customerName || inv.cusname || 'Walk-in Customer'}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            {Number(inv.netTotal || inv.amountToPay || inv.subTotal || 0).toFixed(2)}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <button
-                              type="button"
-                              className="dc-btn-compact"
-                              onClick={() => {
+                      .map((inv, idx) => {
+                        const isToday = isSameCalendarDay(inv.date || inv.createdAt);
+                        const invNumStr = String(inv.invoiceNumber || inv.no);
+                        return (
+                          <tr
+                            key={idx}
+                            tabIndex={0}
+                            onDoubleClick={() => {
+                              setShowInvoiceModal(false);
+                              handleSearchInvoice(invNumStr);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
                                 setShowInvoiceModal(false);
-                                handleSearchInvoice(inv.invoiceNumber || String(inv.no));
-                              }}
-                            >
-                              Select
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                                handleSearchInvoice(invNumStr);
+                              }
+                            }}
+                            style={{
+                              background: isToday ? '#f0fdf4' : '#fff',
+                              cursor: 'pointer',
+                            }}
+                            title="Double-click or press Enter to select"
+                          >
+                            <td style={{ fontWeight: 600 }}>{invNumStr}</td>
+                            <td>{inv.date ? inv.date.split('T')[0] : ''}</td>
+                            <td>{inv.customerName || inv.cusname || 'Walk-in Customer'}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              {Number(inv.netTotal || inv.amountToPay || inv.subTotal || 0).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className={`dc-btn-compact ${isToday ? 'primary' : ''}`}
+                                onClick={() => {
+                                  setShowInvoiceModal(false);
+                                  handleSearchInvoice(invNumStr);
+                                }}
+                              >
+                                {isToday ? 'Select' : 'Select'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>

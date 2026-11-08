@@ -4,6 +4,39 @@ import api from '../../services/api';
 import './CustomerDamageReturn.css';
 
 /**
+ * Same-Day Return Policy Validator:
+ * Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight).
+ * Once system clock passes 12:00 AM midnight, previous days' invoices are locked.
+ * Checks InvoiceDate.Date == CurrentDate.Date.
+ */
+export const isSameCalendarDay = (invoiceDate, currentDate = new Date()) => {
+  if (!invoiceDate) return false;
+  const inv = new Date(invoiceDate);
+  const now = new Date(currentDate);
+
+  if (isNaN(inv.getTime()) || isNaN(now.getTime())) return false;
+
+  const isSameLocalDate = (
+    inv.getFullYear() === now.getFullYear() &&
+    inv.getMonth() === now.getMonth() &&
+    inv.getDate() === now.getDate()
+  );
+
+  const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  let invDateStr = '';
+  if (typeof invoiceDate === 'string' && invoiceDate.length >= 10) {
+    invDateStr = invoiceDate.slice(0, 10);
+  } else {
+    invDateStr = `${inv.getFullYear()}-${String(inv.getMonth() + 1).padStart(2, '0')}-${String(inv.getDate()).padStart(2, '0')}`;
+  }
+
+  return isSameLocalDate || invDateStr === localTodayStr;
+};
+
+export const SAME_DAY_RESTRICTION_MESSAGE =
+  'Returns can only be processed on the date of purchase (before midnight). This invoice is no longer eligible for return.';
+
+/**
  * SOFAST MOTORS - Customer Return, Exchange & Damage Tracking
  * Classic SOFAST Windows/ERP POS Desktop Interface.
  * 
@@ -29,6 +62,13 @@ function CustomerDamageReturn() {
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null);
   const [notification, setNotification] = useState(null);
+  const lastEnterRef = useRef(0);
+
+  // Search Sales Invoices Modal
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [recentInvoices, setRecentInvoices] = useState([]);
+  const [invoiceModalSearch, setInvoiceModalSearch] = useState('');
+  const [loadingInvoicesList, setLoadingInvoicesList] = useState(false);
 
   // Return Processing Form State
   const [selectedLineItem, setSelectedLineItem] = useState(null);
@@ -204,6 +244,18 @@ function CustomerDamageReturn() {
 
       const res = await api.get(`/damage-returns/invoice/${encodeURIComponent(invToSearch)}`);
       if (res.data?.success && res.data.data) {
+        const loadedInvoice = res.data.data.invoice;
+
+        // Same-Day Return Policy Restriction:
+        // Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight).
+        // Check: InvoiceDate.Date == CurrentDate.Date
+        if (!isSameCalendarDay(loadedInvoice.date)) {
+          setInvoiceData(null);
+          setSelectedLineItem(null);
+          showNotification(SAME_DAY_RESTRICTION_MESSAGE, 'error');
+          return;
+        }
+
         setInvoiceData(res.data.data);
         showNotification(`Invoice '${invToSearch}' loaded successfully`, 'success');
       } else {
@@ -219,8 +271,67 @@ function CustomerDamageReturn() {
     }
   };
 
+  // Keyboard navigation & double Enter handling on Invoice search input
+  const handleInvoiceInputKeyDown = async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const now = Date.now();
+      const isQuickDoubleEnter = now - lastEnterRef.current < 1200;
+      lastEnterRef.current = now;
+
+      // If an invoice is already loaded:
+      if (invoiceData?.invoice && invoiceData?.lineItems?.length > 0) {
+        if (!isSameCalendarDay(invoiceData.invoice.date)) {
+          setInvoiceData(null);
+          setSelectedLineItem(null);
+          showNotification(SAME_DAY_RESTRICTION_MESSAGE, 'error');
+          return;
+        }
+
+        // Double Enter on loaded invoice selects the first returnable item
+        const eligible = invoiceData.lineItems.find((li) => li.availableReturnQuantity > 0) || invoiceData.lineItems[0];
+        if (eligible) {
+          handleSelectItemForReturn(eligible);
+          showNotification(`Selected item '${eligible.itemCode}' for return`, 'info');
+        }
+        return;
+      }
+
+      // Initial Enter loads the invoice and checks the date
+      await handleLoadInvoice();
+    }
+  };
+
+  // Open modal to browse and search invoices
+  const handleOpenInvoiceModal = async () => {
+    setShowInvoiceModal(true);
+    setLoadingInvoicesList(true);
+    try {
+      const res = await api.get('/invoices?limit=40');
+      if (res.data?.data) {
+        setRecentInvoices(res.data.data);
+      }
+    } catch (e) {
+      console.warn('Failed to load recent invoices:', e);
+    } finally {
+      setLoadingInvoicesList(false);
+    }
+  };
+
   // Select Item for Return and inspect supplier traceability
   const handleSelectItemForReturn = async (item) => {
+    if (!invoiceData) {
+      showNotification('Please load an invoice first', 'error');
+      return;
+    }
+
+    // Same-Day Return Policy Restriction:
+    if (!isSameCalendarDay(invoiceData.invoice.date)) {
+      setSelectedLineItem(null);
+      showNotification(SAME_DAY_RESTRICTION_MESSAGE, 'error');
+      return;
+    }
+
     setSelectedLineItem(item);
     setReturnedQty('1');
     setReplacementQty('1');
@@ -303,6 +414,12 @@ function CustomerDamageReturn() {
 
     if (!invoiceData || !selectedLineItem) {
       showNotification('Please search an invoice and select an item to return', 'error');
+      return;
+    }
+
+    // Same-Day Return Policy Restriction:
+    if (!isSameCalendarDay(invoiceData.invoice.date)) {
+      showNotification(SAME_DAY_RESTRICTION_MESSAGE, 'error');
       return;
     }
 
@@ -780,9 +897,8 @@ function CustomerDamageReturn() {
                   placeholder="e.g. 47619 or INV-1001"
                   value={invoiceQuery}
                   onChange={(e) => setInvoiceQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleLoadInvoice();
-                  }}
+                  onKeyDown={handleInvoiceInputKeyDown}
+                  title="Type invoice number and press Enter (or double Enter to select item)"
                   autoFocus
                 />
                 <button
@@ -796,13 +912,21 @@ function CustomerDamageReturn() {
                 <button
                   type="button"
                   className="cdr-btn-classic"
-                  onClick={() => {
-                    setInvoiceQuery('47619');
-                    handleLoadInvoice('47619');
-                  }}
-                  title="Quick Load Sample Invoice"
+                  onClick={handleOpenInvoiceModal}
+                  title="Browse recent invoices to select for return"
                 >
-                  Load #47619
+                  🔍 Browse Invoices
+                </button>
+                <button
+                  type="button"
+                  className="cdr-btn-classic"
+                  onClick={() => {
+                    setInvoiceQuery('0019');
+                    handleLoadInvoice('0019');
+                  }}
+                  title="Quick Load Today's Invoice (#0019)"
+                >
+                  Load Today #0019
                 </button>
               </div>
 
@@ -843,6 +967,38 @@ function CustomerDamageReturn() {
                   </div>
                 </div>
               )}
+
+              {/* Same-Day Return Policy Status Banner */}
+              {invoiceData && (
+                <div style={{
+                  margin: '8px 12px 10px',
+                  padding: '8px 12px',
+                  borderRadius: '4px',
+                  border: isSameCalendarDay(invoiceData.invoice.date) ? '1px solid #86efac' : '1px solid #fca5a5',
+                  background: isSameCalendarDay(invoiceData.invoice.date) ? '#f0fdf4' : '#fef2f2',
+                  color: isSameCalendarDay(invoiceData.invoice.date) ? '#166534' : '#991b1b',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}>
+                  <span style={{ fontSize: '14px' }}>
+                    {isSameCalendarDay(invoiceData.invoice.date) ? '🟢' : '🛑'}
+                  </span>
+                  <div>
+                    <strong>
+                      {isSameCalendarDay(invoiceData.invoice.date)
+                        ? 'Same-Day Return Eligible (Policy Verified):'
+                        : 'Same-Day Return Policy Violation:'}
+                    </strong>{' '}
+                    <span>
+                      {isSameCalendarDay(invoiceData.invoice.date)
+                        ? `Invoice #${invoiceData.invoice.invoiceNumber} was issued today (${formatDate(invoiceData.invoice.date)}). Return can be processed before midnight (12:00 AM).`
+                        : SAME_DAY_RESTRICTION_MESSAGE}
+                    </span>
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Step 2: Purchased Items Selection & Return Validation */}
@@ -851,7 +1007,7 @@ function CustomerDamageReturn() {
                 <div className="cdr-panel-title">
                   <span>2. Purchased Items &amp; Returnable Limits</span>
                   <span style={{ fontSize: '10px', color: '#666' }}>
-                    Select an item from the original invoice to initiate return or exchange
+                    Press <strong>Enter</strong> or click/double-click an item row to select it for return
                   </span>
                 </div>
                 <div className="cdr-table-container">
@@ -877,11 +1033,22 @@ function CustomerDamageReturn() {
                         return (
                           <tr
                             key={item.itemCode || idx}
+                            tabIndex={0}
                             className={isSelected ? 'selected' : ''}
                             onClick={() => {
                               if (canReturn) handleSelectItemForReturn(item);
                             }}
-                            style={{ cursor: canReturn ? 'pointer' : 'not-allowed' }}
+                            onDoubleClick={() => {
+                              if (canReturn) handleSelectItemForReturn(item);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (canReturn) handleSelectItemForReturn(item);
+                              }
+                            }}
+                            title={canReturn ? 'Click, Double-click, or press Enter to select for return' : 'All purchased units already returned'}
+                            style={{ cursor: canReturn ? 'pointer' : 'not-allowed', outline: 'none' }}
                           >
                             <td>{idx + 1}</td>
                             <td><strong>{item.itemCode}</strong></td>
@@ -2082,6 +2249,144 @@ function CustomerDamageReturn() {
                 type="button"
                 className="cdr-btn-classic"
                 onClick={() => setPrintingReturn(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 7. Search Sales Invoices Modal */}
+      {showInvoiceModal && (
+        <div className="cdr-modal-backdrop">
+          <div className="cdr-modal-box" style={{ maxWidth: '720px' }}>
+            <div className="cdr-modal-header">
+              <span>Search Sales Invoices</span>
+              <button
+                type="button"
+                className="cdr-ctrl-btn close"
+                onClick={() => setShowInvoiceModal(false)}
+              >
+                &#x2715;
+              </button>
+            </div>
+            <div className="cdr-modal-body">
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                <input
+                  type="text"
+                  className="cdr-input"
+                  style={{ flex: 1 }}
+                  placeholder="Filter invoices by number or customer name..."
+                  value={invoiceModalSearch}
+                  onChange={(e) => setInvoiceModalSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div className="cdr-table-container" style={{ maxHeight: '350px' }}>
+                <table className="cdr-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '90px' }}>Invoice No</th>
+                      <th style={{ width: '90px' }}>Date</th>
+                      <th>Customer</th>
+                      <th style={{ width: '95px', textAlign: 'right' }}>Total (Rs.)</th>
+                      <th style={{ width: '130px', textAlign: 'center' }}>Return Status</th>
+                      <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadingInvoicesList ? (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', padding: '20px' }}>
+                          Loading invoices...
+                        </td>
+                      </tr>
+                    ) : (
+                      recentInvoices
+                        .filter((inv) => {
+                          if (!invoiceModalSearch) return true;
+                          const q = invoiceModalSearch.toLowerCase();
+                          return (
+                            String(inv.invoiceNumber || inv.no).toLowerCase().includes(q) ||
+                            String(inv.customerName || inv.cusname || '').toLowerCase().includes(q)
+                          );
+                        })
+                        .map((inv, idx) => {
+                          const isToday = isSameCalendarDay(inv.date || inv.createdAt);
+                          const invNumStr = String(inv.invoiceNumber || inv.no);
+
+                          return (
+                            <tr
+                              key={idx}
+                              tabIndex={0}
+                              onDoubleClick={() => {
+                                setShowInvoiceModal(false);
+                                setInvoiceQuery(invNumStr);
+                                handleLoadInvoice(invNumStr);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  setShowInvoiceModal(false);
+                                  setInvoiceQuery(invNumStr);
+                                  handleLoadInvoice(invNumStr);
+                                }
+                              }}
+                              style={{
+                                cursor: 'pointer',
+                                background: isToday ? '#f0fdf4' : '#fff',
+                              }}
+                              title="Double click or press Enter to select"
+                            >
+                              <td style={{ fontWeight: 'bold' }}>{invNumStr}</td>
+                              <td>{formatDate(inv.date || inv.createdAt)}</td>
+                              <td>{inv.customerName || inv.cusname || 'Walk-in Customer'}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                {formatCurrency(inv.netTotal || inv.amountToPay || inv.subTotal || 0)}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <span
+                                  style={{
+                                    display: 'inline-block',
+                                    padding: '2px 6px',
+                                    borderRadius: '3px',
+                                    fontSize: '10px',
+                                    fontWeight: 'bold',
+                                    background: isToday ? '#dcfce7' : '#fee2e2',
+                                    color: isToday ? '#15803d' : '#991b1b',
+                                  }}
+                                >
+                                  {isToday ? 'Eligible (Today)' : 'Locked (Past Date)'}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  className={`cdr-btn-classic ${isToday ? 'primary' : ''}`}
+                                  style={{ padding: '2px 8px', fontSize: '11px' }}
+                                  onClick={() => {
+                                    setShowInvoiceModal(false);
+                                    setInvoiceQuery(invNumStr);
+                                    handleLoadInvoice(invNumStr);
+                                  }}
+                                >
+                                  Select
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="cdr-modal-footer">
+              <button
+                type="button"
+                className="cdr-btn-classic"
+                onClick={() => setShowInvoiceModal(false)}
               >
                 Close
               </button>

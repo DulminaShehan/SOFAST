@@ -24,17 +24,54 @@ function MainMenu({ onMenuSelect }) {
   const [openDropdown, setOpenDropdown] = useState(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
-  const { currentUser, isAdmin, logout } = useAuth();
+  const { currentUser, isAdmin, hasPermission, logout } = useAuth();
 
   const topMenuItems = [
-    { id: 'master-files', label: 'Master Files', hasDropdown: true, defaultPath: '/management' },
-    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true, defaultPath: '/grn' },
-    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true, defaultPath: '/invoice' },
-    { id: 'approvement', label: 'Approvement', hasDropdown: true, defaultPath: '/approvement' },
-    { id: 'reports', label: 'Reports', hasDropdown: true, defaultPath: '/reports' },
-    { id: 'accounting', label: 'Accounting', path: '/management' },
-    { id: 'administration', label: 'Administration', hasDropdown: true, defaultPath: '/printer-setup' },
-  ];
+    {
+      id: 'master-files',
+      label: 'Master Files',
+      hasDropdown: true,
+      defaultPath: '/management',
+      permitted: isAdmin || hasPermission('item-master') || hasPermission('customer-details'),
+    },
+    {
+      id: 'stock-control',
+      label: 'Stock Control System',
+      hasDropdown: true,
+      defaultPath: '/grn',
+      permitted: isAdmin || hasPermission('grn') || hasPermission('good-return-note') || hasPermission('damage'),
+    },
+    {
+      id: 'sales-service',
+      label: 'Sales and Service',
+      hasDropdown: true,
+      defaultPath: '/invoice',
+      permitted: true,
+    },
+    {
+      id: 'approvement',
+      label: 'Approvement',
+      hasDropdown: true,
+      defaultPath: '/approvement',
+      permitted: isAdmin || hasPermission('payment-voucher') || hasPermission('petty-cash') || hasPermission('leave-request'),
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      hasDropdown: true,
+      defaultPath: '/reports',
+      permitted: isAdmin || hasPermission('reports'),
+    },
+    {
+      id: 'accounting',
+      label: 'Accounting',
+      path: '/management',
+      permitted: isAdmin || hasPermission('accounting'),
+    },
+    ...(isAdmin
+      ? [{ id: 'administration', label: 'Administration', hasDropdown: true, defaultPath: '/printer-setup', permitted: true }]
+      : []),
+  ].filter((i) => i.permitted !== false);
 
   // Close dropdown when clicking outside
   useEffect(() => {

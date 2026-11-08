@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
+import { useConfirm } from '../../context/ConfirmContext';
 import './GoodReturnNote.css';
 
 /**
@@ -21,6 +22,7 @@ import './GoodReturnNote.css';
  */
 function GoodReturnNote() {
   const navigate = useNavigate();
+  const { confirm } = useConfirm();
 
   // Notification State
   const [notification, setNotification] = useState(null);
@@ -615,19 +617,22 @@ function GoodReturnNote() {
    * Action: Delete Button
    * Confirms and deletes a saved GREN, safely reversing its stock deductions
    */
-  const handleDeletePrompt = () => {
+  const handleDeletePrompt = async () => {
     if (!isSavedRecord) {
       showNotification('info', 'Delete is only available for saved Good Return Notes.');
       return;
     }
 
-    setModalState({
-      isOpen: true,
-      title: 'Confirm Delete',
+    const confirmed = await confirm({
+      title: 'SOFAST POS - Delete Good Return Note',
       message: `Are you sure you want to delete Good Return Note #${grenNumber}?\n\nThis will safely reverse its stock deductions and restore returned items back to sellable inventory.`,
-      isAlertOnly: false,
-      confirmAction: executeDelete,
+      icon: 'warning',
+      defaultFocus: 'no',
     });
+
+    if (confirmed) {
+      await executeDelete();
+    }
   };
 
   const executeDelete = async () => {
@@ -1077,22 +1082,23 @@ function GoodReturnNote() {
                   OK
                 </button>
               ) : (
-                <>
+                <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', width: '100%' }}>
+                  <button
+                    type="button"
+                    className="gren-btn btn-save-default"
+                    onClick={modalState.confirmAction}
+                    autoFocus
+                  >
+                    Yes
+                  </button>
                   <button
                     type="button"
                     className="gren-btn"
                     onClick={() => setModalState({ isOpen: false, title: '', message: '', confirmAction: null, isAlertOnly: false })}
                   >
-                    Cancel
+                    No
                   </button>
-                  <button
-                    type="button"
-                    className="gren-btn btn-save-default"
-                    onClick={modalState.confirmAction}
-                  >
-                    OK
-                  </button>
-                </>
+                </div>
               )}
             </div>
           </div>
