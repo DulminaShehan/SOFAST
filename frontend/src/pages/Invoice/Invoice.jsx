@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import ManualInvoice from '../ManualInvoice/ManualInvoice';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
+import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
 import './Invoice.css';
 
 /**
@@ -13,6 +17,35 @@ function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const { confirm } = useConfirm();
+
+  // Manual Invoice Modal State
+  const [manualInvoiceModalOpen, setManualInvoiceModalOpen] = useState(false);
+
+  // F6 & Alternative Items Selection State
+  const [altModalTargetIndex, setAltModalTargetIndex] = useState(-1);
+  const [altModalTargetCode, setAltModalTargetCode] = useState('');
+  const [altHighlightedIndex, setAltHighlightedIndex] = useState(0);
+
+  // Field Refs for smooth Enter Key navigation
+  const quantityInputRef = useRef(null);
+  const rateInputRef = useRef(null);
+  const priceInputRef = useRef(null);
+  const entryDiscountInputRef = useRef(null);
+
+  // Invoice Return Mode State
+  const [isReturnMode, setIsReturnMode] = useState(false);
+  const [returnItems, setReturnItems] = useState([]);
+  const [selectedReturnItemIndex, setSelectedReturnItemIndex] = useState(-1);
+  const [lastReturnNumber, setLastReturnNumber] = useState('');
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const isSubmittingReturnRef = useRef(false);
+  const returnQtyInputsRef = useRef([]);
+  const invoiceNumberInputRef = useRef(null);
+  const [invoiceSearchState, setInvoiceSearchState] = useState({
+    status: 'idle', // 'idle' | 'searching' | 'matched' | 'not_found'
+    matchedInvoiceNumber: '',
+    matchedInvoiceData: null,
+  });
 
   // Navigation Menubar state
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -64,6 +97,21 @@ function Invoice() {
   const [loadingAlternatives, setLoadingAlternatives] = useState(false);
   const [altModalOpen, setAltModalOpen] = useState(false);
   const [altSearchQuery, setAltSearchQuery] = useState('');
+
+  // Filtered alternative products for modal
+  const filteredAltProducts = useMemo(() => {
+    if (!altSearchQuery || !altSearchQuery.trim()) return alternativeProducts;
+    const q = altSearchQuery.toLowerCase().trim();
+    return alternativeProducts.filter(
+      (p) =>
+        (p.code && p.code.toLowerCase().includes(q)) ||
+        (p.description && p.description.toLowerCase().includes(q)) ||
+        (p.location && p.location.toLowerCase().includes(q))
+    );
+  }, [alternativeProducts, altSearchQuery]);
+
+
+
 
   // Current Item Entry Draft
   const [itemEntry, setItemEntry] = useState({
@@ -348,7 +396,7 @@ function Invoice() {
         api.get('/invoices/next-number').catch(() => null),
         api.get('/customers').catch(() => null),
         api.get('/items?limit=all').catch(() => null),
-        api.get('/invoices?limit=50').catch(() => null),
+        api.get('/invoices?type=standard&limit=50').catch(() => null),
       ]);
 
       if (nextNumRes?.data?.data) {
@@ -366,11 +414,14 @@ function Invoice() {
         setItemsList(itemsRes.data.data);
       }
       if (invsRes?.data?.data) {
-        setInvoicesList(invsRes.data.data);
+        const standardOnly = invsRes.data.data.filter(
+          (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+        );
+        setInvoicesList(standardOnly);
       }
 
       // Fetch dynamic locations list from Item Master metadata
-      api.get('/items/meta/dropdowns').then((mRes) => {
+      api.get('/items/lookup-options').then((mRes) => {
         if (mRes.data?.data?.locations && Array.isArray(mRes.data.data.locations)) {
           setLocationsList((prev) => Array.from(new Set([...prev, ...mRes.data.data.locations])).filter(Boolean));
         }
@@ -563,7 +614,12 @@ function Invoice() {
       api.get(`/invoices/${encodeURIComponent(target)}`)
         .then((res) => {
           if (res.data?.success && res.data?.data) {
-            loadInvoiceData(res.data.data);
+            const loaded = res.data.data;
+            if (loaded.isManualInvoice || loaded.invoiceType === 'Manual' || String(loaded.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+              showNotification(`Invoice '${loaded.invoiceNumber || target}' is a Manual Invoice. Please use the Manual Invoice screen to manage manual invoices.`, 'warning');
+              return;
+            }
+            loadInvoiceData(loaded);
           }
         })
         .catch(() => null);
@@ -1062,8 +1118,442 @@ function Invoice() {
 
   // Select Invoice from Lookup Modal
   const handleSelectInvoiceFromLookup = (inv) => {
+    if (inv.isManualInvoice || inv.invoiceType === 'Manual' || String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+      showNotification(`Invoice '${inv.invoiceNumber}' is a Manual Invoice. Please use the Manual Invoice screen to manage manual invoices.`, 'warning');
+      return;
+    }
     loadInvoiceData(inv);
+    const invNum = inv.invoiceNumber || String(inv.no || '');
+    setInvoiceSearchState({
+      status: 'matched',
+      matchedInvoiceNumber: invNum,
+    });
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+  };
+
+  // Handle typing in Invoice Number field
+  const handleInvoiceNumberChange = (e) => {
+    const val = e.target.value;
+    setInvoiceHeader((prev) => ({ ...prev, invoiceNumber: val }));
+    if (invoiceSearchState.status !== 'idle') {
+      setInvoiceSearchState({
+        status: 'idle',
+        matchedInvoiceNumber: '',
+        matchedInvoiceData: null,
+      });
+    }
+  };
+
+  // Helper to fetch invoice details for return with seamless fallback between endpoints
+  const fetchInvoiceReturnData = async (invoiceNumber) => {
+    const encNum = encodeURIComponent(invoiceNumber);
+    try {
+      const res = await api.get(`/invoices/return-details/${encNum}`);
+      if (res.data?.success && res.data?.data) {
+        return res.data.data;
+      }
+    } catch (err) {
+      if (err.response?.status === 404 || err.response?.data?.message?.includes('Resource not found') || err.response?.data?.message?.includes('not found')) {
+        // Seamless fallback to /damage-returns/invoice/:invoiceNumber
+        try {
+          const fallbackRes = await api.get(`/damage-returns/invoice/${encNum}`);
+          if (fallbackRes.data?.success && fallbackRes.data?.data) {
+            return fallbackRes.data.data;
+          }
+        } catch (fallbackErr) {
+          throw fallbackErr;
+        }
+      }
+      throw err;
+    }
+    throw new Error('Invoice not found.');
+  };
+
+  // Activate Invoice Return Mode directly in the Sales Invoice screen
+  const handleActivateReturnMode = async (targetInvNum = null, cachedData = null) => {
+    const rawNum = targetInvNum !== null ? targetInvNum : invoiceHeader.invoiceNumber;
+    const queryNum = String(rawNum || '').trim();
+    if (!queryNum) {
+      showNotification('Please enter an Invoice Number to search for return', 'warning');
+      invoiceNumberInputRef.current?.focus();
+      return;
+    }
+
+    let returnData = cachedData;
+    if (!returnData) {
+      try {
+        setLoading(true);
+        showNotification(`Searching for Invoice '${queryNum}'...`, 'info');
+        returnData = await fetchInvoiceReturnData(queryNum);
+      } catch (err) {
+        setInvoiceSearchState({
+          status: 'not_found',
+          matchedInvoiceNumber: queryNum,
+          matchedInvoiceData: null,
+        });
+        showNotification(err.response?.data?.message || err.message || 'Invoice not found.', 'error');
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    const { invoice, lineItems } = returnData;
+    if (invoice.isManualInvoice || invoice.invoiceType === 'Manual' || String(invoice.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+      showNotification(`Invoice '${invoice.invoiceNumber || queryNum}' is a Manual Invoice. Manual invoices cannot be processed in Sales Return.`, 'warning');
+      return;
+    }
+    const canonicalNum = invoice.invoiceNumber || String(invoice.no || queryNum);
+
+    // Load original invoice details into header and form
+    loadInvoiceData(invoice);
+
+    // Map all original invoice line items into Return Mode items
+    const mappedItems = (lineItems || []).map((li) => {
+      const soldQty = Number(li.purchasedQuantity || 0);
+      const prevRet = Number(li.previousReturnedQuantity || 0);
+      const availRet = Math.max(0, Math.round((soldQty - prevRet) * 100) / 100);
+      const unitPrice = Number(li.unitPrice || 0);
+      const discPct = Number(li.discountPercentage || 0);
+      const discAmt = Number(li.discountAmount || 0);
+      const effectiveUnitPrice = Number(li.effectiveUnitPrice || unitPrice);
+
+      return {
+        itemCode: li.itemCode,
+        description: li.description || '',
+        originalSoldQuantity: soldQty,
+        previouslyReturnedQuantity: prevRet,
+        availableReturnQuantity: availRet,
+        returnQuantity: '',
+        sellingPrice: unitPrice,
+        discountPercentage: discPct,
+        discountAmount: discAmt,
+        effectiveUnitPrice: effectiveUnitPrice,
+        returnValue: 0,
+        canReturn: availRet > 0,
+      };
+    });
+
+    setReturnItems(mappedItems);
+    setIsReturnMode(true);
+    setSelectedReturnItemIndex(mappedItems.findIndex((it) => it.canReturn));
+    setInvoiceSearchState({
+      status: 'matched',
+      matchedInvoiceNumber: canonicalNum,
+      matchedInvoiceData: returnData,
+    });
+
+    const allFullyReturned = mappedItems.length > 0 && mappedItems.every((it) => it.availableReturnQuantity === 0);
+    if (allFullyReturned) {
+      showNotification('This invoice has already been fully returned.', 'warning');
+    } else {
+      showNotification(
+        `Invoice Return Mode activated for Invoice #${canonicalNum}. Enter return quantities in the table below.`,
+        'success'
+      );
+    }
+
+    setTimeout(() => {
+      const firstEditableInput = document.querySelector('.sofast-return-table-qty-input:not([disabled])');
+      firstEditableInput?.focus();
+      firstEditableInput?.select();
+    }, 120);
+  };
+
+  // Exit Return Mode and switch back to normal Sales Invoice mode
+  const handleExitReturnMode = () => {
+    setIsReturnMode(false);
+    setReturnItems([]);
+    setSelectedReturnItemIndex(-1);
+    setInvoiceSearchState({
+      status: 'idle',
+      matchedInvoiceNumber: '',
+      matchedInvoiceData: null,
+    });
+    showNotification('Exited Invoice Return Mode.', 'info');
+  };
+
+  // Keyboard shortcut handler for Invoice Number field:
+  // First Enter: Search and validate the invoice number in MongoDB.
+  // Second Enter: Open the matching invoice in Return Mode.
+  const handleInvoiceNumberKeyDown = async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const inputVal = String(invoiceHeader.invoiceNumber || '').trim();
+      if (!inputVal) {
+        showNotification('Please enter an Invoice Number', 'warning');
+        return;
+      }
+
+      // Second Enter: If invoice was already validated and matches inputVal, open Return Mode!
+      if (
+        invoiceSearchState.status === 'matched' &&
+        invoiceSearchState.matchedInvoiceNumber.toUpperCase() === inputVal.toUpperCase()
+      ) {
+        handleActivateReturnMode(inputVal, invoiceSearchState.matchedInvoiceData);
+        return;
+      }
+
+      // First Enter: Search and validate the invoice number against MongoDB
+      try {
+        setLoading(true);
+        showNotification(`Searching for Invoice '${inputVal}'...`, 'info');
+        const returnData = await fetchInvoiceReturnData(inputVal);
+        const { invoice } = returnData;
+        if (invoice.isManualInvoice || invoice.invoiceType === 'Manual' || String(invoice.invoiceNumber || '').toUpperCase().startsWith('MAN-')) {
+          showNotification(`Invoice '${inputVal}' is a Manual Invoice. Please use the Manual Invoice screen to manage manual invoices.`, 'warning');
+          return;
+        }
+        const canonicalNum = invoice.invoiceNumber || String(invoice.no || inputVal);
+
+        // Load original invoice details onto screen so user sees the validated invoice
+        loadInvoiceData(invoice);
+
+        setInvoiceSearchState({
+          status: 'matched',
+          matchedInvoiceNumber: canonicalNum,
+          matchedInvoiceData: returnData,
+        });
+
+        showNotification(
+          `Invoice #${canonicalNum} validated. Press Enter again or click Return to open Return Mode.`,
+          'info'
+        );
+      } catch (err) {
+        setInvoiceSearchState({
+          status: 'not_found',
+          matchedInvoiceNumber: inputVal,
+          matchedInvoiceData: null,
+        });
+        showNotification(err.response?.data?.message || err.message || 'Invoice not found.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    } else if (e.key === 'Escape') {
+      if (isReturnMode) {
+        handleExitReturnMode();
+      }
+    }
+  };
+
+  // Handle return quantity change in Return Mode table
+  const handleReturnItemQtyChange = (idx, rawVal) => {
+    setReturnItems((prev) => {
+      const next = [...prev];
+      const target = next[idx];
+      if (!target) return prev;
+
+      if (!target.canReturn) {
+        showNotification(`Item '${target.itemCode}' has already been fully returned.`, 'warning');
+        return prev;
+      }
+
+      if (rawVal === '' || rawVal === null) {
+        next[idx] = { ...target, returnQuantity: '', returnValue: 0 };
+        return next;
+      }
+
+      let numVal = Number(rawVal);
+      if (isNaN(numVal) || numVal < 0) {
+        showNotification('Return quantity must be greater than zero and not negative.', 'warning');
+        numVal = 0;
+      }
+
+      if (numVal > target.availableReturnQuantity) {
+        showNotification(
+          `Cannot return ${numVal}. Maximum available return quantity for ${target.itemCode} is ${target.availableReturnQuantity}.`,
+          'warning'
+        );
+        numVal = target.availableReturnQuantity;
+      }
+
+      const lineVal = Math.round(numVal * target.effectiveUnitPrice * 100) / 100;
+      next[idx] = {
+        ...target,
+        returnQuantity: numVal === 0 ? '' : numVal,
+        returnValue: lineVal,
+      };
+      return next;
+    });
+  };
+
+  // Keyboard navigation inside Return Mode table
+  const handleReturnQtyKeyDown = (e, index) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const nextIndex = returnItems.findIndex((it, i) => i > index && it.canReturn);
+      if (nextIndex !== -1 && returnQtyInputsRef.current[nextIndex]) {
+        returnQtyInputsRef.current[nextIndex].focus();
+        returnQtyInputsRef.current[nextIndex].select();
+        setSelectedReturnItemIndex(nextIndex);
+      } else {
+        handleConfirmAndProcessReturn();
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = returnItems.findIndex((it, i) => i > index && it.canReturn);
+      if (nextIndex !== -1 && returnQtyInputsRef.current[nextIndex]) {
+        returnQtyInputsRef.current[nextIndex].focus();
+        setSelectedReturnItemIndex(nextIndex);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      for (let i = index - 1; i >= 0; i--) {
+        if (returnItems[i]?.canReturn && returnQtyInputsRef.current[i]) {
+          returnQtyInputsRef.current[i].focus();
+          setSelectedReturnItemIndex(i);
+          break;
+        }
+      }
+    } else if (e.key === 'Escape') {
+      handleExitReturnMode();
+    }
+  };
+
+  // Confirm and Process Invoice Return
+  const handleConfirmAndProcessReturn = async () => {
+    if (isSubmittingReturnRef.current) return;
+
+    const selectedLines = returnItems.filter((it) => Number(it.returnQuantity) > 0);
+
+    if (selectedLines.length === 0) {
+      showNotification('Please enter return quantity (> 0) for at least one item.', 'warning');
+      return;
+    }
+
+    for (const it of selectedLines) {
+      const qty = Number(it.returnQuantity);
+      if (qty <= 0) {
+        showNotification(`Invalid return quantity for item ${it.itemCode}`, 'error');
+        return;
+      }
+      if (qty > it.availableReturnQuantity) {
+        showNotification(
+          `Cannot return ${qty} of ${it.itemCode}. Max available is ${it.availableReturnQuantity}.`,
+          'error'
+        );
+        return;
+      }
+    }
+
+    const invNum = invoiceHeader.invoiceNumber || String(invoiceHeader.no || '');
+
+    // Confirmation message matching exact specification:
+    // Message: "Do you wish to return this invoice?"
+    // Buttons: YES / NO
+    const confirmedAction = await showConfirm({
+      title: 'Confirm Invoice Return',
+      message: 'Do you wish to return this invoice?',
+      type: 'question',
+      buttons: [
+        { key: 'yes', label: 'YES', isPrimary: true, isDefault: true, title: 'Confirm Return' },
+        { key: 'no', label: 'NO', isDefault: false, title: 'Cancel Return' },
+      ],
+    });
+
+    if (confirmedAction !== 'yes') {
+      return; // NO: Cancel the return confirmation and keep current return screen open
+    }
+
+    try {
+      setIsSubmittingReturn(true);
+      isSubmittingReturnRef.current = true;
+
+      const payload = {
+        invoiceNumber: invNum,
+        returnedItems: selectedLines.map((it) => ({
+          itemCode: it.itemCode,
+          returnedQuantity: Number(it.returnQuantity),
+          itemCondition: 'GOOD',
+          returnReason: 'Customer Return',
+        })),
+        returnReason: 'Customer Return',
+        returnNotes: `Invoice Return #${invNum}`,
+        adjustCustomerBalance: true,
+      };
+
+      let res;
+      try {
+        res = await api.post(`/invoices/${encodeURIComponent(invNum)}/return`, payload);
+      } catch (postErr) {
+        if (postErr.response?.status === 404) {
+          res = await api.post('/damage-returns/process-return', {
+            ...payload,
+            invoiceNumber: invNum,
+          });
+        } else {
+          throw postErr;
+        }
+      }
+
+      if (res.data?.success) {
+        const returnNumber = res.data.data?.returnNumber || 'CDR-0001';
+        setLastReturnNumber(returnNumber);
+
+        // Display: "Invoice Return Successfully Completed."
+        showNotification('Invoice Return Successfully Completed.', 'success');
+
+        // Refresh live item stock in background
+        api.get('/items?limit=all').then((r) => {
+          if (r.data?.data) setItemsList(r.data.data);
+        }).catch(() => null);
+
+        // Refresh invoices list
+        api.get('/invoices?type=standard&limit=50').then((r) => {
+          if (r.data?.data) {
+            const standardOnly = r.data.data.filter(
+              (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+            );
+            setInvoicesList(standardOnly);
+          }
+        }).catch(() => null);
+
+        // Reload fresh invoice details & return limits
+        const refreshedData = await fetchInvoiceReturnData(invNum).catch(() => null);
+        if (refreshedData) {
+          const { invoice, lineItems } = refreshedData;
+          loadInvoiceData(invoice);
+
+          const updatedReturnItems = (lineItems || []).map((li) => {
+            const soldQty = Number(li.purchasedQuantity || 0);
+            const prevRet = Number(li.previousReturnedQuantity || 0);
+            const availRet = Math.max(0, Math.round((soldQty - prevRet) * 100) / 100);
+            return {
+              itemCode: li.itemCode,
+              description: li.description || '',
+              originalSoldQuantity: soldQty,
+              previouslyReturnedQuantity: prevRet,
+              availableReturnQuantity: availRet,
+              returnQuantity: '',
+              sellingPrice: Number(li.unitPrice || 0),
+              discountPercentage: Number(li.discountPercentage || 0),
+              discountAmount: Number(li.discountAmount || 0),
+              effectiveUnitPrice: Number(li.effectiveUnitPrice || li.unitPrice || 0),
+              returnValue: 0,
+              canReturn: availRet > 0,
+            };
+          });
+
+          setReturnItems(updatedReturnItems);
+
+          const allFullyReturned = updatedReturnItems.every((it) => it.availableReturnQuantity === 0);
+          if (allFullyReturned) {
+            showNotification('This invoice has already been fully returned.', 'warning');
+          }
+        }
+      } else {
+        showNotification(res.data?.message || 'Failed to process return', 'error');
+      }
+    } catch (err) {
+      showNotification(err.response?.data?.message || err.message || 'Failed to process return', 'error');
+    } finally {
+      setIsSubmittingReturn(false);
+      isSubmittingReturnRef.current = false;
+    }
   };
 
   // =========================================================================
@@ -1211,6 +1701,10 @@ function Invoice() {
     setItemDropdownOpen(false);
     setHighlightedItemIndex(-1);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+    setTimeout(() => {
+      quantityInputRef.current?.focus();
+      quantityInputRef.current?.select();
+    }, 60);
   };
 
   // Change location for selected item & refresh available stock
@@ -1595,13 +2089,135 @@ function Invoice() {
     setItemEntry(updated);
   };
 
-  // Select an Alternative Product to load into item entry
+  // Select an Alternative Product to load into item entry or replace selected line
   const handleSelectAlternativeProduct = async (alt) => {
     if (!alt || !alt.code) return;
     setAltModalOpen(false);
-    await loadItemIntoEntry(alt.code, itemEntry.quantity || '1');
-    showNotification(`Selected alternative product '${alt.code} - ${alt.description || ''}'`, 'success');
+
+    if (altModalTargetIndex >= 0 && lineItems[altModalTargetIndex]) {
+      try {
+        setLoading(true);
+        // Fetch actual Item Master record to get real stock, price, and location
+        const res = await api.get(`/items/${encodeURIComponent(alt.code)}`);
+        const fullItem = res.data?.data || alt;
+        const currentLine = lineItems[altModalTargetIndex];
+        const qty = currentLine.quantity || 1;
+        const price = Number(fullItem.sellingPrice || alt.sellingPrice || alt.price || 0);
+        const discPct = Number(currentLine.discountPercentage || 0);
+        const discAmt = Number(currentLine.discountAmount || 0);
+        const comp = computeLinePricing(price, qty, discPct, discAmt, 'percentage', fullItem.roundOffOption, fullItem.roundOffStep);
+        const finalPrice = parseFloat(comp.finalPrice) || (price * qty);
+
+        const updatedLine = {
+          ...currentLine,
+          code: fullItem.code,
+          description: fullItem.description,
+          location: fullItem.location || 'Main Store',
+          availableQty: fullItem.quantity !== undefined ? fullItem.quantity : (fullItem.stockInHand !== undefined ? fullItem.stockInHand : (alt.stock || 0)),
+          sellingPrice: price,
+          price: price,
+          rate: String(price),
+          discountPercentage: discPct,
+          discountAmount: parseFloat(comp.discountAmount) || 0,
+          discount: discPct > 0 ? `${discPct}%` : (discAmt > 0 ? discAmt.toFixed(2) : '0%'),
+          value: finalPrice,
+          finalPrice: finalPrice,
+          itemCost: fullItem.costPrice || fullItem.averageCost || '-',
+          lastGrn: fullItem.lastGrn || '',
+          lastGrnDate: fullItem.lastGrnDate || '',
+        };
+
+        const updatedLines = [...lineItems];
+        updatedLines[altModalTargetIndex] = updatedLine;
+        setLineItems(updatedLines);
+        setSelectedLineIndex(-1);
+        setAltModalTargetIndex(-1);
+        showNotification(`Replaced line item with alternative '${fullItem.code} - ${fullItem.description}'`, 'success');
+      } catch (err) {
+        console.error('Error applying alternative item:', err);
+        showNotification('Failed to load alternative item details', 'error');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      await loadItemIntoEntry(alt.code, itemEntry.quantity || '1');
+      showNotification(`Selected alternative product '${alt.code} - ${alt.description || ''}'`, 'success');
+      setTimeout(() => {
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
+      }, 60);
+    }
   };
+
+  // Keyboard shortcut F6 to open Alternative Items for currently selected item
+  const handleOpenAlternativeItemsF6 = async () => {
+    let targetCode = '';
+    let targetIndex = -1;
+
+    if (selectedLineIndex >= 0 && lineItems[selectedLineIndex]) {
+      targetCode = (lineItems[selectedLineIndex].code || '').trim();
+      targetIndex = selectedLineIndex;
+    } else if (itemEntry.code && itemEntry.code.trim()) {
+      targetCode = itemEntry.code.trim();
+    }
+
+    if (!targetCode) {
+      showNotification('Please select an item first.', 'info');
+      return;
+    }
+
+    setAltModalTargetCode(targetCode);
+    setAltModalTargetIndex(targetIndex);
+    setAltSearchQuery('');
+    setAltHighlightedIndex(0);
+    setLoadingAlternatives(true);
+
+    try {
+      const res = await api.get(`/alternative-products/${encodeURIComponent(targetCode)}`);
+      const alts = res.data?.data?.alternativeItems || [];
+      setAlternativeProducts(alts);
+      setAltModalOpen(true);
+      if (alts.length === 0) {
+        showNotification('No alternative items available.', 'info');
+      }
+    } catch (err) {
+      console.error('Error fetching alternative products:', err);
+      setAlternativeProducts([]);
+      setAltModalOpen(true);
+      showNotification('No alternative items available.', 'info');
+    } finally {
+      setLoadingAlternatives(false);
+    }
+  };
+
+  // Register F6 shortcut exclusively for Sales Invoice
+  useKeyboardShortcut('F6', handleOpenAlternativeItemsF6, { enabled: true, allowInInputs: true });
+
+  // Modal Keyboard Navigation (Escape to close, Up/Down to navigate, Enter to select)
+  useEffect(() => {
+    if (!altModalOpen) return;
+
+    const handleAltModalKeys = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setAltModalOpen(false);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setAltHighlightedIndex((prev) => (prev < filteredAltProducts.length - 1 ? prev + 1 : prev));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setAltHighlightedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      } else if (e.key === 'Enter') {
+        if (filteredAltProducts.length > 0 && altHighlightedIndex >= 0 && altHighlightedIndex < filteredAltProducts.length) {
+          e.preventDefault();
+          handleSelectAlternativeProduct(filteredAltProducts[altHighlightedIndex]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleAltModalKeys);
+    return () => window.removeEventListener('keydown', handleAltModalKeys);
+  }, [altModalOpen, filteredAltProducts, altHighlightedIndex]);
 
   // Add or Update Line Item in Table (Add Item Button or Enter key)
   const handleAddOrUpdateItem = () => {
@@ -1943,6 +2559,9 @@ function Invoice() {
 
   // BUTTON: NEW INVOICE
   const handleNew = async (force = false) => {
+    if (isReturnMode) {
+      handleExitReturnMode();
+    }
     if (!force && lineItems.length > 0 && !activeInvoiceId) {
       const confirmClear = await confirm({
         title: 'SOFAST POS - New Invoice',
@@ -1954,6 +2573,11 @@ function Invoice() {
     }
 
     setActiveInvoiceId(null);
+    setInvoiceSearchState({
+      status: 'idle',
+      matchedInvoiceNumber: '',
+      matchedInvoiceData: null,
+    });
     setLineItems([]);
     setSelectedLineIndex(-1);
     setSelectedItemPreview(null);
@@ -2047,9 +2671,9 @@ function Invoice() {
     showNotification('Prepared New Invoice', 'info');
   };
 
-  // BUTTON: MANUAL INVOICE - Open dedicated Manual Invoice form
+  // BUTTON: MANUAL INVOICE - Open dedicated Manual Invoice form modal over Sales Invoice
   const handleManualInvoiceClick = () => {
-    navigate('/manual-invoice');
+    setManualInvoiceModalOpen(true);
   };
 
 
@@ -2188,10 +2812,15 @@ function Invoice() {
 
         // Refresh invoices list and items in background
         Promise.all([
-          api.get('/invoices?limit=50').catch(() => null),
+          api.get('/invoices?type=standard&limit=50').catch(() => null),
           api.get('/items?limit=all').catch(() => null),
         ]).then(([invsRes, itemsRes]) => {
-          if (invsRes?.data?.data) setInvoicesList(invsRes.data.data);
+          if (invsRes?.data?.data) {
+            const standardOnly = invsRes.data.data.filter(
+              (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+            );
+            setInvoicesList(standardOnly);
+          }
           if (itemsRes?.data?.data) setItemsList(itemsRes.data.data);
         });
 
@@ -2227,6 +2856,50 @@ function Invoice() {
       return;
     }
     navigate('/settlement-invoice');
+  };
+
+  // BUTTON: SAVE / COMPLETE INVOICE WITH PRINT CONFIRMATION
+  // Prompt requirement: "Do you wish to print this invoice?"
+  // Buttons:
+  // Yes — Save the invoice and print it.
+  // No — Save the invoice without printing.
+  // Cancel — Return to the invoice without saving.
+  const handleSaveInvoiceWithPrintConfirmation = async () => {
+    // In Return Mode, Save button or Enter confirms and processes the Return!
+    if (isReturnMode) {
+      handleConfirmAndProcessReturn();
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      showNotification('Please add at least one item before saving the invoice', 'error');
+      return;
+    }
+
+    for (const li of lineItems) {
+      if (!li.quantity || Number(li.quantity) <= 0) {
+        showNotification(`Invalid quantity for item '${li.code}'`, 'error');
+        return;
+      }
+    }
+
+    const choice = await confirmInvoicePrint('Do you wish to print this invoice?');
+
+    if (choice === 'cancel') {
+      return;
+    }
+
+    if (choice === 'no') {
+      await handleSaveInvoice(false);
+      return;
+    }
+
+    if (choice === 'yes') {
+      const saved = await handleSaveInvoice(false);
+      if (saved) {
+        handlePrint();
+      }
+    }
   };
 
   // BUTTON: DELETE INVOICE
@@ -2424,8 +3097,14 @@ function Invoice() {
 
   const filteredInvoices = useMemo(() => {
     const q = lookupModal.search.toLowerCase().trim();
-    if (!q) return invoicesList;
-    return invoicesList.filter(
+    const standardInvoices = invoicesList.filter(
+      (inv) =>
+        !inv.isManualInvoice &&
+        inv.invoiceType !== 'Manual' &&
+        !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+    );
+    if (!q) return standardInvoices;
+    return standardInvoices.filter(
       (inv) =>
         inv.invoiceNumber?.toLowerCase().includes(q) ||
         String(inv.no || '').toLowerCase().includes(q) ||
@@ -2457,17 +3136,6 @@ function Invoice() {
     return filteredItems.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredItems, lookupPage]);
 
-  // Filtered alternative products for modal
-  const filteredAltProducts = useMemo(() => {
-    if (!altSearchQuery || !altSearchQuery.trim()) return alternativeProducts;
-    const q = altSearchQuery.toLowerCase().trim();
-    return alternativeProducts.filter(
-      (p) =>
-        (p.code && p.code.toLowerCase().includes(q)) ||
-        (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.location && p.location.toLowerCase().includes(q))
-    );
-  }, [alternativeProducts, altSearchQuery]);
 
   // Reusable Compact Thermal Receipt component for both Print and Preview
   const renderThermalReceiptContent = () => {
@@ -2724,22 +3392,33 @@ function Invoice() {
                     })}
                   </div>
 
-                  {/* Invoice No under listbox */}
+                  {/* Invoice No under listbox with green Return button */}
                   <div className="sofast-inv-no-row">
                     <span className="sofast-navy-label" style={{ minWidth: '65px' }}>Invoice No .</span>
-                    <div className="sofast-combo-box" style={{ flex: 1 }}>
+                    <div className="sofast-combo-box" style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
                       <input
+                        ref={invoiceNumberInputRef}
                         type="text"
-                        className="sofast-input"
+                        className={`sofast-input ${isReturnMode ? 'invoice-return-mode-input' : invoiceSearchState.status === 'not_found' ? 'invoice-not-found-input' : ''}`}
                         value={invoiceHeader.invoiceNumber || ''}
-                        readOnly={!invoiceHeader.isManualInvoice}
-                        onChange={(e) =>
-                          setInvoiceHeader({ ...invoiceHeader, invoiceNumber: e.target.value })
-                        }
+                        onChange={handleInvoiceNumberChange}
+                        onKeyDown={handleInvoiceNumberKeyDown}
+                        placeholder="Invoice No"
+                        title="Enter an existing invoice number and click Return or press Enter to activate Invoice Return Mode"
                       />
                       <button
                         type="button"
+                        className="sofast-return-green-btn"
+                        title="Search original invoice in MongoDB and activate Invoice Return Mode"
+                        onClick={() => handleActivateReturnMode()}
+                        disabled={isSubmittingReturn}
+                      >
+                        Return
+                      </button>
+                      <button
+                        type="button"
                         className="sofast-combo-btn"
+                        title="Browse existing invoices"
                         onClick={() =>
                           setLookupModal({
                             isOpen: true,
@@ -3116,7 +3795,7 @@ function Invoice() {
                   <input
                     type="text"
                     className="sofast-input"
-                    style={{ flex: 1 }}
+                    style={{ width: '180px' }}
                     readOnly
                     value={itemEntry.lastGrnFormatted || itemEntry.lastGrn || ''}
                   />
@@ -3173,7 +3852,7 @@ function Invoice() {
                   <input
                     type="text"
                     className="sofast-input"
-                    style={{ flex: 1 }}
+                    style={{ width: '185px' }}
                     readOnly
                     value={itemEntry.lastInv || ''}
                   />
@@ -3186,7 +3865,7 @@ function Invoice() {
                     type="text"
                     name="description"
                     className="sofast-input"
-                    style={{ flex: 1 }}
+                    style={{ width: '448px' }}
                     value={itemEntry.description}
                     onChange={handleItemEntryChange}
                     placeholder={invoiceHeader.jobType === 'Labour' ? 'e.g. Delivery Charge' : ''}
@@ -3197,6 +3876,7 @@ function Invoice() {
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Quantity . . . . . .</span>
                   <input
+                    ref={quantityInputRef}
                     type="number"
                     name="quantity"
                     className="sofast-input"
@@ -3204,11 +3884,16 @@ function Invoice() {
                     value={itemEntry.quantity}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        rateInputRef.current?.focus();
+                        rateInputRef.current?.select();
+                      }
                     }}
                   />
                   <span className="sofast-navy-label" style={{ width: '75px' }}>Rate . . . . . . . .</span>
                   <input
+                    ref={rateInputRef}
                     type="text"
                     name="rate"
                     className="sofast-input"
@@ -3216,7 +3901,11 @@ function Invoice() {
                     value={itemEntry.rate}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        priceInputRef.current?.focus();
+                        priceInputRef.current?.select();
+                      }
                     }}
                   />
                   <button
@@ -3234,6 +3923,7 @@ function Invoice() {
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Selling Price . . .</span>
                   <input
+                    ref={priceInputRef}
                     type="number"
                     name="price"
                     className="sofast-input"
@@ -3241,11 +3931,16 @@ function Invoice() {
                     value={itemEntry.price}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        entryDiscountInputRef.current?.focus();
+                        entryDiscountInputRef.current?.select();
+                      }
                     }}
                   />
                   <span className="sofast-navy-label" style={{ width: '75px' }}>Discount . . .</span>
                   <input
+                    ref={entryDiscountInputRef}
                     type="text"
                     name="discountPercentage"
                     className="sofast-input discount-lavender-input"
@@ -3253,7 +3948,14 @@ function Invoice() {
                     value={itemEntry.discountPercentage}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddOrUpdateItem();
+                        setTimeout(() => {
+                          itemCodeInputRef.current?.focus();
+                          itemCodeInputRef.current?.select();
+                        }, 50);
+                      }
                     }}
                   />
                   <span className="sofast-navy-label" style={{ width: '45px' }}>Cost . . .</span>
@@ -3541,147 +4243,316 @@ function Invoice() {
             </div>
           </div>
 
-          {/* BOTTOM FULL-WIDTH MAIN INVOICE GRID */}
-          <div className="sofast-bottom-grid-container">
-            <table className="sofast-grid-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '130px' }}>Code</th>
-                  <th style={{ minWidth: '400px' }}>Description</th>
-                  <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
-                  <th style={{ width: '70px', textAlign: 'center' }}>Quantity</th>
-                  <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
-                  <th style={{ width: '95px', textAlign: 'right' }}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineItems.length === 0 ? (
-                  Array.from({ length: 7 }).map((_, emptyIdx) => (
-                    <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                      <td>&nbsp;</td>
-                    </tr>
-                  ))
-                ) : (
-                  lineItems.map((item, index) => (
-                    <tr
-                      key={index}
-                      className={selectedLineIndex === index ? 'selected-row' : ''}
-                      onClick={() => handleRowClick(index)}
-                      title="Click to edit, Double click to remove"
-                      onDoubleClick={(e) => handleRemoveLineItem(index, e)}
-                    >
-                      <td className="sofast-cell-code">{item.code}</td>
-                      <td>{item.description}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {Number(item.sellingPrice || item.price || 0).toFixed(2)}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        {item.discountPercentage ? `${item.discountPercentage}%` : '0%'}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {Number(item.finalPrice || item.value || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-                {/* Visual grid filler rows */}
-                {lineItems.length > 0 && Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
-                  <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* BOTTOM ACTIONS BAR (New | Bill Print | Save | Delete) & Summary Totals */}
-          <div className="sofast-bottom-action-bar">
-            <div className="sofast-bottom-buttons-group">
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-new"
-                onClick={() => handleNew(false)}
-                title="Start a new invoice (clears unsaved items with confirmation)"
-              >
-                New
-              </button>
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-print"
-                onClick={handleBillPrint}
-                title="Save invoice (if unsaved) and print thermal bill receipt"
-              >
-                Bill Print
-              </button>
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-save"
-                onClick={() => handleSaveInvoice(false)}
-                disabled={loading}
-                title="Save invoice to database and update stock"
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="sofast-bottom-btn sofast-btn-delete"
-                onClick={handleDeleteInvoice}
-                disabled={loading}
-                title="Delete or cancel invoice and restore stock"
-              >
-                Delete
-              </button>
-            </div>
-
-            {/* Quick summary totals on the right of the bottom bar */}
-            <div className="sofast-bottom-summary">
-              <span
-                className="sofast-bottom-summary-item"
-                title={
-                  lineItems.some((li) => li.jobType === 'Labour' || li.isService)
-                    ? `${lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} Stock, ${lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} Service`
-                    : `${lineItems.length} Items`
-                }
-              >
-                <span className="summary-label">Items:</span>
-                <span className="summary-value">
-                  {lineItems.length}
-                  {lineItems.some((li) => li.jobType === 'Labour' || li.isService) && (
-                    <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#555', marginLeft: '4px' }}>
-                      ({lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} stock, {lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} service)
+          {/* BOTTOM FULL-WIDTH MAIN INVOICE GRID OR RETURN MODE GRID */}
+          {isReturnMode ? (
+            <div className="sofast-bottom-grid-container sofast-return-mode-grid">
+              {/* Return Mode Banner Bar */}
+              <div className="sofast-return-mode-banner">
+                <div className="sofast-return-banner-left">
+                  <span className="sofast-return-tag">↩ INVOICE RETURN MODE</span>
+                  <span className="sofast-return-inv-title">
+                    Invoice: <strong>#{invoiceHeader.invoiceNumber || invoiceHeader.no}</strong>
+                    {invoiceHeader.customerName && ` — ${invoiceHeader.customerName}`}
+                  </span>
+                  {lastReturnNumber && (
+                    <span className="sofast-last-return-badge">
+                      Last Return: <strong>{lastReturnNumber}</strong>
                     </span>
                   )}
-                </span>
-              </span>
-              <span className="sofast-bottom-summary-item">
-                <span className="summary-label">Sub Total:</span>
-                <span className="summary-value">{invoiceSubTotal.toFixed(2)}</span>
-              </span>
-              {specialDiscVal > 0 && (
-                <span className="sofast-bottom-summary-item">
-                  <span className="summary-label">Discount:</span>
-                  <span className="summary-value">{specialDiscVal.toFixed(2)}</span>
-                </span>
-              )}
-              <span className="sofast-bottom-summary-item grand-total-item">
-                <span className="summary-label">Net Total:</span>
-                <span className="summary-value grand-total-value">
-                  {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </span>
+                </div>
+                <div className="sofast-return-banner-right">
+                  <button
+                    type="button"
+                    className="sofast-exit-return-btn"
+                    onClick={handleExitReturnMode}
+                    title="Exit Return Mode and switch back to normal sales invoice"
+                  >
+                    ✕ Exit Return Mode
+                  </button>
+                </div>
+              </div>
+
+              <table className="sofast-grid-table sofast-return-grid-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '110px' }}>Item Code</th>
+                    <th style={{ minWidth: '260px' }}>Description</th>
+                    <th style={{ width: '90px', textAlign: 'right' }}>Original Sold Quantity</th>
+                    <th style={{ width: '90px', textAlign: 'right' }}>Previously Returned Quantity</th>
+                    <th style={{ width: '95px', textAlign: 'right' }}>Remaining Returnable Quantity</th>
+                    <th style={{ width: '85px', textAlign: 'center' }}>Return Quantity</th>
+                    <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
+                    <th style={{ width: '95px', textAlign: 'right' }}>Return Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {returnItems.length === 0 ? (
+                    Array.from({ length: 6 }).map((_, emptyIdx) => (
+                      <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                      </tr>
+                    ))
+                  ) : (
+                    returnItems.map((item, index) => {
+                      const isSelected = selectedReturnItemIndex === index;
+                      const hasQty = Number(item.returnQuantity) > 0;
+                      const isFullyReturned = item.availableReturnQuantity === 0;
+
+                      return (
+                        <tr
+                          key={item.itemCode || index}
+                          className={`${isSelected ? 'selected-row' : ''} ${hasQty ? 'return-item-active-row' : ''} ${isFullyReturned ? 'return-item-fully-returned' : ''}`}
+                          onClick={() => {
+                            setSelectedReturnItemIndex(index);
+                            returnQtyInputsRef.current[index]?.focus();
+                          }}
+                        >
+                          <td className="sofast-cell-code" style={{ fontWeight: 'bold' }}>{item.itemCode}</td>
+                          <td>{item.description}</td>
+                          <td style={{ textAlign: 'right' }}>{item.originalSoldQuantity}</td>
+                          <td style={{ textAlign: 'right', color: item.previouslyReturnedQuantity > 0 ? '#b91c1c' : '#555' }}>
+                            {item.previouslyReturnedQuantity}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: item.availableReturnQuantity > 0 ? '#15803d' : '#888' }}>
+                            {item.availableReturnQuantity}
+                          </td>
+                          <td style={{ textAlign: 'center', padding: '2px 4px' }}>
+                            <input
+                              ref={(el) => (returnQtyInputsRef.current[index] = el)}
+                              type="number"
+                              min="0"
+                              max={item.availableReturnQuantity}
+                              step="any"
+                              className="sofast-return-table-qty-input"
+                              value={item.returnQuantity}
+                              disabled={!item.canReturn || isSubmittingReturn}
+                              placeholder={item.canReturn ? '0' : '—'}
+                              onChange={(e) => handleReturnItemQtyChange(index, e.target.value)}
+                              onKeyDown={(e) => handleReturnQtyKeyDown(e, index)}
+                              onFocus={() => setSelectedReturnItemIndex(index)}
+                            />
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {Number(item.sellingPrice || 0).toFixed(2)}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {item.discountPercentage ? `${item.discountPercentage}%` : (item.discountAmount > 0 ? `${item.discountAmount.toFixed(2)}` : '0%')}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: item.returnValue > 0 ? '#000080' : '#444' }}>
+                            {Number(item.returnValue || 0).toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
+          ) : (
+            <div className="sofast-bottom-grid-container">
+              <table className="sofast-grid-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '130px' }}>Code</th>
+                    <th style={{ minWidth: '400px' }}>Description</th>
+                    <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Quantity</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
+                    <th style={{ width: '95px', textAlign: 'right' }}>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.length === 0 ? (
+                    Array.from({ length: 7 }).map((_, emptyIdx) => (
+                      <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                      </tr>
+                    ))
+                  ) : (
+                    lineItems.map((item, index) => (
+                      <tr
+                        key={index}
+                        className={selectedLineIndex === index ? 'selected-row' : ''}
+                        onClick={() => handleRowClick(index)}
+                        title="Click to edit, Double click to remove"
+                        onDoubleClick={(e) => handleRemoveLineItem(index, e)}
+                      >
+                        <td className="sofast-cell-code">{item.code}</td>
+                        <td>{item.description}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(item.sellingPrice || item.price || 0).toFixed(2)}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          {item.discountPercentage ? `${item.discountPercentage}%` : '0%'}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {Number(item.finalPrice || item.value || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                  {/* Visual grid filler rows */}
+                  {lineItems.length > 0 && Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
+                    <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                      <td>&nbsp;</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* BOTTOM ACTIONS BAR & SUMMARY TOTALS */}
+          {isReturnMode ? (
+            <div className="sofast-bottom-action-bar sofast-return-action-bar">
+              <div className="sofast-bottom-buttons-group">
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-new"
+                  onClick={() => handleNew(false)}
+                  title="Start a new normal invoice (F2)"
+                >
+                  New (F2)
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-return-confirm"
+                  onClick={handleConfirmAndProcessReturn}
+                  disabled={isSubmittingReturn || returnItems.every((it) => !Number(it.returnQuantity))}
+                  title="Confirm and process return for selected items (Enter)"
+                >
+                  {isSubmittingReturn ? 'Processing...' : 'Confirm Return (Enter)'}
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-exit-return"
+                  onClick={handleExitReturnMode}
+                  title="Exit Return Mode without processing"
+                >
+                  Exit Return Mode
+                </button>
+              </div>
+
+              {/* Quick return summary totals on the right */}
+              <div className="sofast-bottom-summary">
+                <span className="sofast-bottom-summary-item">
+                  <span className="summary-label">Items Selected:</span>
+                  <span className="summary-value">
+                    {returnItems.filter((it) => Number(it.returnQuantity) > 0).length} of {returnItems.length}
+                  </span>
+                </span>
+                <span className="sofast-bottom-summary-item">
+                  <span className="summary-label">Return Qty:</span>
+                  <span className="summary-value">
+                    {returnItems.reduce((acc, it) => acc + (Number(it.returnQuantity) || 0), 0)}
+                  </span>
+                </span>
+                <span className="sofast-bottom-summary-item grand-total-item">
+                  <span className="summary-label">Return Total:</span>
+                  <span className="summary-value grand-total-value">
+                    Rs. {returnItems.reduce((acc, it) => acc + (Number(it.returnValue) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="sofast-bottom-action-bar">
+              <div className="sofast-bottom-buttons-group">
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-new"
+                  onClick={() => handleNew(false)}
+                  title="Start a new invoice (clears unsaved items with confirmation)"
+                >
+                  New
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-print"
+                  onClick={handleBillPrint}
+                  title="Save invoice (if unsaved) and print thermal bill receipt"
+                >
+                  Bill Print
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-save"
+                  onClick={handleSaveInvoiceWithPrintConfirmation}
+                  disabled={loading}
+                  title="Save invoice to database and update stock (Enter / Click)"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-delete"
+                  onClick={handleDeleteInvoice}
+                  disabled={loading}
+                  title="Delete or cancel invoice and restore stock"
+                >
+                  Delete
+                </button>
+              </div>
+
+              {/* Quick summary totals on the right of the bottom bar */}
+              <div className="sofast-bottom-summary">
+                <span
+                  className="sofast-bottom-summary-item"
+                  title={
+                    lineItems.some((li) => li.jobType === 'Labour' || li.isService)
+                      ? `${lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} Stock, ${lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} Service`
+                      : `${lineItems.length} Items`
+                  }
+                >
+                  <span className="summary-label">Items:</span>
+                  <span className="summary-value">
+                    {lineItems.length}
+                    {lineItems.some((li) => li.jobType === 'Labour' || li.isService) && (
+                      <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#555', marginLeft: '4px' }}>
+                        ({lineItems.filter((li) => li.jobType !== 'Labour' && !li.isService).length} stock, {lineItems.filter((li) => li.jobType === 'Labour' || li.isService).length} service)
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <span className="sofast-bottom-summary-item">
+                  <span className="summary-label">Sub Total:</span>
+                  <span className="summary-value">{invoiceSubTotal.toFixed(2)}</span>
+                </span>
+                {specialDiscVal > 0 && (
+                  <span className="sofast-bottom-summary-item">
+                    <span className="summary-label">Discount:</span>
+                    <span className="summary-value">{specialDiscVal.toFixed(2)}</span>
+                  </span>
+                )}
+                <span className="sofast-bottom-summary-item grand-total-item">
+                  <span className="summary-label">Net Total:</span>
+                  <span className="summary-value grand-total-value">
+                    {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
@@ -4408,38 +5279,39 @@ function Invoice() {
                 <table className="sofast-classic-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <thead>
                     <tr style={{ background: '#005bb7', color: '#ffffff', position: 'sticky', top: 0, zIndex: 1 }}>
-                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Code</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Description</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488', width: '100px' }}>Location</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '70px' }}>Stock</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '90px' }}>Price (Rs.)</th>
-                      <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #004488', width: '90px' }}>Action</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Item Code</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488' }}>Item Description</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '125px' }}>Available Quantity</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #004488', width: '110px' }}>Selling Price</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'left', border: '1px solid #004488', width: '110px' }}>Location</th>
+                      <th style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #004488', width: '100px' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredAltProducts.length === 0 ? (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#666', fontStyle: 'italic' }}>
-                          {alternativeProducts.length === 0
-                            ? 'No alternative products configured for this item.'
-                            : 'No matching alternative products found.'}
+                        <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: '#666', fontStyle: 'italic', fontSize: '13px' }}>
+                          No alternative items available.
                         </td>
                       </tr>
                     ) : (
-                      filteredAltProducts.map((alt) => {
+                      filteredAltProducts.map((alt, idx) => {
                         const stockNum = Number(alt.stock !== undefined ? alt.stock : (alt.quantity || 0));
                         const hasStock = stockNum > 0;
+                        const isHighlighted = altHighlightedIndex === idx;
                         return (
                           <tr
                             key={alt.code}
                             style={{
                               borderBottom: '1px solid #dcdcdc',
-                              background: hasStock ? '#f9fff9' : '#fff9f9',
+                              background: isHighlighted ? '#e0efff' : (hasStock ? '#f9fff9' : '#fff9f9'),
+                              cursor: 'pointer',
                             }}
+                            onClick={() => setAltHighlightedIndex(idx)}
+                            onDoubleClick={() => handleSelectAlternativeProduct(alt)}
                           >
                             <td style={{ padding: '5px 8px', fontWeight: 'bold', color: '#000080' }}>{alt.code}</td>
                             <td style={{ padding: '5px 8px' }}>{alt.description}</td>
-                            <td style={{ padding: '5px 8px', color: '#555' }}>{alt.location || 'Main Store'}</td>
                             <td
                               style={{
                                 padding: '5px 8px',
@@ -4456,6 +5328,7 @@ function Invoice() {
                                 maximumFractionDigits: 2,
                               })}
                             </td>
+                            <td style={{ padding: '5px 8px', color: '#555' }}>{alt.location || 'Main Store'}</td>
                             <td style={{ padding: '3px 8px', textAlign: 'center' }}>
                               <button
                                 type="button"
@@ -4470,7 +5343,7 @@ function Invoice() {
                                 onClick={() => handleSelectAlternativeProduct(alt)}
                                 title={hasStock ? 'Select this alternative item' : 'Select this item (0 stock)'}
                               >
-                                Select
+                                {altModalTargetIndex >= 0 ? 'Replace Line' : 'Select'}
                               </button>
                             </td>
                           </tr>
@@ -4492,6 +5365,25 @@ function Invoice() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* DEDICATED MANUAL INVOICE MODAL DIALOG */}
+      {manualInvoiceModalOpen && (
+        <ErrorBoundary
+          title="Manual Invoice Form Error"
+          onReset={() => setManualInvoiceModalOpen(false)}
+        >
+          <ManualInvoice
+            isModal={true}
+            onClose={() => setManualInvoiceModalOpen(false)}
+            onInvoiceSaved={(savedDoc) => {
+              showNotification(
+                `Manual Invoice '${savedDoc?.invoiceNumber || ''}' saved successfully!`,
+                'success'
+              );
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {/* DEDICATED PRINT AREA FOR 80MM/58MM THERMAL RECEIPT */}

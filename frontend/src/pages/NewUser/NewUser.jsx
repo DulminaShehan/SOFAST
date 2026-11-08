@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import { useAuth, SYSTEM_MODULES } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import api from '../../services/api';
@@ -15,6 +17,7 @@ function NewUser() {
   const { currentUser, isAdmin, switchUser } = useAuth();
   const { confirm } = useConfirm();
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -223,6 +226,8 @@ function NewUser() {
   // Form Submit
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
     if (!formData.username.trim() || !formData.fullName.trim()) {
       showToast('Please enter both username and full name', 'error');
       return;

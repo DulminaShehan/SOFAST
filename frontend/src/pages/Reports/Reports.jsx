@@ -4,6 +4,7 @@ import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import StockReportView from './StockReportView';
+import ManualStockReportView from './ManualStockReportView';
 import ReportsDashboardView from './ReportsDashboardView';
 import InvoiceReportView from './InvoiceReportView';
 import './Reports.css';
@@ -72,6 +73,7 @@ function Reports() {
     { id: 'dashboard', label: 'Reports Dashboard', icon: '📊' },
     { id: 'invoices', label: 'Invoice Report (All Invoices)', icon: '🧾' },
     { id: 'stock_report', label: 'Stock Report', icon: '📋' },
+    { id: 'manual_stock', label: 'Manual Stock Report', icon: '📦' },
     { id: 'settlements', label: 'Daily Settlements Details', icon: '💰' },
     { id: 'grn', label: 'Goods Received Notes (GRN)', icon: '📥' },
     { id: 'invoice_returns', label: 'Invoice Returns Report', icon: '🔄' },
@@ -1857,6 +1859,13 @@ function Reports() {
           ========================================================================= */}
       {activeReportTab === 'stock_report' && (
         <StockReportView onNavigateTab={handleTabSwitch} />
+      )}
+
+      {/* =========================================================================
+          FEATURE: MANUAL STOCK REPORT (Unregistered Items, Stock Additions, Conversion)
+          ========================================================================= */}
+      {activeReportTab === 'manual_stock' && (
+        <ManualStockReportView onNavigateTab={handleTabSwitch} />
       )}
 
       {/* =========================================================================

@@ -19,7 +19,7 @@ function InvoiceReportView({ onNavigateTab }) {
   const [customer, setCustomer] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [invoiceType, setInvoiceType] = useState('all');
+  const [invoiceType, setInvoiceType] = useState('standard');
   const [paymentMethod, setPaymentMethod] = useState('all');
   const [paymentStatus, setPaymentStatus] = useState('all');
   const [sortBy, setSortBy] = useState('date_desc');

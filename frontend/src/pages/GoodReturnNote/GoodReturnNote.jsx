@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
 import './GoodReturnNote.css';
@@ -499,6 +501,9 @@ function GoodReturnNote() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     // Client-side quick check on eligible quantity
     for (const item of itemsToSave) {
       const q = parseFloat(item.qtyReturn);
@@ -768,7 +773,7 @@ function GoodReturnNote() {
       </div>
 
       {/* 3. Main Form Body */}
-      <div className="gren-form-body">
+      <div className="gren-form-body" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.btn-save-default' })}>
         {/* Top Header Box */}
         <div className="gren-header-box">
           {/* Sub-group: Gren & Date */}

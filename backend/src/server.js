@@ -58,8 +58,12 @@ app.get('/api', (req, res) => {
   });
 });
 
-// Mount central API router
+// Favicon handler to avoid 404 logs from browser requests
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
+// Mount central API router (under both /api and root / for maximum resilience)
 app.use('/api', routes);
+app.use('/', routes);
 
 // Handle unknown routes (404)
 app.use(notFoundHandler);

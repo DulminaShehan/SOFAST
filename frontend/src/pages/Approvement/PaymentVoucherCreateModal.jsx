@@ -3,6 +3,8 @@ import { numberToWords } from '../../utils/numberToWords';
 import { SAMPLE_ATTACHMENTS } from './sampleAttachments';
 import './PaymentVoucherSheet.css';
 import './PaymentVoucherModal.css';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 
 /**
  * PaymentVoucherCreateModal
@@ -42,6 +44,7 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
   const [previewMedia, setPreviewMedia] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const { confirmSave } = useConfirmDialog();
 
   // Handle line item edit
   const handleItemChange = (index, field, value) => {
@@ -185,6 +188,9 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     try {
       setIsSubmitting(true);
       const payload = {
@@ -249,7 +255,7 @@ function PaymentVoucherCreateModal({ isOpen, onClose, onSuccess, currentUser }) 
         <div className="pv-bill-scrollable-container">
           {errorMsg && <div className="pv-error-banner">⚠️ {errorMsg}</div>}
 
-          <form onSubmit={handleSubmit} id="pv-bill-form">
+          <form onSubmit={handleSubmit} id="pv-bill-form" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.submit-bill-btn' })}>
             {/* =========================================================================
                 THE EXACT PHYSICAL PAYMENT VOUCHER BILL SHEET (PAGE 1 OF PDF)
                 ========================================================================= */}

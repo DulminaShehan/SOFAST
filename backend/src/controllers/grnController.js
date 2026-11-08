@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import Grn from '../models/Grn.js';
 import Item from '../models/Item.js';
 import Supplier from '../models/Supplier.js';
+import ManualItem from '../models/ManualItem.js';
+import ManualStockTransaction from '../models/ManualStockTransaction.js';
 
 /**
  * Format GRN number with zero padding (fallback)
@@ -49,6 +51,149 @@ export const findItemMasterRecord = async (codeOrId) => {
     $or: [{ barcode: str }, { barCode: str }, { description: new RegExp(`^${escaped}$`, 'i') }],
   });
   return item;
+};
+
+/**
+ * Find Item Master record or Manual Item record robustly
+ */
+export const findItemOrManualRecord = async (codeOrId, manualItemId = null) => {
+  if (manualItemId && mongoose.Types.ObjectId.isValid(manualItemId)) {
+    const manualDoc = await ManualItem.findById(manualItemId);
+    if (manualDoc) {
+      let itemDoc = null;
+      if (manualDoc.status === 'Converted' && manualDoc.convertedItemId) {
+        itemDoc = await Item.findById(manualDoc.convertedItemId);
+      }
+      return { type: itemDoc ? 'both' : 'manual', itemDoc, manualDoc };
+    }
+  }
+
+  const itemDoc = await findItemMasterRecord(codeOrId);
+  if (itemDoc) {
+    const manualDoc = await ManualItem.findOne({
+      $or: [
+        { convertedItemId: itemDoc._id },
+        { convertedItemCode: itemDoc.code },
+        { manualCode: itemDoc.code },
+      ],
+    });
+    return { type: manualDoc ? 'both' : 'master', itemDoc, manualDoc };
+  }
+
+  const str = String(codeOrId || '').trim();
+  if (str) {
+    const escaped = str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const manualDoc = await ManualItem.findOne({
+      $or: [
+        { manualCode: str },
+        { manualCode: new RegExp(`^${escaped}$`, 'i') },
+        { convertedItemCode: new RegExp(`^${escaped}$`, 'i') },
+      ],
+    });
+    if (manualDoc) {
+      let linkedMaster = null;
+      if (manualDoc.status === 'Converted' && manualDoc.convertedItemId) {
+        linkedMaster = await Item.findById(manualDoc.convertedItemId);
+      }
+      return { type: linkedMaster ? 'both' : 'manual', itemDoc: linkedMaster, manualDoc };
+    }
+  }
+
+  return { type: 'none', itemDoc: null, manualDoc: null };
+};
+
+/**
+ * Reconcile stock for a GRN line item across Item Master and/or ManualItem
+ */
+export const applyGrnStockMovement = async ({
+  code,
+  quantity,
+  line,
+  grnNumber,
+  grnDate = new Date(),
+  supplierName = '',
+  supplierCode = '',
+  location = 'Main Store',
+  performedBy = 'GRN System',
+}) => {
+  const record = await findItemOrManualRecord(code, line?.manualItemId);
+  const formattedDateStr = new Date(grnDate).toISOString().split('T')[0];
+  const locToSet = line?.locationCode || line?.location || location || 'Main Store';
+  const unitPrice = parseFloat(line?.unitPrice !== undefined ? line.unitPrice : (line?.price || 0)) || 0;
+  const sellingPrice = parseFloat(line?.sellingPrice !== undefined ? line.sellingPrice : 0) || 0;
+
+  // 1. If Item Master record exists: update inventory stock atomically
+  if (record.itemDoc) {
+    const updateFields = {
+      $inc: { quantity: quantity, stockInHand: quantity },
+    };
+    if (quantity > 0) {
+      updateFields.$set = {
+        lastGrnPrice: unitPrice,
+        lastGrn: String(grnNumber),
+        lastGrnDate: formattedDateStr,
+        costPrice: unitPrice,
+        location: record.itemDoc.location && record.itemDoc.location !== '' ? record.itemDoc.location : locToSet,
+        supplier: supplierName || record.itemDoc.supplier || '',
+        supplierCode: supplierCode || record.itemDoc.supplierCode || '',
+        suppCode: supplierCode || record.itemDoc.suppCode || '',
+      };
+    }
+    await Item.updateOne({ _id: record.itemDoc._id }, updateFields);
+  }
+
+  // 2. If ManualItem record exists: update manual stock reconciliation & audit trail
+  if (record.manualDoc) {
+    const mItem = record.manualDoc;
+    mItem.totalStockAdded = Math.max(0, Math.round(((mItem.totalStockAdded || 0) + quantity) * 100) / 100);
+    mItem.availableStock = Math.round((mItem.totalStockAdded - (mItem.totalSalesQty || 0)) * 100) / 100;
+    if (unitPrice > 0) mItem.costPrice = unitPrice;
+    if (sellingPrice > 0) mItem.sellingPrice = sellingPrice;
+    if (supplierName) mItem.supplier = supplierName;
+    if (supplierCode) mItem.supplierCode = supplierCode;
+    mItem.location = locToSet;
+    mItem.lastTransactionDate = grnDate;
+    await mItem.save();
+
+    if (quantity > 0) {
+      const tx = new ManualStockTransaction({
+        manualItemId: mItem._id,
+        manualCode: mItem.manualCode,
+        description: mItem.description,
+        transactionType: 'STOCK_ADDITION',
+        date: grnDate,
+        referenceNumber: String(grnNumber),
+        quantity: quantity,
+        unitPrice: sellingPrice || mItem.sellingPrice || 0,
+        costPrice: unitPrice,
+        supplier: supplierName || mItem.supplier || '',
+        supplierCode: supplierCode || mItem.supplierCode || '',
+        location: locToSet,
+        balanceAfter: mItem.availableStock,
+        performedBy: performedBy,
+        notes: `Received via GRN #${grnNumber} from ${supplierName || 'Supplier'}. Reconciled available stock: ${mItem.availableStock} (Confirmed Received: ${mItem.totalStockAdded}, Previously Sold: ${mItem.totalSalesQty})`,
+      });
+      await tx.save();
+    } else if (quantity < 0) {
+      const tx = new ManualStockTransaction({
+        manualItemId: mItem._id,
+        manualCode: mItem.manualCode,
+        description: mItem.description,
+        transactionType: 'STOCK_ADDITION',
+        date: new Date(),
+        referenceNumber: `GRN-REV-${grnNumber}`,
+        quantity: quantity,
+        unitPrice: sellingPrice || mItem.sellingPrice || 0,
+        costPrice: unitPrice,
+        balanceAfter: mItem.availableStock,
+        performedBy: performedBy,
+        notes: `GRN #${grnNumber} reversal of ${Math.abs(quantity)} units. Reconciled available stock: ${mItem.availableStock}`,
+      });
+      await tx.save();
+    }
+  }
+
+  return record;
 };
 
 /**
@@ -272,6 +417,23 @@ export const createGrn = async (req, res, next) => {
     const resolvedSupplierCode = existingSupplier.code;
     const resolvedSupplierName = existingSupplier.name;
 
+    // Duplicate GRN check: prevent duplicate supplier invoice records for the same supplier
+    const rawInvNo = (supplierInvoiceNo || invoice || '').trim();
+    if (rawInvNo) {
+      const dup = await Grn.findOne({
+        supplierCode: resolvedSupplierCode,
+        $or: [{ supplierInvoiceNo: rawInvNo }, { invoice: rawInvNo }],
+        status: { $ne: 'cancelled' },
+      });
+      if (dup) {
+        return res.status(409).json({
+          success: false,
+          message: `Duplicate GRN warning: A GRN (#${dup.grnNumber}) already exists for Supplier '${resolvedSupplierName}' with Supplier Invoice No '${rawInvNo}'.`,
+          duplicateGrn: dup.grnNumber,
+        });
+      }
+    }
+
     // 2. Line Items Validation
     if (!Array.isArray(lineItems) || lineItems.length === 0) {
       return res.status(400).json({
@@ -280,7 +442,7 @@ export const createGrn = async (req, res, next) => {
       });
     }
 
-    // Verify all line item codes exist in Item Master
+    // Verify all line item codes exist in Item Master or Manual Stock registry
     for (let i = 0; i < lineItems.length; i++) {
       const line = lineItems[i];
       const itemCode = (line.code || line.itemCode || '').trim();
@@ -290,11 +452,11 @@ export const createGrn = async (req, res, next) => {
           message: `Line item #${i + 1} is missing an Item Code`,
         });
       }
-      const itemExists = await findItemMasterRecord(itemCode);
-      if (!itemExists) {
+      const itemRecord = await findItemOrManualRecord(itemCode, line.manualItemId);
+      if (itemRecord.type === 'none') {
         return res.status(400).json({
           success: false,
-          message: `Item code '${itemCode}' does not exist in Item Master`,
+          message: `Item code '${itemCode}' does not exist in Item Master or Manual Stock registry`,
         });
       }
       const qty = parseFloat(line.quantity !== undefined ? line.quantity : line.qty);
@@ -324,12 +486,12 @@ export const createGrn = async (req, res, next) => {
     const processedLineItems = [];
     for (const item of lineItems) {
       const rawCode = (item.code || item.itemCode || '').trim();
-      const itemDoc = await findItemMasterRecord(rawCode);
-      const code = itemDoc ? itemDoc.code : rawCode;
-      const desc = itemDoc ? itemDoc.description : (item.description || '');
+      const itemRecord = await findItemOrManualRecord(rawCode, item.manualItemId);
+      const code = itemRecord.itemDoc ? itemRecord.itemDoc.code : (itemRecord.manualDoc ? itemRecord.manualDoc.manualCode : rawCode);
+      const desc = itemRecord.itemDoc ? itemRecord.itemDoc.description : (itemRecord.manualDoc ? itemRecord.manualDoc.description : (item.description || ''));
       const qty = parseFloat(item.quantity !== undefined ? item.quantity : item.qty) || 0;
       const unitPrice = parseFloat(item.unitPrice !== undefined ? item.unitPrice : (item.price || item.rate || 0));
-      const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (itemDoc?.sellingPrice || item.sellPrice || 0));
+      const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (itemRecord.itemDoc?.sellingPrice || itemRecord.manualDoc?.sellingPrice || item.sellPrice || 0));
       const discountPct = Math.min(100, Math.max(0, parseFloat(item.discount !== undefined ? item.discount : (item.discountPercentage || 0))));
 
       const lineGross = Math.round(qty * unitPrice * 100) / 100;
@@ -338,7 +500,7 @@ export const createGrn = async (req, res, next) => {
 
       totalGrnValue = Math.round((totalGrnValue + value) * 100) / 100;
 
-      const locCode = item.locationCode || item.location || itemDoc?.location || 'Main Store';
+      const locCode = item.locationCode || item.location || itemRecord.itemDoc?.location || itemRecord.manualDoc?.location || 'Main Store';
 
       processedLineItems.push({
         code,
@@ -350,9 +512,14 @@ export const createGrn = async (req, res, next) => {
         rate: unitPrice,
         sellingPrice,
         discount: discountPct,
+        discountPercentage: discountPct,
         totalValue: value,
         value,
         locationCode: locCode,
+        isManualItem: Boolean(itemRecord.manualDoc),
+        manualItemId: itemRecord.manualDoc?._id || null,
+        manualCode: itemRecord.manualDoc?.manualCode || '',
+        previouslySoldQty: itemRecord.manualDoc?.totalSalesQty || 0,
       });
     }
 
@@ -393,27 +560,22 @@ export const createGrn = async (req, res, next) => {
       { upsert: true }
     );
 
-    // 7. Update Item Stock ONLY if posting (isPosted === true)
-    // IMPORTANT: Stock is increased strictly once atomically. Selling price is NOT overwritten!
+    // 7. Update Stock ONLY if posting (isPosted === true)
+    // Reconciles both Item Master and Manual Item inventory records atomically
     if (willPost) {
       const itemsMap = aggregateGrnItemsByCode(processedLineItems);
       for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (itemDoc) {
-          const locToSet = line.locationCode || line.location || itemDoc.location || 'Main Store';
-          await Item.updateOne(
-            { _id: itemDoc._id },
-            {
-              $inc: { quantity: qty, stockInHand: qty },
-              $set: {
-                lastGrnPrice: line.unitPrice,
-                lastGrn: formattedDateStr,
-                lastGrnDate: formattedDateStr,
-                location: itemDoc.location && itemDoc.location !== '' ? itemDoc.location : locToSet,
-              },
-            }
-          );
-        }
+        await applyGrnStockMovement({
+          code,
+          quantity: qty,
+          line,
+          grnNumber: finalGrnNumber,
+          grnDate,
+          supplierName: resolvedSupplierName,
+          supplierCode: resolvedSupplierCode,
+          location: line.locationCode || line.location || 'Main Store',
+          performedBy: req.user?.username || 'GRN Storekeeper',
+        });
       }
     }
 
@@ -512,11 +674,11 @@ export const updateGrn = async (req, res, next) => {
             message: `Line item #${i + 1} is missing an Item Code`,
           });
         }
-        const itemExists = await findItemMasterRecord(itemCode);
-        if (!itemExists) {
+        const itemRecord = await findItemOrManualRecord(itemCode, line.manualItemId);
+        if (itemRecord.type === 'none') {
           return res.status(400).json({
             success: false,
-            message: `Item code '${itemCode}' does not exist in Item Master`,
+            message: `Item code '${itemCode}' does not exist in Item Master or Manual Stock registry`,
           });
         }
       }
@@ -525,12 +687,12 @@ export const updateGrn = async (req, res, next) => {
       processedLineItems = [];
       for (const item of lineItems) {
         const rawCode = (item.code || item.itemCode || '').trim();
-        const itemDoc = await findItemMasterRecord(rawCode);
-        const code = itemDoc ? itemDoc.code : rawCode;
-        const desc = itemDoc ? itemDoc.description : (item.description || '');
+        const itemRecord = await findItemOrManualRecord(rawCode, item.manualItemId);
+        const code = itemRecord.itemDoc ? itemRecord.itemDoc.code : (itemRecord.manualDoc ? itemRecord.manualDoc.manualCode : rawCode);
+        const desc = itemRecord.itemDoc ? itemRecord.itemDoc.description : (itemRecord.manualDoc ? itemRecord.manualDoc.description : (item.description || ''));
         const qty = parseFloat(item.quantity !== undefined ? item.quantity : item.qty) || 0;
         const unitPrice = parseFloat(item.unitPrice !== undefined ? item.unitPrice : (item.price || item.rate || 0));
-        const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (itemDoc?.sellingPrice || item.sellPrice || 0));
+        const sellingPrice = parseFloat(item.sellingPrice !== undefined ? item.sellingPrice : (itemRecord.itemDoc?.sellingPrice || itemRecord.manualDoc?.sellingPrice || item.sellPrice || 0));
         const discountPct = Math.min(100, Math.max(0, parseFloat(item.discount !== undefined ? item.discount : (item.discountPercentage || 0))));
 
         const lineGross = Math.round(qty * unitPrice * 100) / 100;
@@ -539,7 +701,7 @@ export const updateGrn = async (req, res, next) => {
 
         totalGrnValue = Math.round((totalGrnValue + value) * 100) / 100;
 
-        const locCode = item.locationCode || item.location || itemDoc?.location || 'Main Store';
+        const locCode = item.locationCode || item.location || itemRecord.itemDoc?.location || itemRecord.manualDoc?.location || 'Main Store';
 
         processedLineItems.push({
           code,
@@ -554,6 +716,10 @@ export const updateGrn = async (req, res, next) => {
           totalValue: value,
           value,
           locationCode: locCode,
+          isManualItem: Boolean(itemRecord.manualDoc),
+          manualItemId: itemRecord.manualDoc?._id || null,
+          manualCode: itemRecord.manualDoc?.manualCode || '',
+          previouslySoldQty: itemRecord.manualDoc?.totalSalesQty || 0,
         });
       }
     }
@@ -575,34 +741,33 @@ export const updateGrn = async (req, res, next) => {
       // First time posting this GRN: update stock atomically
       const itemsMap = aggregateGrnItemsByCode(processedLineItems);
       for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (itemDoc) {
-          const locToSet = line.locationCode || line.location || itemDoc.location || 'Main Store';
-          await Item.updateOne(
-            { _id: itemDoc._id },
-            {
-              $inc: { quantity: qty, stockInHand: qty },
-              $set: {
-                lastGrnPrice: line.unitPrice,
-                lastGrn: formattedDateStr,
-                lastGrnDate: formattedDateStr,
-                location: itemDoc.location && itemDoc.location !== '' ? itemDoc.location : locToSet,
-              },
-            }
-          );
-        }
+        await applyGrnStockMovement({
+          code,
+          quantity: qty,
+          line,
+          grnNumber: grn.grnNumber,
+          grnDate,
+          supplierName: resolvedSupplierName,
+          supplierCode: resolvedSupplierCode,
+          location: line.locationCode || line.location || 'Main Store',
+          performedBy: req.user?.username || 'GRN Storekeeper',
+        });
       }
     } else if (wasPosted && !targetPosted) {
       // Revert previous stock movements if explicitly unposting
       const oldMap = aggregateGrnItemsByCode(grn.lineItems);
-      for (const [code, { quantity: oldQty }] of oldMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (itemDoc) {
-          await Item.updateOne(
-            { _id: itemDoc._id },
-            { $inc: { quantity: -oldQty, stockInHand: -oldQty } }
-          );
-        }
+      for (const [code, { quantity: oldQty, line }] of oldMap.entries()) {
+        await applyGrnStockMovement({
+          code,
+          quantity: -oldQty,
+          line,
+          grnNumber: grn.grnNumber,
+          grnDate,
+          supplierName: resolvedSupplierName,
+          supplierCode: resolvedSupplierCode,
+          location: line?.locationCode || line?.location || 'Main Store',
+          performedBy: req.user?.username || 'GRN Storekeeper',
+        });
       }
     } else if (wasPosted && targetPosted) {
       // Already posted GRN being updated: apply only the delta
@@ -615,13 +780,18 @@ export const updateGrn = async (req, res, next) => {
         const newQty = newMap.get(code)?.quantity || 0;
         const delta = newQty - oldQty;
         if (delta !== 0) {
-          const itemDoc = await findItemMasterRecord(code);
-          if (itemDoc) {
-            await Item.updateOne(
-              { _id: itemDoc._id },
-              { $inc: { quantity: delta, stockInHand: delta } }
-            );
-          }
+          const line = newMap.get(code)?.line || oldMap.get(code)?.line;
+          await applyGrnStockMovement({
+            code,
+            quantity: delta,
+            line,
+            grnNumber: grn.grnNumber,
+            grnDate,
+            supplierName: resolvedSupplierName,
+            supplierCode: resolvedSupplierCode,
+            location: line?.locationCode || line?.location || 'Main Store',
+            performedBy: req.user?.username || 'GRN Storekeeper',
+          });
         }
       }
     }
@@ -698,25 +868,19 @@ export const postGrn = async (req, res, next) => {
     }
 
     // Apply atomic stock updates for each item in the GRN
-    const formattedDateStr = new Date(grn.date || Date.now()).toISOString().split('T')[0];
     const itemsMap = aggregateGrnItemsByCode(grn.lineItems);
     for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
-      const itemDoc = await findItemMasterRecord(code);
-      if (itemDoc) {
-        const locToSet = line.locationCode || line.location || itemDoc.location || 'Main Store';
-        await Item.updateOne(
-          { _id: itemDoc._id },
-          {
-            $inc: { quantity: qty, stockInHand: qty },
-            $set: {
-              lastGrnPrice: line.unitPrice,
-              lastGrn: formattedDateStr,
-              lastGrnDate: formattedDateStr,
-              location: itemDoc.location && itemDoc.location !== '' ? itemDoc.location : locToSet,
-            },
-          }
-        );
-      }
+      await applyGrnStockMovement({
+        code,
+        quantity: qty,
+        line,
+        grnNumber: grn.grnNumber,
+        grnDate: grn.date || new Date(),
+        supplierName: grn.supplierName,
+        supplierCode: grn.supplierCode,
+        location: line?.locationCode || line?.location || 'Main Store',
+        performedBy: req.user?.username || 'GRN Storekeeper',
+      });
     }
 
     grn.isPosted = true;
@@ -766,14 +930,18 @@ export const reverseGrn = async (req, res, next) => {
     // If posted, reverse the stock addition exactly once
     if (grn.isPosted && Array.isArray(grn.lineItems)) {
       const itemsMap = aggregateGrnItemsByCode(grn.lineItems);
-      for (const [code, { quantity: qty }] of itemsMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (itemDoc) {
-          await Item.updateOne(
-            { _id: itemDoc._id },
-            { $inc: { quantity: -qty, stockInHand: -qty } }
-          );
-        }
+      for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
+        await applyGrnStockMovement({
+          code,
+          quantity: -qty,
+          line,
+          grnNumber: grn.grnNumber,
+          grnDate: new Date(),
+          supplierName: grn.supplierName,
+          supplierCode: grn.supplierCode,
+          location: line?.locationCode || line?.location || 'Main Store',
+          performedBy: req.user?.username || 'GRN Storekeeper',
+        });
       }
       grn.isPosted = false;
     }
@@ -816,14 +984,18 @@ export const deleteGrn = async (req, res, next) => {
     // Revert stock adjustments if posted
     if (grn.isPosted && Array.isArray(grn.lineItems)) {
       const itemsMap = aggregateGrnItemsByCode(grn.lineItems);
-      for (const [code, { quantity: qty }] of itemsMap.entries()) {
-        const itemDoc = await findItemMasterRecord(code);
-        if (itemDoc) {
-          await Item.updateOne(
-            { _id: itemDoc._id },
-            { $inc: { quantity: -qty, stockInHand: -qty } }
-          );
-        }
+      for (const [code, { quantity: qty, line }] of itemsMap.entries()) {
+        await applyGrnStockMovement({
+          code,
+          quantity: -qty,
+          line,
+          grnNumber: grn.grnNumber,
+          grnDate: new Date(),
+          supplierName: grn.supplierName,
+          supplierCode: grn.supplierCode,
+          location: line?.locationCode || line?.location || 'Main Store',
+          performedBy: req.user?.username || 'GRN Storekeeper',
+        });
       }
       grn.isPosted = false;
     }

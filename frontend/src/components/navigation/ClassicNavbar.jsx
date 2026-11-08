@@ -67,6 +67,7 @@ function ClassicNavbar({ activeMenu = '', className = '' }) {
         { id: 'reports-dashboard', label: '📊 Reports Dashboard', path: '/reports?tab=dashboard', badge: 'New' },
         { id: 'invoice-report', label: '🧾 Invoice Report (All Invoices)', path: '/reports?tab=invoices', badge: 'New' },
         { id: 'stock-report', label: '📋 Stock Report', path: '/reports?tab=stock_report', badge: 'New' },
+        { id: 'manual-stock-report', label: '📦 Manual Stock Report', path: '/reports?tab=manual_stock', badge: 'New' },
         { id: 'daily-settlements', label: '💰 Daily Settlements Details', path: '/reports?tab=settlements' },
         { id: 'grn-report', label: '📥 Goods Received Notes (GRN)', path: '/reports?tab=grn' },
         { id: 'invoice-returns', label: '🔄 Invoice Returns Report', path: '/reports?tab=invoice_returns' },

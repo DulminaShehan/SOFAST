@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import * as XLSX from 'xlsx';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -96,6 +98,16 @@ function ItemMaster() {
     selectedVal: '',
   });
 
+  // Item Code Search & Lookup Modal State (Search Every Item)
+  const [itemSearchModal, setItemSearchModal] = useState({
+    isOpen: false,
+    query: '',
+    results: [],
+    loading: false,
+    highlightedIndex: 0,
+  });
+  const itemSearchInputRef = useRef(null);
+
   const [lookupOptions, setLookupOptions] = useState({
     categories: [],
     subCategories: [],
@@ -172,6 +184,7 @@ function ItemMaster() {
   const colorPaletteRef = useRef(null);
   const nativeColorInputRef = useRef(null);
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
 
   // Top Menu Items for standard management layout
   const topMenuItems = [
@@ -471,6 +484,35 @@ function ItemMaster() {
       return;
     }
 
+    // Duplicate Validation on Creation:
+    // Before adding a new item, validate whether the entered Item Code already exists in the system.
+    // If it already exists, prevent duplicate entry and display an alert or error message stating: "Already Exists".
+    if (!selectedId) {
+      try {
+        const checkRes = await api.get(`/items/${encodeURIComponent(formData.code.trim())}`);
+        if (checkRes.data && checkRes.data.success && checkRes.data.data) {
+          alert('Already Exists');
+          showNotification('Already Exists', 'error');
+          if (codeInputRef.current) {
+            codeInputRef.current.focus();
+            codeInputRef.current.select();
+          }
+          return;
+        }
+      } catch (checkErr) {
+        // If 404, it means the item code does not exist yet, which is expected for creation
+        if (checkErr.response && checkErr.response.status !== 404) {
+          console.warn('Code pre-check encountered non-404 status:', checkErr);
+        }
+      }
+    }
+
+    const confirmMessage = selectedId
+      ? `Do you want to update item '${formData.description}' (${formData.code})?`
+      : 'Do you want to save this record?';
+    const confirmed = await confirmSave(confirmMessage);
+    if (!confirmed) return;
+
     const payload = {
       code: formData.code.trim(),
       image: formData.image || '',
@@ -478,6 +520,13 @@ function ItemMaster() {
       category: formData.category ? formData.category.trim() : '',
       subCategory: formData.subCategory ? formData.subCategory.trim() : '',
       location: formData.location ? formData.location.trim() : 'Main Store',
+      rackBin: formData.rackBin ? formData.rackBin.trim() : '',
+      quantity: formData.quantity !== '' && formData.quantity !== undefined ? Number(formData.quantity) || 0 : 0,
+      stockInHand: formData.quantity !== '' && formData.quantity !== undefined ? Number(formData.quantity) || 0 : 0,
+      costPrice: formData.costPrice !== '' && formData.costPrice !== undefined ? Number(formData.costPrice) || 0 : 0,
+      value: formData.value !== '' && formData.value !== undefined
+        ? Number(formData.value) || 0
+        : (Number(formData.quantity) || 0) * (Number(formData.costPrice) || 0),
       reorderLevel: formData.reorderLevel !== '' ? Math.max(0, Number(formData.reorderLevel) || 0) : 0,
       reorderQty: formData.reorderQty !== '' ? Math.max(0, Number(formData.reorderQty) || 0) : 0,
       maxStockLevel: formData.maxStockLevel !== '' ? Math.max(0, Number(formData.maxStockLevel) || 0) : 0,
@@ -517,7 +566,20 @@ function ItemMaster() {
       }
     } catch (error) {
       const msg = error.response?.data?.message || 'Error saving item record.';
-      showNotification(msg, 'error');
+      if (
+        msg === 'Already Exists' ||
+        msg.toLowerCase().includes('already exists') ||
+        error.response?.status === 400
+      ) {
+        alert('Already Exists');
+        showNotification('Already Exists', 'error');
+        if (codeInputRef.current) {
+          codeInputRef.current.focus();
+          codeInputRef.current.select();
+        }
+      } else {
+        showNotification(msg, 'error');
+      }
     }
   };
 
@@ -1156,8 +1218,8 @@ function ItemMaster() {
   };
 
   // Row selection from lower grid
-  const handleRowClick = async (item) => {
-    if (isDirty) {
+  const handleRowClick = async (item, force = false) => {
+    if (!force && isDirty && selectedId) {
       const confirmDiscard = await confirm({
         title: 'SOFAST POS - Discard Changes',
         message: 'Discard unsaved changes and load selected item?',
@@ -1215,6 +1277,87 @@ function ItemMaster() {
       roundOffOption: item.roundOffOption || 'No Round Off',
       discountPercentage: item.discountPercentage !== undefined ? item.discountPercentage : '',
     });
+  };
+
+  // Search every item from database for the Item Search Modal
+  const fetchItemSearchResults = async (query = '') => {
+    try {
+      setItemSearchModal((prev) => ({ ...prev, loading: true }));
+      const trimmed = (query || '').trim();
+      const params = { limit: 100 };
+      if (trimmed) params.search = trimmed;
+      const res = await api.get('/items', { params });
+      const itemsList = res.data?.data || [];
+      setItemSearchModal((prev) => ({
+        ...prev,
+        results: itemsList,
+        loading: false,
+        highlightedIndex: 0,
+      }));
+    } catch (err) {
+      console.warn('Error fetching item search results:', err);
+      setItemSearchModal((prev) => ({ ...prev, results: [], loading: false }));
+    }
+  };
+
+  // Open Item Search Modal to search every item
+  const handleOpenItemSearchModal = (initialQuery = '') => {
+    const q = (initialQuery || formData.code || '').trim();
+    setItemSearchModal({
+      isOpen: true,
+      query: q,
+      results: [],
+      loading: true,
+      highlightedIndex: 0,
+    });
+    fetchItemSearchResults(q);
+    setTimeout(() => {
+      itemSearchInputRef.current?.focus();
+      itemSearchInputRef.current?.select();
+    }, 60);
+  };
+
+  // Select Item from Search Modal and load into Item Master form
+  const handleSelectItemFromSearch = (item) => {
+    if (!item) return;
+    handleRowClick(item, true);
+    setItemSearchModal((prev) => ({ ...prev, isOpen: false }));
+    showNotification(`Item '${item.code}' loaded successfully.`, 'success');
+  };
+
+  // Search item by Item Code (from search bar or Item Code input field)
+  const handleSearchByCode = async (codeToSearch) => {
+    const code = (codeToSearch || formData.code || '').trim();
+    if (!code) {
+      handleOpenItemSearchModal('');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await api.get(`/items?search=${encodeURIComponent(code)}&limit=25`);
+      const results = res.data?.data || [];
+
+      // Exact match on code
+      const exactCodeMatch = results.find(
+        (it) => it.code && it.code.trim().toLowerCase() === code.toLowerCase()
+      );
+
+      if (exactCodeMatch) {
+        handleRowClick(exactCodeMatch, true);
+        showNotification(`Item '${exactCodeMatch.code}' found. Details loaded and editable.`, 'success');
+      } else if (results.length === 1) {
+        handleRowClick(results[0], true);
+        showNotification(`Item '${results[0].code}' found. Details loaded and editable.`, 'success');
+      } else {
+        handleOpenItemSearchModal(code);
+      }
+    } catch (error) {
+      console.warn('Direct code search failed, opening search modal:', error);
+      handleOpenItemSearchModal(code);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Open Lookup Modal
@@ -1339,7 +1482,7 @@ function ItemMaster() {
             )}
 
             {/* Form Section containing the 20 requested fields matching reference */}
-            <form className="item-master-form" onSubmit={handleSave} autoComplete="off">
+            <form className="item-master-form" onSubmit={handleSave} autoComplete="off" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.buttons-row button[type="submit"]' })}>
               {/* Row 1 & 2 Block: Item Code + Description on the Left; Item Image on the Right */}
               {/* Row 1 & 2 Block: Item Code + Description on the Left; Item Image spanning rows 1 & 2 on the Right */}
               <div className="form-top-block">
@@ -1347,16 +1490,83 @@ function ItemMaster() {
                 <label className="field-label top-label-code" htmlFor="item-code">
                   Item Code . . . . . .
                 </label>
-                <input
-                  id="item-code"
-                  name="code"
-                  type="text"
-                  className="input-classic input-item-code top-input-code"
-                  value={formData.code}
-                  onChange={handleInputChange}
-                  ref={codeInputRef}
-                  autoComplete="off"
-                />
+                <div className="top-code-field-wrapper" style={{ gridColumn: '2 / span 2', gridRow: '1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    id="item-code"
+                    name="code"
+                    type="text"
+                    className="input-classic input-item-code"
+                    style={{ width: '160px' }}
+                    value={formData.code}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'F2') {
+                        e.preventDefault();
+                        handleOpenItemSearchModal(formData.code);
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSearchByCode(formData.code);
+                      }
+                    }}
+                    ref={codeInputRef}
+                    placeholder="Enter Code... (F2)"
+                    list="item-master-code-datalist"
+                    autoComplete="off"
+                    title="Enter Item Code and press Enter, or click Search / press F2 to search every item"
+                  />
+                  <button
+                    type="button"
+                    className="btn-classic btn-code-search"
+                    style={{ height: '26px', padding: '0 9px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                    onClick={() => handleSearchByCode(formData.code)}
+                    title="Search every item by code, description, or keyword (or press F2 / Enter)"
+                  >
+                    🔍 Search (F2)
+                  </button>
+                  <datalist id="item-master-code-datalist">
+                    {(items || []).slice(0, 300).map((itm) => (
+                      <option key={itm._id || itm.code} value={itm.code}>
+                        {itm.code} — {itm.description}
+                      </option>
+                    ))}
+                  </datalist>
+                  {selectedId ? (
+                    <span
+                      className="badge-editing-mode"
+                      style={{
+                        fontSize: '11px',
+                        color: '#1e40af',
+                        fontWeight: 'bold',
+                        backgroundColor: '#eff6ff',
+                        padding: '2px 8px',
+                        borderRadius: '3px',
+                        border: '1px solid #93c5fd',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="Item record loaded for editing. Modify fields and click Update to save changes."
+                    >
+                      ✏️ Edit Mode
+                    </span>
+                  ) : (
+                    <span
+                      className="badge-new-mode"
+                      style={{
+                        fontSize: '11px',
+                        color: '#15803d',
+                        fontWeight: 'bold',
+                        backgroundColor: '#f0fdf4',
+                        padding: '2px 8px',
+                        borderRadius: '3px',
+                        border: '1px solid #bbf7d0',
+                        whiteSpace: 'nowrap'
+                      }}
+                      title="New item creation mode"
+                    >
+                      ➕ New Item
+                    </span>
+                  )}
+                </div>
 
                 {/* Row 1 Right: Item Image Label */}
                 <span className="field-label top-label-image">
@@ -1523,11 +1733,12 @@ function ItemMaster() {
                   id="item-quantity"
                   name="quantity"
                   type="number"
+                  min="0"
                   className="input-classic input-num-small"
-                  style={{ width: '90px', fontWeight: 'bold', color: '#002D62', backgroundColor: '#f8fafc' }}
+                  style={{ width: '90px', fontWeight: 'bold', color: '#002D62' }}
                   value={formData.quantity !== undefined && formData.quantity !== '' ? formData.quantity : 0}
-                  readOnly
-                  title="Closing Stock Quantity from Closing Stock Report / Inventory"
+                  onChange={handleInputChange}
+                  title="Closing Stock Quantity / Stock in Hand"
                 />
               </div>
 
@@ -1670,12 +1881,15 @@ function ItemMaster() {
                 <input
                   id="item-cost-price"
                   name="costPrice"
-                  type="text"
+                  type="number"
+                  step="any"
+                  min="0"
                   className="input-classic"
-                  style={{ width: '130px', backgroundColor: '#f8fafc', color: '#475569' }}
-                  value={Number(formData.costPrice || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  readOnly
-                  title="Unit Cost Price from Closing Stock Report"
+                  style={{ width: '130px', color: '#475569' }}
+                  value={formData.costPrice !== undefined ? formData.costPrice : ''}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  title="Unit Cost Price"
                 />
 
                 <label className="field-label" htmlFor="item-stock-value" style={{ marginLeft: '24px', width: '110px' }}>
@@ -1687,7 +1901,11 @@ function ItemMaster() {
                   type="text"
                   className="input-classic"
                   style={{ width: '110px', backgroundColor: '#f8fafc', fontWeight: 'bold', color: '#047857' }}
-                  value={Number(formData.value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  value={
+                    formData.value !== undefined && formData.value !== '' && Number(formData.value) > 0
+                      ? Number(formData.value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                      : ((Number(formData.quantity) || 0) * (Number(formData.costPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  }
                   readOnly
                   title="Total Stock Valuation (Closing Stock Qty x Cost)"
                 />
@@ -1932,8 +2150,10 @@ function ItemMaster() {
                 <button
                   type="submit"
                   className="btn-classic"
+                  style={selectedId ? { backgroundColor: '#1d4ed8', color: '#ffffff', fontWeight: 'bold' } : { fontWeight: 'bold' }}
+                  title={selectedId ? 'Update existing item record in database' : 'Save new item record to database'}
                 >
-                  Save
+                  {selectedId ? 'Update' : 'Save'}
                 </button>
                 <button
                   type="button"
@@ -2113,13 +2333,36 @@ function ItemMaster() {
                   <input
                     type="text"
                     className="input-classic input-table-search"
-                    placeholder="Filter by code, description, bin, or category..."
+                    placeholder="Search by code or description..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
                       fetchItems(e.target.value, 1, pageSize);
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (searchTerm && searchTerm.trim()) {
+                          handleSearchByCode(searchTerm.trim());
+                        }
+                      }
+                    }}
                   />
+                  <button
+                    type="button"
+                    className="btn-classic"
+                    style={{ height: '24px', padding: '0 8px', fontSize: '11px', fontWeight: 'bold' }}
+                    onClick={() => {
+                      if (searchTerm && searchTerm.trim()) {
+                        handleSearchByCode(searchTerm.trim());
+                      } else {
+                        showNotification('Please enter Item Code to search.', 'error');
+                      }
+                    }}
+                    title="Search and load record into form (or press Enter)"
+                  >
+                    Load Item
+                  </button>
                   {searchTerm && (
                     <button
                       type="button"
@@ -2298,7 +2541,211 @@ function ItemMaster() {
       )}
 
       {/* 7. Bulk Import Items Modal (Excel & CSV) */}
-      {isImportModalOpen && (
+
+      {/* 8. Item Master Search & Lookup Modal (Search Every Item) */}
+      {itemSearchModal.isOpen && (
+        <div
+          className="item-modal-backdrop"
+          onClick={() => setItemSearchModal((prev) => ({ ...prev, isOpen: false }))}
+        >
+          <div
+            className="item-search-modal-dialog"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setItemSearchModal((prev) => ({ ...prev, isOpen: false }));
+              }
+            }}
+          >
+            {/* Modal Titlebar */}
+            <div className="item-search-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>🔍</span>
+                <span>ITEM MASTER SEARCH — Search & Select Every Item (F2)</span>
+              </div>
+              <button
+                type="button"
+                className="item-modal-close"
+                onClick={() => setItemSearchModal((prev) => ({ ...prev, isOpen: false }))}
+                title="Close (Esc)"
+              >
+                &#x2715;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="item-search-modal-body">
+              {/* Top Search Input Bar */}
+              <div className="item-search-bar-wrap">
+                <span style={{ fontSize: '14px', color: '#002D62' }}>🔍</span>
+                <input
+                  ref={itemSearchInputRef}
+                  type="text"
+                  className="item-search-bar-input"
+                  placeholder="Type any Item Code, Description, Category, Barcode, Rack/Bin, or Supplier to search every item... (Press Enter or click to select)"
+                  value={itemSearchModal.query}
+                  onChange={(e) => {
+                    const q = e.target.value;
+                    setItemSearchModal((prev) => ({ ...prev, query: q, highlightedIndex: 0 }));
+                    fetchItemSearchResults(q);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setItemSearchModal((prev) => ({ ...prev, isOpen: false }));
+                    } else if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setItemSearchModal((prev) => ({
+                        ...prev,
+                        highlightedIndex: Math.min(prev.results.length - 1, prev.highlightedIndex + 1),
+                      }));
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setItemSearchModal((prev) => ({
+                        ...prev,
+                        highlightedIndex: Math.max(0, prev.highlightedIndex - 1),
+                      }));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const sel = itemSearchModal.results[itemSearchModal.highlightedIndex];
+                      if (sel) {
+                        handleSelectItemFromSearch(sel);
+                      }
+                    }
+                  }}
+                  autoFocus
+                />
+                {itemSearchModal.query && (
+                  <button
+                    type="button"
+                    className="btn-lookup-clear"
+                    onClick={() => {
+                      setItemSearchModal((prev) => ({ ...prev, query: '', highlightedIndex: 0 }));
+                      fetchItemSearchResults('');
+                      itemSearchInputRef.current?.focus();
+                    }}
+                    title="Clear search"
+                  >
+                    &times;
+                  </button>
+                )}
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    color: '#002D62',
+                    padding: '2px 8px',
+                    backgroundColor: '#e0f2fe',
+                    borderRadius: '3px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {itemSearchModal.loading ? 'Searching...' : `${itemSearchModal.results.length} items`}
+                </span>
+              </div>
+
+              {/* Items Table */}
+              <div className="item-search-table-scroll">
+                <table className="item-search-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                      <th style={{ width: '120px' }}>Item Code</th>
+                      <th>Description</th>
+                      <th style={{ width: '110px' }}>Category</th>
+                      <th style={{ width: '90px' }}>Rack / Bin</th>
+                      <th style={{ width: '90px', textAlign: 'right' }}>Stock in Hand</th>
+                      <th style={{ width: '100px', textAlign: 'right' }}>Selling Price</th>
+                      <th style={{ width: '95px', textAlign: 'right' }}>Cost Price</th>
+                      <th style={{ width: '100px' }}>Barcode</th>
+                      <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itemSearchModal.loading ? (
+                      <tr>
+                        <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: '#005bb7', fontWeight: 'bold' }}>
+                          🔄 Searching items from database...
+                        </td>
+                      </tr>
+                    ) : itemSearchModal.results.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>
+                          No items match your search "${itemSearchModal.query}". Try a different code or keyword.
+                        </td>
+                      </tr>
+                    ) : (
+                      itemSearchModal.results.map((item, idx) => {
+                        const isHigh = idx === itemSearchModal.highlightedIndex;
+                        const stock = Number(item.quantity !== undefined ? item.quantity : (item.stockInHand || 0));
+                        return (
+                          <tr
+                            key={item._id || item.code || idx}
+                            className={isHigh ? 'highlighted' : ''}
+                            onMouseEnter={() => setItemSearchModal((prev) => ({ ...prev, highlightedIndex: idx }))}
+                            onClick={() => handleSelectItemFromSearch(item)}
+                            onDoubleClick={() => handleSelectItemFromSearch(item)}
+                          >
+                            <td style={{ textAlign: 'center', color: '#64748b' }}>{idx + 1}</td>
+                            <td style={{ fontWeight: 'bold', color: '#002D62', fontFamily: 'Consolas, monospace' }}>
+                              {item.code}
+                            </td>
+                            <td style={{ fontWeight: 'bold' }}>{item.description}</td>
+                            <td>{item.category || '-'}</td>
+                            <td>{item.rackBin || item.location || '-'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold', color: stock > 0 ? '#15803d' : '#b91c1c' }}>
+                              {stock.toLocaleString()}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                              Rs. {(Number(item.sellingPrice) || 0).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'right', color: '#475569' }}>
+                              {(Number(item.costPrice) || 0) > 0 ? `Rs. ${(Number(item.costPrice) || 0).toFixed(2)}` : '-'}
+                            </td>
+                            <td style={{ fontFamily: 'Consolas, monospace', fontSize: '10px' }}>
+                              {item.barcode || item.barCode || '-'}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="btn-classic"
+                                style={{ height: '22px', padding: '0 6px', fontSize: '10px', fontWeight: 'bold', color: '#002D62' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectItemFromSearch(item);
+                                }}
+                              >
+                                Select ↵
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="item-search-modal-footer">
+              <div style={{ fontSize: '11px', color: '#475569' }}>
+                Use <b>↑ / ↓</b> arrow keys and press <b>Enter</b> to select, or click any row. Press <b>Esc</b> to close.
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-classic"
+                  onClick={() => setItemSearchModal((prev) => ({ ...prev, isOpen: false }))}
+                >
+                  Close (Esc)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+            {isImportModalOpen && (
         <div className="import-modal-overlay" onClick={handleCloseImportModal}>
           <div className="import-modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="import-modal-header">

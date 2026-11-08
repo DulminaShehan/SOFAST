@@ -274,7 +274,7 @@
 /* Item Entry Section */
 .manual-item-entry-grid {
   display: grid;
-  grid-template-columns: 140px 2.5fr 80px 90px 120px 90px 130px auto;
+  grid-template-columns: 150px 2.5fr 80px 85px 120px 85px 130px;
   gap: 8px;
   align-items: flex-end;
 }
@@ -617,7 +617,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 10050;
   animation: fadeIn 0.15s ease-out;
 }
 
@@ -786,4 +786,64 @@
     size: 80mm auto;
     margin: 0;
   }
+}
+
+/* ==========================================================================
+   MODAL DIALOG MODE (Opened directly above Sales Invoice screen)
+   ========================================================================== */
+.manual-invoice-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.manual-invoice-modal-window {
+  width: 96vw;
+  max-width: 1280px;
+  height: 94vh;
+  max-height: 880px;
+  background-color: var(--sofast-win-darker, #d4d0c8);
+  border: 2px solid #0055ea;
+  border-radius: 4px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  animation: manualModalFadeIn 0.18s ease-out;
+}
+
+@keyframes manualModalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.manual-invoice-modal-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--sofast-win-darker, #d4d0c8);
+  font-family: var(--sofast-font, Tahoma, 'Segoe UI', Arial, sans-serif);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }

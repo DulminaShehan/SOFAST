@@ -1,3 +1,4 @@
+import { processInvoiceReturn, getInvoiceForReturn } from '../controllers/damageReturnController.js';
 import { Router } from 'express';
 import {
   getInvoices,
@@ -16,7 +17,15 @@ const router = Router();
 
 router.get('/next-number', getNextInvoiceNumber);
 router.get('/next-manual-number', getNextManualInvoiceNumber);
+router.get('/next-manual', getNextManualInvoiceNumber);
+router.get('/manual-next-number', getNextManualInvoiceNumber);
+router.get('/manual/next-number', getNextManualInvoiceNumber);
+router.get('/manual/next', getNextManualInvoiceNumber);
+router.get('/manual', getInvoices);
 router.get('/remaining-balances', getRemainingBalances);
+router.get('/return-details/:invoiceNumber', getInvoiceForReturn);
+router.post('/:invoiceNumber/return', processInvoiceReturn);
+router.post('/return', processInvoiceReturn);
 router.get('/', getInvoices);
 router.get('/:id', getInvoiceById);
 router.post('/', createInvoice);

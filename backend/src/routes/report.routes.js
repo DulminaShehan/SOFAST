@@ -15,6 +15,7 @@ import {
   getDashboardMetrics,
   getInvoiceReport,
 } from '../controllers/reportController.js';
+import { getManualItems } from '../controllers/manualItemController.js';
 
 const router = Router();
 
@@ -41,6 +42,7 @@ router.use((req, res, next) => {
  * - GET /api/reports/goods-return-notes
  * - GET /api/reports/filter-options
  * - GET /api/reports/most-used-products
+ * - GET /api/reports/manual-stock
  */
 router.get('/closing-stock', getClosingStockReport);
 router.get('/stock', getClosingStockReport);
@@ -71,6 +73,8 @@ router.get('/dashboard', getDashboardMetrics);
 router.get('/invoices', getInvoiceReport);
 router.get('/invoice-report', getInvoiceReport);
 
+// Manual Stock Report
+router.get('/manual-stock', getManualItems);
+router.get('/manual-stock-report', getManualItems);
+
 export default router;
-
-

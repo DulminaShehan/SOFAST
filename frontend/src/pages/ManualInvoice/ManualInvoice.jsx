@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
 import './ManualInvoice.css';
@@ -10,9 +12,17 @@ import './ManualInvoice.css';
  * Non-inventory invoice workflow for purchasing unregistered items.
  * Does not modify stock quantities or require Item Master records.
  */
-function ManualInvoice() {
+function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
   const navigate = useNavigate();
   const { confirm } = useConfirm();
+  // Close handler for both Modal and Standalone Page modes
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/invoice');
+    }
+  };
 
   // Active loaded invoice ID (null for new unsaved invoice)
   const [activeInvoiceId, setActiveInvoiceId] = useState(null);
@@ -51,6 +61,15 @@ function ManualInvoice() {
     localStorage.getItem('username') || localStorage.getItem('userCode') || 'PC004'
   );
 
+  // Item Master & Manual Items Catalogues
+  const [masterItemsList, setMasterItemsList] = useState([]);
+  const [manualItemsList, setManualItemsList] = useState([]);
+
+  // Item Search & Lookup Modal State
+  const [itemLookupOpen, setItemLookupOpen] = useState(false);
+  const [itemSearchQuery, setItemSearchQuery] = useState('');
+  const [itemHighlightedIndex, setItemHighlightedIndex] = useState(0);
+
   // Modals & Popups
   const [customerLookupOpen, setCustomerLookupOpen] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -63,10 +82,35 @@ function ManualInvoice() {
   const [receiptPreviewOpen, setReceiptPreviewOpen] = useState(false);
   const [printTime, setPrintTime] = useState('');
 
-  // Refs for focusing
+  // Keyboard shortcut: Escape to close modal (if no sub-modals open)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (itemLookupOpen) {
+          setItemLookupOpen(false);
+        } else if (customerLookupOpen) {
+          setCustomerLookupOpen(false);
+        } else if (invoiceLookupOpen) {
+          setInvoiceLookupOpen(false);
+        } else if (receiptPreviewOpen) {
+          setReceiptPreviewOpen(false);
+        } else if (isModal) {
+          handleClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [itemLookupOpen, customerLookupOpen, invoiceLookupOpen, receiptPreviewOpen, isModal]);
+
+  // Refs for focusing & keyboard navigation
+  const codeInputRef = useRef(null);
   const descInputRef = useRef(null);
-  const priceInputRef = useRef(null);
+  const unitSelectRef = useRef(null);
   const qtyInputRef = useRef(null);
+  const priceInputRef = useRef(null);
+  const discInputRef = useRef(null);
+  const itemSearchInputRef = useRef(null);
 
   // Notification helper
   const showNotification = (message, type = 'info') => {
@@ -85,9 +129,22 @@ function ManualInvoice() {
           ...prev,
           invoiceNumber: res.data.data.invoiceNumber,
         }));
+        return;
       }
     } catch (err) {
-      console.error('Failed to fetch next manual invoice number:', err);
+      console.warn('Primary next-manual-number attempt failed, trying fallback...', err);
+    }
+    try {
+      const fallbackRes = await api.get('/invoices/next-number?type=manual');
+      if (fallbackRes.data?.success && fallbackRes.data.data?.invoiceNumber) {
+        setInvoiceHeader((prev) => ({
+          ...prev,
+          invoiceNumber: fallbackRes.data.data.invoiceNumber,
+        }));
+        return;
+      }
+    } catch (fErr) {
+      console.error('Failed to fetch next manual invoice number:', fErr);
       showNotification('Could not load next manual invoice number', 'error');
     }
   };
@@ -104,11 +161,192 @@ function ManualInvoice() {
     }
   };
 
+  // Load item master items (limit=all)
+  const fetchMasterItems = async () => {
+    try {
+      const res = await api.get('/items?limit=all');
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setMasterItemsList(res.data.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load item master for manual invoice:', err);
+    }
+  };
+
+  // Load registered manual items (limit=all)
+  const fetchManualItems = async () => {
+    try {
+      const res = await api.get('/manual-items/lookup?limit=all');
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setManualItemsList(res.data.data);
+        return;
+      }
+    } catch (err) {
+      console.warn('Failed to load manual items via /lookup, attempting fallback:', err);
+    }
+    try {
+      const fb = await api.get('/manual-items?limit=all');
+      if (fb.data?.success && Array.isArray(fb.data.data)) {
+        setManualItemsList(fb.data.data);
+      }
+    } catch (fbErr) {
+      console.warn('Failed to load manual items catalogue:', fbErr);
+    }
+  };
+
   // Initial load
   useEffect(() => {
     fetchNextManualNumber();
     fetchCustomers();
+    fetchMasterItems();
+    fetchManualItems();
   }, []);
+
+  // Combined catalogue of items (Manual Items + Master Items)
+  const allAvailableItems = useMemo(() => {
+    const list = [];
+    const seen = new Set();
+
+    // 1. Prioritize manual items catalogue
+    (manualItemsList || []).forEach((m) => {
+      const code = (m.manualCode || m.code || '').trim();
+      if (code && !seen.has(code.toLowerCase())) {
+        seen.add(code.toLowerCase());
+        list.push({
+          code,
+          description: m.description || '',
+          unit: m.unit || 'PCS',
+          price: m.sellingPrice != null ? m.sellingPrice : 0,
+          source: 'Manual Item',
+        });
+      }
+    });
+
+    // 2. Add regular Item Master items
+    (masterItemsList || []).forEach((item) => {
+      const code = (item.code || item.itemCode || '').trim();
+      if (code && !seen.has(code.toLowerCase())) {
+        seen.add(code.toLowerCase());
+        list.push({
+          code,
+          description: item.description || item.name || '',
+          unit: item.unit || 'PCS',
+          price: item.sellingPrice != null ? item.sellingPrice : (item.retailPrice || 0),
+          source: 'Item Master',
+        });
+      }
+    });
+
+    return list;
+  }, [masterItemsList, manualItemsList]);
+
+  // Filtered items for Item Lookup Modal
+  const filteredLookupItems = useMemo(() => {
+    const q = itemSearchQuery.toLowerCase().trim();
+    if (!q) return allAvailableItems.slice(0, 100);
+    return allAvailableItems
+      .filter((it) => {
+        const c = String(it.code || '').toLowerCase();
+        const d = String(it.description || '').toLowerCase();
+        return c.includes(q) || d.includes(q);
+      })
+      .slice(0, 100);
+  }, [allAvailableItems, itemSearchQuery]);
+
+  // Open item search lookup modal
+  const handleOpenItemLookup = (initialQuery = '') => {
+    setItemSearchQuery(initialQuery || itemEntry.code || '');
+    setItemHighlightedIndex(0);
+    setItemLookupOpen(true);
+    setTimeout(() => {
+      itemSearchInputRef.current?.focus();
+      itemSearchInputRef.current?.select();
+    }, 50);
+  };
+
+  // Select item from Lookup Modal
+  const handleSelectLookupItem = (item) => {
+    if (!item) return;
+    setItemEntry((prev) => ({
+      ...prev,
+      code: item.code || prev.code,
+      description: item.description || prev.description,
+      unit: item.unit || prev.unit || 'PCS',
+      sellingPrice: item.price != null && item.price !== '' ? String(item.price) : prev.sellingPrice,
+    }));
+    setItemLookupOpen(false);
+    showNotification(`Selected "${item.description || item.code}"`, 'info');
+    setTimeout(() => {
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
+    }, 50);
+  };
+
+  // Auto-fill Description, Unit, and Price when typing or selecting Item Code
+  const handleCodeChange = (e) => {
+    const val = e.target.value;
+    setItemEntry((prev) => {
+      const updated = { ...prev, code: val };
+      if (val.trim()) {
+        const match = allAvailableItems.find(
+          (it) => it.code.toLowerCase() === val.trim().toLowerCase()
+        );
+        if (match) {
+          updated.description = match.description || prev.description;
+          updated.unit = match.unit || prev.unit || 'PCS';
+          if (match.price != null && match.price !== '') {
+            updated.sellingPrice = String(match.price);
+          }
+        }
+      }
+      return updated;
+    });
+  };
+
+  // Handle key down on Item Code input
+  const handleCodeKeyDown = (e) => {
+    if (e.key === 'F2') {
+      e.preventDefault();
+      handleOpenItemLookup(itemEntry.code);
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const codeVal = itemEntry.code.trim();
+      if (codeVal) {
+        const match = allAvailableItems.find(
+          (it) => it.code.toLowerCase() === codeVal.toLowerCase()
+        );
+        if (match) {
+          setItemEntry((prev) => ({
+            ...prev,
+            code: match.code,
+            description: match.description || prev.description,
+            unit: match.unit || prev.unit || 'PCS',
+            sellingPrice: match.price != null && match.price !== '' ? String(match.price) : prev.sellingPrice,
+          }));
+          setTimeout(() => {
+            qtyInputRef.current?.focus();
+            qtyInputRef.current?.select();
+          }, 50);
+          return;
+        }
+      }
+
+      // If no match found:
+      if (codeVal) {
+        handleOpenItemLookup(codeVal);
+        return;
+      }
+      if (itemEntry.description.trim()) {
+        qtyInputRef.current?.focus();
+        qtyInputRef.current?.select();
+      } else {
+        descInputRef.current?.focus();
+      }
+    }
+  };
 
   // Compute live preview of the item line currently being entered
   const liveLinePreview = useMemo(() => {
@@ -217,7 +455,9 @@ function ManualInvoice() {
     });
 
     showNotification(`Item "${desc}" added to invoice`, 'success');
-    descInputRef.current?.focus();
+    setTimeout(() => {
+      codeInputRef.current?.focus();
+    }, 50);
   };
 
   // Remove an item from the invoice table
@@ -252,7 +492,9 @@ function ManualInvoice() {
     setAmountReceived('');
     fetchNextManualNumber();
     showNotification('Prepared fresh Manual Invoice', 'info');
-    descInputRef.current?.focus();
+    setTimeout(() => {
+      codeInputRef.current?.focus();
+    }, 50);
   };
 
   // Save Manual Invoice (POST or PUT)
@@ -349,17 +591,73 @@ function ManualInvoice() {
             }
           }, 150);
         }
+        if (onInvoiceSaved) {
+          onInvoiceSaved(savedDoc);
+        }
         return savedDoc;
       } else {
         throw new Error(res.data?.message || 'Save failed');
       }
     } catch (err) {
       console.error('Error saving manual invoice:', err);
-      const errMsg = err.response?.data?.message || err.message || 'Error saving invoice';
-      showNotification(`Failed to save invoice: ${errMsg}`, 'error');
+      const isConflict = err.response?.status === 409 || err.response?.data?.conflict;
+      if (isConflict) {
+        // Auto-refresh the manual invoice number so the user can easily re-save
+        await fetchNextManualNumber();
+        showNotification(
+          err.response?.data?.message || 'Invoice number conflict detected. A new number was assigned. Please click Save again.',
+          'warning'
+        );
+      } else {
+        const errMsg = err.response?.data?.message || err.message || 'Error saving invoice';
+        showNotification(`Failed to save invoice: ${errMsg}`, 'error');
+      }
       return null;
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Save with 3-button Print Confirmation
+  const handlePromptSaveAndPrint = async () => {
+    if (isSubmitting) return;
+
+    if (!invoiceHeader.invoiceNumber.trim()) {
+      showNotification('Invoice Number is required', 'error');
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      showNotification('Please add at least one item to save the manual invoice', 'error');
+      descInputRef.current?.focus();
+      return;
+    }
+
+    const choice = await confirmInvoicePrint('Do you wish to print this invoice?');
+
+    if (choice === 'cancel') return;
+
+    if (choice === 'no') {
+      await handleSaveInvoice(false);
+      return;
+    }
+
+    if (choice === 'yes') {
+      const saved = await handleSaveInvoice(true);
+      if (saved) {
+        setPrintTime(
+          new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true,
+          })
+        );
+        setReceiptPreviewOpen(true);
+        setTimeout(() => {
+          window.print();
+        }, 200);
+      }
     }
   };
 
@@ -656,8 +954,8 @@ function ManualInvoice() {
     );
   };
 
-  return (
-    <div className="manual-invoice-page">
+  const mainContent = (
+    <div className={isModal ? "manual-invoice-modal-content" : "manual-invoice-page"}>
       {/* 1. Classic Windows XP / ERP Titlebar */}
       <div className="manual-invoice-titlebar">
         <div className="manual-invoice-titlebar-brand">
@@ -687,7 +985,7 @@ function ManualInvoice() {
             type="button"
             className="manual-win-control-btn close"
             title="Close / Back to Sales Invoice"
-            onClick={() => navigate('/invoice')}
+            onClick={handleClose}
           >
             ✕
           </button>
@@ -695,7 +993,7 @@ function ManualInvoice() {
       </div>
 
       {/* 2. Top Navigation Bar */}
-      <ClassicNavbar activeMenu="sales-service" />
+      {!isModal && <ClassicNavbar activeMenu="sales-service" />}
 
       {/* Notification Toast */}
       {notification && (
@@ -730,7 +1028,7 @@ function ManualInvoice() {
             <button
               type="button"
               className="manual-btn manual-btn-small"
-              onClick={() => navigate('/invoice')}
+              onClick={handleClose}
               title="Switch back to standard stock sales invoice"
             >
               ↩️ Standard Sales Invoice
@@ -870,17 +1168,47 @@ function ManualInvoice() {
         {/* Manual Item Entry Section */}
         <fieldset className="manual-fieldset">
           <legend className="manual-legend">Manual Item Entry (No Stock Item Required)</legend>
-          <form onSubmit={handleAddItem} className="manual-item-entry-grid">
-            {/* Item Code (Optional) */}
+          <div className="manual-item-entry-grid">
+            {/* Item Code (Searchable with F2 and Auto-Fill) */}
             <div className="manual-form-group">
-              <label className="manual-label">Item Code (Ref)</label>
-              <input
-                type="text"
-                className="manual-input"
-                placeholder={`MAN-${lineItems.length + 1}`}
-                value={itemEntry.code}
-                onChange={(e) => setItemEntry({ ...itemEntry, code: e.target.value })}
-              />
+              <label className="manual-label">
+                <span>Item Code (F2)</span>
+                <span
+                  style={{ fontSize: '10px', color: '#0055ea', cursor: 'pointer' }}
+                  onClick={() => handleOpenItemLookup('')}
+                  title="Open Item Search (F2)"
+                >
+                  🔍 Search
+                </span>
+              </label>
+              <div className="manual-input-with-button">
+                <input
+                  ref={codeInputRef}
+                  type="text"
+                  className="manual-input"
+                  placeholder={`MAN-${lineItems.length + 1} (F2)`}
+                  list="manual-items-code-datalist"
+                  value={itemEntry.code}
+                  onChange={handleCodeChange}
+                  onKeyDown={handleCodeKeyDown}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="manual-btn manual-btn-small"
+                  onClick={() => handleOpenItemLookup(itemEntry.code)}
+                  title="Search Item Master & Manual Items (F2)"
+                >
+                  🔍
+                </button>
+              </div>
+              <datalist id="manual-items-code-datalist">
+                {allAvailableItems.slice(0, 500).map((it) => (
+                  <option key={it.code} value={it.code}>
+                    {it.code} — {it.description}
+                  </option>
+                ))}
+              </datalist>
             </div>
 
             {/* Description (Required) */}
@@ -892,19 +1220,42 @@ function ManualInvoice() {
                 ref={descInputRef}
                 type="text"
                 className="manual-input"
-                placeholder="Enter item description..."
+                placeholder="Enter or select item description..."
+                list="manual-items-desc-datalist"
                 value={itemEntry.description}
                 onChange={(e) => setItemEntry({ ...itemEntry, description: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    qtyInputRef.current?.focus();
+                    qtyInputRef.current?.select();
+                  }
+                }}
               />
+              <datalist id="manual-items-desc-datalist">
+                {allAvailableItems.slice(0, 500).map((it, idx) => (
+                  <option key={`${it.code}-${idx}`} value={it.description}>
+                    {it.code} ({it.unit})
+                  </option>
+                ))}
+              </datalist>
             </div>
 
             {/* Unit */}
             <div className="manual-form-group">
               <label className="manual-label">Unit</label>
               <select
+                ref={unitSelectRef}
                 className="manual-select"
                 value={itemEntry.unit}
                 onChange={(e) => setItemEntry({ ...itemEntry, unit: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    qtyInputRef.current?.focus();
+                    qtyInputRef.current?.select();
+                  }
+                }}
               >
                 <option value="PCS">PCS</option>
                 <option value="SET">SET</option>
@@ -930,6 +1281,13 @@ function ManualInvoice() {
                 className="manual-input"
                 value={itemEntry.quantity}
                 onChange={(e) => setItemEntry({ ...itemEntry, quantity: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    priceInputRef.current?.focus();
+                    priceInputRef.current?.select();
+                  }
+                }}
               />
             </div>
 
@@ -947,6 +1305,17 @@ function ManualInvoice() {
                 placeholder="0.00"
                 value={itemEntry.sellingPrice}
                 onChange={(e) => setItemEntry({ ...itemEntry, sellingPrice: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (e.shiftKey || e.ctrlKey) {
+                      handleAddItem(e);
+                    } else {
+                      discInputRef.current?.focus();
+                      discInputRef.current?.select();
+                    }
+                  }
+                }}
               />
             </div>
 
@@ -954,6 +1323,7 @@ function ManualInvoice() {
             <div className="manual-form-group">
               <label className="manual-label">Disc (%)</label>
               <input
+                ref={discInputRef}
                 type="number"
                 step="0.01"
                 min="0"
@@ -964,6 +1334,12 @@ function ManualInvoice() {
                 onChange={(e) =>
                   setItemEntry({ ...itemEntry, discountPercentage: e.target.value })
                 }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddItem(e);
+                  }
+                }}
               />
             </div>
 
@@ -977,14 +1353,7 @@ function ManualInvoice() {
                 })}
               </div>
             </div>
-
-            {/* Add Item Button */}
-            <div style={{ display: 'flex', gap: '4px' }}>
-              <button type="submit" className="manual-btn manual-btn-primary">
-                ➕ Add Item
-              </button>
-            </div>
-          </form>
+          </div>
         </fieldset>
 
         {/* Items Table */}
@@ -1068,7 +1437,7 @@ function ManualInvoice() {
                 <button
                   type="button"
                   className="manual-btn manual-btn-success"
-                  onClick={() => handleSaveInvoice(false)}
+                  onClick={handlePromptSaveAndPrint}
                   disabled={isSubmitting || lineItems.length === 0}
                   title="Validate and save manual invoice"
                 >
@@ -1098,7 +1467,7 @@ function ManualInvoice() {
                 <button
                   type="button"
                   className="manual-btn"
-                  onClick={() => navigate('/invoice')}
+                  onClick={handleClose}
                   disabled={isSubmitting}
                   title="Cancel and close manual invoice form (Esc)"
                 >
@@ -1187,6 +1556,126 @@ function ManualInvoice() {
           </div>
         </div>
       </div>
+
+      {/* Item Search & Lookup Modal */}
+      {itemLookupOpen && (
+        <div className="manual-modal-overlay">
+          <div className="manual-modal-box" style={{ maxWidth: '780px' }}>
+            <div className="manual-modal-titlebar">
+              <span>Select Item from Master File or Manual Items (F2)</span>
+              <button
+                type="button"
+                className="manual-win-control-btn close"
+                onClick={() => setItemLookupOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="manual-modal-body">
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <input
+                  ref={itemSearchInputRef}
+                  type="text"
+                  className="manual-input"
+                  placeholder="Type Item Code or Description to filter... (Press Enter to select, Esc to close)"
+                  value={itemSearchQuery}
+                  onChange={(e) => {
+                    setItemSearchQuery(e.target.value);
+                    setItemHighlightedIndex(0);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setItemLookupOpen(false);
+                    } else if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setItemHighlightedIndex((prev) =>
+                        Math.min(filteredLookupItems.length - 1, prev + 1)
+                      );
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setItemHighlightedIndex((prev) => Math.max(0, prev - 1));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (filteredLookupItems.length > 0 && filteredLookupItems[itemHighlightedIndex]) {
+                        handleSelectLookupItem(filteredLookupItems[itemHighlightedIndex]);
+                      }
+                    }
+                  }}
+                  autoFocus
+                />
+                <span style={{ fontSize: '11px', color: '#0055ea', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                  {filteredLookupItems.length} found
+                </span>
+              </div>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', border: '1px solid #7f9db9', backgroundColor: '#fff' }}>
+                <table className="manual-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '130px' }}>Item Code</th>
+                      <th>Description</th>
+                      <th style={{ width: '60px' }} className="center">Unit</th>
+                      <th style={{ width: '100px' }} className="right">Price (Rs.)</th>
+                      <th style={{ width: '110px' }} className="center">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredLookupItems.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" className="center" style={{ padding: '20px', color: '#666' }}>
+                          No matching items found for "{itemSearchQuery}". You can enter a new custom item code and description directly.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredLookupItems.map((item, idx) => (
+                        <tr
+                          key={`${item.code}-${idx}`}
+                          style={{
+                            cursor: 'pointer',
+                            backgroundColor: idx === itemHighlightedIndex ? '#b3d7ff' : undefined,
+                          }}
+                          onMouseEnter={() => setItemHighlightedIndex(idx)}
+                          onClick={() => handleSelectLookupItem(item)}
+                        >
+                          <td><b>{item.code}</b></td>
+                          <td>{item.description}</td>
+                          <td className="center">{item.unit || 'PCS'}</td>
+                          <td className="right">{Number(item.price || 0).toFixed(2)}</td>
+                          <td className="center">
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                padding: '1px 6px',
+                                borderRadius: '3px',
+                                backgroundColor: item.source === 'Manual Item' ? '#e8f5e9' : '#e3f2fd',
+                                color: item.source === 'Manual Item' ? '#2e7d32' : '#1565c0',
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              {item.source}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="manual-modal-footer">
+              <div style={{ fontSize: '11px', color: '#555', marginRight: 'auto' }}>
+                Click row or use ↑ / ↓ arrows + Enter to select item
+              </div>
+              <button
+                type="button"
+                className="manual-btn"
+                onClick={() => setItemLookupOpen(false)}
+              >
+                Close (Esc)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Customer Lookup Modal */}
       {customerLookupOpen && (
@@ -1373,6 +1862,23 @@ function ManualInvoice() {
       </div>
     </div>
   );
+
+  if (isModal) {
+    return (
+      <div className="manual-invoice-modal-overlay">
+        <div
+          className="manual-invoice-modal-window"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Manual Sales Invoice"
+        >
+          {mainContent}
+        </div>
+      </div>
+    );
+  }
+
+  return mainContent;
 }
 
 export default ManualInvoice;

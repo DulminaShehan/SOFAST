@@ -5,6 +5,7 @@ import Customer from '../models/Customer.js';
 import Settlement from '../models/Settlement.js';
 import { syncCustomerOutstandingBalance } from './customerController.js';
 import { findItemMasterRecord } from './grnController.js';
+import { recordManualSaleItem } from './manualItemController.js';
 
 /**
  * Helper to compute the next sequential 4-digit invoice number starting from 0001 (e.g. 0001, 0002, ...)
@@ -147,42 +148,58 @@ export const getInvoices = async (req, res, next) => {
   try {
     const { search, status, limit = 100, page = 1 } = req.query;
     const query = {};
+    const andConditions = [];
 
     if (status && status !== 'all') {
       if (status === 'hold') {
-        query.$or = [{ isHold: true }, { status: 'hold' }];
+        andConditions.push({ $or: [{ isHold: true }, { status: 'hold' }] });
       } else if (status === 'completed') {
-        query.$and = [{ isHold: { $ne: true } }, { status: { $ne: 'hold' } }];
+        andConditions.push({ isHold: { $ne: true } }, { status: { $ne: 'hold' } });
       }
     }
 
-    if (req.query.type === 'manual' || req.query.isManual === 'true') {
-      query.$or = [
-        { isManualInvoice: true },
-        { invoiceType: 'Manual' },
-        { invoiceNumber: /^MAN-/i },
-      ];
-    } else if (req.query.type === 'standard') {
-      query.$and = [
-        ...(query.$and || []),
+    const typeParam = (req.query.type || '').toLowerCase();
+    const isManualParam = req.query.isManual !== undefined ? req.query.isManual : req.query.isManualInvoice;
+    const includeManual = req.query.includeManual === 'true' || typeParam === 'all';
+
+    if (typeParam === 'manual' || isManualParam === 'true' || isManualParam === true) {
+      // Caller explicitly requested manual invoices
+      andConditions.push({
+        $or: [
+          { isManualInvoice: true },
+          { invoiceType: 'Manual' },
+          { invoiceNumber: /^MAN-/i },
+        ],
+      });
+    } else if (includeManual) {
+      // Caller explicitly requested all invoices (both standard and manual)
+    } else {
+      // Default: Standard sales invoices only! Exclude all manual invoices.
+      andConditions.push(
         { isManualInvoice: { $ne: true } },
         { invoiceType: { $ne: 'Manual' } },
-        { invoiceNumber: { $not: /^MAN-/i } },
-      ];
+        { invoiceNumber: { $not: /^MAN-/i } }
+      );
     }
 
     if (search && search.trim() !== '') {
       const regex = new RegExp(search.trim(), 'i');
-      query.$or = [
-        { invoiceNumber: regex },
-        { customerCode: regex },
-        { cuscode: regex },
-        { customerName: regex },
-        { cusname: regex },
-        { chequeNo: regex },
-        { bank: regex },
-        { remark: regex },
-      ];
+      andConditions.push({
+        $or: [
+          { invoiceNumber: regex },
+          { customerCode: regex },
+          { cuscode: regex },
+          { customerName: regex },
+          { cusname: regex },
+          { chequeNo: regex },
+          { bank: regex },
+          { remark: regex },
+        ],
+      });
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     const parsedLimit = Math.min(Math.max(1, parseInt(limit, 10) || 100), 1000);
@@ -235,6 +252,13 @@ export const getInvoiceById = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: `Invoice '${id}' not found`,
+      });
+    }
+
+    if (req.query.type === 'standard' && (invoice.isManualInvoice || invoice.invoiceType === 'Manual' || /^MAN-/i.test(invoice.invoiceNumber || ''))) {
+      return res.status(404).json({
+        success: false,
+        message: `Invoice '${id}' is a Manual Invoice, not a standard sales invoice.`,
       });
     }
 
@@ -337,6 +361,16 @@ export const createInvoice = async (req, res, next) => {
       if (!finalNo) {
         const numPart = finalInvoiceNumber.replace(/\D/g, '');
         finalNo = parseInt(numPart, 10) || 1;
+      }
+    }
+
+    // Auto-advance manual invoice number if conflict exists in database
+    if (isManual && finalInvoiceNumber) {
+      const existingInv = await Invoice.findOne({ invoiceNumber: finalInvoiceNumber });
+      if (existingInv) {
+        const nextData = await computeNextManualInvoiceNumber(db);
+        finalNo = nextData.no;
+        finalInvoiceNumber = nextData.invoiceNumber;
       }
     }
 
@@ -562,7 +596,7 @@ export const createInvoice = async (req, res, next) => {
       isSettled: calculatedDueAmount === 0,
       settlementRef: req.body.settlementRef || '',
       settlementStatus: req.body.settlementStatus || '',
-      isStockUpdated: false, // Manual invoices NEVER touch stock
+      isStockUpdated: isStockUpdated,
       isCompleted,
     });
 
@@ -576,7 +610,31 @@ export const createInvoice = async (req, res, next) => {
           { $inc: { quantity: rolled.qty, stockInHand: rolled.qty } }
         );
       }
-      throw saveError;
+      appliedDeductions = [];
+
+      // If race condition on manual invoice number (11000 duplicate key), auto-retry once with fresh number
+      if (saveError.code === 11000 && isManual) {
+        try {
+          const freshManual = await computeNextManualInvoiceNumber(db);
+          newInvoice.no = freshManual.no;
+          newInvoice.invoiceNumber = freshManual.invoiceNumber;
+          await newInvoice.save();
+        } catch (retryErr) {
+          return res.status(409).json({
+            success: false,
+            message: 'Manual invoice number conflict. Please refresh the invoice number.',
+            conflict: true,
+          });
+        }
+      } else if (saveError.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: 'An invoice with this number already exists',
+          conflict: true,
+        });
+      } else {
+        throw saveError;
+      }
     }
 
     // Update docnumbers sequence for 4-digit sequential invoice numbers
@@ -603,6 +661,23 @@ export const createInvoice = async (req, res, next) => {
       await syncCustomerOutstandingBalance(customerCode);
     }
 
+    // If Manual Invoice: Record unregistered items in Manual Stock system
+    if (isManual && isCompleted && Array.isArray(processedLineItems)) {
+      for (const line of processedLineItems) {
+        try {
+          await recordManualSaleItem({
+            invoiceNumber: newInvoice.invoiceNumber,
+            invoiceDate: newInvoice.date,
+            lineItem: line,
+            customerName: finalCusName,
+            performedBy: req.user?.username || 'Cashier',
+          });
+        } catch (mErr) {
+          console.error('Error recording manual item in manual stock system:', mErr);
+        }
+      }
+    }
+
     return res.status(201).json({
       success: true,
       message: `Invoice '${newInvoice.invoiceNumber}' ${holdStatus ? 'saved on HOLD' : 'created and stock updated'} successfully`,
@@ -610,9 +685,10 @@ export const createInvoice = async (req, res, next) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: 'An invoice with this number already exists',
+        conflict: true,
       });
     }
     next(error);
@@ -1135,10 +1211,16 @@ export const getRemainingBalances = async (req, res, next) => {
   try {
     const { search, filter = 'outstanding', limit = 300 } = req.query;
 
+    const includeManual = req.query.includeManual === 'true';
     const query = {
       isTemporary: { $ne: true },
       isHold: { $ne: true },
     };
+    if (!includeManual) {
+      query.isManualInvoice = { $ne: true };
+      query.invoiceType = { $ne: 'Manual' };
+      query.invoiceNumber = { $not: /^MAN-/i };
+    }
 
     const invoices = await Invoice.find(query)
       .sort({ no: -1, date: -1, createdAt: -1 })

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import windowIcon from '../../assets/window-icon.png';
 import { useAuth } from '../../context/AuthContext';
@@ -36,6 +38,7 @@ function SupplierMaster() {
   const nameInputRef = useRef(null);
   const menuRef = useRef(null);
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
 
   // Top Menu Navigation Items matching SOFAST POS
   const topMenuItems = [
@@ -213,6 +216,9 @@ function SupplierMaster() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     const payload = {
       code: formData.code.trim(),
       name: formData.name.trim(),
@@ -378,7 +384,7 @@ function SupplierMaster() {
               </div>
             )}
 
-            <form className="supplier-form" onSubmit={handleSave} autoComplete="off">
+            <form className="supplier-form" onSubmit={handleSave} autoComplete="off" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: 'button[type="submit"]' })}>
               {/* Field: Code */}
               <div className="field-row">
                 <label className="field-label" htmlFor="supplier-code">

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
 import { useConfirm } from '../../context/ConfirmContext';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import './Damage.css';
 
@@ -387,6 +388,9 @@ function Damage() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     if (isSavedRecord) {
       showNotification(
         'info',
@@ -445,6 +449,9 @@ function Damage() {
       showNotification('error', 'At least one damage item row must be entered');
       return;
     }
+
+    const confirmed = await confirmSave('Do you want to update this damage record?');
+    if (!confirmed) return;
 
     setIsSubmitting(true);
     try {
@@ -673,7 +680,7 @@ function Damage() {
       {/* 3. Main Form Area */}
       <main className="damage-main-content">
         {/* Outer 3D Bevelled Frame (Preserving exact reference UI appearance) */}
-        <div className="damage-outer-frame">
+        <div className="damage-outer-frame" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.damage-classic-btn:nth-child(2)' })}>
           {/* Notification Banner */}
           {notification && (
             <div className={`damage-notification ${notification.type}`}>

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -12,6 +14,7 @@ import './CustomerMaster.css';
  */
 function CustomerMaster() {
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
   const { isAdmin } = useAuth();
   const { confirm } = useConfirm();
 
@@ -278,6 +281,9 @@ function CustomerMaster() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     try {
       setIsSaving(true);
 
@@ -459,7 +465,7 @@ function CustomerMaster() {
           </div>
 
           {/* Form Two-Column Grid */}
-          <div className="cust-form-grid">
+          <div className="cust-form-grid" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.cust-btn-bar .cust-btn-classic' })}>
             {/* ========================================================= */}
             {/* LEFT COLUMN FIELDS (9 fields)                             */}
             {/* ========================================================= */}

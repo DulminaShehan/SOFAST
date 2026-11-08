@@ -1,0 +1,1211 @@
+/* ==========================================================================
+   SOFAST POS - Professional Manual Stock Report Stylesheet
+   Theme: Enterprise ERP / Professional Desktop POS
+   Palette: Clean Whites, Slate Grays, SOFAST Deep Navy (#003366, #0055aa),
+            Forest Green (#15803d), Amber (#b45309), Coral Red (#b91c1c)
+   ========================================================================== */
+
+:root {
+  --ms-bg: #f8fafc;
+  --ms-card-bg: #ffffff;
+  --ms-border: #e2e8f0;
+  --ms-border-focus: #0055aa;
+  --ms-text-main: #0f172a;
+  --ms-text-muted: #64748b;
+  --ms-text-light: #94a3b8;
+  --ms-blue-navy: #003366;
+  --ms-blue-primary: #0055aa;
+  --ms-blue-light: #eff6ff;
+  --ms-blue-border: #bfdbfe;
+  --ms-green: #16a34a;
+  --ms-green-light: #dcfce7;
+  --ms-green-border: #bbf7d0;
+  --ms-amber: #d97706;
+  --ms-amber-light: #fef3c7;
+  --ms-amber-border: #fde68a;
+  --ms-red: #dc2626;
+  --ms-red-light: #fee2e2;
+  --ms-red-border: #fecaca;
+  --ms-purple: #9333ea;
+  --ms-purple-light: #f3e8ff;
+  --ms-teal: #0d9488;
+  --ms-teal-light: #ccfbf1;
+}
+
+.ms-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--ms-text-main);
+  padding: 4px 2px 24px 2px;
+}
+
+/* --------------------------------------------------------------------------
+   1. HEADER SECTION
+   -------------------------------------------------------------------------- */
+.ms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: var(--ms-card-bg);
+  border: 1px solid var(--ms-border);
+  border-left: 5px solid var(--ms-blue-primary);
+  border-radius: 6px;
+  padding: 14px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ms-header-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ms-header-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.6px;
+}
+
+.ms-header-title-box h2 {
+  margin: 2px 0 0 0;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--ms-blue-navy);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.3px;
+}
+
+.ms-header-subtitle {
+  margin: 3px 0 0 0;
+  font-size: 12px;
+  color: var(--ms-text-muted);
+  line-height: 1.4;
+}
+
+.ms-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Action Buttons */
+.ms-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  user-select: none;
+}
+
+.ms-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.ms-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ms-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Primary Button (Add Stock) */
+.ms-btn-primary {
+  background: linear-gradient(180deg, #0066cc 0%, #0055aa 100%);
+  color: #ffffff;
+  border-color: #004488;
+  box-shadow: 0 1px 3px rgba(0, 85, 170, 0.3);
+}
+
+.ms-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #0055aa 0%, #004488 100%);
+  border-color: #003366;
+  color: #ffffff;
+}
+
+.ms-btn-apply {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 11px;
+}
+
+/* --------------------------------------------------------------------------
+   2. STATISTICS DASHBOARD - 8 RESPONSIVE KPI CARDS
+   -------------------------------------------------------------------------- */
+.ms-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ms-kpi-card {
+  background: var(--ms-card-bg);
+  border: 1px solid var(--ms-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.ms-kpi-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Colored Top Accent Bar */
+.ms-kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.ms-kpi-card.kpi-blue::before { background: var(--ms-blue-primary); }
+.ms-kpi-card.kpi-amber::before { background: var(--ms-amber); }
+.ms-kpi-card.kpi-indigo::before { background: #4f46e5; }
+.ms-kpi-card.kpi-green::before { background: var(--ms-green); }
+.ms-kpi-card.kpi-red::before { background: var(--ms-red); }
+.ms-kpi-card.kpi-purple::before { background: var(--ms-purple); }
+.ms-kpi-card.kpi-teal::before { background: var(--ms-teal); }
+.ms-kpi-card.kpi-navy::before { background: var(--ms-blue-navy); }
+.ms-kpi-card.kpi-cyan::before { background: #0284c7; }
+
+.ms-kpi-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.ms-kpi-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 85, 170, 0.12);
+  border-color: #0055aa;
+}
+
+.ms-kpi-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.ms-kpi-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ms-text-muted);
+}
+
+.ms-kpi-icon-wrap {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.icon-blue { background: #e0f2fe; color: #0284c7; }
+.icon-amber { background: #fef3c7; color: #d97706; }
+.icon-indigo { background: #e0e7ff; color: #4338ca; }
+.icon-green { background: #dcfce7; color: #15803d; }
+.icon-purple { background: #f3e8ff; color: #7e22ce; }
+.icon-teal { background: #ccfbf1; color: #0f766e; }
+.icon-navy { background: #e2e8f0; color: #003366; }
+.icon-red { background: #fee2e2; color: #b91c1c; }
+.icon-cyan { background: #e0f2fe; color: #0284c7; }
+
+.ms-kpi-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ms-text-main);
+  line-height: 1.2;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+  margin: 2px 0;
+}
+
+.ms-kpi-value.val-currency {
+  font-size: 18px;
+}
+
+.text-amber { color: #d97706; }
+.text-indigo { color: #4f46e5; }
+.text-green { color: #16a34a; }
+.text-red { color: #dc2626; }
+.text-purple { color: #9333ea; }
+.text-teal { color: #0d9488; }
+.text-navy { color: #003366; }
+.text-cyan { color: #0284c7; }
+
+.ms-kpi-desc {
+  font-size: 11px;
+  color: var(--ms-text-light);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+/* --------------------------------------------------------------------------
+   3. COMPACT SEARCH & FILTER PANEL
+   -------------------------------------------------------------------------- */
+.ms-filter-panel {
+  background: #f8fafc;
+  border: 1px solid var(--ms-border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.ms-filter-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.3fr 1fr 1fr 1.4fr 0.8fr auto;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+@media (max-width: 1200px) {
+  .ms-filter-grid {
+    grid-template-columns: repeat(3, 1fr) auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .ms-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ms-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ms-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #475569;
+  letter-spacing: 0.4px;
+}
+
+.ms-input,
+.ms-select {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1e293b;
+  outline: none;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.ms-input:focus,
+.ms-select:focus {
+  border-color: var(--ms-blue-primary);
+  box-shadow: 0 0 0 2px rgba(0, 85, 170, 0.15);
+  background: #ffffff;
+}
+
+.ms-filter-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.ms-btn-clear {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
+  color: #dc2626;
+  background: #ffffff;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ms-btn-clear:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+/* --------------------------------------------------------------------------
+   4. DATA TABLE SECTION
+   -------------------------------------------------------------------------- */
+.ms-table-wrapper {
+  background: #ffffff;
+  border: 1px solid var(--ms-border);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+.ms-table-scroll {
+  max-height: 560px;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.ms-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.ms-table thead th {
+  background: var(--ms-blue-navy);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 9px 10px;
+  border-right: 1px solid #002244;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  user-select: none;
+}
+
+.ms-table thead th:last-child {
+  border-right: none;
+}
+
+.ms-table tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+.ms-table tbody tr:nth-child(even) {
+  background-color: #f8fafc;
+}
+
+.ms-table tbody tr:hover {
+  background-color: #eff6ff !important;
+}
+
+.ms-table tbody td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  border-right: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+.ms-table tbody td:last-child {
+  border-right: none;
+}
+
+.ms-table .cell-num {
+  text-align: right;
+  font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace;
+}
+
+.ms-table .cell-center {
+  text-align: center;
+}
+
+.ms-table .cell-code {
+  font-weight: 700;
+  color: var(--ms-blue-navy);
+  font-family: Consolas, monospace;
+}
+
+.ms-table .cell-desc {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Status Badges */
+.ms-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+
+/* Green status for Available */
+.ms-badge-available {
+  background: var(--ms-green-light);
+  color: var(--ms-green);
+  border: 1px solid var(--ms-green-border);
+}
+
+/* Orange status for Pending Conversion */
+.ms-badge-pending {
+  background: var(--ms-amber-light);
+  color: var(--ms-amber);
+  border: 1px solid var(--ms-amber-border);
+}
+
+/* Active manual badge */
+.ms-badge-active {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* Blue status for Converted */
+.ms-badge-converted {
+  background: var(--ms-blue-light);
+  color: #1d4ed8;
+  border: 1px solid var(--ms-blue-border);
+}
+
+/* Red status for errors / negative stock */
+.ms-badge-negative {
+  background: var(--ms-red-light);
+  color: var(--ms-red);
+  border: 1px solid var(--ms-red-border);
+}
+
+.ms-badge-zero {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+/* Row Action Buttons */
+.ms-action-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.ms-row-btn {
+  height: 25px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 3px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ms-row-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.ms-row-btn.btn-details {
+  color: var(--ms-blue-primary);
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.ms-row-btn.btn-details:hover {
+  background: #dbeafe;
+}
+
+.ms-row-btn.btn-stock {
+  color: var(--ms-green);
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.ms-row-btn.btn-stock:hover {
+  background: #dcfce7;
+}
+
+.ms-row-btn.btn-convert {
+  color: var(--ms-amber);
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.ms-row-btn.btn-convert:hover {
+  background: #fef3c7;
+}
+
+.ms-row-btn.btn-history {
+  color: #475569;
+}
+
+/* --------------------------------------------------------------------------
+   5. PAGINATION FOOTER
+   -------------------------------------------------------------------------- */
+.ms-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-top: 1px solid var(--ms-border);
+  font-size: 12px;
+  color: var(--ms-text-muted);
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ms-pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ms-page-btn {
+  height: 28px;
+  min-width: 30px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.ms-page-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.ms-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ms-page-indicator {
+  margin: 0 8px;
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   6. MODALS
+   -------------------------------------------------------------------------- */
+.ms-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: msFadeIn 0.15s ease-out;
+}
+
+@keyframes msFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ms-modal-dialog {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  border: 1px solid #cbd5e1;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+  animation: msSlideDown 0.15s ease-out;
+}
+
+@keyframes msSlideDown {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.ms-modal-lg {
+  width: 940px;
+  max-width: 96vw;
+}
+
+.ms-modal-md {
+  width: 660px;
+  max-width: 95vw;
+}
+
+.ms-modal-header {
+  background: linear-gradient(90deg, #003366 0%, #0055aa 100%);
+  color: #ffffff;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #002244;
+}
+
+.ms-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: 0.2px;
+}
+
+.ms-modal-close {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0.85;
+}
+
+.ms-modal-close:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ms-modal-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: #334155;
+}
+
+.ms-modal-footer {
+  background: #f8fafc;
+  border-top: 1px solid var(--ms-border);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Modal Details Specifics */
+.ms-details-hero {
+  background: #f8fafc;
+  border: 1px solid var(--ms-border);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ms-details-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ms-text-main);
+}
+
+.ms-details-meta {
+  font-size: 12px;
+  color: var(--ms-text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.ms-details-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.ms-details-tile {
+  background: #ffffff;
+  border: 1px solid var(--ms-border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ms-details-tile-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--ms-text-muted);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.ms-details-tile-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ms-text-main);
+  margin-top: 3px;
+  font-family: Consolas, monospace;
+}
+
+/* Modal Tabs */
+.ms-modal-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--ms-border);
+  margin-bottom: 14px;
+  gap: 4px;
+}
+
+.ms-tab-btn {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ms-text-muted);
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ms-tab-btn:hover {
+  color: var(--ms-blue-primary);
+}
+
+.ms-tab-btn.active {
+  color: var(--ms-blue-primary);
+  border-bottom-color: var(--ms-blue-primary);
+  font-weight: 700;
+}
+
+/* Modal Form Fields */
+.ms-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.ms-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ms-form-field.full {
+  grid-column: span 2;
+}
+
+.ms-form-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.ms-form-hint {
+  font-size: 12px;
+  color: var(--ms-text-muted);
+  margin-top: -2px;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.ms-alert-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #92400e;
+  line-height: 1.4;
+}
+
+/* Notification Toast */
+.ms-notification-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: msSlideDown 0.18s ease-out;
+}
+
+.ms-toast-success { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+.ms-toast-error { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+.ms-toast-info { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
+
+.ms-toast-close {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  color: inherit;
+  margin-left: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   VIEW MODE TABS (Manual Stock Inventory vs Issued Manual Invoices)
+   -------------------------------------------------------------------------- */
+.ms-view-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid var(--ms-border);
+  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.ms-view-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+}
+
+.ms-view-tab-btn:hover:not(.active) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.ms-view-tab-btn.active {
+  background: linear-gradient(180deg, #0066cc 0%, #0055aa 100%);
+  color: #ffffff;
+  border-color: #004488;
+  box-shadow: 0 2px 4px rgba(0, 85, 170, 0.25);
+}
+
+.ms-view-tab-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #e2e8f0;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.ms-view-tab-btn.active .ms-view-tab-pill {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.ms-view-tab-pill.pill-blue {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.ms-view-tab-btn.active .ms-view-tab-pill.pill-blue {
+  background: #ffffff;
+  color: #0055aa;
+}
+
+/* Invoice Number Pills in Stock Table */
+.ms-inv-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+
+.ms-inv-tag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #0055aa;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ms-inv-tag-btn:hover {
+  background: #0055aa;
+  color: #ffffff;
+  border-color: #004488;
+  box-shadow: 0 1px 3px rgba(0, 85, 170, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Invoices Summary Banner */
+.ms-invoices-summary-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.ms-invoices-summary-text {
+  font-size: 12px;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ms-invoices-summary-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ms-invoices-summary-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #0369a1;
+  letter-spacing: 0.4px;
+}
+
+/* Invoice Line Items Chips */
+.ms-inv-items-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 280px;
+}
+
+.ms-inv-item-chip {
+  font-size: 11px;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Invoice Details Modal Specifics */
+.ms-inv-modal-header {
+  background: linear-gradient(180deg, #004488 0%, #003366 100%);
+  color: #ffffff;
+}
+
+.ms-inv-meta-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1.2fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 768px) {
+  .ms-inv-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ms-inv-meta-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ms-inv-meta-amount {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ms-inv-meta-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.ms-inv-totals-box {
+  margin-top: 14px;
+  margin-left: auto;
+  width: 260px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.ms-inv-totals-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #475569;
+}
+
+.ms-inv-totals-net {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0055aa;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 6px;
+  margin-top: 6px;
+}
+
+.ms-inv-modal-overlay {
+  z-index: 10050;
+}
+
+/* Printable Header */
+.print-only {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
+   7. PRINT OVERRIDES
+   -------------------------------------------------------------------------- */
+@media print {
+  .no-print,
+  .ms-header-actions,
+  .ms-filter-panel,
+  .ms-footer,
+  .ms-action-cell {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .ms-print-header {
+    text-align: center;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 8px;
+  }
+
+  .ms-print-header h1 {
+    font-size: 20px;
+    margin: 0;
+  }
+
+  .ms-print-header h2 {
+    font-size: 16px;
+    margin: 4px 0;
+  }
+
+  .ms-print-header p {
+    font-size: 11px;
+    margin: 2px 0;
+    color: #555;
+  }
+
+  body,
+  .ms-container {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  .ms-header {
+    display: none !important;
+  }
+
+  .ms-table thead th {
+    background: #f1f5f9 !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
+  }
+
+  .ms-table tbody td {
+    border: 1px solid #cccccc !important;
+    color: #000000 !important;
+  }
+}

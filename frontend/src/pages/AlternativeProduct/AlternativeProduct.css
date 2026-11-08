@@ -519,6 +519,86 @@
   border: 1px solid #93c5fd;
 }
 
+/* Green "Add" Action Button */
+.alt-prod-btn-classic.alt-add-btn {
+  background: linear-gradient(180deg, #e8f5e9 0%, #c8e6c9 100%);
+  border-top: 1px solid #ffffff;
+  border-left: 1px solid #ffffff;
+  border-right: 1px solid #2e7d32;
+  border-bottom: 1px solid #2e7d32;
+  color: #1b5e20;
+  font-weight: 700;
+  min-width: 75px;
+}
+
+.alt-prod-btn-classic.alt-add-btn:hover {
+  background: linear-gradient(180deg, #f1f8e9 0%, #a5d6a7 100%);
+  color: #0e3f13;
+}
+
+/* Already Alternative Indicators */
+.badge-already-alt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.alt-prod-table tbody tr.highlight-already-alt {
+  background-color: #fffbeb !important;
+  outline: 2px solid #f59e0b !important;
+}
+
+.alt-prod-table tbody tr.highlight-already-alt td {
+  border-color: #fcd34d !important;
+  color: #78350f !important;
+}
+
+/* Role Badges for Grid 1 */
+.role-badge-main {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.role-badge-alt {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.already-alt-banner {
+  background-color: #fffbeb;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 8px 12px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .table-viewport {
   flex: 1;
   overflow-y: auto;

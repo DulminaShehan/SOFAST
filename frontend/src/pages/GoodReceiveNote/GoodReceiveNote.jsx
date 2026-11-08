@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
 import './GoodReceiveNote.css';
@@ -60,7 +62,16 @@ function GoodReceiveNote() {
     closingStock: '',
     lastGrn: '',
     lpc: '',
+    isManualItem: false,
+    manualItemId: null,
+    manualCode: '',
+    previouslySoldQty: 0,
   });
+
+  // Tracked Unregistered Manual Items from Manual Stock Report
+  const [trackedManualItems, setTrackedManualItems] = useState([]);
+  const [potentialManualMatch, setPotentialManualMatch] = useState(null);
+  const [lookupItemTab, setLookupItemTab] = useState('master'); // 'master' | 'manual'
 
   // Item GRN History State
   const [itemHistory, setItemHistory] = useState([]);
@@ -91,6 +102,11 @@ function GoodReceiveNote() {
 
   // Ref for Code Input focus
   const itemCodeInputRef = useRef(null);
+  const grnPriceInputRef = useRef(null);
+  const grnSellPriceInputRef = useRef(null);
+  const grnQtyInputRef = useRef(null);
+  const grnDiscountInputRef = useRef(null);
+  const { confirmSave, confirmDelete, showConfirm } = useConfirmDialog();
 
   // Menubar items
   const topMenuItems = [
@@ -237,11 +253,12 @@ function GoodReceiveNote() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [suppRes, nextNumRes, grnsRes, itemsRes] = await Promise.all([
+      const [suppRes, nextNumRes, grnsRes, itemsRes, manualRes] = await Promise.all([
         api.get('/suppliers').catch(() => null),
         api.get('/grn/next-number').catch(() => null),
         api.get('/grn?limit=100').catch(() => null),
         api.get('/items?limit=all').catch(() => null),
+        api.get('/manual-items/lookup?limit=all').catch(() => null),
       ]);
 
       if (suppRes?.data?.data) {
@@ -259,6 +276,9 @@ function GoodReceiveNote() {
       }
       if (itemsRes?.data?.data) {
         setItemsList(itemsRes.data.data);
+      }
+      if (manualRes?.data?.data) {
+        setTrackedManualItems(manualRes.data.data.filter((it) => it.status !== 'Converted'));
       }
     } catch (e) {
       showNotification('Failed to initialize GRN form data', 'error');
@@ -499,45 +519,24 @@ function GoodReceiveNote() {
     const { name, value } = e.target;
     const updated = { ...itemEntry, [name]: value };
 
-    // Auto-match Item by Code
+    // When typing Item Code: allow user to freely type without premature auto-filling or overwriting!
     if (name === 'code') {
-      const trimmed = value.trim();
-      const lower = trimmed.toLowerCase();
-      let match = itemsList.find(
-        (i) => i.code?.toLowerCase() === lower
-      );
-      if (!match && trimmed.includes(' - ')) {
-        const codePart = trimmed.split(' - ')[0].trim().toLowerCase();
-        match = itemsList.find((i) => i.code?.toLowerCase() === codePart);
-      }
-      if (match) {
-        Object.assign(updated, populateItemDetails(match, updated.quantity || 1, updated.discount || '0'));
-        fetchItemHistory(match.code, match.location);
-      } else if (trimmed.length >= 2) {
-        // Fallback live search from backend to ensure every item in DB is reachable
-        api.get(`/items?search=${encodeURIComponent(trimmed)}&limit=10`)
-          .then((res) => {
-            if (res.data?.data?.length > 0) {
-              const exact = res.data.data.find((i) => i.code?.toLowerCase() === lower) || res.data.data[0];
-              if (exact) {
-                setItemEntry((prev) => {
-                  if (prev.code.trim().toLowerCase() === lower) {
-                    return { ...prev, ...populateItemDetails(exact, prev.quantity || 1, prev.discount || '0') };
-                  }
-                  return prev;
-                });
-                fetchItemHistory(exact.code, exact.location);
-              }
-            } else {
-              fetchItemHistory(trimmed);
-            }
-          })
-          .catch(() => {
-            fetchItemHistory(trimmed);
-          });
-      } else if (trimmed === '') {
+      const clean = value.trim().toLowerCase();
+      if (!clean) {
         setItemHistory([]);
+        setPotentialManualMatch(null);
         if (lineItems.length > 0) setGridMode('current');
+      } else {
+        const mMatch = trackedManualItems.find(
+          (m) =>
+            m.manualCode?.toLowerCase() === clean ||
+            (clean.length >= 3 && m.description?.toLowerCase().includes(clean))
+        );
+        if (mMatch && !itemEntry.isManualItem) {
+          setPotentialManualMatch(mMatch);
+        } else {
+          setPotentialManualMatch(null);
+        }
       }
     }
 
@@ -552,24 +551,45 @@ function GoodReceiveNote() {
     setItemEntry(updated);
   };
 
-  // Handle Barcode Scanner on Code field (Enter key press)
-  const handleCodeKeyDown = (e) => {
+  // Handle Barcode Scanner / Enter key press on Code field
+  const handleCodeKeyDown = async (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const query = itemEntry.code.trim().toLowerCase();
-      if (!query) return;
+      const query = (itemEntry.code || '').trim().toLowerCase();
+      if (!query) {
+        setLookupModal({
+          isOpen: true,
+          type: 'item',
+          title: 'Select Item from Item Master',
+          search: '',
+        });
+        return;
+      }
 
-      // Match item by barcode or code
+      // 1. Check local itemsList for exact match by code or barcode
       let match = null;
       if (grnHeader.useBarcode) {
         match = itemsList.find(
           (i) =>
-            i.barcode?.toLowerCase() === query ||
-            i.barCode?.toLowerCase() === query ||
-            i.code?.toLowerCase() === query
+            i.barcode?.trim().toLowerCase() === query ||
+            i.barCode?.trim().toLowerCase() === query ||
+            i.code?.trim().toLowerCase() === query
         );
       } else {
-        match = itemsList.find((i) => i.code?.toLowerCase() === query);
+        match = itemsList.find((i) => i.code?.trim().toLowerCase() === query);
+        if (!match) {
+          match = itemsList.find(
+            (i) =>
+              i.barcode?.trim().toLowerCase() === query ||
+              i.barCode?.trim().toLowerCase() === query
+          );
+        }
+      }
+
+      // If user entered "CODE - DESC" format
+      if (!match && query.includes(' - ')) {
+        const codePart = query.split(' - ')[0].trim().toLowerCase();
+        match = itemsList.find((i) => i.code?.trim().toLowerCase() === codePart);
       }
 
       if (match) {
@@ -577,25 +597,161 @@ function GoodReceiveNote() {
         setItemEntry(itemObj);
         fetchItemHistory(match.code, match.location);
 
-        // Auto-add to line items if barcode mode is on
         if (grnHeader.useBarcode) {
           addLineItemDirectly(itemObj);
         } else {
-          handleAddOrUpdateLineItem();
+          // Move focus to Price or Quantity field so user can enter received values
+          if (grnPriceInputRef.current) {
+            grnPriceInputRef.current.focus();
+            grnPriceInputRef.current.select();
+          } else if (grnQtyInputRef.current) {
+            grnQtyInputRef.current.focus();
+            grnQtyInputRef.current.select();
+          }
         }
-      } else {
-        fetchItemHistory(query);
-        handleAddOrUpdateLineItem();
+        return;
       }
+
+      // 2. Fallback live server lookup for exact match
+      try {
+        setLoading(true);
+        // Direct code lookup
+        const directRes = await api.get(`/items/${encodeURIComponent(query)}`).catch(() => null);
+        if (directRes?.data?.success && directRes?.data?.data) {
+          const exact = directRes.data.data;
+          const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');
+          setItemEntry(itemObj);
+          fetchItemHistory(exact.code, exact.location);
+          if (grnHeader.useBarcode) {
+            addLineItemDirectly(itemObj);
+          } else {
+            grnPriceInputRef.current?.focus();
+            grnPriceInputRef.current?.select();
+          }
+          return;
+        }
+
+        // Search query
+        const searchRes = await api.get(`/items?search=${encodeURIComponent(query)}&limit=10`);
+        if (searchRes.data?.data?.length > 0) {
+          const exact = searchRes.data.data.find(
+            (i) =>
+              (i.code && i.code.trim().toLowerCase() === query) ||
+              (i.barcode && i.barcode.trim().toLowerCase() === query) ||
+              (i.barCode && i.barCode.trim().toLowerCase() === query)
+          );
+          if (exact) {
+            const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');
+            setItemEntry(itemObj);
+            fetchItemHistory(exact.code, exact.location);
+            if (grnHeader.useBarcode) {
+              addLineItemDirectly(itemObj);
+            } else {
+              grnPriceInputRef.current?.focus();
+              grnPriceInputRef.current?.select();
+            }
+            return;
+          }
+        }
+
+        // Check if query matches a tracked manual item
+        const manualMatch = trackedManualItems.find(
+          (m) =>
+            m.manualCode?.toLowerCase() === query ||
+            m.description?.toLowerCase() === query
+        );
+        if (manualMatch) {
+          setPotentialManualMatch(manualMatch);
+          showNotification(`Item code '${query}' matches tracked manual item '${manualMatch.description}'. Confirm link to proceed.`, 'info');
+          return;
+        }
+
+        showNotification(`Item code '${itemEntry.code.trim()}' not found in Item Master or Manual Stock`, 'warning');
+      } catch (err) {
+        showNotification(`Item code '${query}' not found in Item Master or Manual Stock`, 'warning');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Handle Blur on Code field: if user typed an exact code and description is still empty, populate details
+  const handleCodeBlur = async () => {
+    const query = (itemEntry.code || '').trim().toLowerCase();
+    if (!query || itemEntry.description) return;
+
+    let match = itemsList.find(
+      (i) =>
+        (i.code && i.code.trim().toLowerCase() === query) ||
+        (i.barcode && i.barcode.trim().toLowerCase() === query)
+    );
+
+    if (match) {
+      const itemObj = populateItemDetails(match, itemEntry.quantity || 1, itemEntry.discount || '0');
+      setItemEntry(itemObj);
+      fetchItemHistory(match.code, match.location);
+      return;
+    }
+
+    try {
+      const directRes = await api.get(`/items/${encodeURIComponent(query)}`).catch(() => null);
+      if (directRes?.data?.success && directRes?.data?.data) {
+        const exact = directRes.data.data;
+        const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');
+        setItemEntry(itemObj);
+        fetchItemHistory(exact.code, exact.location);
+      }
+    } catch (e) {
+      // ignore blur lookup error
     }
   };
 
   // Select Item from Lookup Modal
   const handleSelectItemFromLookup = (item) => {
     const itemObj = populateItemDetails(item, 1, 0);
-    setItemEntry(itemObj);
+    setItemEntry({
+      ...itemObj,
+      isManualItem: false,
+      manualItemId: null,
+      manualCode: '',
+      previouslySoldQty: 0,
+    });
+    setPotentialManualMatch(null);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
     fetchItemHistory(item.code, item.location);
+  };
+
+  // Select Tracked Manual Item from Lookup or Identification Banner (Requirement 5)
+  const handleSelectManualItemForGrn = (manualItem) => {
+    const cost = manualItem.costPrice || 0;
+    const sell = manualItem.sellingPrice || 0;
+    const soldQty = Number(manualItem.totalSalesQty) || 0;
+    const initialQty = soldQty > 0 ? soldQty : 1;
+
+    setItemEntry({
+      code: manualItem.manualCode,
+      description: manualItem.description || '',
+      price: cost > 0 ? String(cost) : '',
+      sellPrice: sell > 0 ? String(sell) : '',
+      quantity: String(initialQty),
+      discount: '0',
+      value: computeItemValue(cost, initialQty, '0'),
+      location: manualItem.location || 'Main Store',
+      closingStock: manualItem.availableStock !== undefined ? manualItem.availableStock : -soldQty,
+      lastGrn: 'Pending Master',
+      lpc: cost > 0 ? Number(cost).toFixed(2) : '-',
+      isManualItem: true,
+      manualItemId: manualItem._id,
+      manualCode: manualItem.manualCode,
+      previouslySoldQty: soldQty,
+    });
+    setPotentialManualMatch(null);
+    setLookupModal({ isOpen: false, type: null, title: '', search: '' });
+    showNotification(`Linked to Tracked Manual Item '${manualItem.manualCode}' (Previously Sold: ${soldQty} PCS)`, 'info');
+    if (grnPriceInputRef.current) {
+      grnPriceInputRef.current.focus();
+      grnPriceInputRef.current.select();
+    }
   };
 
   // Select Supplier from Lookup Modal
@@ -679,8 +835,8 @@ function GoodReceiveNote() {
       return;
     }
 
-    const qty = parseFloat(itemEntry.quantity);
-    if (isNaN(qty) || qty <= 0) {
+    const qty = parseFloat(itemEntry.quantity) || 1;
+    if (qty <= 0) {
       showNotification('Please enter a valid Quantity (> 0)', 'error');
       return;
     }
@@ -702,6 +858,10 @@ function GoodReceiveNote() {
       closingStock: itemEntry.closingStock,
       lastGrn: itemEntry.lastGrn,
       lpc: itemEntry.lpc,
+      isManualItem: Boolean(itemEntry.isManualItem),
+      manualItemId: itemEntry.manualItemId || null,
+      manualCode: itemEntry.manualCode || '',
+      previouslySoldQty: itemEntry.previouslySoldQty || 0,
     };
 
     if (selectedLineIndex >= 0) {
@@ -752,7 +912,12 @@ function GoodReceiveNote() {
       closingStock: '',
       lastGrn: '',
       lpc: '',
+      isManualItem: false,
+      manualItemId: null,
+      manualCode: '',
+      previouslySoldQty: 0,
     });
+    setPotentialManualMatch(null);
 
     itemCodeInputRef.current?.focus();
   };
@@ -876,6 +1041,9 @@ function GoodReceiveNote() {
       if (!li.code) errors.push(`Row ${idx + 1}: Missing item code.`);
       if (li.quantity <= 0) errors.push(`Row ${idx + 1} (${li.code}): Quantity must be > 0.`);
       if (li.price < 0) errors.push(`Row ${idx + 1} (${li.code}): Price cannot be negative.`);
+      if (li.isManualItem && li.previouslySoldQty > 0 && li.quantity < li.previouslySoldQty) {
+        errors.push(`Row ${idx + 1} (${li.code}): Discrepancy Alert — Received quantity (${li.quantity}) is less than previously sold manual quantity (${li.previouslySoldQty}). Reconciled stock will be negative (${li.quantity - li.previouslySoldQty} PCS).`);
+      }
     });
 
     const totalQty = lineItems.reduce((acc, li) => acc + li.quantity, 0);
@@ -900,12 +1068,42 @@ function GoodReceiveNote() {
       showNotification('Please select a Supplier before saving', 'error');
       return;
     }
-    if (lineItems.length === 0) {
+
+    // Auto-include any item currently typed in the item entry bar
+    let currentLineItems = [...lineItems];
+    if (itemEntry.code && itemEntry.code.trim()) {
+      const qty = parseFloat(itemEntry.quantity) || 1;
+      const price = parseFloat(itemEntry.price) || 0;
+      const sellPrice = parseFloat(itemEntry.sellPrice) || 0;
+      const disc = parseFloat(itemEntry.discount) || 0;
+      const val = parseFloat(computeItemValue(price, qty, disc));
+
+      const pendingItem = {
+        code: itemEntry.code.trim(),
+        description: itemEntry.description || '',
+        price,
+        sellPrice,
+        quantity: qty,
+        discount: disc,
+        value: val,
+        location: itemEntry.location || 'Main Store',
+        isManualItem: Boolean(itemEntry.isManualItem),
+        manualItemId: itemEntry.manualItemId || null,
+        manualCode: itemEntry.manualCode || '',
+        previouslySoldQty: itemEntry.previouslySoldQty || 0,
+      };
+
+      currentLineItems.push(pendingItem);
+      setLineItems(currentLineItems);
+    }
+
+    if (currentLineItems.length === 0) {
       showNotification('Please add at least one Item before saving', 'error');
+      itemCodeInputRef.current?.focus();
       return;
     }
 
-    // Prompt user to choose between posting stock or saving as draft
+    // Prompt user to choose between posting stock or saving as draft (single clean confirmation)
     let willPost = isRecordPosted;
     if (!isRecordPosted) {
       const confirmPost = await confirm({
@@ -918,6 +1116,14 @@ function GoodReceiveNote() {
         defaultFocus: 'yes',
       });
       willPost = Boolean(confirmPost);
+    } else {
+      const confirmed = await confirm({
+        title: 'SOFAST POS - Update GRN',
+        message: 'Do you want to update this posted GRN record?',
+        icon: 'question',
+        defaultFocus: 'yes',
+      });
+      if (!confirmed) return;
     }
 
     const payload = {
@@ -931,7 +1137,7 @@ function GoodReceiveNote() {
       useBarcode: grnHeader.useBarcode,
       date: grnHeader.date,
       remark: grnHeader.remark,
-      lineItems: lineItems.map((li) => ({
+      lineItems: currentLineItems.map((li) => ({
         code: li.code,
         itemCode: li.code,
         description: li.description,
@@ -943,6 +1149,10 @@ function GoodReceiveNote() {
         discount: li.discount,
         value: li.value,
         locationCode: li.location || 'MAIN',
+        isManualItem: Boolean(li.isManualItem),
+        manualItemId: li.manualItemId || null,
+        manualCode: li.manualCode || '',
+        previouslySoldQty: li.previouslySoldQty || 0,
       })),
       isPosted: willPost,
     };
@@ -992,8 +1202,38 @@ function GoodReceiveNote() {
       showNotification('Please select a Supplier before updating', 'error');
       return;
     }
-    if (lineItems.length === 0) {
+
+    // Auto-include any item currently typed in the item entry bar
+    let currentLineItems = [...lineItems];
+    if (itemEntry.code && itemEntry.code.trim()) {
+      const qty = parseFloat(itemEntry.quantity) || 1;
+      const price = parseFloat(itemEntry.price) || 0;
+      const sellPrice = parseFloat(itemEntry.sellPrice) || 0;
+      const disc = parseFloat(itemEntry.discount) || 0;
+      const val = parseFloat(computeItemValue(price, qty, disc));
+
+      const pendingItem = {
+        code: itemEntry.code.trim(),
+        description: itemEntry.description || '',
+        price,
+        sellPrice,
+        quantity: qty,
+        discount: disc,
+        value: val,
+        location: itemEntry.location || 'Main Store',
+        isManualItem: Boolean(itemEntry.isManualItem),
+        manualItemId: itemEntry.manualItemId || null,
+        manualCode: itemEntry.manualCode || '',
+        previouslySoldQty: itemEntry.previouslySoldQty || 0,
+      };
+
+      currentLineItems.push(pendingItem);
+      setLineItems(currentLineItems);
+    }
+
+    if (currentLineItems.length === 0) {
       showNotification('Please add at least one Item before updating', 'error');
+      itemCodeInputRef.current?.focus();
       return;
     }
 
@@ -1008,7 +1248,7 @@ function GoodReceiveNote() {
       useBarcode: grnHeader.useBarcode,
       date: grnHeader.date,
       remark: grnHeader.remark,
-      lineItems: lineItems.map((li) => ({
+      lineItems: currentLineItems.map((li) => ({
         code: li.code,
         itemCode: li.code,
         description: li.description,
@@ -1020,6 +1260,10 @@ function GoodReceiveNote() {
         discount: li.discount,
         value: li.value,
         locationCode: li.location || 'MAIN',
+        isManualItem: Boolean(li.isManualItem),
+        manualItemId: li.manualItemId || null,
+        manualCode: li.manualCode || '',
+        previouslySoldQty: li.previouslySoldQty || 0,
       })),
       isPosted: true, // Post to stock!
     };
@@ -1198,6 +1442,15 @@ function GoodReceiveNote() {
     );
   });
 
+  const filteredManualItems = trackedManualItems.filter((m) => {
+    const q = lookupModal.search.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      m.itemCode?.toLowerCase().includes(q) ||
+      m.description?.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="grn-master-container">
       {/* 1. System Title Bar */}
@@ -1265,7 +1518,7 @@ function GoodReceiveNote() {
           <div className="grn-panel-container">
             {/* Top Form Section (GRN, Date, Supplier & Top Right Buttons) */}
             <div className="grn-header-section">
-              <div className="grn-header-fields">
+              <div className="grn-header-fields" onKeyDown={(e) => handleEnterNavigation(e, { finalAction: () => itemCodeInputRef.current?.focus() })}>
                 {/* Row 1: GRN | Date | Supplier */}
                 <div className="grn-row">
                   <span className="grn-label-blue">GRN</span>
@@ -1274,7 +1527,7 @@ function GoodReceiveNote() {
                       type="text"
                       name="grnNumber"
                       className="grn-input"
-                      style={{ width: '90px', fontWeight: 'bold', color: '#000080' }}
+                      style={{ width: '105px', fontWeight: 'bold', color: '#000080', fontSize: '15px' }}
                       value={grnHeader.grnNumber}
                       onChange={handleHeaderChange}
                       title="GRN Number"
@@ -1282,7 +1535,7 @@ function GoodReceiveNote() {
                     {grnList.length > 0 && (
                       <select
                         className="grn-select"
-                        style={{ width: '18px', marginLeft: '-18px', opacity: 0 }}
+                        style={{ width: '20px', marginLeft: '-20px', opacity: 0 }}
                         onChange={(e) => handleSelectExistingGrn(e.target.value)}
                         value=""
                         title="Select previous saved GRN"
@@ -1300,8 +1553,8 @@ function GoodReceiveNote() {
                         title="Stock has been posted to Item Master & Sales Invoice"
                         style={{
                           marginLeft: '6px',
-                          padding: '1px 5px',
-                          fontSize: '10px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
                           fontWeight: 'bold',
                           backgroundColor: '#d1fae5',
                           color: '#065f46',
@@ -1316,8 +1569,8 @@ function GoodReceiveNote() {
                         title="Draft only - Stock has NOT been posted yet. Click Update or Process to post."
                         style={{
                           marginLeft: '6px',
-                          padding: '1px 5px',
-                          fontSize: '10px',
+                          padding: '2px 6px',
+                          fontSize: '11px',
                           fontWeight: 'bold',
                           backgroundColor: '#fef3c7',
                           color: '#92400e',
@@ -1330,23 +1583,23 @@ function GoodReceiveNote() {
                     ) : null}
                   </div>
 
-                  <span className="grn-label-blue" style={{ marginLeft: '12px' }}>Date</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '14px' }}>Date</span>
                   <input
                     type="date"
                     name="date"
                     className="grn-input"
-                    style={{ width: '130px' }}
+                    style={{ width: '145px' }}
                     value={grnHeader.date}
                     onChange={handleHeaderChange}
                   />
 
-                  <span className="grn-label-blue" style={{ marginLeft: '12px' }}>Supplier</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '14px' }}>Supplier</span>
                   <input
                     type="text"
                     name="supplierCode"
                     list="grn-supplier-code-datalist"
                     className="grn-input"
-                    style={{ width: '95px' }}
+                    style={{ width: '105px' }}
                     placeholder="Code..."
                     value={grnHeader.supplierCode}
                     onChange={handleHeaderChange}
@@ -1369,7 +1622,7 @@ function GoodReceiveNote() {
                   </button>
                   <select
                     className="grn-select"
-                    style={{ width: '130px', marginLeft: '2px' }}
+                    style={{ width: '160px', marginLeft: '3px' }}
                     value={grnHeader.supplierCode}
                     onChange={(e) => {
                       const code = e.target.value;
@@ -1394,7 +1647,7 @@ function GoodReceiveNote() {
                     name="supplierName"
                     list="grn-supplier-name-datalist"
                     className="grn-input"
-                    style={{ width: '220px', marginLeft: '2px' }}
+                    style={{ width: '300px', marginLeft: '3px' }}
                     placeholder="Supplier Name"
                     value={grnHeader.supplierName}
                     onChange={(e) => {
@@ -1430,12 +1683,12 @@ function GoodReceiveNote() {
                 </div>
 
                 {/* Row 2: Paid By | Invoice No | Process | Download | Master P.O. */}
-                <div className="grn-row" style={{ marginTop: '4px' }}>
+                <div className="grn-row" style={{ marginTop: '6px' }}>
                   <span className="grn-label-blue">Paid By</span>
                   <select
                     name="paidBy"
                     className="grn-select"
-                    style={{ width: '125px' }}
+                    style={{ width: '140px' }}
                     value={grnHeader.paidBy}
                     onChange={handleHeaderChange}
                   >
@@ -1445,12 +1698,12 @@ function GoodReceiveNote() {
                     <option value="Online Transfer">Online Transfer</option>
                   </select>
 
-                  <span className="grn-label-blue" style={{ marginLeft: '12px' }}>Invoice No</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '14px' }}>Invoice No</span>
                   <input
                     type="text"
                     name="supplierInvoiceNo"
                     className="grn-input"
-                    style={{ width: '150px' }}
+                    style={{ width: '170px' }}
                     placeholder="INV-..."
                     value={grnHeader.supplierInvoiceNo}
                     onChange={handleHeaderChange}
@@ -1459,7 +1712,7 @@ function GoodReceiveNote() {
                   <button
                     type="button"
                     className="grn-btn-classic"
-                    style={{ marginLeft: '10px' }}
+                    style={{ marginLeft: '12px', minWidth: '85px', height: '28px' }}
                     onClick={handleValidate}
                   >
                     Process
@@ -1468,18 +1721,18 @@ function GoodReceiveNote() {
                   <button
                     type="button"
                     className="grn-btn-classic"
-                    style={{ marginLeft: '6px' }}
+                    style={{ marginLeft: '8px', minWidth: '90px', height: '28px' }}
                     onClick={handleDownloadReport}
                   >
                     Download
                   </button>
 
-                  <span className="grn-label-blue" style={{ marginLeft: '20px' }}>Master P.O.</span>
+                  <span className="grn-label-blue" style={{ marginLeft: '24px' }}>Master P.O.</span>
                   <input
                     type="text"
                     name="masterPo"
                     className="grn-input"
-                    style={{ width: '140px' }}
+                    style={{ width: '160px' }}
                     placeholder="PO-..."
                     value={grnHeader.masterPo}
                     onChange={handleHeaderChange}
@@ -1501,6 +1754,84 @@ function GoodReceiveNote() {
               </div>
             </div>
 
+            {/* Manual Item Identification & Confirmation Banner */}
+            {potentialManualMatch && (
+              <div
+                style={{
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #3b82f6',
+                  borderLeft: '4px solid #1d4ed8',
+                  padding: '6px 12px',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '12px',
+                  color: '#1e3a8a',
+                  borderRadius: '2px',
+                }}
+              >
+                <div>
+                  <strong>Tracked Manual Item Found:</strong> <code>{potentialManualMatch.itemCode}</code> — {potentialManualMatch.description}{' '}
+                  <span style={{ marginLeft: '8px', color: '#b91c1c', fontWeight: 'bold' }}>
+                    (Previously Sold: {potentialManualMatch.totalManualSales || 0} PCS | Current Manual Stock: {potentialManualMatch.availableStock ?? 0})
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{ height: '22px', fontSize: '11px', fontWeight: 'bold', color: '#1e40af' }}
+                    onClick={() => handleSelectManualItemForGrn(potentialManualMatch)}
+                  >
+                    Confirm & Link to this Manual Item
+                  </button>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{ height: '22px', fontSize: '11px' }}
+                    onClick={() => setPotentialManualMatch(null)}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Manual Item Reconciled Active Link Banner */}
+            {itemEntry.isManualItem && (
+              <div
+                style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #22c55e',
+                  borderLeft: '4px solid #15803d',
+                  padding: '5px 12px',
+                  marginBottom: '8px',
+                  fontSize: '11px',
+                  color: '#166534',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderRadius: '2px',
+                }}
+              >
+                <span>
+                  🔗 <strong>Linked to Manual Stock Item:</strong> <code>{itemEntry.manualCode}</code> | Previously Sold:{' '}
+                  <strong>{itemEntry.previouslySoldQty} PCS</strong> | Reconciliation: Received (
+                  <strong>{parseFloat(itemEntry.quantity) || 0}</strong>) - Sold (
+                  <strong>{itemEntry.previouslySoldQty}</strong>) = Net Available Stock (
+                  <strong style={{ color: (parseFloat(itemEntry.quantity) || 0) < itemEntry.previouslySoldQty ? '#b91c1c' : '#15803d' }}>
+                    {(parseFloat(itemEntry.quantity) || 0) - itemEntry.previouslySoldQty}
+                  </strong>)
+                </span>
+                {(parseFloat(itemEntry.quantity) || 0) < itemEntry.previouslySoldQty && (
+                  <span style={{ color: '#b91c1c', fontWeight: 'bold', marginLeft: '8px' }}>
+                    ⚠️ Warning: Received Qty is less than previously sold Qty!
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Item Entry Row Section (Above Grid) */}
             <div className="grn-item-entry-bar">
               <div className="grn-entry-grid">
@@ -1512,22 +1843,15 @@ function GoodReceiveNote() {
                       ref={itemCodeInputRef}
                       type="text"
                       name="code"
-                      list="grn-item-code-datalist"
                       className="grn-input"
-                      style={{ width: '95px' }}
+                      style={{ width: '110px' }}
                       placeholder="Code..."
                       value={itemEntry.code}
                       onChange={handleItemEntryChange}
                       onKeyDown={handleCodeKeyDown}
+                      onBlur={handleCodeBlur}
                       autoComplete="off"
                     />
-                    <datalist id="grn-item-code-datalist">
-                      {itemsList.map((i) => (
-                        <option key={i._id || i.code} value={i.code}>
-                          {i.description}
-                        </option>
-                      ))}
-                    </datalist>
                     <button
                       type="button"
                       className="grn-btn-lookup"
@@ -1537,7 +1861,7 @@ function GoodReceiveNote() {
                           isOpen: true,
                           type: 'item',
                           title: 'Select Item from Item Master',
-                          search: '',
+                          search: itemEntry.code || '',
                         })
                       }
                     >
@@ -1567,6 +1891,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Price</span>
                   <input
+                    ref={grnPriceInputRef}
                     type="number"
                     name="price"
                     className="grn-input"
@@ -1575,7 +1900,11 @@ function GoodReceiveNote() {
                     value={itemEntry.price}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        grnSellPriceInputRef.current?.focus();
+                        grnSellPriceInputRef.current?.select();
+                      }
                     }}
                   />
                 </div>
@@ -1584,6 +1913,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Sell. Price</span>
                   <input
+                    ref={grnSellPriceInputRef}
                     type="number"
                     name="sellPrice"
                     className="grn-input"
@@ -1592,7 +1922,11 @@ function GoodReceiveNote() {
                     value={itemEntry.sellPrice}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        grnQtyInputRef.current?.focus();
+                        grnQtyInputRef.current?.select();
+                      }
                     }}
                   />
                 </div>
@@ -1601,6 +1935,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Quantity</span>
                   <input
+                    ref={grnQtyInputRef}
                     type="number"
                     name="quantity"
                     className="grn-input"
@@ -1609,7 +1944,11 @@ function GoodReceiveNote() {
                     value={itemEntry.quantity}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        grnDiscountInputRef.current?.focus();
+                        grnDiscountInputRef.current?.select();
+                      }
                     }}
                   />
                 </div>
@@ -1618,6 +1957,7 @@ function GoodReceiveNote() {
                 <div className="grn-entry-col">
                   <span className="grn-col-header">Discount</span>
                   <input
+                    ref={grnDiscountInputRef}
                     type="number"
                     name="discount"
                     className="grn-input"
@@ -1626,7 +1966,14 @@ function GoodReceiveNote() {
                     value={itemEntry.discount}
                     onChange={handleItemEntryChange}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAddOrUpdateLineItem();
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddOrUpdateLineItem();
+                        setTimeout(() => {
+                          itemCodeInputRef.current?.focus();
+                          itemCodeInputRef.current?.select();
+                        }, 50);
+                      }
                     }}
                   />
                 </div>
@@ -1650,7 +1997,7 @@ function GoodReceiveNote() {
                   <button
                     type="button"
                     className="grn-btn-classic"
-                    style={{ width: '42px', height: '22px', padding: 0 }}
+                    style={{ width: '56px', height: '28px', padding: 0, fontSize: '13px', fontWeight: 'bold' }}
                     title={selectedLineIndex >= 0 ? 'Update row' : 'Add to GRN table'}
                     onClick={handleAddOrUpdateLineItem}
                   >
@@ -1768,8 +2115,42 @@ function GoodReceiveNote() {
                         onClick={() => handleRowClick(index)}
                       >
                         <td style={{ textAlign: 'center', color: '#666' }}>{index + 1}</td>
-                        <td style={{ fontWeight: '600' }}>{item.code}</td>
-                        <td>{item.description}</td>
+                        <td style={{ fontWeight: '600' }}>
+                          {item.code}
+                          {item.isManualItem && (
+                            <span
+                              style={{
+                                marginLeft: '5px',
+                                fontSize: '10px',
+                                padding: '1px 4px',
+                                backgroundColor: '#dbeafe',
+                                color: '#1e40af',
+                                borderRadius: '3px',
+                                border: '1px solid #93c5fd',
+                                verticalAlign: 'middle',
+                              }}
+                              title={`Linked to Manual Item: ${item.manualCode} (Previously Sold: ${item.previouslySoldQty || 0} PCS)`}
+                            >
+                              🔗 Manual
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {item.description}
+                          {item.isManualItem && item.previouslySoldQty > 0 && (
+                            <div
+                              style={{
+                                fontSize: '10px',
+                                color: item.quantity < item.previouslySoldQty ? '#b91c1c' : '#4b5563',
+                                fontWeight: item.quantity < item.previouslySoldQty ? 'bold' : 'normal',
+                                marginTop: '1px',
+                              }}
+                            >
+                              Reconciliation: Rec: {item.quantity} - Sold: {item.previouslySoldQty} = Net: {item.quantity - item.previouslySoldQty}
+                              {item.quantity < item.previouslySoldQty && ' ⚠️ [Shortage Warning]'}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ textAlign: 'right' }}>
                           {Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
@@ -1823,20 +2204,20 @@ function GoodReceiveNote() {
                 <div className="grn-info-grid">
                   {/* Row 1: Closing Stock | Location */}
                   <div className="grn-info-row">
-                    <span className="grn-label-blue" style={{ width: '85px' }}>Closing Stock</span>
+                    <span className="grn-label-blue" style={{ width: '100px' }}>Closing Stock</span>
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '80px', textAlign: 'center' }}
+                      style={{ width: '95px', textAlign: 'center' }}
                       readOnly
                       value={itemEntry.closingStock !== '' ? itemEntry.closingStock : '-'}
                     />
 
-                    <span className="grn-label-blue" style={{ marginLeft: '12px', width: '60px' }}>Location</span>
+                    <span className="grn-label-blue" style={{ marginLeft: '16px', width: '70px' }}>Location</span>
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '130px' }}
+                      style={{ width: '160px' }}
                       readOnly
                       value={itemEntry.location || 'Main Store'}
                     />
@@ -1846,7 +2227,7 @@ function GoodReceiveNote() {
                   <div className="grn-info-row">
                     <span
                       className="grn-label-blue"
-                      style={{ width: '85px', cursor: 'pointer' }}
+                      style={{ width: '100px', cursor: 'pointer' }}
                       onClick={toggleGridMode}
                       title={gridMode === 'history' ? "Click to view Current GRN items" : "Click to view Item GRN History"}
                     >
@@ -1855,18 +2236,18 @@ function GoodReceiveNote() {
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '180px', cursor: 'pointer' }}
+                      style={{ width: '220px', cursor: 'pointer' }}
                       readOnly
                       value={itemEntry.lastGrn || '-'}
                       onClick={toggleGridMode}
                       title={gridMode === 'history' ? "Click to view Current GRN items" : "Click to view Item GRN History"}
                     />
 
-                    <span className="grn-label-blue" style={{ marginLeft: '12px', width: '45px' }}>L.P.C.</span>
+                    <span className="grn-label-blue" style={{ marginLeft: '16px', width: '55px' }}>L.P.C.</span>
                     <input
                       type="text"
                       className="grn-input readonly"
-                      style={{ width: '85px', textAlign: 'right' }}
+                      style={{ width: '95px', textAlign: 'right' }}
                       readOnly
                       value={itemEntry.lpc !== '' && itemEntry.lpc !== '-' ? Number(itemEntry.lpc).toFixed(2) : '-'}
                     />
@@ -1942,10 +2323,47 @@ function GoodReceiveNote() {
                 onChange={(e) => setLookupModal({ ...lookupModal, search: e.target.value })}
               />
 
+              {lookupModal.type === 'item' && (
+                <div style={{ display: 'flex', gap: '6px', margin: '6px 0' }}>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{
+                      height: '24px',
+                      fontSize: '11px',
+                      fontWeight: lookupItemTab === 'master' ? 'bold' : 'normal',
+                      backgroundColor: lookupItemTab === 'master' ? '#d0d7de' : '#f6f8fa',
+                      border: lookupItemTab === 'master' ? '1px solid #0969da' : '1px solid #d0d7de',
+                      color: lookupItemTab === 'master' ? '#0969da' : '#24292f',
+                    }}
+                    onClick={() => setLookupItemTab('master')}
+                  >
+                    📦 Item Master ({itemsList.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="grn-btn-classic"
+                    style={{
+                      height: '24px',
+                      fontSize: '11px',
+                      fontWeight: lookupItemTab === 'manual' ? 'bold' : 'normal',
+                      backgroundColor: lookupItemTab === 'manual' ? '#eff6ff' : '#f6f8fa',
+                      border: lookupItemTab === 'manual' ? '1px solid #2563eb' : '1px solid #d0d7de',
+                      color: lookupItemTab === 'manual' ? '#1d4ed8' : '#24292f',
+                    }}
+                    onClick={() => setLookupItemTab('manual')}
+                  >
+                    📋 Tracked Manual Items ({trackedManualItems.length})
+                  </button>
+                </div>
+              )}
+
               <div style={{ fontSize: '11px', color: '#000080', fontWeight: 'bold', margin: '3px 2px' }}>
-                {lookupModal.type === 'item'
+                {lookupModal.type === 'supplier'
+                  ? `Showing ${filteredSuppliers.length} suppliers`
+                  : lookupItemTab === 'master'
                   ? `Showing ${filteredItems.length} items (Total: ${itemsList.length} items in Item Master)`
-                  : `Showing ${filteredSuppliers.length} suppliers`}
+                  : `Showing ${filteredManualItems.length} tracked manual items (Total: ${trackedManualItems.length})`}
               </div>
 
               <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
@@ -1991,6 +2409,61 @@ function GoodReceiveNote() {
                                 }}
                               >
                                 Select
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                ) : lookupItemTab === 'manual' ? (
+                  <table className="grn-lookup-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '110px' }}>Manual Code</th>
+                        <th>Description</th>
+                        <th style={{ width: '65px', textAlign: 'center' }}>Sold Qty</th>
+                        <th style={{ width: '65px', textAlign: 'center' }}>Added Qty</th>
+                        <th style={{ width: '65px', textAlign: 'center' }}>Net Stock</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>Cost</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>Sell Price</th>
+                        <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredManualItems.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
+                            No tracked manual items found matching "{lookupModal.search}"
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredManualItems.map((m) => (
+                          <tr key={m._id || m.itemCode} onClick={() => handleSelectManualItemForGrn(m)}>
+                            <td style={{ fontWeight: 'bold', color: '#1d4ed8' }}>{m.itemCode}</td>
+                            <td>{m.description}</td>
+                            <td style={{ textAlign: 'center', color: '#b91c1c', fontWeight: 'bold' }}>
+                              {m.totalManualSales || 0}
+                            </td>
+                            <td style={{ textAlign: 'center', color: '#15803d', fontWeight: 'bold' }}>
+                              {m.totalStockAdded || 0}
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                              {m.availableStock ?? 0}
+                            </td>
+                            <td style={{ textAlign: 'right' }}>{Number(m.purchaseCost || 0).toFixed(2)}</td>
+                            <td style={{ textAlign: 'right' }}>{Number(m.sellingPrice || 0).toFixed(2)}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="grn-btn-classic"
+                                style={{ height: '20px', padding: '0 6px', fontSize: '11px', color: '#1e40af', fontWeight: 'bold' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectManualItemForGrn(m);
+                                }}
+                              >
+                                Select & Link
                               </button>
                             </td>
                           </tr>

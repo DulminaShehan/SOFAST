@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClassicNavbar from '../../components/navigation/ClassicNavbar';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -14,6 +16,7 @@ import './SettlementInvoice.css';
  */
 function SettlementInvoice() {
   const navigate = useNavigate();
+  const { confirmSave, confirmDelete } = useConfirmDialog();
   const location = useLocation();
   const { isAdmin } = useAuth();
   const { confirm } = useConfirm();
@@ -126,14 +129,16 @@ function SettlementInvoice() {
     try {
       setLoading(true);
       const [invsRes, banksRes, recRes] = await Promise.all([
-        api.get('/invoices?limit=250').catch(() => null),
+        api.get('/invoices?type=standard&limit=250').catch(() => null),
         api.get('/settlements/banks').catch(() => null),
         api.get('/settlements/next-receipt').catch(() => null),
       ]);
 
       let availableInvoices = [];
       if (invsRes?.data?.data) {
-        availableInvoices = invsRes.data.data;
+        availableInvoices = invsRes.data.data.filter(
+          (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+        );
         setInvoicesList(availableInvoices);
       }
       if (banksRes?.data?.data) {
@@ -188,6 +193,10 @@ function SettlementInvoice() {
 
   // Handle Invoice Selection
   const handleSelectInvoice = (inv) => {
+    if (inv && (inv.isManualInvoice || inv.invoiceType === 'Manual' || String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-'))) {
+      showNotification(`Invoice '${inv.invoiceNumber}' is a Manual Invoice and cannot be settled in standard Settlements.`, 'warning');
+      return;
+    }
     if (!inv) {
       setSelectedInvoice(null);
       setSelectedInvoiceNumber('');
@@ -406,6 +415,9 @@ function SettlementInvoice() {
       return;
     }
 
+    const confirmed = await confirmSave('Do you want to save this record?');
+    if (!confirmed) return;
+
     const method = paymentMethod || 'Cash';
 
     if ((method === 'Cheque' || method === 'Credit Note') && !chequeNo.trim()) {
@@ -458,8 +470,13 @@ function SettlementInvoice() {
         await fetchInvoiceSettlements(selectedInvoiceNumber);
 
         // Refresh global invoices list
-        const invsRes = await api.get('/invoices?limit=250').catch(() => null);
-        if (invsRes?.data?.data) setInvoicesList(invsRes.data.data);
+        const invsRes = await api.get('/invoices?type=standard&limit=250').catch(() => null);
+        if (invsRes?.data?.data) {
+          const standardOnly = invsRes.data.data.filter(
+            (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+          );
+          setInvoicesList(standardOnly);
+        }
 
         // Fetch next receipt number
         const recRes = await api.get('/settlements/next-receipt').catch(() => null);
@@ -527,8 +544,13 @@ function SettlementInvoice() {
           );
         }
 
-        const invsRes = await api.get('/invoices?limit=250').catch(() => null);
-        if (invsRes?.data?.data) setInvoicesList(invsRes.data.data);
+        const invsRes = await api.get('/invoices?type=standard&limit=250').catch(() => null);
+        if (invsRes?.data?.data) {
+          const standardOnly = invsRes.data.data.filter(
+            (inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-')
+          );
+          setInvoicesList(standardOnly);
+        }
 
         setSelectedSettlementId(null);
         setIsCalculated(false);
@@ -562,17 +584,19 @@ function SettlementInvoice() {
     });
   };
 
-  // Filtered invoices for lookup modal
-  const filteredInvoices = invoicesList.filter((inv) => {
-    const q = invoiceSearchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      inv.invoiceNumber?.toLowerCase().includes(q) ||
-      inv.customerCode?.toLowerCase().includes(q) ||
-      inv.customerName?.toLowerCase().includes(q) ||
-      inv.date?.toLowerCase().includes(q)
-    );
-  });
+  // Filtered invoices for lookup modal (Standard invoices only)
+  const filteredInvoices = invoicesList
+    .filter((inv) => !inv.isManualInvoice && inv.invoiceType !== 'Manual' && !String(inv.invoiceNumber || '').toUpperCase().startsWith('MAN-'))
+    .filter((inv) => {
+      const q = invoiceSearchQuery.toLowerCase().trim();
+      if (!q) return true;
+      return (
+        inv.invoiceNumber?.toLowerCase().includes(q) ||
+        inv.customerCode?.toLowerCase().includes(q) ||
+        inv.customerName?.toLowerCase().includes(q) ||
+        inv.date?.toLowerCase().includes(q)
+      );
+    });
 
   // Reusable Compact Thermal Receipt Component
   const renderThermalReceiptContent = () => {
@@ -751,7 +775,7 @@ function SettlementInvoice() {
       </header>
 
       {/* 3. Main Full-Width Form Container */}
-      <main className="main-settlement-container">
+      <main className="main-settlement-container" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.settlement-btn-save-blue' })}>
         {/* Notification Alert */}
         {notification && (
           <div className={`settlement-alert ${notification.type}`}>

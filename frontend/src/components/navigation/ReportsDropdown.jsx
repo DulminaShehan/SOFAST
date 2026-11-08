@@ -1,12 +1,14 @@
 /**
  * ReportsDropdown Component
  * Displays classic desktop dropdown menu items under Reports:
- * Preserves all 11 original reports + adds Reports Dashboard and Stock Report.
+ * Preserves all original reports + adds Reports Dashboard, Stock Report, and Manual Stock Report.
  */
 function ReportsDropdown({ onItemClick }) {
   const reportsItems = [
     { id: 'reports-dashboard', label: '📊 Reports Dashboard', path: '/reports?tab=dashboard' },
+    { id: 'invoice-report', label: '🧾 Invoice Report (All Invoices)', path: '/reports?tab=invoices' },
     { id: 'stock-report', label: '📋 Stock Report', path: '/reports?tab=stock_report' },
+    { id: 'manual-stock-report', label: '📦 Manual Stock Report', path: '/reports?tab=manual_stock' },
     { id: 'daily-settlements', label: '💰 Daily Settlements Details', path: '/reports?tab=settlements' },
     { id: 'grn-report', label: '📥 Goods Received Notes (GRN)', path: '/reports?tab=grn' },
     { id: 'invoice-returns', label: '🔄 Invoice Returns Report', path: '/reports?tab=invoice_returns' },
