@@ -3758,7 +3758,7 @@ function Invoice() {
                   <input
                     type="text"
                     className="sofast-input"
-                    style={{ flex: 1 }}
+                    style={{ width: '180px' }}
                     readOnly
                     value={itemEntry.lastGrnFormatted || itemEntry.lastGrn || ''}
                   />
@@ -3815,7 +3815,7 @@ function Invoice() {
                   <input
                     type="text"
                     className="sofast-input"
-                    style={{ flex: 1 }}
+                    style={{ width: '185px' }}
                     readOnly
                     value={itemEntry.lastInv || ''}
                   />
@@ -3828,7 +3828,7 @@ function Invoice() {
                     type="text"
                     name="description"
                     className="sofast-input"
-                    style={{ flex: 1 }}
+                    style={{ width: '448px' }}
                     value={itemEntry.description}
                     onChange={handleItemEntryChange}
                     placeholder={invoiceHeader.jobType === 'Labour' ? 'e.g. Delivery Charge' : ''}
