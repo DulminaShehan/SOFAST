@@ -635,29 +635,24 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
 
     const choice = await confirmInvoicePrint('Do you wish to print this invoice?');
 
-    if (choice === 'cancel') return;
+    // If No or cancelled: do not save and do not print
+    if (choice !== 'yes') return;
 
-    if (choice === 'no') {
-      await handleSaveInvoice(false);
-      return;
-    }
-
-    if (choice === 'yes') {
-      const saved = await handleSaveInvoice(true);
-      if (saved) {
-        setPrintTime(
-          new Date().toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true,
-          })
-        );
-        setReceiptPreviewOpen(true);
-        setTimeout(() => {
-          window.print();
-        }, 200);
-      }
+    // If Yes: Save manual invoice and print bill
+    const saved = await handleSaveInvoice(true);
+    if (saved) {
+      setPrintTime(
+        new Date().toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: true,
+        })
+      );
+      setReceiptPreviewOpen(true);
+      setTimeout(() => {
+        window.print();
+      }, 200);
     }
   };
 

@@ -23,8 +23,8 @@ export default function ClassicConfirmDialog({
   const resolvedButtons = buttons || (
     type === 'print'
       ? [
-          { key: 'yes', label: 'Yes', isPrimary: true, isDefault: true, title: 'Save the invoice and print it' },
-          { key: 'no', label: 'No', isDefault: false, title: 'Save the invoice without printing' },
+          { key: 'yes', label: 'Yes', isPrimary: true, isDefault: true, title: 'Save invoice and print bill' },
+          { key: 'no', label: 'No', isDefault: false, title: 'Do not save and do not print' },
         ]
       : [
           { key: 'yes', label: 'Yes', isPrimary: type === 'save', isDanger: type === 'delete', isDefault: type !== 'delete' },

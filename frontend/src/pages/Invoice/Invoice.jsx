@@ -2688,7 +2688,7 @@ function Invoice() {
   };
 
   // BUTTON: SAVE / COMPLETE INVOICE
-  const handleSaveInvoice = async (forceHold = false) => {
+  const handleSaveInvoice = async (forceHold = false, suppressPrintPrompt = false) => {
     if (isSavingRef.current) return null;
     isSavingRef.current = true;
 
@@ -2796,7 +2796,7 @@ function Invoice() {
         );
 
         // Prompt: "Do you wish to print this invoice?" (Standard Windows Yes/No dialog)
-        if (!forceHold && !isHoldVal) {
+        if (!forceHold && !isHoldVal && !suppressPrintPrompt) {
           setTimeout(async () => {
             const shouldPrint = await confirm({
               title: 'SOFAST POS - Print Invoice',
@@ -2861,8 +2861,8 @@ function Invoice() {
   // BUTTON: SAVE / COMPLETE INVOICE WITH PRINT CONFIRMATION
   // Prompt requirement: "Do you wish to print this invoice?"
   // Buttons:
-  // Yes — Save the invoice and print it.
-  // No — Save the invoice without printing.
+  // Yes — Save the invoice and print the bill.
+  // No — Do not save and do not print.
   const handleSaveInvoiceWithPrintConfirmation = async () => {
     // In Return Mode, Save button or Enter confirms and processes the Return!
     if (isReturnMode) {
@@ -2884,20 +2884,15 @@ function Invoice() {
 
     const choice = await confirmInvoicePrint('Do you wish to print this invoice?');
 
-    if (choice === 'cancel') {
+    // If No or cancelled: do not save and do not print
+    if (choice !== 'yes') {
       return;
     }
 
-    if (choice === 'no') {
-      await handleSaveInvoice(false);
-      return;
-    }
-
-    if (choice === 'yes') {
-      const saved = await handleSaveInvoice(false);
-      if (saved) {
-        handlePrint();
-      }
+    // If Yes: Save invoice and print bill
+    const saved = await handleSaveInvoice(false, true);
+    if (saved) {
+      handlePrint();
     }
   };
 
