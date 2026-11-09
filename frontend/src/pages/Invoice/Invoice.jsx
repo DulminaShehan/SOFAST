@@ -3595,10 +3595,11 @@ function Invoice() {
                   <button
                     type="button"
                     className="sofast-classic-btn"
-                    onClick={handleBillPrint}
-                    title="Print Bill for Current Invoice"
+                    onClick={handleSaveInvoiceWithPrintConfirmation}
+                    disabled={loading}
+                    title="Save invoice to database and update stock (Enter / Click)"
                   >
-                    Bill Print
+                    Save
                   </button>
                   <button
                     type="button"
@@ -4484,14 +4485,6 @@ function Invoice() {
                   title="Start a new invoice (clears unsaved items with confirmation)"
                 >
                   New
-                </button>
-                <button
-                  type="button"
-                  className="sofast-bottom-btn sofast-btn-print"
-                  onClick={handleBillPrint}
-                  title="Save invoice (if unsaved) and print thermal bill receipt"
-                >
-                  Bill Print
                 </button>
                 <button
                   type="button"

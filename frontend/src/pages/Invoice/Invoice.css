@@ -2452,7 +2452,7 @@
 }
 
 /* ==========================================================================
-   BOTTOM ACTIONS BAR (New | Bill Print | Save | Delete) & Summary
+   BOTTOM ACTIONS BAR (New | Save | Delete) & Summary
    ========================================================================== */
 .sofast-bottom-action-bar {
   display: flex;

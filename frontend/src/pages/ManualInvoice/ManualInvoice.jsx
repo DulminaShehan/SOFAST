@@ -1441,17 +1441,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
                   disabled={isSubmitting || lineItems.length === 0}
                   title="Validate and save manual invoice"
                 >
-                  {isSubmitting ? '💾 Saving...' : '💾 Save Invoice'}
-                </button>
-
-                <button
-                  type="button"
-                  className="manual-btn manual-btn-primary"
-                  onClick={handleBillPrint}
-                  disabled={isSubmitting || lineItems.length === 0}
-                  title="Save and print thermal bill receipt"
-                >
-                  🖨️ Bill Print
+                  {isSubmitting ? '💾 Saving...' : '💾 Save'}
                 </button>
 
                 <button
