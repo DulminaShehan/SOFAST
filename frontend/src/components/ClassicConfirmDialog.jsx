@@ -25,7 +25,6 @@ export default function ClassicConfirmDialog({
       ? [
           { key: 'yes', label: 'Yes', isPrimary: true, isDefault: true, title: 'Save the invoice and print it' },
           { key: 'no', label: 'No', isDefault: false, title: 'Save the invoice without printing' },
-          { key: 'cancel', label: 'Cancel', isDefault: false, title: 'Return to invoice without saving' },
         ]
       : [
           { key: 'yes', label: 'Yes', isPrimary: type === 'save', isDanger: type === 'delete', isDefault: type !== 'delete' },
@@ -54,11 +53,11 @@ export default function ClassicConfirmDialog({
     if (!isOpen) return;
 
     const handleKeyDown = (e) => {
-      // Escape -> trigger cancel or no
+      // Escape -> trigger cancel if present, otherwise close
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        const cancelBtn = resolvedButtons.find((b) => b.key === 'cancel') || resolvedButtons.find((b) => b.key === 'no');
+        const cancelBtn = resolvedButtons.find((b) => b.key === 'cancel');
         if (cancelBtn) {
           onAction?.(cancelBtn.key);
         } else {
@@ -195,7 +194,7 @@ export default function ClassicConfirmDialog({
   };
 
   const handleClose = () => {
-    const cancelBtn = resolvedButtons.find((b) => b.key === 'cancel') || resolvedButtons.find((b) => b.key === 'no');
+    const cancelBtn = resolvedButtons.find((b) => b.key === 'cancel');
     if (cancelBtn) {
       onAction?.(cancelBtn.key);
     } else {

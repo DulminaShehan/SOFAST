@@ -618,7 +618,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
     }
   };
 
-  // Save with 3-button Print Confirmation
+  // Save with Yes/No Print Confirmation
   const handlePromptSaveAndPrint = async () => {
     if (isSubmitting) return;
 

@@ -91,8 +91,8 @@ export function ConfirmDialogProvider({ children }) {
   );
 
   /**
-   * Helper: Sales Invoice Save & Print Confirmation (Yes / No / Cancel)
-   * Resolves: 'yes' (Save & Print) | 'no' (Save without printing) | 'cancel' (Return without saving)
+   * Helper: Sales Invoice Save & Print Confirmation (Yes / No)
+   * Resolves: 'yes' (Save & Print) | 'no' (Save without printing)
    */
   const confirmInvoicePrint = useCallback(
     async (message = 'Do you wish to print this invoice?', title = 'SOFAST POS - Print Invoice') => {
@@ -103,7 +103,6 @@ export function ConfirmDialogProvider({ children }) {
         buttons: [
           { key: 'yes', label: 'Yes', isPrimary: true, isDefault: true, title: 'Save the invoice and print it' },
           { key: 'no', label: 'No', isDefault: false, title: 'Save the invoice without printing' },
-          { key: 'cancel', label: 'Cancel', isDefault: false, title: 'Return to the invoice without saving' },
         ],
       });
       return result || 'cancel';

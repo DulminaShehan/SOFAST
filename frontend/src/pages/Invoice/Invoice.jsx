@@ -2863,7 +2863,6 @@ function Invoice() {
   // Buttons:
   // Yes — Save the invoice and print it.
   // No — Save the invoice without printing.
-  // Cancel — Return to the invoice without saving.
   const handleSaveInvoiceWithPrintConfirmation = async () => {
     // In Return Mode, Save button or Enter confirms and processes the Return!
     if (isReturnMode) {
