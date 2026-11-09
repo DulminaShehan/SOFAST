@@ -5,6 +5,7 @@ import ManualInvoice from '../ManualInvoice/ManualInvoice';
 import ErrorBoundary from '../../components/ErrorBoundary';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
 import './Invoice.css';
@@ -17,6 +18,7 @@ function Invoice() {
   const navigate = useNavigate();
   const location = useLocation();
   const { confirm } = useConfirm();
+  const { confirmInvoicePrint, showConfirm } = useConfirmDialog();
 
   // Manual Invoice Modal State
   const [manualInvoiceModalOpen, setManualInvoiceModalOpen] = useState(false);

@@ -15,6 +15,7 @@ import './ManualInvoice.css';
 function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
   const navigate = useNavigate();
   const { confirm } = useConfirm();
+  const { confirmInvoicePrint } = useConfirmDialog();
   // Close handler for both Modal and Standalone Page modes
   const handleClose = () => {
     if (onClose) {
