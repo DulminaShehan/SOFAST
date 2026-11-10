@@ -12,7 +12,7 @@ import './ItemMaster.css';
 const windowIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23f59e0b' d='M12 2L2 7l10 5 10-5-10-5z'/%3E%3Cpath fill='%232563eb' d='M2 17l10 5V12L2 7v10z'/%3E%3Cpath fill='%231d4ed8' d='M22 17l-10 5V12l10-5v10z'/%3E%3C/svg%3E";
 
 // Visual Basic & Automotive Color Palette Presets
-const PRESET_COLORS = [
+export const PRESET_COLORS = [
   { name: 'Black', hex: '#000000' },
   { name: 'White', hex: '#FFFFFF' },
   { name: 'Silver', hex: '#C0C0C0' },
@@ -30,6 +30,17 @@ const PRESET_COLORS = [
   { name: 'Pink', hex: '#EC4899' },
   { name: 'Brown', hex: '#8B4513' },
 ];
+
+export const resolveColorHex = (color) => {
+  if (!color || typeof color !== 'string') return '';
+  const trimmed = color.trim();
+  if (!trimmed) return '';
+  const found = PRESET_COLORS.find(
+    (c) => c.name.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (found) return found.hex;
+  return trimmed;
+};
 
 /**
  * Calculate Pricing with Round Off & Discount
@@ -1989,25 +2000,58 @@ function ItemMaster() {
                 <label className="field-label" htmlFor="item-color" style={{ width: '140px' }}>
                   Color . . . . . . . . .
                 </label>
-                <div className="field-control-group color-field-group" ref={colorPaletteRef} style={{ width: '210px', position: 'relative' }}>
+                <div className="field-control-group color-field-group" ref={colorPaletteRef} style={{ width: '230px', position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {/* Visual Color Preview Swatch */}
+                  <div
+                    className="item-color-preview-swatch"
+                    style={{
+                      width: '24px',
+                      height: '22px',
+                      borderRadius: '2px',
+                      border: '1px solid #7f9db9',
+                      backgroundColor: resolveColorHex(formData.color) || '#ffffff',
+                      boxShadow: 'inset 0 0 2px rgba(0,0,0,0.25), 0 1px 1px rgba(0,0,0,0.1)',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    onClick={() => setShowColorPalette((prev) => !prev)}
+                    title={formData.color ? `Selected Color: ${formData.color} (Click to open palette)` : 'Click to select Color'}
+                  >
+                    {!formData.color && <span style={{ fontSize: '10px', color: '#999' }}>-</span>}
+                  </div>
+
+                  {/* Color Text Box */}
                   <input
                     id="item-color"
                     name="color"
                     type="text"
                     className="input-classic"
-                    style={{ flex: 1, minWidth: 0 }}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      borderLeft: resolveColorHex(formData.color) ? `6px solid ${resolveColorHex(formData.color)}` : '1px solid #7f9db9',
+                      paddingLeft: '6px',
+                      fontWeight: formData.color ? 'bold' : 'normal',
+                    }}
                     value={formData.color}
                     onChange={handleInputChange}
-                    placeholder="Color"
+                    placeholder="Color (e.g. Red, Blue)"
                     autoComplete="off"
                   />
+
+                  {/* Palette Trigger Button */}
                   <button
                     type="button"
                     className="btn-color-swatch-trigger"
                     onClick={() => setShowColorPalette((prev) => !prev)}
                     title="Open Color Palette"
                     style={{
-                      backgroundColor: formData.color || '#ffffff',
+                      backgroundColor: '#f8fafc',
+                      width: '24px',
+                      height: '22px',
                     }}
                   >
                     <span className="swatch-palette-icon">🎨</span>
@@ -2019,8 +2063,8 @@ function ItemMaster() {
                     ref={nativeColorInputRef}
                     style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
                     value={
-                      /^#([0-9A-F]{3}){1,2}$/i.test(formData.color)
-                        ? formData.color
+                      /^#([0-9A-F]{3}){1,2}$/i.test(resolveColorHex(formData.color))
+                        ? resolveColorHex(formData.color)
                         : '#000000'
                     }
                     onChange={(e) => {

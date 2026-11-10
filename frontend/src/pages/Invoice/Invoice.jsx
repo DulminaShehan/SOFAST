@@ -9,6 +9,7 @@ import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
 import { compareBillPrintItems } from '../../utils/itemSort';
+import { resolveColorHex, PRESET_COLORS } from '../ItemMaster/ItemMaster';
 import './Invoice.css';
 
 /**
@@ -120,6 +121,7 @@ function Invoice() {
   const [itemEntry, setItemEntry] = useState({
     code: '',
     description: '',
+    color: '',
     secondDesc: '',
     location: 'Main Store',
     storedLocation: 'Main Store',
@@ -193,6 +195,11 @@ function Invoice() {
   const [itemDropdownOpen, setItemDropdownOpen] = useState(false);
   const [highlightedItemIndex, setHighlightedItemIndex] = useState(-1);
   const itemDropdownRef = useRef(null);
+
+  // Item Color Selection & Palette Popover State
+  const [showInvoiceColorPalette, setShowInvoiceColorPalette] = useState(false);
+  const invoiceColorPaletteRef = useRef(null);
+  const invoiceNativeColorRef = useRef(null);
 
   // Customer Display - Item Photo Preview State
   const [selectedItemPreview, setSelectedItemPreview] = useState(null);
@@ -379,16 +386,6 @@ function Invoice() {
         </svg>
       ),
     },
-    {
-      id: 'customer-return-exchange',
-      label: 'Customer Return / Exchange',
-      path: '/customer-return-exchange',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
-          <path d="M3 10h10a5 5 0 0 1 5 5v2m0 0l-3-3m3 3l3-3M3 10l3-3m-3 3l3 3" />
-        </svg>
-      ),
-    },
   ];
 
   // Fetch initial data (Next Invoice Number, Customers, Items, Invoices)
@@ -448,6 +445,9 @@ function Invoice() {
       }
       if (itemDropdownRef.current && !itemDropdownRef.current.contains(e.target)) {
         setItemDropdownOpen(false);
+      }
+      if (invoiceColorPaletteRef.current && !invoiceColorPaletteRef.current.contains(e.target)) {
+        setShowInvoiceColorPalette(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -565,6 +565,7 @@ function Invoice() {
       return {
         code: li.code || li.itemCode || (isLabour ? 'DELIVERY' : ''),
         description: li.description || (isLabour ? 'Delivery Charge' : ''),
+        color: li.color || '',
         jobType: isLabour ? 'Labour' : (li.jobType || 'Material'),
         type: isLabour ? 'Labour' : (li.type || 'Material'),
         isService: isLabour,
@@ -1659,6 +1660,7 @@ function Invoice() {
     setItemEntry({
       code: item.code,
       description: item.description || '',
+      color: item.color || '',
       secondDesc: item.secondDesc || '',
       location: actualLocation,
       storedLocation: actualLocation,
@@ -2115,6 +2117,7 @@ function Invoice() {
           ...currentLine,
           code: fullItem.code,
           description: fullItem.description,
+          color: fullItem.color || '',
           location: fullItem.location || 'Main Store',
           availableQty: fullItem.quantity !== undefined ? fullItem.quantity : (fullItem.stockInHand !== undefined ? fullItem.stockInHand : (alt.stock || 0)),
           sellingPrice: price,
@@ -2316,6 +2319,7 @@ function Invoice() {
       description: isLabour
         ? (itemEntry.description?.trim() || 'Delivery Charge')
         : (itemEntry.description || ''),
+      color: isLabour ? '' : (itemEntry.color || '').trim(),
       jobType: isLabour ? 'Labour' : 'Material',
       type: isLabour ? 'Labour' : 'Material',
       isService: isLabour,
@@ -2350,7 +2354,7 @@ function Invoice() {
     } else {
       // Material items: merge with existing line if same code & location
       const existingIdx = lineItems.findIndex(
-        (li) => !li.isService && li.code?.toUpperCase() === newLineItem.code && (li.location || 'Main Store') === newLineItem.location
+        (li) => !li.isService && li.code?.toUpperCase() === newLineItem.code && (li.location || 'Main Store') === newLineItem.location && (li.color || '') === (newLineItem.color || '')
       );
 
       if (existingIdx >= 0) {
@@ -2399,6 +2403,7 @@ function Invoice() {
       setItemEntry({
         code: 'DELIVERY',
         description: 'Delivery Charge',
+        color: '',
         secondDesc: '',
         location: '-',
         storedLocation: '-',
@@ -2432,6 +2437,7 @@ function Invoice() {
       setItemEntry({
         code: '',
         description: '',
+        color: '',
         secondDesc: '',
         location: 'Main Store',
         storedLocation: 'Main Store',
@@ -2480,6 +2486,7 @@ function Invoice() {
         setItemEntry({
           code: item.code || 'DELIVERY',
           description: item.description || 'Delivery Charge',
+          color: '',
           secondDesc: '',
           location: '-',
           storedLocation: '-',
@@ -2516,6 +2523,7 @@ function Invoice() {
         setItemEntry({
           code: item.code,
           description: item.description,
+          color: item.color || matched?.color || '',
           secondDesc: '',
           location: item.location || 'Main Store',
           storedLocation: item.location || 'Main Store',
@@ -2589,6 +2597,7 @@ function Invoice() {
     setItemEntry({
       code: '',
       description: '',
+      color: '',
       secondDesc: '',
       location: 'Main Store',
       storedLocation: 'Main Store',
@@ -2732,6 +2741,7 @@ function Invoice() {
           code: (li.code || (isLabour ? 'DELIVERY' : '')).trim(),
           itemCode: (li.code || (isLabour ? 'DELIVERY' : '')).trim(),
           description: li.description || (isLabour ? 'Delivery Charge' : ''),
+          color: isLabour ? '' : (li.color || '').trim(),
           jobType: isLabour ? 'Labour' : (li.jobType || 'Material'),
           type: isLabour ? 'Labour' : (li.type || 'Material'),
           isService: isLabour,
@@ -3202,7 +3212,7 @@ function Invoice() {
                     <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
                       {item.jobType === 'Labour' || item.isService
                         ? (item.description || 'Delivery Charge')
-                        : `${item.code ? `${item.code} - ` : ''}${item.description || ''}`}
+                        : `${item.code ? `${item.code} - ` : ''}${item.description || ''}${item.color ? ` (${item.color})` : ''}`}
                     </td>
                     <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {itemQty.toFixed(2)} x {itemRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -3852,18 +3862,161 @@ function Invoice() {
                   />
                 </div>
 
-                {/* Form Row 3: Description */}
+                {/* Form Row 3: Description & Color */}
                 <div className="sofast-form-row">
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Description . . . .</span>
                   <input
                     type="text"
                     name="description"
                     className="sofast-input"
-                    style={{ width: '448px' }}
+                    style={{ width: '228px', marginRight: '8px' }}
                     value={itemEntry.description}
                     onChange={handleItemEntryChange}
                     placeholder={invoiceHeader.jobType === 'Labour' ? 'e.g. Delivery Charge' : ''}
                   />
+                  <span className="sofast-navy-label" style={{ width: '45px' }}>Color . .</span>
+                  <div
+                    className="sofast-color-field-container"
+                    ref={invoiceColorPaletteRef}
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '167px' }}
+                  >
+                    {/* Visual Color Preview Swatch */}
+                    <div
+                      className="sofast-color-preview-swatch"
+                      style={{
+                        width: '22px',
+                        height: '21px',
+                        borderRadius: '2px',
+                        border: '1px solid #7f9db9',
+                        backgroundColor: resolveColorHex(itemEntry.color) || '#ffffff',
+                        boxShadow: 'inset 0 0 2px rgba(0,0,0,0.25), 0 1px 1px rgba(0,0,0,0.1)',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        marginRight: '3px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onClick={() => setShowInvoiceColorPalette((prev) => !prev)}
+                      title={itemEntry.color ? `Color: ${itemEntry.color} (Click to open palette)` : 'Click to select Color'}
+                    >
+                      {!itemEntry.color && <span style={{ fontSize: '10px', color: '#999' }}>-</span>}
+                    </div>
+
+                    {/* Color Text Box */}
+                    <input
+                      type="text"
+                      name="color"
+                      className="sofast-input"
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        height: '21px',
+                        borderLeft: resolveColorHex(itemEntry.color)
+                          ? `6px solid ${resolveColorHex(itemEntry.color)}`
+                          : '1px solid #7f9db9',
+                        paddingLeft: '5px',
+                        fontWeight: itemEntry.color ? 'bold' : 'normal',
+                      }}
+                      value={itemEntry.color || ''}
+                      onChange={handleItemEntryChange}
+                      placeholder="Color"
+                      autoComplete="off"
+                    />
+
+                    {/* Color Palette Trigger Button */}
+                    <button
+                      type="button"
+                      className="sofast-color-picker-btn"
+                      onClick={() => setShowInvoiceColorPalette((prev) => !prev)}
+                      title="Choose Color Palette"
+                      style={{
+                        marginLeft: '3px',
+                        width: '24px',
+                        height: '21px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #7f9db9',
+                        borderRadius: '1px',
+                      }}
+                    >
+                      🎨
+                    </button>
+
+                    {/* Hidden native color picker */}
+                    <input
+                      type="color"
+                      ref={invoiceNativeColorRef}
+                      style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+                      value={
+                        /^#([0-9A-F]{3}){1,2}$/i.test(resolveColorHex(itemEntry.color))
+                          ? resolveColorHex(itemEntry.color)
+                          : '#000000'
+                      }
+                      onChange={(e) => {
+                        setItemEntry((prev) => ({ ...prev, color: e.target.value }));
+                        setShowInvoiceColorPalette(false);
+                      }}
+                    />
+
+                    {/* Popover Color Palette */}
+                    {showInvoiceColorPalette && (
+                      <div className="invoice-color-palette-popover">
+                        <div className="palette-header">
+                          <span className="palette-title">Color Palette</span>
+                          <button
+                            type="button"
+                            className="palette-close-btn"
+                            onClick={() => setShowInvoiceColorPalette(false)}
+                            title="Close"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                        <div className="palette-grid">
+                          {PRESET_COLORS.map((c) => (
+                            <button
+                              key={c.name}
+                              type="button"
+                              className="palette-color-btn"
+                              style={{ backgroundColor: c.hex }}
+                              onClick={() => {
+                                setItemEntry((prev) => ({ ...prev, color: c.name }));
+                                setShowInvoiceColorPalette(false);
+                              }}
+                              title={`${c.name} (${c.hex})`}
+                            />
+                          ))}
+                        </div>
+                        <div className="palette-footer">
+                          <button
+                            type="button"
+                            className="btn-classic palette-custom-btn"
+                            onClick={() => invoiceNativeColorRef.current?.click()}
+                            title="Choose custom color from system palette"
+                          >
+                            Custom...
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-classic palette-clear-btn"
+                            onClick={() => {
+                              setItemEntry((prev) => ({ ...prev, color: '' }));
+                              setShowInvoiceColorPalette(false);
+                            }}
+                            title="Clear Color"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Form Row 4: Quantity, Rate, Add a Note */}
@@ -4195,6 +4348,34 @@ function Invoice() {
                             Category: <b>{activePreviewItem.category}</b>
                           </div>
                         )}
+                        {activePreviewItem.color && (
+                          <div style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px' }}>
+                            <span style={{ color: '#555', fontWeight: 'bold' }}>Color:</span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '1px 6px',
+                                borderRadius: '3px',
+                                backgroundColor: '#f1f5f9',
+                                border: '1px solid #cbd5e1',
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '2px',
+                                  backgroundColor: resolveColorHex(activePreviewItem.color) || '#999',
+                                  border: '1px solid #666',
+                                }}
+                              />
+                              {activePreviewItem.color}
+                            </span>
+                          </div>
+                        )}
                         {alternativeProducts.length > 0 && (
                           <div
                             style={{
@@ -4356,11 +4537,12 @@ function Invoice() {
               <table className="sofast-grid-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '130px' }}>Code</th>
-                    <th style={{ minWidth: '400px' }}>Description</th>
+                    <th style={{ width: '120px' }}>Code</th>
+                    <th style={{ minWidth: '340px' }}>Description</th>
+                    <th style={{ width: '85px', textAlign: 'center' }}>Color</th>
                     <th style={{ width: '85px', textAlign: 'right' }}>Selling Price</th>
-                    <th style={{ width: '70px', textAlign: 'center' }}>Quantity</th>
-                    <th style={{ width: '70px', textAlign: 'center' }}>Discount</th>
+                    <th style={{ width: '65px', textAlign: 'center' }}>Quantity</th>
+                    <th style={{ width: '65px', textAlign: 'center' }}>Discount</th>
                     <th style={{ width: '95px', textAlign: 'right' }}>Value</th>
                   </tr>
                 </thead>
@@ -4368,6 +4550,7 @@ function Invoice() {
                   {lineItems.length === 0 ? (
                     Array.from({ length: 7 }).map((_, emptyIdx) => (
                       <tr key={`empty-${emptyIdx}`} className="empty-grid-row">
+                        <td>&nbsp;</td>
                         <td>&nbsp;</td>
                         <td>&nbsp;</td>
                         <td>&nbsp;</td>
@@ -4387,6 +4570,26 @@ function Invoice() {
                       >
                         <td className="sofast-cell-code">{item.code}</td>
                         <td>{item.description}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          {item.color ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span
+                                style={{
+                                  width: '12px',
+                                  height: '12px',
+                                  borderRadius: '2px',
+                                  backgroundColor: resolveColorHex(item.color) || '#ccc',
+                                  border: '1px solid #777',
+                                  display: 'inline-block',
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{item.color}</span>
+                            </span>
+                          ) : (
+                            <span style={{ color: '#aaa' }}>-</span>
+                          )}
+                        </td>
                         <td style={{ textAlign: 'right' }}>
                           {Number(item.sellingPrice || item.price || 0).toFixed(2)}
                         </td>
@@ -4403,6 +4606,7 @@ function Invoice() {
                   {/* Visual grid filler rows */}
                   {lineItems.length > 0 && Array.from({ length: Math.max(0, 6 - lineItems.length) }).map((_, emptyIdx) => (
                     <tr key={`empty-fill-${emptyIdx}`} className="empty-grid-row">
+                      <td>&nbsp;</td>
                       <td>&nbsp;</td>
                       <td>&nbsp;</td>
                       <td>&nbsp;</td>

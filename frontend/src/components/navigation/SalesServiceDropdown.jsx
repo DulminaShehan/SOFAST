@@ -10,8 +10,6 @@ function SalesServiceDropdown({ onItemClick }) {
     { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
     { id: 'settlement-invoice', label: 'Settlement Invoice', path: '/settlement-invoice' },
     { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
-    { id: 'customer-return-exchange', label: 'Customer Return / Exchange', path: '/invoice-return' },
-    { id: 'invoice-return', label: 'Invoice Return', path: '/invoice-return' },
   ];
 
   return (

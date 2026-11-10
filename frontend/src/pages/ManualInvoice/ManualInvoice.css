@@ -847,3 +847,92 @@
   overflow-x: hidden;
   box-sizing: border-box;
 }
+
+/* ========================================================= */
+/* MANUAL INVOICE COLOR PALETTE POPOVER                      */
+/* ========================================================= */
+.manual-color-palette-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1050;
+  background-color: #ece9d8;
+  border: 2px solid #808080;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.35);
+  width: 216px;
+  padding: 6px;
+  box-sizing: border-box;
+  border-radius: 1px;
+}
+
+.manual-color-palette-popover .palette-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid #b5b5b5;
+}
+
+.manual-color-palette-popover .palette-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #002D62;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  letter-spacing: 0.2px;
+}
+
+.manual-color-palette-popover .palette-close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+  color: #333333;
+}
+
+.manual-color-palette-popover .palette-close-btn:hover {
+  color: #e81123;
+}
+
+.manual-color-palette-popover .palette-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.manual-color-palette-popover .palette-color-btn {
+  width: 100%;
+  height: 22px;
+  border: 1px solid #444444;
+  border-radius: 1px;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.05s ease, outline 0.05s ease;
+  box-shadow: inset 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+.manual-color-palette-popover .palette-color-btn:hover {
+  transform: scale(1.08);
+  outline: 2px solid #005bb7;
+  z-index: 2;
+}
+
+.manual-color-palette-popover .palette-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #b5b5b5;
+}
+
+.manual-color-palette-popover .palette-custom-btn,
+.manual-color-palette-popover .palette-clear-btn {
+  font-size: 10.5px;
+  height: 20px;
+  padding: 0 6px;
+}

@@ -6,6 +6,7 @@ import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
 import { compareBillPrintItems } from '../../utils/itemSort';
+import { resolveColorHex, PRESET_COLORS } from '../ItemMaster/ItemMaster';
 import './ManualInvoice.css';
 
 /**
@@ -48,11 +49,17 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
   const [itemEntry, setItemEntry] = useState({
     code: '',
     description: '',
+    color: '',
     unit: 'PCS',
     quantity: '1',
     sellingPrice: '',
     discountPercentage: '0',
   });
+
+  // Color Selection & Palette Popover State
+  const [showManualColorPalette, setShowManualColorPalette] = useState(false);
+  const manualColorPaletteRef = useRef(null);
+  const manualNativeColorRef = useRef(null);
 
   // List of added line items
   const [lineItems, setLineItems] = useState([]);
@@ -104,6 +111,17 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [itemLookupOpen, customerLookupOpen, invoiceLookupOpen, receiptPreviewOpen, isModal]);
+
+  // Close color palette on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (manualColorPaletteRef.current && !manualColorPaletteRef.current.contains(e.target)) {
+        setShowManualColorPalette(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
 
   // Refs for focusing & keyboard navigation
   const codeInputRef = useRef(null);
@@ -273,6 +291,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
       ...prev,
       code: item.code || prev.code,
       description: item.description || prev.description,
+      color: item.color || prev.color || '',
       unit: item.unit || prev.unit || 'PCS',
       sellingPrice: item.price != null && item.price !== '' ? String(item.price) : prev.sellingPrice,
     }));
@@ -296,6 +315,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
         if (match) {
           updated.description = match.description || prev.description;
           updated.unit = match.unit || prev.unit || 'PCS';
+          updated.color = match.color || prev.color || '';
           if (match.price != null && match.price !== '') {
             updated.sellingPrice = String(match.price);
           }
@@ -325,6 +345,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
             ...prev,
             code: match.code,
             description: match.description || prev.description,
+            color: match.color || prev.color || '',
             unit: match.unit || prev.unit || 'PCS',
             sellingPrice: match.price != null && match.price !== '' ? String(match.price) : prev.sellingPrice,
           }));
@@ -433,6 +454,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
     const newItem = {
       code,
       description: desc,
+      color: (itemEntry.color || '').trim(),
       unit,
       quantity: qty,
       sellingPrice: price,
@@ -450,6 +472,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
     setItemEntry({
       code: '',
       description: '',
+      color: '',
       unit: 'PCS',
       quantity: '1',
       sellingPrice: '',
@@ -485,6 +508,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
     setItemEntry({
       code: '',
       description: '',
+      color: '',
       unit: 'PCS',
       quantity: '1',
       sellingPrice: '',
@@ -542,6 +566,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
         lineItems: lineItems.map((item) => ({
           code: item.code,
           description: item.description,
+          color: (item.color || '').trim(),
           unit: item.unit || 'PCS',
           quantity: item.quantity,
           sellingPrice: item.sellingPrice,
@@ -744,6 +769,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
         inv.lineItems.map((item, idx) => ({
           code: item.code || `MAN-${idx + 1}`,
           description: item.description || 'Manual Item',
+          color: item.color || '',
           unit: item.unit || 'PCS',
           quantity: item.quantity || 1,
           sellingPrice: item.sellingPrice || item.price || 0,
@@ -886,7 +912,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
                   <td style={{ textAlign: 'left', wordBreak: 'break-word' }}>
                     <div><b>{item.description}</b></div>
                     <div style={{ fontSize: '10px', color: '#555' }}>
-                      [{item.code}] {item.discountPercentage > 0 ? `(${item.discountPercentage}% off)` : ''}
+                      [{item.code}{item.color ? ` - ${item.color}` : ''}] {item.discountPercentage > 0 ? `(${item.discountPercentage}% off)` : ''}
                     </div>
                   </td>
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -1234,6 +1260,122 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
               </datalist>
             </div>
 
+            {/* Color */}
+            <div className="manual-form-group" style={{ position: 'relative' }} ref={manualColorPaletteRef}>
+              <label className="manual-label">Color</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <div
+                  style={{
+                    width: '22px',
+                    height: '24px',
+                    borderRadius: '2px',
+                    border: '1px solid #7f9db9',
+                    backgroundColor: resolveColorHex(itemEntry.color) || '#ffffff',
+                    boxShadow: 'inset 0 0 2px rgba(0,0,0,0.25)',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onClick={() => setShowManualColorPalette((prev) => !prev)}
+                  title={itemEntry.color ? `Color: ${itemEntry.color} (Click to open palette)` : 'Click to select Color'}
+                >
+                  {!itemEntry.color && <span style={{ fontSize: '10px', color: '#999' }}>-</span>}
+                </div>
+                <input
+                  type="text"
+                  className="manual-input"
+                  style={{
+                    width: '85px',
+                    borderLeft: resolveColorHex(itemEntry.color)
+                      ? `6px solid ${resolveColorHex(itemEntry.color)}`
+                      : '1px solid #7f9db9',
+                    fontWeight: itemEntry.color ? 'bold' : 'normal',
+                  }}
+                  placeholder="Color"
+                  value={itemEntry.color || ''}
+                  onChange={(e) => setItemEntry({ ...itemEntry, color: e.target.value })}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="manual-btn manual-btn-small"
+                  onClick={() => setShowManualColorPalette((prev) => !prev)}
+                  title="Choose Color Palette"
+                  style={{ padding: '0 4px', height: '24px' }}
+                >
+                  🎨
+                </button>
+                <input
+                  type="color"
+                  ref={manualNativeColorRef}
+                  style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
+                  value={
+                    /^#([0-9A-F]{3}){1,2}$/i.test(resolveColorHex(itemEntry.color))
+                      ? resolveColorHex(itemEntry.color)
+                      : '#000000'
+                  }
+                  onChange={(e) => {
+                    setItemEntry((prev) => ({ ...prev, color: e.target.value }));
+                    setShowManualColorPalette(false);
+                  }}
+                />
+              </div>
+
+              {showManualColorPalette && (
+                <div className="manual-color-palette-popover">
+                  <div className="palette-header">
+                    <span className="palette-title">Color Palette</span>
+                    <button
+                      type="button"
+                      className="palette-close-btn"
+                      onClick={() => setShowManualColorPalette(false)}
+                      title="Close"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <div className="palette-grid">
+                    {PRESET_COLORS.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        className="palette-color-btn"
+                        style={{ backgroundColor: c.hex }}
+                        onClick={() => {
+                          setItemEntry((prev) => ({ ...prev, color: c.name }));
+                          setShowManualColorPalette(false);
+                        }}
+                        title={`${c.name} (${c.hex})`}
+                      />
+                    ))}
+                  </div>
+                  <div className="palette-footer">
+                    <button
+                      type="button"
+                      className="palette-custom-btn"
+                      onClick={() => manualNativeColorRef.current?.click()}
+                      title="Custom Color"
+                    >
+                      Custom...
+                    </button>
+                    <button
+                      type="button"
+                      className="palette-clear-btn"
+                      onClick={() => {
+                        setItemEntry((prev) => ({ ...prev, color: '' }));
+                        setShowManualColorPalette(false);
+                      }}
+                      title="Clear Color"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Unit */}
             <div className="manual-form-group">
               <label className="manual-label">Unit</label>
@@ -1357,6 +1499,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
                 <th style={{ width: '35px' }} className="center">#</th>
                 <th style={{ width: '110px' }}>Item Code</th>
                 <th>Item Description</th>
+                <th style={{ width: '85px' }} className="center">Color</th>
                 <th style={{ width: '60px' }} className="center">Unit</th>
                 <th style={{ width: '80px' }} className="right">Quantity</th>
                 <th style={{ width: '110px' }} className="right">Selling Price</th>
@@ -1368,7 +1511,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
             <tbody>
               {lineItems.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="manual-table-empty">
+                  <td colSpan="10" className="manual-table-empty">
                     No items on this manual invoice yet. Enter an item description, quantity, and selling price above and click <b>Add Item</b>.
                   </td>
                 </tr>
@@ -1381,6 +1524,26 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
                       <td className="center">{index + 1}</td>
                       <td><b>{item.code}</b></td>
                       <td>{item.description}</td>
+                      <td className="center">
+                        {item.color ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span
+                              style={{
+                                width: '12px',
+                                height: '12px',
+                                borderRadius: '2px',
+                                backgroundColor: resolveColorHex(item.color) || '#ccc',
+                                border: '1px solid #777',
+                                display: 'inline-block',
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{item.color}</span>
+                          </span>
+                        ) : (
+                          <span style={{ color: '#aaa' }}>-</span>
+                        )}
+                      </td>
                       <td className="center">{item.unit || 'PCS'}</td>
                       <td className="right">{Number(item.quantity).toLocaleString()}</td>
                       <td className="right">{Number(item.sellingPrice).toFixed(2)}</td>

@@ -237,16 +237,6 @@ function GoodReceiveNote() {
         </svg>
       ),
     },
-    {
-      id: 'customer-return-exchange',
-      label: 'Customer Return / Exchange',
-      path: '/customer-return-exchange',
-      renderIcon: () => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2">
-          <path d="M3 10h10a5 5 0 0 1 5 5v2m0 0l-3-3m3 3l3-3M3 10l3-3m-3 3l3 3" />
-        </svg>
-      ),
-    },
   ];
 
   // Load initial data (Suppliers, Items, Next GRN Number, GRN list)

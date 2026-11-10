@@ -103,7 +103,6 @@ function ClassicNavbar({ activeMenu = '', className = '' }) {
     { id: 'manual-invoice', label: '📝 Manual Invoice', path: '/manual-invoice', permKey: 'invoice' },
     { id: 'settlement-invoice', label: '💰 Settlement Invoice', path: '/settlement-invoice', permKey: 'settlement-invoice' },
     { id: 'remaining-balance', label: '⚖️ Remaining Balance', path: '/remaining-balance', permKey: 'remaining-balance' },
-    { id: 'invoice-return', label: '🔄 Invoice Return / Exchange', path: '/invoice-return', permKey: 'invoice' },
   ].filter((item) => isAdmin || !item.permKey || hasPermission(item.permKey));
 
   const approvementDropdownItems = [

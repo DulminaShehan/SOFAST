@@ -319,20 +319,6 @@ function ManagementSystem({ defaultModule }) {
         </svg>
       ),
     },
-    {
-      id: 'customer-return-exchange',
-      label: 'Customer Return / Exchange',
-      path: '/customer-return-exchange',
-      iconColor: '#e11d48',
-      badgeBg: '#ffe4e6',
-      description: 'Process customer returns for exchanges, defective goods, quarantine stock, and trace suppliers.',
-      renderIcon: (size = 20) => (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="1 4 1 10 7 10" />
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-        </svg>
-      ),
-    },
   ];
 
   const administrationItems = isAdmin

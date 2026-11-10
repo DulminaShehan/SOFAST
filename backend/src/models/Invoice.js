@@ -19,6 +19,11 @@ const invoiceLineItemSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  color: {
+    type: String,
+    trim: true,
+    default: '',
+  },
   unit: {
     type: String,
     trim: true,
