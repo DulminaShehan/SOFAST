@@ -1582,7 +1582,7 @@ function Invoice() {
 
     // Always fetch latest data from backend API to guarantee real-time stock and GRN cost
     try {
-      const res = await api.get(`/items/${encodeURIComponent(code)}`);
+      const res = await api.get(`/items/${encodeURIComponent(code)}?silent=true`);
       if (res.data?.success && res.data?.data) {
         item = res.data.data;
       }
@@ -1940,7 +1940,7 @@ function Invoice() {
         setHighlightedItemIndex(-1);
       } else {
         // Query backend directly in case item wasn't preloaded
-        api.get(`/items/${encodeURIComponent(query)}`)
+        api.get(`/items/${encodeURIComponent(query)}?silent=true`)
           .then((res) => {
             if (res.data?.success && res.data.data) {
               loadItemIntoEntry(res.data.data, itemEntry.quantity || '1');
@@ -2103,7 +2103,7 @@ function Invoice() {
       try {
         setLoading(true);
         // Fetch actual Item Master record to get real stock, price, and location
-        const res = await api.get(`/items/${encodeURIComponent(alt.code)}`);
+        const res = await api.get(`/items/${encodeURIComponent(alt.code)}?silent=true`);
         const fullItem = res.data?.data || alt;
         const currentLine = lineItems[altModalTargetIndex];
         const qty = currentLine.quantity || 1;

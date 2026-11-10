@@ -606,7 +606,7 @@ function GoodReceiveNote() {
       try {
         setLoading(true);
         // Direct code lookup
-        const directRes = await api.get(`/items/${encodeURIComponent(query)}`).catch(() => null);
+        const directRes = await api.get(`/items/${encodeURIComponent(query)}?silent=true`).catch(() => null);
         if (directRes?.data?.success && directRes?.data?.data) {
           const exact = directRes.data.data;
           const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');
@@ -684,7 +684,7 @@ function GoodReceiveNote() {
     }
 
     try {
-      const directRes = await api.get(`/items/${encodeURIComponent(query)}`).catch(() => null);
+      const directRes = await api.get(`/items/${encodeURIComponent(query)}?silent=true`).catch(() => null);
       if (directRes?.data?.success && directRes?.data?.data) {
         const exact = directRes.data.data;
         const itemObj = populateItemDetails(exact, itemEntry.quantity || 1, itemEntry.discount || '0');

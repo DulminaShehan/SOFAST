@@ -500,8 +500,8 @@ function ItemMaster() {
     // If it already exists, prevent duplicate entry and display an alert or error message stating: "Already Exists".
     if (!selectedId) {
       try {
-        const checkRes = await api.get(`/items/${encodeURIComponent(formData.code.trim())}`);
-        if (checkRes.data && checkRes.data.success && checkRes.data.data) {
+        const checkRes = await api.get(`/items/check/${encodeURIComponent(formData.code.trim())}`);
+        if (checkRes.data && checkRes.data.exists && checkRes.data.data) {
           alert('Already Exists');
           showNotification('Already Exists', 'error');
           if (codeInputRef.current) {
@@ -511,10 +511,7 @@ function ItemMaster() {
           return;
         }
       } catch (checkErr) {
-        // If 404, it means the item code does not exist yet, which is expected for creation
-        if (checkErr.response && checkErr.response.status !== 404) {
-          console.warn('Code pre-check encountered non-404 status:', checkErr);
-        }
+        console.warn('Code pre-check encountered error:', checkErr);
       }
     }
 

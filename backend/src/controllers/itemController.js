@@ -344,15 +344,74 @@ export const getLookupOptions = async (req, res, next) => {
 };
 
 /**
+ * @route   GET /api/items/check/:code
+ * @desc    Check if an item code or barcode exists (returns 200 with exists: boolean, avoids 404 errors in console)
+ */
+export const checkItemExists = async (req, res, next) => {
+  try {
+    const rawCode = req.params.code || req.params.query || req.query.code || req.query.query || '';
+    if (!rawCode || !rawCode.trim()) {
+      return res.status(200).json({ success: true, exists: false, found: false, data: null, message: 'No code provided' });
+    }
+
+    if (!isDbConnected()) {
+      return res.status(200).json({ success: false, exists: false, found: false, data: null, message: 'Database offline' });
+    }
+
+    const decodedCode = decodeURIComponent(rawCode).trim();
+    let item = null;
+    if (mongoose.Types.ObjectId.isValid(decodedCode)) {
+      item = await Item.findById(decodedCode).lean();
+    }
+    if (!item) {
+      item = await Item.findOne({ code: decodedCode }).lean();
+    }
+    if (!item) {
+      const escaped = decodedCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      item = await Item.findOne({
+        $or: [
+          { code: new RegExp(`^${escaped}$`, 'i') },
+          { barcode: decodedCode },
+          { barCode: decodedCode },
+          { barcode: new RegExp(`^${escaped}$`, 'i') },
+          { barCode: new RegExp(`^${escaped}$`, 'i') },
+          { description: new RegExp(`^${escaped}$`, 'i') },
+        ],
+      }).lean();
+    }
+
+    if (!item) {
+      return res.status(200).json({
+        success: true,
+        exists: false,
+        found: false,
+        data: null,
+        message: 'Item not found',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      exists: true,
+      found: true,
+      data: normalizeItem(item),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @route   GET /api/items/:id
- * @desc    Get single item by ID or Code
+ * @desc    Get single item by ID or Code (supports ?silent=true to avoid 404 console errors)
  */
 export const getItemById = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const isSilent = req.query.silent === 'true' || req.query.silent === '1' || req.query.checkOnly === 'true';
 
     if (!isDbConnected()) {
-      return res.status(404).json({ success: false, message: 'Database offline' });
+      return res.status(isSilent ? 200 : 404).json({ success: false, message: 'Database offline', data: null });
     }
 
     const decodedId = decodeURIComponent(id || '').trim();
@@ -376,11 +435,22 @@ export const getItemById = async (req, res, next) => {
     }
 
     if (!item) {
-      return res.status(404).json({ success: false, message: 'Item not found' });
+      if (isSilent) {
+        return res.status(200).json({
+          success: true,
+          exists: false,
+          found: false,
+          data: null,
+          message: 'Item not found',
+        });
+      }
+      return res.status(404).json({ success: false, message: 'Item not found', data: null });
     }
 
     return res.status(200).json({
       success: true,
+      exists: true,
+      found: true,
       data: normalizeItem(item),
     });
   } catch (error) {
