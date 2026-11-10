@@ -69,3 +69,4 @@ export function compareBillPrintItems(itemA, itemB) {
   const codeB = String(itemB?.code || itemB?.itemCode || '').trim();
   return compareStringsAZ09(codeA, codeB);
 }
+

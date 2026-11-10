@@ -1,5 +1,6 @@
 /* ========================================================= */
-/* SOFAST MOTORS - SETTLEMENT INVOICE (CLASSIC DESKTOP ERP)  */
+/* SOFAST MOTORS - SETTLEMENT INVOICE (LEGACY VB6 DESKTOP ERP)*/
+/* Exact replication of classic VB6 G.R. Settlement layout  */
 /* ========================================================= */
 
 :root {
@@ -22,114 +23,7 @@
   overflow-x: hidden;
 }
 
-/* 1. Top Classic Navigation Menu Bar */
-.settlement-menubar-container {
-  position: relative;
-  background-color: #f6f6f6;
-  border-bottom: 1px solid #b5b5b5;
-  height: 28px;
-  min-height: 28px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 0 4px;
-  box-sizing: border-box;
-  width: 100%;
-  flex-shrink: 0;
-  z-index: 100;
-}
-
-.settlement-menubar {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
-}
-
-.settlement-menubar-item {
-  position: relative;
-  height: 100%;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  margin: 0;
-  padding: 0;
-}
-
-.settlement-menubar-button {
-  background: transparent;
-  border: 1px solid transparent;
-  color: #000000;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 400;
-  padding: 2px 10px;
-  height: 22px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-  white-space: nowrap;
-  border-radius: 2px;
-}
-
-.settlement-menubar-button:hover,
-.settlement-menubar-button.active {
-  background-color: #0055ea;
-  border-color: #0044bb;
-  color: #ffffff;
-  font-weight: 600;
-}
-
-.settlement-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background-color: #ffffff;
-  border: 1px solid #716f64;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  list-style: none;
-  margin: 1px 0 0 0;
-  padding: 3px;
-  min-width: 200px;
-  z-index: 200;
-}
-
-.settlement-dropdown-entry {
-  margin: 0;
-  padding: 0;
-}
-
-.settlement-dropdown-item-btn {
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: 2px;
-  color: #000000;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  padding: 5px 10px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  outline: none;
-}
-
-.settlement-dropdown-item-btn:hover,
-.settlement-dropdown-item-btn.selected {
-  background-color: #2b78e4;
-  color: #ffffff;
-}
-
-/* 2. Windows Classic Title Bar */
+/* 1. Classic Windows Title Bar */
 .settlement-win-titlebar {
   height: 28px;
   min-height: 28px;
@@ -148,9 +42,8 @@
 
 .settlement-win-brand {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .settlement-win-icon {
@@ -160,1036 +53,731 @@
 }
 
 .settlement-win-heading {
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.3px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .settlement-win-controls {
   display: flex;
-  flex-direction: row;
-  height: 100%;
+  align-items: center;
+  gap: 2px;
 }
 
 .settlement-ctrl-btn {
-  width: 28px;
-  height: 100%;
-  background: transparent;
-  border: none;
-  color: #ffffff;
+  width: 21px;
+  height: 21px;
+  background-color: #ece9d8;
+  border: 1px solid #ffffff;
+  box-shadow: inset -1px -1px 0 #716f64, inset 1px 1px 0 #ffffff;
   font-size: 11px;
-  cursor: pointer;
+  font-weight: 700;
+  color: #000000;
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
   outline: none;
 }
 
-.settlement-ctrl-btn:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+.settlement-ctrl-btn:active {
+  box-shadow: inset 1px 1px 0 #716f64, inset -1px -1px 0 #ffffff;
+}
+
+.settlement-ctrl-btn.close {
+  background-color: #c75050;
+  color: #ffffff;
+  border-color: #ffffff;
 }
 
 .settlement-ctrl-btn.close:hover {
-  background-color: #e81123;
+  background-color: #e04343;
 }
 
-/* 3. Main Full-Width Form Container */
-.main-settlement-container {
-  width: 100%;
-  max-width: none;
+/* 2. Main Container */
+.settlement-vb6-main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 10px 16px 10px;
-  box-sizing: border-box;
-  background-color: #ece9d8;
-}
-
-/* Section Box & Classic Blue Headers */
-.settlement-panel-box {
-  width: 100%;
-  max-width: none;
-  background-color: #ece9d8;
-  border: 1px solid #7f9db9;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
-
-.settlement-section-header {
-  height: 22px;
-  min-height: 22px;
-  background: #0055ea;
-  color: #ffffff;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
-  font-weight: 700;
-  display: flex;
   align-items: center;
-  padding: 0 8px;
+  justify-content: flex-start;
+  padding: 14px 18px 24px 18px;
   box-sizing: border-box;
+  background-color: #ece9d8;
   width: 100%;
-  letter-spacing: 0.2px;
 }
 
-.settlement-panel-content {
-  padding: 6px 10px;
+.settlement-vb6-form-window {
+  width: 100%;
+  max-width: 960px;
+  background-color: #ece9d8;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  width: 100%;
+  gap: 12px;
   box-sizing: border-box;
 }
 
-/* Section 1 Top Grid (2 Equal Columns) */
-.settlement-top-grid {
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 16px;
+/* Alert Notification */
+.settlement-vb6-alert {
   width: 100%;
+  max-width: 960px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #716f64;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 2px;
   box-sizing: border-box;
 }
 
-.settlement-top-col {
+.settlement-vb6-alert.success {
+  background-color: #d4edda;
+  border-color: #28a745;
+  color: #155724;
+}
+
+.settlement-vb6-alert.error {
+  background-color: #f8d7da;
+  border-color: #dc3545;
+  color: #721c24;
+}
+
+.settlement-vb6-alert.info {
+  background-color: #d1ecf1;
+  border-color: #17a2b8;
+  color: #0c5460;
+}
+
+.settlement-vb6-alert.warning {
+  background-color: #fff3cd;
+  border-color: #ffc107;
+  color: #856404;
+}
+
+.settlement-vb6-alert-close {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* ========================================================= */
+/* SECTION 1: TOP GRID (G.R. No, Value, Customer, Return, Bal)*/
+/* ========================================================= */
+.settlement-vb6-top-grid {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 7px;
   width: 100%;
+  padding: 4px 0;
+  box-sizing: border-box;
 }
 
-.settlement-field-row {
+.settlement-vb6-top-row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   width: 100%;
 }
 
-.label-w-110 {
-  width: 110px;
-  flex-shrink: 0;
-}
-
-.label-w-100 {
-  width: 100px;
-  flex-shrink: 0;
-}
-
-.label-w-90 {
-  width: 90px;
-  flex-shrink: 0;
-}
-
-/* Dotted Blue Labels */
-.dotted-label-blue {
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11px;
-  font-weight: 700;
+.settlement-vb6-navy-label {
   color: #000080;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   white-space: nowrap;
-  user-select: none;
 }
 
-/* Form Inputs & Selects */
-.settlement-input {
-  height: 22px;
+.settlement-vb6-field {
+  display: flex;
+  align-items: center;
+}
+
+.grn-field {
+  width: 285px;
+  gap: 6px;
+}
+
+.grn-label {
+  width: 85px;
+}
+
+.settlement-vb6-combo-wrap {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 3px;
+}
+
+.settlement-vb6-select {
+  height: 23px;
   border: 1px solid #7f9db9;
   background-color: #ffffff;
-  color: #000000;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11px;
-  padding: 2px 6px;
+  font-size: 12px;
+  padding: 1px 4px;
   box-sizing: border-box;
   outline: none;
+  border-radius: 0;
 }
 
-.settlement-input:focus {
-  border-color: #005bb7;
-  background-color: #ffffea;
+.grn-select {
+  flex: 1;
+  font-weight: 700;
+  color: #000080;
 }
 
-.settlement-input.readonly {
+.settlement-vb6-lookup-btn {
+  height: 23px;
+  min-width: 24px;
+  padding: 0 4px;
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 60%, #d4d0c8 100%);
+  border: 1px solid #716f64;
+  border-radius: 2px;
+  font-weight: bold;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settlement-vb6-lookup-btn:hover {
+  background: #dfdcce;
+}
+
+.settlement-vb6-input {
+  height: 23px;
+  border: 1px solid #7f9db9;
   background-color: #ffffff;
-  color: #000000;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 1px 6px;
+  box-sizing: border-box;
+  outline: none;
+  border-radius: 0;
+}
+
+.settlement-vb6-input.readonly {
+  background-color: #ffffff;
   cursor: default;
 }
 
-.settlement-input-green {
-  background-color: #eefbe8 !important;
-  color: #000000 !important;
-  border: 1px solid #7f9db9 !important;
+.value-field {
+  width: 200px;
+  gap: 6px;
 }
 
-.settlement-select {
-  height: 22px;
-  border: 1px solid #7f9db9;
-  background-color: #ffffff;
-  color: #000000;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11px;
-  padding: 2px 4px;
-  box-sizing: border-box;
-  outline: none;
-  cursor: pointer;
+.value-label {
+  width: 45px;
 }
 
-.settlement-select:focus {
-  border-color: #005bb7;
-}
-
-.settlement-textarea {
-  border: 1px solid #7f9db9;
-  background-color: #ffffff;
-  color: #000000;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11px;
-  padding: 3px 6px;
-  box-sizing: border-box;
-  outline: none;
-  resize: none;
-}
-
-/* Section 2: Invoice Items Table */
-.settlement-table-container {
-  width: 100%;
-  max-height: 120px;
-  overflow-y: auto;
-  box-sizing: border-box;
-}
-
-.settlement-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-
-.settlement-table th {
-  background-color: #d4d0c8;
-  border: 1px solid #84827a;
-  color: #000000;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11px;
+.value-input {
+  flex: 1;
   font-weight: 700;
-  padding: 3px 6px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.settlement-table td {
-  border: 1px solid #d4d0c8;
-  background-color: #ffffff;
-  padding: 2px 5px;
-  vertical-align: middle;
-  font-size: 11px;
-  height: 20px;
-}
-
-.settlement-table tbody tr:hover {
-  background-color: #e6f2ff;
-  cursor: pointer;
-}
-
-.settlement-table tbody tr.selected {
-  background-color: #0055ea !important;
-  color: #ffffff !important;
-}
-
-.settlement-table tbody tr.selected td {
-  color: #ffffff !important;
-  background-color: #0055ea !important;
-}
-
-/* Total Summary Row in Settlement History */
-.settlement-total-row {
-  background-color: #cce5ff !important;
-}
-
-.settlement-total-row td {
-  background-color: #cce5ff !important;
-  font-weight: bold;
+  text-align: right;
   color: #000000;
-  border-color: #a3c7ef;
 }
 
-/* ========================================================= */
-/* SECTION 3: 3-COLUMN PAYMENT / SETTLEMENT GRID             */
-/* ========================================================= */
-.settlement-payment-grid {
-  display: grid;
-  grid-template-columns: 1.22fr 1.15fr 1.18fr;
-  gap: 12px;
-  width: 100%;
-  box-sizing: border-box;
-  align-items: stretch;
-}
-
-/* Column 1: Payment Details */
-.settlement-payment-col {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  width: 100%;
-}
-
-/* Full-Width Green Calculate Button */
-.settlement-btn-calculate-green {
-  width: 100%;
-  height: 26px;
-  background-color: #008037;
-  border: 1px solid #005a26;
-  color: #ffffff;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-  box-shadow: 1px 1px 0px #000000;
-  border-radius: 2px;
-  letter-spacing: 0.3px;
-}
-
-.settlement-btn-calculate-green:hover {
-  background-color: #00933f;
-}
-
-.settlement-btn-calculate-green:active {
-  box-shadow: none;
-  transform: translate(1px, 1px);
-}
-
-/* Column 2: Calculation Panel (Inner Beige Card) */
-.settlement-calc-box {
-  background-color: #fdfcf7;
-  border: 1px solid #c0b89f;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
+.customer-field {
+  flex: 1;
   gap: 6px;
-  justify-content: center;
-  box-sizing: border-box;
 }
 
-.settlement-calc-row {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+.customer-label {
+  width: 65px;
 }
 
-/* Column 3: Invoice Summary */
-.settlement-summary-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: 2px 4px;
-}
-
-.settlement-summary-row {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-}
-
-/* ========================================================= */
-/* CLASSIC ERP BUTTONS                                       */
-/* ========================================================= */
-.settlement-btn-classic {
-  height: 25px;
-  min-width: 72px;
-  padding: 0 10px;
-  background: linear-gradient(180deg, #fbfbf9 0%, #ece9d8 100%);
-  border-top: 1px solid #ffffff;
-  border-left: 1px solid #ffffff;
-  border-right: 1px solid #707070;
-  border-bottom: 1px solid #707070;
-  color: #000000;
-  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
+.customer-input {
+  flex: 1;
   font-weight: 600;
+  color: #000000;
+}
+
+/* Row 2 */
+.settlement-vb6-spacer-left {
+  width: 285px;
+  flex-shrink: 0;
+}
+
+.return-field {
+  width: 200px;
+  gap: 6px;
+}
+
+.return-label {
+  width: 50px;
+}
+
+.return-input {
+  flex: 1;
+  font-weight: 700;
+  text-align: right;
+  color: #000000;
+}
+
+.balance-field {
+  width: 280px;
+  gap: 6px;
+}
+
+.balance-label {
+  width: 82px;
+}
+
+.balance-input {
+  flex: 1;
+  font-weight: 700;
+  text-align: right;
+  color: #000000;
+}
+
+/* ========================================================= */
+/* SECTION 2: MIDDLE ENTRY BAR & BUTTONS                     */
+/* ========================================================= */
+.settlement-vb6-middle-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.settlement-vb6-header-bar {
+  display: flex;
+  background-color: #c0c0c0;
+  border: 1px solid #808080;
+  border-bottom: none;
+  height: 25px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.settlement-vb6-th {
+  font-weight: 700;
+  font-size: 13px;
+  color: #000000;
+  text-align: center;
+  border-right: 1px solid #808080;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.settlement-vb6-th:last-child {
+  border-right: none;
+}
+
+/* Column Widths (matching 5 entry columns) */
+.col-date {
+  flex: 1.1;
+  min-width: 125px;
+}
+
+.col-amount {
+  flex: 1.3;
+  min-width: 155px;
+}
+
+.col-method {
+  flex: 1.3;
+  min-width: 155px;
+}
+
+.col-cheque {
+  flex: 1.5;
+  min-width: 175px;
+}
+
+.col-realized {
+  flex: 1.1;
+  min-width: 125px;
+}
+
+.settlement-vb6-entry-row {
+  display: flex;
+  border: 1px solid #808080;
+  background-color: #ffffff;
+  height: 26px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.settlement-vb6-td {
+  height: 100%;
+  border-right: 1px solid #808080;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.settlement-vb6-td:last-child {
+  border-right: none;
+}
+
+.settlement-vb6-grid-input,
+.settlement-vb6-grid-select {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background-color: #ffffff;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 12px;
+  padding: 1px 6px;
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+.settlement-vb6-grid-input.text-right {
+  text-align: right;
+  font-weight: 700;
+}
+
+/* Lower Sub-Row: Left Buttons, Right Bank & Receipts */
+.settlement-vb6-subrow-split {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.settlement-vb6-buttons-area {
+  flex: 3.7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding-top: 14px;
+}
+
+.settlement-vb6-btn {
+  min-width: 82px;
+  height: 27px;
+  padding: 0 16px;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #000000;
+  background: linear-gradient(180deg, #ffffff 0%, #ece9d8 60%, #d4d0c8 100%);
+  border: 1px solid #716f64;
+  border-radius: 3px;
   cursor: pointer;
+  box-shadow: inset 1px 1px 0px #ffffff, inset -1px -1px 0px #aaaaaa;
+  outline: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  outline: none;
-  user-select: none;
-  box-shadow: 1px 1px 0px #000000;
 }
 
-.settlement-btn-classic:hover {
-  background: linear-gradient(180deg, #ffffff 0%, #f0ede0 100%);
+.settlement-vb6-btn:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #e0dccc 60%, #c5c1b5 100%);
 }
 
-.settlement-btn-classic:active {
-  border-top: 1px solid #707070;
-  border-left: 1px solid #707070;
-  border-right: 1px solid #ffffff;
-  border-bottom: 1px solid #ffffff;
-  box-shadow: none;
-  transform: translate(1px, 1px);
+.settlement-vb6-btn:active {
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.4);
 }
 
-.settlement-btn-classic:disabled {
+.settlement-vb6-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* Vivid Blue Save Button */
-.settlement-btn-save-blue {
-  background: #0055ea !important;
-  border-top: 1px solid #5599ff !important;
-  border-left: 1px solid #5599ff !important;
-  border-right: 1px solid #002b80 !important;
-  border-bottom: 1px solid #002b80 !important;
-  color: #ffffff !important;
-  font-weight: 700 !important;
-}
-
-.settlement-btn-save-blue:hover {
-  background: #0044cc !important;
-}
-
-.settlement-btn-classic.btn-preview-bill,
-.settlement-btn-classic.btn-print-bill {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border-top: 1px solid #eff6ff;
-  border-left: 1px solid #eff6ff;
-  border-right: 1px solid #2563eb;
-  border-bottom: 1px solid #2563eb;
-  color: #1e3a8a;
-  font-weight: 700;
-}
-
-.settlement-btn-lookup {
-  height: 22px;
-  min-width: 26px;
-  padding: 0 6px;
-  background: #ece9d8;
-  border: 1px solid #7f9db9;
-  color: #000000;
-  font-family: Tahoma, Arial, sans-serif;
-  font-size: 11px;
-  font-weight: bold;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-}
-
-.settlement-btn-lookup:hover {
-  background-color: #dfdbca;
-}
-
-/* Action Buttons Toolbar */
-.settlement-action-toolbar {
+.settlement-vb6-bank-receipts-area {
+  flex: 2.6;
   display: flex;
-  flex-direction: row;
-  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settlement-vb6-meta-row {
+  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 0 2px 0;
   width: 100%;
 }
 
-/* Alerts */
-.settlement-alert {
-  padding: 5px 10px;
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border: 1px solid #b5b5b5;
-  border-radius: 2px;
-  margin-bottom: 2px;
-}
-
-.settlement-alert.success {
-  background-color: #d4edda;
-  color: #155724;
-  border-color: #c3e6cb;
-}
-
-.settlement-alert.error {
-  background-color: #f8d7da;
-  color: #721c24;
-  border-color: #f5c6cb;
-}
-
-.settlement-alert.info {
-  background-color: #d1ecf1;
-  color: #0c5460;
-  border-color: #bee5eb;
-}
-
-/* Receipt Preview Modal */
-.receipt-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-}
-
-.receipt-modal-container {
-  background-color: #ece9d8;
-  border: 2px solid #0055ea;
-  box-shadow: 3px 3px 20px rgba(0, 0, 0, 0.4);
-  width: 380px;
-  max-width: 95vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.receipt-modal-header {
-  background: linear-gradient(90deg, #0055ea 0%, #0080ff 100%);
-  color: #ffffff;
-  padding: 5px 10px;
+.settlement-vb6-gray-label {
+  background-color: #c0c0c0;
+  border: 1px solid #808080;
+  border-right: none;
+  height: 24px;
+  padding: 0 8px;
   font-weight: 700;
   font-size: 12px;
+  color: #000000;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  width: 95px;
+  min-width: 95px;
+  box-sizing: border-box;
 }
 
-.receipt-modal-body {
-  padding: 12px;
+.meta-select,
+.meta-input {
+  flex: 1;
+  height: 24px;
+  border: 1px solid #808080;
+  border-radius: 0;
+  background-color: #ffffff;
+  font-size: 12px;
+  padding: 1px 6px;
+  box-sizing: border-box;
+}
+
+/* ========================================================= */
+/* SECTION 3: BOTTOM ACTIVE-X DATAGRID PANEL                 */
+/* ========================================================= */
+.settlement-vb6-datagrid-box {
+  width: 100%;
+  min-height: 260px;
+  max-height: 380px;
+  border: 1px solid #808080;
+  background-color: #ffffff;
   overflow-y: auto;
-  display: flex;
-  justify-content: center;
-  background-color: #808080;
+  overflow-x: auto;
+  box-sizing: border-box;
+  margin-top: 4px;
 }
 
-.receipt-modal-footer {
-  padding: 8px 12px;
-  background-color: #ece9d8;
-  border-top: 1px solid #b5b5b5;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-/* Invoice Lookup Modal */
-.settlement-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-}
-
-.settlement-modal-window {
-  background-color: #ece9d8;
-  border: 2px solid #0055ea;
-  box-shadow: 3px 3px 15px rgba(0, 0, 0, 0.35);
-  width: 640px;
-  max-width: 95vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.settlement-modal-titlebar {
-  background: linear-gradient(90deg, #0055ea 0%, #0080ff 100%);
-  color: #ffffff;
-  padding: 5px 10px;
-  font-weight: 700;
+.settlement-vb6-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   font-size: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
-.settlement-modal-body {
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.settlement-vb6-table th {
+  background-color: #d4d0c8;
+  border: 1px solid #808080;
+  color: #000000;
+  font-weight: 700;
+  padding: 4px 6px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  user-select: none;
+  text-align: left;
 }
 
-.settlement-modal-footer {
-  padding: 8px 10px;
-  background-color: #ece9d8;
-  border-top: 1px solid #b5b5b5;
-  display: flex;
-  justify-content: flex-end;
+.settlement-vb6-table td {
+  border: 1px solid #d4d0c8;
+  padding: 3px 6px;
+  height: 22px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.settlement-vb6-table tbody tr {
+  cursor: pointer;
+}
+
+.settlement-vb6-table tbody tr:hover {
+  background-color: #f2f5fc;
+}
+
+/* Active Row Highlight: Classic Windows Dark Navy Blue */
+.settlement-vb6-table tbody tr.vb6-row-selected {
+  background-color: #000080 !important;
+  color: #ffffff !important;
+}
+
+.settlement-vb6-table tbody tr.vb6-row-selected td {
+  color: #ffffff !important;
+  border-color: #000060 !important;
+}
+
+.settlement-vb6-empty-tr td {
+  border: 1px solid #ece9d8;
+  height: 22px;
+  cursor: default;
+}
+
+.settlement-vb6-empty-tr:hover {
+  background-color: transparent !important;
 }
 
 /* ========================================================= */
-/* DEDICATED RECEIPT PREVIEW MODAL                           */
+/* MODALS (INVOICE LOOKUP & RECEIPT PREVIEW)                 */
 /* ========================================================= */
+.settlement-modal-overlay,
 .receipt-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.55);
+  background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 9999;
 }
 
+.settlement-modal-window,
 .receipt-modal-container {
   background-color: #ece9d8;
   border: 2px solid #0055ea;
-  box-shadow: 3px 3px 15px rgba(0, 0, 0, 0.4);
-  width: 380px;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+  width: 720px;
   max-width: 95vw;
-  max-height: 90vh;
   display: flex;
   flex-direction: column;
 }
 
+.settlement-modal-titlebar,
 .receipt-modal-header {
-  background: linear-gradient(90deg, #0055ea 0%, #0080ff 100%);
-  color: #ffffff;
-  padding: 5px 10px;
-  font-weight: 700;
-  font-size: 12px;
+  height: 26px;
+  background: linear-gradient(90deg, #0055ea 0%, #0080ff 50%, #0055ea 100%);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 0 4px 0 8px;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 12px;
 }
 
+.settlement-modal-body,
 .receipt-modal-body {
-  padding: 12px;
-  background: #808080;
-  display: flex;
-  justify-content: center;
+  padding: 10px;
+  background-color: #ffffff;
+  max-height: 440px;
   overflow-y: auto;
-  max-height: calc(90vh - 80px);
 }
 
+.settlement-modal-footer,
 .receipt-modal-footer {
-  padding: 8px 10px;
-  background-color: #ece9d8;
-  border-top: 1px solid #b5b5b5;
+  padding: 6px 10px;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  background-color: #ece9d8;
+  border-top: 1px solid #716f64;
 }
 
 /* ========================================================= */
-/* COMPACT THERMAL RECEIPT (80mm POS Printer)                */
+/* THERMAL RECEIPT & PRINT STYLES                            */
 /* ========================================================= */
+#thermal-receipt-print-area {
+  display: none;
+}
+
 .thermal-receipt {
-  background-color: #ffffff;
   width: var(--thermal-receipt-width, 76mm);
-  max-width: var(--thermal-receipt-width, 76mm);
-  margin: 0 auto;
-  padding: 2mm 1mm;
-  box-sizing: border-box;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 12px;
-  line-height: 1.3;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
   color: #000000;
-  display: flex;
-  flex-direction: column;
-  height: auto;
-  min-height: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  margin: 0 auto;
+  line-height: 1.25;
 }
 
 .thermal-receipt-header {
   text-align: center;
-  margin: 0 0 2px 0;
-  padding: 0;
+  margin-bottom: 4px;
 }
 
 .thermal-receipt-title {
-  color: #000000;
-  font-size: 19px;
-  font-weight: bold;
-  text-align: center;
-  margin: 0 0 2px 0;
-  line-height: 1.2;
-  letter-spacing: 0.3px;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
 }
 
 .thermal-receipt-subtitle {
-  font-size: 11.5px;
-  font-weight: bold;
-  text-align: center;
-  margin: 0 0 1px 0;
-  line-height: 1.25;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .thermal-receipt-address {
-  font-size: 11px;
-  text-align: center;
-  margin: 0 0 1px 0;
-  line-height: 1.25;
+  font-size: 10px;
+}
+
+.thermal-receipt-dashed {
+  border-top: 1px dashed #000000;
+  margin: 4px 0;
 }
 
 .thermal-receipt-meta {
-  font-size: 11.5px;
-  font-weight: normal;
-  margin: 2px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5px;
-  line-height: 1.3;
+  font-size: 10.5px;
 }
 
 .thermal-receipt-meta-row {
   display: flex;
   justify-content: space-between;
-  line-height: 1.3;
-}
-
-.thermal-receipt-dashed {
-  border-top: 1px dashed #000000;
-  margin: 3px 0;
+  margin-bottom: 2px;
 }
 
 .thermal-receipt-table {
   width: 100%;
   border-collapse: collapse;
-  margin: 0;
-  padding: 0;
-  font-size: 12px;
-  line-height: 1.25;
+  font-size: 10.5px;
+  margin: 4px 0;
 }
 
 .thermal-receipt-table th {
-  border-bottom: 1px dashed #000000;
-  padding: 2.5px 0;
-  font-size: 12.5px;
-  font-weight: bold;
-  line-height: 1.25;
+  border-bottom: 1px solid #000000;
+  padding: 2px 0;
 }
 
 .thermal-receipt-table td {
   padding: 2px 0;
   vertical-align: top;
-  line-height: 1.25;
-  font-size: 12px;
-}
-
-.thermal-th-item,
-.thermal-td-item {
-  text-align: left;
-  word-break: break-word;
-}
-
-.thermal-th-qtyrate,
-.thermal-td-qtyrate {
-  text-align: right;
-  white-space: nowrap;
-  width: 34%;
-}
-
-.thermal-th-amount,
-.thermal-td-amount {
-  text-align: right;
-  white-space: nowrap;
-  font-weight: bold;
-  width: 25%;
 }
 
 .thermal-receipt-totals {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: 12.5px;
-  line-height: 1.3;
+  font-size: 11px;
 }
 
 .thermal-receipt-total-row {
   display: flex;
   justify-content: space-between;
-  line-height: 1.3;
-  padding: 1px 0;
+  margin-bottom: 2px;
 }
 
 .thermal-receipt-total-main {
-  font-size: 16px;
-  font-weight: bold;
-  line-height: 1.3;
-  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .thermal-receipt-notice {
   text-align: center;
-  font-size: 10.5px;
-  font-style: normal;
-  margin: 2px 0 0 0;
-  padding: 0;
-  line-height: 1.25;
+  font-size: 9.5px;
+  font-style: italic;
+  margin-top: 6px;
 }
 
-#thermal-receipt-print-area {
-  display: none;
-  height: auto;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-}
-
-/* ========================================================= */
-/* PRINT MEDIA CSS: Print ONLY the 80mm Thermal Receipt      */
-/* ========================================================= */
 @media print {
-  @page {
-    size: 80mm auto;
-    margin: 2mm;
+  body * {
+    visibility: hidden;
   }
 
-  *, *::before, *::after {
-    box-sizing: border-box !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  html,
-  body,
-  #root {
-    width: 80mm !important;
-    max-width: 80mm !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    display: block !important;
-    overflow: visible !important;
-  }
-
-  .settlement-page-wrapper {
-    display: block !important;
-    min-height: 0 !important;
-    height: auto !important;
-    max-height: none !important;
-    width: 80mm !important;
-    max-width: 80mm !important;
-    background: #ffffff !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: visible !important;
-  }
-
-  /* Hide screen elements */
-  .settlement-win-titlebar,
-  .settlement-menubar-container,
-  .main-settlement-container,
-  .settlement-modal-overlay,
-  .receipt-modal-overlay,
-  .settlement-alert,
-  button,
-  header,
-  nav {
-    display: none !important;
-  }
-
-  /* When printing directly or from preview modal */
   #thermal-receipt-print-area,
-  #thermal-receipt-print-area *,
-  .thermal-receipt,
-  .thermal-receipt * {
-    visibility: visible !important;
-    color: #000000 !important;
+  #thermal-receipt-print-area * {
+    visibility: visible;
   }
 
   #thermal-receipt-print-area {
     display: block !important;
-    visibility: visible !important;
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 76mm !important;
-    max-width: 76mm !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    overflow: visible !important;
-    z-index: 99999 !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--thermal-paper-size, 80mm);
+    margin: 0;
+    padding: 0;
   }
 
-  .thermal-receipt {
-    display: block !important;
-    visibility: visible !important;
-    width: 76mm !important;
-    max-width: 76mm !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    box-sizing: border-box !important;
-    color: #000000 !important;
-    background: #ffffff !important;
-    font-family: Arial, Helvetica, sans-serif !important;
-    font-size: 12px !important;
-    line-height: 1.3 !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    border: none !important;
-    box-shadow: none !important;
-    overflow: visible !important;
-  }
-
-  #thermal-receipt-print-area table,
-  .thermal-receipt table {
-    display: table !important;
-    width: 100% !important;
-    border-collapse: collapse !important;
-  }
-
-  #thermal-receipt-print-area thead,
-  .thermal-receipt thead {
-    display: table-header-group !important;
-  }
-
-  #thermal-receipt-print-area tbody,
-  .thermal-receipt tbody {
-    display: table-row-group !important;
-  }
-
-  #thermal-receipt-print-area tr,
-  .thermal-receipt tr {
-    display: table-row !important;
-  }
-
-  #thermal-receipt-print-area th,
-  #thermal-receipt-print-area td,
-  .thermal-receipt th,
-  .thermal-receipt td {
-    display: table-cell !important;
-  }
-
-  .thermal-receipt-title {
-    font-size: 19px !important;
-    font-weight: bold !important;
-    text-align: center !important;
-    line-height: 1.2 !important;
-    margin: 0 0 2px 0 !important;
-    letter-spacing: 0.3px !important;
-  }
-
-  .thermal-receipt-subtitle {
-    font-size: 11.5px !important;
-    font-weight: bold !important;
-    text-align: center !important;
-    line-height: 1.25 !important;
-    margin: 0 0 1px 0 !important;
-  }
-
-  .thermal-receipt-address {
-    font-size: 11px !important;
-    font-weight: normal !important;
-    text-align: center !important;
-    line-height: 1.25 !important;
-    margin: 0 0 1px 0 !important;
-  }
-
-  .thermal-receipt-meta {
-    font-size: 11.5px !important;
-    line-height: 1.3 !important;
-    margin: 2px 0 !important;
-  }
-
-  .thermal-receipt-meta-row {
-    font-size: 11.5px !important;
-    line-height: 1.3 !important;
-  }
-
-  .thermal-receipt-dashed {
-    border-top: 1px dashed #000000 !important;
-    margin: 3px 0 !important;
-  }
-
-  .thermal-receipt-table {
-    font-size: 12px !important;
-    line-height: 1.25 !important;
-  }
-
-  .thermal-receipt-table th {
-    font-size: 12.5px !important;
-    font-weight: bold !important;
-    padding: 2.5px 0 !important;
-    border-bottom: 1px dashed #000000 !important;
-  }
-
-  .thermal-receipt-table td {
-    font-size: 12px !important;
-    padding: 2px 0 !important;
-    line-height: 1.25 !important;
-  }
-
-  .thermal-th-item,
-  .thermal-td-item {
-    text-align: left !important;
-    word-break: break-word !important;
-  }
-
-  .thermal-th-qtyrate,
-  .thermal-td-qtyrate {
-    text-align: right !important;
-    white-space: nowrap !important;
-    width: 34% !important;
-  }
-
-  .thermal-th-amount,
-  .thermal-td-amount {
-    text-align: right !important;
-    white-space: nowrap !important;
-    font-weight: bold !important;
-    width: 25% !important;
-  }
-
-  .thermal-receipt-totals {
-    font-size: 12.5px !important;
-    line-height: 1.3 !important;
-  }
-
-  .thermal-receipt-total-row {
-    font-size: 12.5px !important;
-    line-height: 1.3 !important;
-    padding: 1px 0 !important;
-  }
-
-  .thermal-receipt-total-main {
-    font-size: 16px !important;
-    font-weight: bold !important;
-    line-height: 1.3 !important;
-    padding: 2px 0 !important;
-  }
-
-  .thermal-receipt-notice {
-    font-size: 10.5px !important;
-    font-style: normal !important;
-    text-align: center !important;
-    line-height: 1.25 !important;
-    margin: 2px 0 0 0 !important;
+  @page {
+    size: 80mm auto;
+    margin: 0;
   }
 }
-

@@ -11,9 +11,8 @@ import './SettlementInvoice.css';
 
 /**
  * SOFAST MOTORS - Settlement Invoice Module
- * Exact Classic SOFAST Windows/ERP POS design with empty initial states,
- * dynamic real-time calculations, real MongoDB data integration,
- * and thermal receipt printing.
+ * Exact Classic Visual Basic 6 desktop ERP layout matching legacy G.R. Settlement design.
+ * Full MongoDB Atlas data integration, real-time calculations, and thermal receipt printing.
  */
 function SettlementInvoice() {
   const navigate = useNavigate();
@@ -22,10 +21,6 @@ function SettlementInvoice() {
   const { isAdmin } = useAuth();
   const { confirm } = useConfirm();
 
-  // Top Menubar state
-  const [activeDropdown, setActiveDropdown] = useState(null);
-  const menuRef = useRef(null);
-
   // Backend Data Lists
   const [invoicesList, setInvoicesList] = useState([]);
   const [banksList, setBanksList] = useState([]);
@@ -33,7 +28,7 @@ function SettlementInvoice() {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // Section 1: Invoice & Customer (Empty by default)
+  // Top Section: G.R. / Invoice & Customer
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -43,7 +38,7 @@ function SettlementInvoice() {
     localStorage.getItem('username') || localStorage.getItem('userCode') || 'PC004'
   );
 
-  // Section 3: Payment / Settlement Inputs (Empty by default)
+  // Middle Section: Payment / Settlement Inputs
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -52,7 +47,7 @@ function SettlementInvoice() {
   const [bank, setBank] = useState('');
   const [receiptNo, setReceiptNo] = useState('');
 
-  // Selected settlement in history table for deletion
+  // Selected settlement in DataGrid for deletion
   const [selectedSettlementId, setSelectedSettlementId] = useState(null);
 
   // Modals & Popups
@@ -64,59 +59,6 @@ function SettlementInvoice() {
   const [currentTime, setCurrentTime] = useState(
     new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
   );
-
-  // Navigation Menubar Items
-  const topMenuItems = [
-    { id: 'master-files', label: 'Master Files', hasDropdown: true },
-    { id: 'stock-control', label: 'Stock Control System', hasDropdown: true },
-    { id: 'sales-service', label: 'Sales and Service', hasDropdown: true },
-    { id: 'approvement', label: 'Approvement', hasDropdown: true },
-    { id: 'reports', label: 'Reports', path: '/reports' },
-    { id: 'accounting', label: 'Accounting', path: '/management' },
-    { id: 'administration', label: 'Administration', hasDropdown: true },
-  ];
-
-  const masterFilesDropdownItems = [
-    { id: 'item-master', label: 'Item Master', path: '/item-master' },
-    { id: 'supplier-master', label: 'Supplier Master', path: '/supplier-master' },
-    { id: 'customer-details', label: 'Customer Details', path: '/customer-details' },
-    { id: 'alternative-product', label: 'Alternative Product', path: '/alternative-product' },
-  ];
-
-  const stockControlDropdownItems = [
-    { id: 'good-receive-note', label: 'Good Receive Note (GRN)', path: '/grn' },
-    { id: 'good-return-note', label: 'Good Return Note (GREN)', path: '/good-return-note' },
-    { id: 'damage', label: 'Damage', path: '/damage' },
-  ];
-
-
-  const salesServiceDropdownItems = [
-    { id: 'create-invoice', label: 'Create Invoice', path: '/invoice' },
-    { id: 'settlement-invoice', label: 'Settlement Invoice', path: '/settlement-invoice' },
-    { id: 'remaining-balance', label: 'Remaining Balance', path: '/remaining-balance' },
-  ];
-
-  const approvementDropdownItems = [
-    { id: 'payment-voucher', label: 'Payment Voucher', path: '/payment-voucher' },
-    { id: 'petty-cash', label: 'Petty Cash', path: '/petty-cash' },
-    { id: 'leave-request', label: 'Leave Request', path: '/leave-request' },
-  ];
-
-  const administrationDropdownItems = [
-    { id: 'printer-setup', label: 'Printer Setup', path: '/printer-setup' },
-    ...(isAdmin ? [{ id: 'new-user', label: 'New User', path: '/new-user' }] : []),
-  ];
-
-  // Close dropdown menu on outside click
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setActiveDropdown(null);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
 
   const showNotification = (msg, type = 'success') => {
     setNotification({ message: msg, type });
@@ -253,9 +195,6 @@ function SettlementInvoice() {
     return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
-  // State to track calculation and prevent duplicate submission
-  const [calculatedState, setCalculatedState] = useState(null);
-  const [isCalculated, setIsCalculated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 1. Invoice Totals from Real Database Record
@@ -292,7 +231,12 @@ function SettlementInvoice() {
                 : amountToBePaid)))
     : 0;
 
-  // 4. Current Typed Payment Calculations
+  // 4. Return Amount
+  const invoiceReturnAmount = selectedInvoice
+    ? round2(Number(selectedInvoice.returnAmount || selectedInvoice.goodReturnAmount || 0))
+    : 0;
+
+  // 5. Current Typed Payment Calculations
   const hasTypedPayment = paymentAmount !== '' && !isNaN(parseFloat(paymentAmount));
   const typedAmount = hasTypedPayment ? round2(parseFloat(paymentAmount)) : 0;
 
@@ -309,59 +253,25 @@ function SettlementInvoice() {
     ? round2(Math.max(0, outstandingBalanceBefore - amountAppliedVal))
     : outstandingBalanceBefore;
 
-  const initialStatus = selectedInvoice
-    ? (outstandingBalanceBefore === 0 ? 'PAID' : (previouslyAppliedPayments > 0 ? 'PARTIALLY PAID' : 'UNPAID'))
-    : '';
-
-  const statusVal = selectedInvoice
-    ? (hasTypedPayment && typedAmount > 0
-        ? (balanceAfterVal === 0 ? 'PAID' : (totalAmountReceivedVal > 0 ? 'PARTIALLY PAID' : 'UNPAID'))
-        : initialStatus)
-    : '';
-
-  // Calculate Button Trigger / Verification
-  const handleCalculate = () => {
-    if (!selectedInvoice) {
-      showNotification('Please select an Invoice first', 'error');
-      return;
-    }
-    if (!paymentAmount || isNaN(parseFloat(paymentAmount)) || parseFloat(paymentAmount) <= 0) {
-      showNotification('Please enter a valid Payment Amount greater than 0 to calculate', 'error');
+  // Print Bill / Thermal Receipt handler
+  const handlePrintBill = () => {
+    if (!selectedInvoiceNumber && (!selectedInvoice || !selectedInvoice.invoiceNumber)) {
+      showNotification('Please select an Invoice first before printing the bill', 'error');
       return;
     }
 
-    const payAmt = round2(parseFloat(paymentAmount));
-    if (outstandingBalanceBefore <= 0) {
-      showNotification(
-        `Invoice is already fully paid. Amount Applied: Rs. 0.00, Change / Cash Return: Rs. ${formatCurrency(payAmt)}`,
-        'info'
-      );
-      setIsCalculated(true);
-      return;
-    }
-
-    const applied = round2(Math.min(payAmt, outstandingBalanceBefore));
-    const chg = round2(Math.max(0, payAmt - applied));
-    const balAfter = round2(Math.max(0, outstandingBalanceBefore - applied));
-    const totPaid = round2(previouslyAppliedPayments + applied);
-    const stat = balAfter === 0 ? 'PAID' : (totPaid > 0 ? 'PARTIALLY PAID' : 'UNPAID');
-
-    setCalculatedState({
-      paymentAmount: payAmt,
-      amountReceived: payAmt,
-      amountApplied: applied,
-      change: chg,
-      balanceAfter: balAfter,
-      totalPaid: totPaid,
-      status: stat,
-    });
-    setIsCalculated(true);
-
-    showNotification(
-      `Calculation applied: Received Rs. ${formatCurrency(payAmt)}, Applied Rs. ${formatCurrency(applied)}, Change Rs. ${formatCurrency(chg)}, Balance Rs. ${formatCurrency(balAfter)} [${stat}]`,
-      'info'
+    setCurrentTime(
+      new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     );
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.print();
+      }, 50);
+    });
   };
+
+  const handlePrintReceipt = handlePrintBill;
 
   // Button: New (Clears all fields completely to clean initial state)
   const handleNew = async () => {
@@ -377,8 +287,6 @@ function SettlementInvoice() {
     setBank('');
     setSelectedSettlementId(null);
     setSettlementsList([]);
-    setCalculatedState(null);
-    setIsCalculated(false);
 
     try {
       const recRes = await api.get('/settlements/next-receipt');
@@ -415,9 +323,6 @@ function SettlementInvoice() {
       showNotification('No payment amount can be applied to this invoice', 'error');
       return;
     }
-
-    const confirmed = await confirmSave('Do you want to save this record?');
-    if (!confirmed) return;
 
     const method = paymentMethod || 'Cash';
 
@@ -491,8 +396,6 @@ function SettlementInvoice() {
         setDateRealized('');
         setBank('');
         setSelectedSettlementId(null);
-        setCalculatedState(null);
-        setIsCalculated(false);
 
         // Prompt: "Do you wish to print this settlement receipt?" (Standard Windows Yes/No dialog)
         setTimeout(async () => {
@@ -503,7 +406,7 @@ function SettlementInvoice() {
             defaultFocus: 'yes',
           });
           if (shouldPrint) {
-            handlePrintReceipt();
+            handlePrintBill();
           }
         }, 150);
       }
@@ -554,7 +457,6 @@ function SettlementInvoice() {
         }
 
         setSelectedSettlementId(null);
-        setIsCalculated(false);
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to delete Settlement';
@@ -564,26 +466,8 @@ function SettlementInvoice() {
     }
   };
 
-  // Line items for the Invoice Items table
+  // Line items for the thermal receipt
   const displayLineItems = selectedInvoice?.lineItems || [];
-
-  // Print Bill handler
-  const handlePrintBill = () => {
-    if (!selectedInvoiceNumber && (!selectedInvoice || !selectedInvoice.invoiceNumber)) {
-      showNotification('Please select an Invoice first before printing the bill', 'error');
-      return;
-    }
-
-    setCurrentTime(
-      new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-    );
-
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        window.print();
-      }, 50);
-    });
-  };
 
   // Filtered invoices for lookup modal (Standard invoices only)
   const filteredInvoices = invoicesList
@@ -601,8 +485,6 @@ function SettlementInvoice() {
 
   // Reusable Compact Thermal Receipt Component
   const renderThermalReceiptContent = () => {
-    // Sort purchased line items in ascending (A-Z, 0-9) order based on item/product name
-    // Applied exclusively to print preview and physical print layout without altering database order
     const sortedPrintLineItems = [...displayLineItems].sort(compareBillPrintItems);
 
     return (
@@ -670,79 +552,56 @@ function SettlementInvoice() {
           </tbody>
         </table>
 
-      <div className="thermal-receipt-dashed"></div>
+        <div className="thermal-receipt-dashed"></div>
 
-      {/* Totals */}
-      <div className="thermal-receipt-totals">
-        <div className="thermal-receipt-total-row thermal-receipt-total-main">
-          <span>Amount to Be Paid:</span>
-          <span>
-            {formatCurrency(amountToBePaid)}
-          </span>
-        </div>
-        {invoiceLineDiscounts > 0 && (
-          <div className="thermal-receipt-total-row">
-            <span>Total Discount:</span>
-            <span>
-              {formatCurrency(invoiceLineDiscounts)}
-            </span>
+        {/* Totals */}
+        <div className="thermal-receipt-totals">
+          <div className="thermal-receipt-total-row thermal-receipt-total-main">
+            <span>Amount to Be Paid:</span>
+            <span>{formatCurrency(amountToBePaid)}</span>
           </div>
-        )}
-        <div className="thermal-receipt-total-row">
-          <span>Total Paid Toward Inv:</span>
-          <span style={{ fontWeight: 'bold' }}>
-            {formatCurrency(totalAmountReceivedVal)}
-          </span>
-        </div>
-        {hasTypedPayment && typedAmount > 0 && (
-          <>
+          {invoiceLineDiscounts > 0 && (
             <div className="thermal-receipt-total-row">
-              <span>Payment Received:</span>
-              <span>{formatCurrency(amountReceivedVal)}</span>
+              <span>Total Discount:</span>
+              <span>{formatCurrency(invoiceLineDiscounts)}</span>
             </div>
-            <div className="thermal-receipt-total-row">
-              <span>Amount Applied:</span>
-              <span style={{ fontWeight: 'bold' }}>{formatCurrency(amountAppliedVal)}</span>
-            </div>
-            {changeCashReturnVal > 0 && (
+          )}
+          <div className="thermal-receipt-total-row">
+            <span>Total Paid Toward Inv:</span>
+            <span style={{ fontWeight: 'bold' }}>{formatCurrency(totalAmountReceivedVal)}</span>
+          </div>
+          {hasTypedPayment && typedAmount > 0 && (
+            <>
               <div className="thermal-receipt-total-row">
-                <span>Change / Cash Return:</span>
-                <span style={{ fontWeight: 'bold' }}>{formatCurrency(changeCashReturnVal)}</span>
+                <span>Payment Received:</span>
+                <span>{formatCurrency(amountReceivedVal)}</span>
               </div>
-            )}
-          </>
-        )}
-        <div className="thermal-receipt-total-row">
-          <span>Remaining Balance:</span>
-          <span style={{ fontWeight: 'bold' }}>
-            {formatCurrency(balanceAfterVal)}
-          </span>
+              <div className="thermal-receipt-total-row">
+                <span>Amount Applied:</span>
+                <span style={{ fontWeight: 'bold' }}>{formatCurrency(amountAppliedVal)}</span>
+              </div>
+              {changeCashReturnVal > 0 && (
+                <div className="thermal-receipt-total-row">
+                  <span>Change / Cash Return:</span>
+                  <span style={{ fontWeight: 'bold' }}>{formatCurrency(changeCashReturnVal)}</span>
+                </div>
+              )}
+            </>
+          )}
+          <div className="thermal-receipt-total-row">
+            <span>Remaining Balance:</span>
+            <span style={{ fontWeight: 'bold' }}>{formatCurrency(balanceAfterVal)}</span>
+          </div>
+        </div>
+
+        <div className="thermal-receipt-dashed"></div>
+
+        <div className="thermal-receipt-notice">
+          In case of price discrepancy, return the items & bill within 3 days for refund of difference
         </div>
       </div>
-
-      <div className="thermal-receipt-dashed"></div>
-
-      <div className="thermal-receipt-notice">
-        In case of price discrepancy, return the items & bill within 3 days for refund of difference
-      </div>
-    </div>
-  );
-};
-
-  // Settlement History Summary Totals
-  const totalSettledAmount = round2(settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0));
-  const totalSettledReceived = round2(
-    settlementsList.reduce((sum, s) => sum + Number(s.received !== undefined && s.received !== null ? s.received : (s.amount || 0)), 0)
-  );
-  const totalSettledApplied = round2(settlementsList.reduce((sum, s) => sum + Number(s.amount || 0), 0));
-  const totalSettledChange = round2(
-    settlementsList.reduce((sum, s) => {
-      const chg = s.change !== undefined && s.change !== null
-        ? Number(s.change)
-        : Math.max(0, Number(s.received || s.amount || 0) - Number(s.amount || 0));
-      return sum + chg;
-    }, 0)
-  );
+    );
+  };
 
   return (
     <div className="settlement-page-wrapper">
@@ -771,15 +630,18 @@ function SettlementInvoice() {
         </div>
       </header>
 
-      {/* 3. Main Full-Width Form Container */}
-      <main className="main-settlement-container" onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.settlement-btn-save-blue' })}>
+      {/* 3. Main Classic VB6 ERP Form Container */}
+      <main
+        className="settlement-vb6-main"
+        onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.settlement-vb6-btn-save' })}
+      >
         {/* Notification Alert */}
         {notification && (
-          <div className={`settlement-alert ${notification.type}`}>
+          <div className={`settlement-vb6-alert ${notification.type}`}>
             <span>{notification.message}</span>
             <button
               type="button"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+              className="settlement-vb6-alert-close"
               onClick={() => setNotification(null)}
             >
               &#x2715;
@@ -787,268 +649,195 @@ function SettlementInvoice() {
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* SECTION 1: INVOICE & CUSTOMER                             */}
-        {/* ========================================================= */}
-        <div className="settlement-panel-box">
-          <div className="settlement-section-header">Invoice & Customer</div>
-          <div className="settlement-panel-content">
-            <div className="settlement-top-grid">
-              {/* Left Column: Invoice No, Value, Address */}
-              <div className="settlement-top-col">
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-100">Invoice No . . . . .</span>
-                  <div style={{ display: 'flex', flex: 1, gap: '4px' }}>
-                    <select
-                      className="settlement-select"
-                      style={{ flex: 1, fontWeight: 'bold', color: '#000080' }}
-                      value={selectedInvoiceNumber}
-                      onChange={(e) => {
-                        const invNum = e.target.value;
-                        const match = invoicesList.find((i) => i.invoiceNumber === invNum || String(i.no) === invNum);
-                        handleSelectInvoice(match || null);
-                      }}
-                    >
-                      <option value="">Select Invoice...</option>
-                      {invoicesList.map((inv) => (
-                        <option key={inv._id || inv.invoiceNumber} value={inv.invoiceNumber || inv.no}>
-                          {inv.invoiceNumber || inv.no} - {inv.customerName || 'Cash'}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      className="settlement-btn-lookup"
-                      title="Search Invoice in Database"
-                      onClick={() => setInvoiceLookupOpen(true)}
-                    >
-                      Search
-                    </button>
-                  </div>
-                </div>
-
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-100">Value . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ flex: 1, fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(invoiceTotalGross) : ''}
-                  />
-                </div>
-
-                <div className="settlement-field-row" style={{ alignItems: 'flex-start' }}>
-                  <span className="dotted-label-blue label-w-100" style={{ marginTop: '3px' }}>Address . . . . . . .</span>
-                  <textarea
-                    className="settlement-textarea"
-                    rows="2"
-                    style={{ flex: 1, height: '42px' }}
-                    readOnly
-                    value={customerAddress}
-                  />
+        <div className="settlement-vb6-form-window">
+          {/* ========================================================= */}
+          {/* TOP SECTION: G.R. No, Value, Customer, Return, Balance   */}
+          {/* ========================================================= */}
+          <div className="settlement-vb6-top-grid">
+            {/* Row 1: G.R. No, Value, Customer */}
+            <div className="settlement-vb6-top-row">
+              <div className="settlement-vb6-field grn-field">
+                <span className="settlement-vb6-navy-label grn-label">G.R. No: . . . .</span>
+                <div className="settlement-vb6-combo-wrap">
+                  <select
+                    className="settlement-vb6-select grn-select"
+                    value={selectedInvoiceNumber}
+                    onChange={(e) => {
+                      const invNum = e.target.value;
+                      const match = invoicesList.find((i) => i.invoiceNumber === invNum || String(i.no) === invNum);
+                      handleSelectInvoice(match || null);
+                    }}
+                  >
+                    <option value="">Select Invoice...</option>
+                    {invoicesList.map((inv) => (
+                      <option key={inv._id || inv.invoiceNumber} value={inv.invoiceNumber || inv.no}>
+                        {inv.invoiceNumber || inv.no} - {inv.customerName || 'Cash'}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="settlement-vb6-lookup-btn"
+                    title="Lookup Invoice (Search)"
+                    onClick={() => setInvoiceLookupOpen(true)}
+                  >
+                    ...
+                  </button>
                 </div>
               </div>
 
-              {/* Right Column: Customer, Balance, Date & User */}
-              <div className="settlement-top-col">
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-90">Customer . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ flex: 1, fontWeight: '600' }}
-                    readOnly
-                    value={customerName}
-                  />
-                </div>
+              <div className="settlement-vb6-field value-field">
+                <span className="settlement-vb6-navy-label value-label">Value:</span>
+                <input
+                  type="text"
+                  className="settlement-vb6-input readonly value-input"
+                  readOnly
+                  value={selectedInvoice ? formatCurrency(invoiceTotalGross) : ''}
+                />
+              </div>
 
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-90">Balance . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly settlement-input-green"
-                    style={{ flex: 1, fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(outstandingBalanceBefore) : ''}
-                  />
-                </div>
+              <div className="settlement-vb6-field customer-field">
+                <span className="settlement-vb6-navy-label customer-label">Customer:</span>
+                <input
+                  type="text"
+                  className="settlement-vb6-input readonly customer-input"
+                  readOnly
+                  value={customerName}
+                />
+              </div>
+            </div>
 
-                <div className="settlement-field-row">
-                  <div style={{ display: 'flex', flex: 1, alignItems: 'center', gap: '6px' }}>
-                    <span className="dotted-label-blue label-w-90">Date . . . . . . . .</span>
-                    <input
-                      type="date"
-                      className="settlement-input"
-                      style={{ flex: 1 }}
-                      value={invoiceDate}
-                      onChange={(e) => setInvoiceDate(e.target.value)}
-                    />
-                  </div>
+            {/* Row 2: (Blank space on left), Return, Balance */}
+            <div className="settlement-vb6-top-row row-2">
+              <div className="settlement-vb6-spacer-left"></div>
 
-                  <div style={{ display: 'flex', width: '180px', alignItems: 'center', gap: '6px' }}>
-                    <span className="dotted-label-blue" style={{ width: '60px' }}>User . . . .</span>
-                    <input
-                      type="text"
-                      className="settlement-input readonly"
-                      style={{ flex: 1, textAlign: 'center' }}
-                      readOnly
-                      value={cashierUser}
-                    />
-                  </div>
-                </div>
+              <div className="settlement-vb6-field return-field">
+                <span className="settlement-vb6-navy-label return-label">Return:</span>
+                <input
+                  type="text"
+                  className="settlement-vb6-input readonly return-input"
+                  readOnly
+                  value={selectedInvoice ? formatCurrency(invoiceReturnAmount) : ''}
+                />
+              </div>
+
+              <div className="settlement-vb6-field balance-field">
+                <span className="settlement-vb6-navy-label balance-label">Balance: . . .</span>
+                <input
+                  type="text"
+                  className="settlement-vb6-input readonly balance-input"
+                  readOnly
+                  value={selectedInvoice ? formatCurrency(outstandingBalanceBefore) : ''}
+                />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* ========================================================= */}
-        {/* SECTION 2: INVOICE ITEMS                                  */}
-        {/* ========================================================= */}
-        <div className="settlement-panel-box">
-          <div className="settlement-section-header">Invoice Items</div>
-          <div className="settlement-table-container">
-            <table className="settlement-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '40px', textAlign: 'center' }}>#</th>
-                  <th style={{ width: '180px' }}>Code</th>
-                  <th>Description</th>
-                  <th style={{ width: '90px', textAlign: 'right' }}>Qty</th>
-                  <th style={{ width: '120px', textAlign: 'right' }}>Unit Price</th>
-                  <th style={{ width: '140px', textAlign: 'right' }}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayLineItems.length === 0 ? (
-                  <>
-                    <tr style={{ height: '22px' }}>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                    <tr style={{ height: '22px' }}>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                  </>
-                ) : (
-                  displayLineItems.map((li, idx) => (
-                    <tr key={idx}>
-                      <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                      <td style={{ fontWeight: '600', color: '#000080' }}>{li.code || li.itemCode}</td>
-                      <td>{li.description}</td>
-                      <td style={{ textAlign: 'right' }}>{Number(li.quantity || li.qty || 1).toFixed(2)}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        {Number(li.price || li.unitPrice || 0).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                        {Number(li.value || (li.price * li.quantity) || 0).toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          {/* ========================================================= */}
+          {/* MIDDLE SECTION: Header Bar, Entry Row, Buttons & Bank/Rec */}
+          {/* ========================================================= */}
+          <div className="settlement-vb6-middle-container">
+            {/* 5-Column Silver Header Bar */}
+            <div className="settlement-vb6-header-bar">
+              <div className="settlement-vb6-th col-date">Date</div>
+              <div className="settlement-vb6-th col-amount">Amount</div>
+              <div className="settlement-vb6-th col-method">Method</div>
+              <div className="settlement-vb6-th col-cheque">Cheque No</div>
+              <div className="settlement-vb6-th col-realized">Date Realized</div>
+            </div>
 
-        {/* ========================================================= */}
-        {/* SECTION 3: PAYMENT / SETTLEMENT (3-Column Layout)         */}
-        {/* ========================================================= */}
-        <div className="settlement-panel-box">
-          <div className="settlement-section-header">Payment / Settlement</div>
-          <div className="settlement-panel-content">
-            <div className="settlement-payment-grid">
-              {/* Column 1: Payment Entry Inputs + Green Calculate Button */}
-              <div className="settlement-payment-col">
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-110">Payment Date . . . . .</span>
-                  <input
-                    type="date"
-                    className="settlement-input"
-                    style={{ flex: 1 }}
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                  />
-                </div>
+            {/* Entry Controls Row */}
+            <div className="settlement-vb6-entry-row">
+              <div className="settlement-vb6-td col-date">
+                <input
+                  type="date"
+                  className="settlement-vb6-grid-input"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                />
+              </div>
+              <div className="settlement-vb6-td col-amount">
+                <input
+                  type="number"
+                  step="0.01"
+                  className="settlement-vb6-grid-input text-right"
+                  value={paymentAmount}
+                  placeholder=""
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                />
+              </div>
+              <div className="settlement-vb6-td col-method">
+                <select
+                  className="settlement-vb6-grid-select"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="">Select</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Credit Note">Credit Note</option>
+                  <option value="Bank">Bank</option>
+                  <option value="Card">Card</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="settlement-vb6-td col-cheque">
+                <input
+                  type="text"
+                  className="settlement-vb6-grid-input"
+                  value={chequeNo}
+                  onChange={(e) => setChequeNo(e.target.value)}
+                />
+              </div>
+              <div className="settlement-vb6-td col-realized">
+                <input
+                  type="date"
+                  className="settlement-vb6-grid-input"
+                  value={dateRealized}
+                  onChange={(e) => setDateRealized(e.target.value)}
+                />
+              </div>
+            </div>
 
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-110">Payment Amount . .</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="settlement-input"
-                    style={{ flex: 1, textAlign: 'right', fontWeight: 'bold' }}
-                    placeholder=""
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                  />
-                </div>
+            {/* Split Sub-Row: Left Buttons, Right Bank & Receipts No */}
+            <div className="settlement-vb6-subrow-split">
+              {/* Left Side: Save, Delete, New Buttons */}
+              <div className="settlement-vb6-buttons-area">
+                <button
+                  type="button"
+                  className="settlement-vb6-btn settlement-vb6-btn-save"
+                  onClick={handleSaveSettlement}
+                  disabled={loading || isSubmitting}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="settlement-vb6-btn"
+                  onClick={handleDeleteSettlement}
+                  disabled={loading || !selectedSettlementId}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="settlement-vb6-btn"
+                  onClick={handleNew}
+                >
+                  New
+                </button>
+              </div>
 
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-110">Method . . . . . . . . .</span>
+              {/* Right Side: Bank & Receipts No Controls */}
+              <div className="settlement-vb6-bank-receipts-area">
+                <div className="settlement-vb6-meta-row">
+                  <div className="settlement-vb6-gray-label">Bank</div>
                   <select
-                    className="settlement-select"
-                    style={{ flex: 1, fontWeight: '600' }}
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                  >
-                    <option value="">Select method</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Credit Note">Credit Note</option>
-                    <option value="Bank">Bank Transfer</option>
-                    <option value="Card">Card</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-110">Cheque No / CN . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input"
-                    style={{ flex: 1 }}
-                    placeholder=""
-                    value={chequeNo}
-                    onChange={(e) => setChequeNo(e.target.value)}
-                  />
-                </div>
-
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-110">Date Realized . . . . .</span>
-                  <input
-                    type="date"
-                    className="settlement-input"
-                    style={{ flex: 1 }}
-                    value={dateRealized}
-                    onChange={(e) => setDateRealized(e.target.value)}
-                  />
-                </div>
-
-                <div className="settlement-field-row">
-                  <span className="dotted-label-blue label-w-110">Bank . . . . . . . . . . .</span>
-                  <select
-                    className="settlement-select"
-                    style={{ flex: 1 }}
+                    className="settlement-vb6-select meta-select"
                     value={bank}
                     onChange={(e) => setBank(e.target.value)}
                   >
-                    <option value="">Select bank</option>
+                    <option value="">Select Bank...</option>
                     {banksList.map((b, idx) => (
                       <option key={b._id || b.code || idx} value={b.code || b.description}>
                         {b.description || b.name || b.code}
@@ -1057,178 +846,43 @@ function SettlementInvoice() {
                   </select>
                 </div>
 
-                {/* Full-width green Calculate button */}
-                <div style={{ marginTop: '4px' }}>
-                  <button
-                    type="button"
-                    className="settlement-btn-calculate-green"
-                    onClick={handleCalculate}
-                  >
-                    Calculate
-                  </button>
-                </div>
-              </div>
-
-              {/* Column 2: Calculation Panel (Inner Beige Card) */}
-              <div className="settlement-calc-box">
-                <div className="settlement-calc-row">
-                  <span className="dotted-label-blue">Outstanding Balance (Before) . . . .</span>
+                <div className="settlement-vb6-meta-row">
+                  <div className="settlement-vb6-gray-label">Receipts No</div>
                   <input
                     type="text"
-                    className="settlement-input readonly"
-                    style={{ width: '130px', textAlign: 'right', fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(outstandingBalanceBefore) : ''}
-                  />
-                </div>
-
-                <div className="settlement-calc-row">
-                  <span className="dotted-label-blue">Amount Received . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ width: '130px', textAlign: 'right', fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice && hasTypedPayment ? formatCurrency(amountReceivedVal) : ''}
-                  />
-                </div>
-
-                <div className="settlement-calc-row">
-                  <span className="dotted-label-blue">Amount Applied . . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ width: '130px', textAlign: 'right', fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice && hasTypedPayment ? formatCurrency(amountAppliedVal) : ''}
-                  />
-                </div>
-
-                <div className="settlement-calc-row">
-                  <span className="dotted-label-blue">Change / Cash Return . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly settlement-input-green"
-                    style={{ width: '130px', textAlign: 'right', fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice && hasTypedPayment ? formatCurrency(changeCashReturnVal) : ''}
-                  />
-                </div>
-              </div>
-
-              {/* Column 3: Invoice Summary */}
-              <div className="settlement-summary-box">
-                <div className="settlement-summary-row">
-                  <span className="dotted-label-blue">Invoice Total . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ width: '130px', textAlign: 'right' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(invoiceTotalGross) : ''}
-                  />
-                </div>
-
-                <div className="settlement-summary-row">
-                  <span className="dotted-label-blue">Total Discount . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ width: '130px', textAlign: 'right' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(invoiceLineDiscounts) : ''}
-                  />
-                </div>
-
-                <div className="settlement-summary-row">
-                  <span className="dotted-label-blue">Amount To Be Paid . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ width: '130px', textAlign: 'right', fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(amountToBePaid) : ''}
-                  />
-                </div>
-
-                <div className="settlement-summary-row">
-                  <span className="dotted-label-blue">Total Amount Received . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly"
-                    style={{ width: '130px', textAlign: 'right', fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(totalAmountReceivedVal) : ''}
-                  />
-                </div>
-
-                <div className="settlement-summary-row">
-                  <span className="dotted-label-blue">Balance (After) . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly settlement-input-green"
-                    style={{ width: '130px', textAlign: 'right', fontWeight: 'bold' }}
-                    readOnly
-                    value={selectedInvoice ? formatCurrency(balanceAfterVal) : ''}
-                  />
-                </div>
-
-                <div className="settlement-summary-row">
-                  <span className="dotted-label-blue">Status . . . . . . . . . . . .</span>
-                  <input
-                    type="text"
-                    className="settlement-input readonly settlement-input-green"
-                    style={{ width: '130px', textAlign: 'center', fontWeight: 'bold' }}
-                    readOnly
-                    value={statusVal}
+                    className="settlement-vb6-input meta-input"
+                    value={receiptNo}
+                    onChange={(e) => setReceiptNo(e.target.value)}
                   />
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* ========================================================= */}
-        {/* SECTION 4: SETTLEMENT HISTORY                             */}
-        {/* ========================================================= */}
-        <div className="settlement-panel-box" style={{ flex: 1, minHeight: '130px' }}>
-          <div className="settlement-section-header">Settlement History</div>
-          <div className="settlement-table-container">
-            <table className="settlement-table">
+          {/* ========================================================= */}
+          {/* BOTTOM SECTION: Large Classic ActiveX DataGrid Panel     */}
+          {/* ========================================================= */}
+          <div className="settlement-vb6-datagrid-box">
+            <table className="settlement-vb6-table">
               <thead>
                 <tr>
-                  <th style={{ width: '35px', textAlign: 'center' }}>#</th>
+                  <th style={{ width: '38px', textAlign: 'center' }}>#</th>
                   <th style={{ width: '95px' }}>Date</th>
-                  <th style={{ width: '100px', textAlign: 'right' }}>Amount</th>
+                  <th style={{ width: '105px', textAlign: 'right' }}>Amount</th>
                   <th style={{ width: '90px' }}>Method</th>
-                  <th style={{ width: '100px', textAlign: 'right' }}>Received</th>
-                  <th style={{ width: '100px', textAlign: 'right' }}>Applied</th>
-                  <th style={{ width: '90px', textAlign: 'right' }}>Change</th>
-                  <th style={{ width: '120px' }}>Cheque No / CN</th>
-                  <th style={{ width: '120px' }}>Bank</th>
-                  <th style={{ width: '100px' }}>Date Realized</th>
-                  <th style={{ width: '80px', textAlign: 'center' }}>User</th>
+                  <th style={{ width: '120px' }}>Cheque No</th>
+                  <th style={{ width: '105px' }}>Date Realized</th>
+                  <th style={{ width: '135px' }}>Bank</th>
+                  <th style={{ width: '115px' }}>Receipts No</th>
+                  <th style={{ width: '105px', textAlign: 'right' }}>Balance</th>
+                  <th style={{ width: '85px', textAlign: 'center' }}>User</th>
                 </tr>
               </thead>
               <tbody>
                 {settlementsList.length === 0 ? (
-                  <>
-                    <tr style={{ height: '22px' }}>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                    </tr>
-                    <tr style={{ height: '22px' }}>
-                      <td></td>
-                      <td></td>
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={`empty-${i}`} className="settlement-vb6-empty-tr">
+                      <td style={{ textAlign: 'center' }}>&nbsp;</td>
                       <td></td>
                       <td></td>
                       <td></td>
@@ -1239,23 +893,15 @@ function SettlementInvoice() {
                       <td></td>
                       <td></td>
                     </tr>
-                  </>
+                  ))
                 ) : (
                   settlementsList.map((st, idx) => {
                     const isSelected = selectedSettlementId === st._id;
                     const stAmount = Number(st.amount || 0);
-                    const stReceived = Number(st.received !== undefined && st.received !== null ? st.received : (st.amount || 0));
-                    const stApplied = Number(st.amount || 0);
-                    const stChange = Number(
-                      st.change !== undefined && st.change !== null
-                        ? st.change
-                        : Math.max(0, stReceived - stApplied)
-                    );
-
                     return (
                       <tr
                         key={st._id}
-                        className={isSelected ? 'selected' : ''}
+                        className={isSelected ? 'vb6-row-selected' : ''}
                         onClick={() => setSelectedSettlementId(isSelected ? null : st._id)}
                       >
                         <td style={{ textAlign: 'center' }}>{idx + 1}</td>
@@ -1264,91 +910,21 @@ function SettlementInvoice() {
                           {formatCurrency(stAmount)}
                         </td>
                         <td>{st.method || 'Cash'}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(stReceived)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(stApplied)}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {formatCurrency(stChange)}
-                        </td>
                         <td>{st.chequeNo || '-'}</td>
-                        <td>{st.bank || '-'}</td>
                         <td>{st.dateRealized || '-'}</td>
+                        <td>{st.bank || '-'}</td>
+                        <td>{st.receiptNo || '-'}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          {st.balanceAfter !== undefined ? formatCurrency(st.balanceAfter) : '-'}
+                        </td>
                         <td style={{ textAlign: 'center' }}>{st.createdBy || 'PC004'}</td>
                       </tr>
                     );
                   })
                 )}
-
-                {/* Total Summary Row (Light sky-blue) */}
-                <tr className="settlement-total-row">
-                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>Total</td>
-                  <td></td>
-                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                    {settlementsList.length > 0 ? formatCurrency(totalSettledAmount) : ''}
-                  </td>
-                  <td></td>
-                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                    {settlementsList.length > 0 ? formatCurrency(totalSettledReceived) : ''}
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                    {settlementsList.length > 0 ? formatCurrency(totalSettledApplied) : ''}
-                  </td>
-                  <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                    {settlementsList.length > 0 ? formatCurrency(totalSettledChange) : ''}
-                  </td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                </tr>
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* ========================================================= */}
-        {/* SECTION 5: ACTION BUTTONS TOOLBAR                         */}
-        {/* ========================================================= */}
-        <div className="settlement-action-toolbar">
-          <button type="button" className="settlement-btn-classic" onClick={handleNew}>
-            New
-          </button>
-          <button
-            type="button"
-            className="settlement-btn-classic settlement-btn-save-blue"
-            onClick={handleSaveSettlement}
-            disabled={loading || isSubmitting}
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            className="settlement-btn-classic"
-            onClick={handleDeleteSettlement}
-            disabled={loading || !selectedSettlementId}
-          >
-            Delete
-          </button>
-          <button
-            type="button"
-            className="settlement-btn-classic btn-preview-bill"
-            onClick={() => setReceiptPreviewOpen(true)}
-          >
-            Preview Bill
-          </button>
-          <button
-            type="button"
-            className="settlement-btn-classic btn-print-bill"
-            onClick={handlePrintBill}
-          >
-            Print Bill
-          </button>
-          <button type="button" className="settlement-btn-classic" onClick={() => navigate('/invoice')}>
-            Cancel
-          </button>
         </div>
       </main>
 
@@ -1378,14 +954,14 @@ function SettlementInvoice() {
             <div className="receipt-modal-footer">
               <button
                 type="button"
-                className="settlement-btn-classic btn-print-bill"
+                className="settlement-vb6-btn"
                 onClick={handlePrintBill}
               >
                 Print
               </button>
               <button
                 type="button"
-                className="settlement-btn-classic"
+                className="settlement-vb6-btn"
                 onClick={() => setReceiptPreviewOpen(false)}
               >
                 Close
@@ -1413,15 +989,15 @@ function SettlementInvoice() {
             <div className="settlement-modal-body">
               <input
                 type="text"
-                className="settlement-input"
-                style={{ width: '100%', fontSize: '11px' }}
+                className="settlement-vb6-input"
+                style={{ width: '100%', fontSize: '11px', marginBottom: '8px' }}
                 placeholder="Search by Invoice No, Customer Code, Name..."
                 value={invoiceSearchQuery}
                 onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                 autoFocus
               />
               <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
-                <table className="settlement-table">
+                <table className="settlement-vb6-table">
                   <thead>
                     <tr>
                       <th style={{ width: '40px' }}>#</th>
@@ -1464,8 +1040,8 @@ function SettlementInvoice() {
                           <td style={{ textAlign: 'center' }}>
                             <button
                               type="button"
-                              className="settlement-btn-classic"
-                              style={{ height: '20px', minWidth: '45px', padding: '0 4px', fontSize: '10.5px' }}
+                              className="settlement-vb6-btn"
+                              style={{ height: '22px', minWidth: '48px', padding: '0 4px', fontSize: '11px' }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleSelectInvoice(inv);
@@ -1484,7 +1060,7 @@ function SettlementInvoice() {
             <div className="settlement-modal-footer">
               <button
                 type="button"
-                className="settlement-btn-classic"
+                className="settlement-vb6-btn"
                 onClick={() => setInvoiceLookupOpen(false)}
               >
                 Close
