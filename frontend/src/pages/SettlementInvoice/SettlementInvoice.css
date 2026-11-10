@@ -1,7 +1,6 @@
 /* ========================================================= */
-/* SOFAST POS - PROFESSIONAL DESKTOP ERP SETTLEMENT INVOICE  */
-/* Design target: Customer Settlement / Receipt Entry UI     */
-/* Compact Desktop ERP Proportioning                         */
+/* SOFAST POS - PROFESSIONAL DESKTOP ERP CUSTOMER SETTLEMENT */
+/* Standard 98% Screen Width Layout with Exact Alignments    */
 /* ========================================================= */
 
 :root {
@@ -20,6 +19,12 @@
   --thermal-receipt-width: 76mm;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 .settlement-page-wrapper {
   display: flex;
   flex-direction: column;
@@ -29,7 +34,6 @@
   background-color: var(--erp-bg-light);
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   user-select: none;
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
   overflow-x: hidden;
@@ -37,16 +41,15 @@
 
 /* 1. Classic Windows Title Bar */
 .settlement-win-titlebar {
-  height: 26px;
-  min-height: 26px;
+  height: 28px;
+  min-height: 28px;
   background: linear-gradient(90deg, #094fa4 0%, #1565c0 50%, #094fa4 100%);
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  padding: 0 4px 0 8px;
+  padding: 0 6px 0 10px;
   color: #ffffff;
-  box-sizing: border-box;
   flex-shrink: 0;
   width: 100%;
   z-index: 10;
@@ -55,35 +58,35 @@
 .settlement-win-brand {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 .settlement-win-icon {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   fill: #ffffff;
 }
 
 .settlement-win-heading {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.25px;
   text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .settlement-win-controls {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
 }
 
 .settlement-ctrl-btn {
-  width: 19px;
-  height: 19px;
+  width: 21px;
+  height: 21px;
   background-color: #ece9d8;
   border: 1px solid #ffffff;
   box-shadow: inset -1px -1px 0 #716f64, inset 1px 1px 0 #ffffff;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
   color: #000000;
   display: flex;
@@ -109,42 +112,39 @@
   background-color: #e04343;
 }
 
-/* 2. Main Page Content (Compact ERP) */
+/* 2. Main Page Content (98% Desktop Width Layout) */
 .settlement-erp-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 8px 12px 18px 12px;
-  box-sizing: border-box;
+  padding: 10px 14px 20px 14px;
   background-color: var(--erp-bg-light);
   width: 100%;
 }
 
 .settlement-erp-window-card {
-  width: 100%;
-  max-width: 900px;
+  width: 98%;
+  max-width: 1480px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  box-sizing: border-box;
+  gap: 12px;
+  margin: 0 auto;
 }
 
-/* Alert Notification */
+/* Notification Alert */
 .settlement-erp-alert {
-  width: 100%;
-  max-width: 900px;
-  padding: 5px 10px;
-  margin-bottom: 4px;
+  width: 98%;
+  max-width: 1480px;
+  padding: 6px 14px;
   border: 1px solid #716f64;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-radius: 3px;
-  box-sizing: border-box;
 }
 
 .settlement-erp-alert.success {
@@ -174,7 +174,7 @@
 .settlement-erp-alert-close {
   background: transparent;
   border: none;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   font-weight: bold;
 }
@@ -184,132 +184,134 @@
 /* ========================================================= */
 .erp-section-box {
   background-color: #ffffff;
-  border-radius: 3px;
+  border-radius: 4px;
   border: 1px solid var(--erp-border-color);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-sizing: border-box;
+  width: 100%;
 }
 
 .erp-section-header {
-  height: 25px;
-  min-height: 25px;
+  height: 28px;
+  min-height: 28px;
   background-color: var(--erp-primary-blue);
   color: #ffffff;
-  padding: 0 10px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
+  gap: 8px;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.2px;
-  box-sizing: border-box;
 }
 
 .erp-section-header-icon {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   fill: #ffffff;
+  flex-shrink: 0;
 }
 
 .erp-section-body {
-  padding: 7px 10px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  box-sizing: border-box;
+  gap: 10px;
+  width: 100%;
 }
 
 /* ========================================================= */
-/* SECTION 1: HEADER FIELDS (2 ROWS)                         */
+/* SECTION 1: CUSTOMER INVOICE INFORMATION (TWO CLEAN ROWS)  */
 /* ========================================================= */
 .erp-form-row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
-  box-sizing: border-box;
 }
 
 .erp-field-group {
   display: flex;
   align-items: center;
-  gap: 6px;
-  box-sizing: border-box;
+  gap: 8px;
 }
 
 .erp-label {
   color: var(--erp-navy-text);
   font-weight: 700;
-  font-size: 11.5px;
+  font-size: 12px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.field-grn {
-  width: 200px;
-}
-
-.field-grn .erp-label {
-  width: 48px;
-}
-
+/* Row 1 Field Dimensions */
 .field-inv {
-  width: 220px;
+  width: 390px;
+  flex-shrink: 0;
 }
 
 .field-inv .erp-label {
-  width: 65px;
+  width: 90px;
+  min-width: 90px;
 }
 
 .field-customer {
   flex: 1;
+  min-width: 250px;
 }
 
 .field-customer .erp-label {
-  width: 55px;
+  width: 75px;
+  min-width: 75px;
 }
 
-/* Row 2 Fields */
+/* Row 2 Field Dimensions (Aligned with Row 1) */
 .field-inv-val {
-  width: 200px;
+  width: 390px;
+  flex-shrink: 0;
 }
 
 .field-inv-val .erp-label {
-  width: 72px;
+  width: 90px;
+  min-width: 90px;
 }
 
 .field-return {
-  width: 220px;
+  width: 290px;
+  flex-shrink: 0;
 }
 
 .field-return .erp-label {
-  width: 45px;
+  width: 65px;
+  min-width: 65px;
 }
 
 .field-balance {
-  width: 260px;
+  width: 340px;
+  flex-shrink: 0;
 }
 
 .field-balance .erp-label {
-  width: 50px;
+  width: 65px;
+  min-width: 65px;
 }
 
-/* Compact Inputs */
+/* Input Fields (Consistent 28px Height) */
 .erp-input {
-  height: 24px;
+  height: 28px;
   border: 1px solid var(--erp-border-color);
-  border-radius: 2px;
+  border-radius: 3px;
   background-color: #ffffff;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
-  padding: 1px 6px;
-  box-sizing: border-box;
+  font-size: 12px;
+  padding: 2px 8px;
   outline: none;
   flex: 1;
+  min-width: 0;
 }
 
 .erp-input:focus {
@@ -329,12 +331,12 @@
   text-align: right;
 }
 
-/* Soft red highlighted balance input */
+/* Prominently Highlighted Balance Input */
 .erp-balance-highlight {
   background-color: var(--erp-balance-bg) !important;
   border: 1px solid var(--erp-balance-border) !important;
   color: var(--erp-balance-text) !important;
-  font-size: 12px !important;
+  font-size: 13px !important;
   font-weight: 800 !important;
 }
 
@@ -343,6 +345,7 @@
   display: flex;
   align-items: center;
   flex: 1;
+  min-width: 0;
 }
 
 .erp-input-with-btn .erp-input {
@@ -352,18 +355,19 @@
 }
 
 .erp-search-btn {
-  height: 24px;
-  width: 25px;
+  height: 28px;
+  width: 30px;
+  min-width: 30px;
   background-color: #4a8bc2;
   border: 1px solid #3b74a4;
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 3px 3px 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  box-sizing: border-box;
   outline: none;
+  flex-shrink: 0;
 }
 
 .erp-search-btn:hover {
@@ -371,13 +375,13 @@
 }
 
 .erp-search-icon {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   fill: #ffffff;
 }
 
 /* ========================================================= */
-/* SECTION 2: ADD SETTLEMENT PAYMENT                         */
+/* SECTION 2: ADD SETTLEMENT PAYMENT (5-COLUMN GRID)         */
 /* ========================================================= */
 .erp-payment-table-grid {
   display: flex;
@@ -390,14 +394,14 @@
   background-color: var(--erp-header-bg);
   border: 1px solid var(--erp-grid-border);
   border-bottom: none;
-  height: 23px;
+  height: 26px;
   align-items: center;
-  box-sizing: border-box;
+  width: 100%;
 }
 
 .erp-grid-th {
   font-weight: 700;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--erp-navy-text);
   text-align: center;
   border-right: 1px solid var(--erp-grid-border);
@@ -405,7 +409,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .erp-grid-th:last-child {
@@ -416,9 +420,9 @@
   display: flex;
   border: 1px solid var(--erp-grid-border);
   background-color: #ffffff;
-  height: 25px;
+  height: 30px;
   align-items: center;
-  box-sizing: border-box;
+  width: 100%;
 }
 
 .erp-grid-td {
@@ -426,42 +430,41 @@
   border-right: 1px solid var(--erp-grid-border);
   display: flex;
   align-items: center;
-  box-sizing: border-box;
 }
 
 .erp-grid-td:last-child {
   border-right: none;
 }
 
-/* Proportional Column Widths */
+/* Exact Proportional Columns (No clipping on any screen) */
 .th-date,
 .td-date {
   flex: 1.1;
-  min-width: 110px;
+  min-width: 150px;
 }
 
 .th-amount,
 .td-amount {
   flex: 1.3;
-  min-width: 130px;
+  min-width: 170px;
 }
 
 .th-method,
 .td-method {
   flex: 1.3;
-  min-width: 130px;
+  min-width: 170px;
 }
 
 .th-cheque,
 .td-cheque {
   flex: 1.5;
-  min-width: 150px;
+  min-width: 190px;
 }
 
 .th-realized,
 .td-realized {
   flex: 1.1;
-  min-width: 110px;
+  min-width: 150px;
 }
 
 .erp-grid-input,
@@ -472,9 +475,8 @@
   outline: none;
   background-color: #ffffff;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
-  padding: 1px 6px;
-  box-sizing: border-box;
+  font-size: 12px;
+  padding: 1px 8px;
 }
 
 .erp-grid-input.text-right {
@@ -492,34 +494,37 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  margin-top: 8px;
+  margin-top: 10px;
+  gap: 16px;
 }
 
 /* Left: Action Buttons */
 .erp-action-buttons-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .erp-btn {
-  height: 26px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 14px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
-  border-radius: 2px;
+  font-size: 12px;
+  border-radius: 3px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  box-sizing: border-box;
+  gap: 6px;
   outline: none;
+  white-space: nowrap;
   transition: all 0.15s ease;
 }
 
 .erp-btn-icon {
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 /* Green Save Payment Button */
@@ -601,12 +606,14 @@
   background-color: #f0f7ff;
 }
 
-/* Right: Bank & Receipt No. */
+/* Right: Bank & Receipt No. (Fixed 110px Label Width, No Wrapping) */
 .erp-bank-receipt-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  width: 320px;
+  gap: 5px;
+  width: 380px;
+  min-width: 340px;
+  flex-shrink: 0;
 }
 
 .erp-meta-line {
@@ -619,38 +626,40 @@
   background-color: var(--erp-pill-bg);
   border: 1px solid var(--erp-grid-border);
   border-right: none;
-  border-radius: 2px 0 0 2px;
-  height: 23px;
-  width: 90px;
-  min-width: 90px;
-  padding: 0 6px;
+  border-radius: 3px 0 0 3px;
+  height: 28px;
+  width: 110px;
+  min-width: 110px;
+  padding: 0 8px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--erp-navy-text);
-  box-sizing: border-box;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .erp-meta-icon {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   fill: var(--erp-navy-text);
+  flex-shrink: 0;
 }
 
 .erp-meta-select,
 .erp-meta-input {
   flex: 1;
-  height: 23px;
+  height: 28px;
   border: 1px solid var(--erp-grid-border);
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 3px 3px 0;
   background-color: #ffffff;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
-  padding: 1px 6px;
-  box-sizing: border-box;
+  font-size: 12px;
+  padding: 2px 8px;
   outline: none;
+  min-width: 0;
 }
 
 .erp-meta-input.text-bold {
@@ -664,21 +673,22 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 .erp-history-table-container {
   width: 100%;
-  max-height: 180px;
+  min-height: 220px;
+  max-height: 360px;
   overflow-y: auto;
   overflow-x: auto;
-  box-sizing: border-box;
 }
 
 .erp-history-table {
   width: 100%;
   border-collapse: collapse;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .erp-history-table th {
@@ -687,13 +697,13 @@
   border-right: 1px solid var(--erp-grid-border);
   color: var(--erp-navy-text);
   font-weight: 700;
-  padding: 4px 6px;
+  padding: 6px 8px;
   position: sticky;
   top: 0;
   z-index: 2;
   user-select: none;
   text-align: left;
-  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .erp-history-table th:last-child {
@@ -703,9 +713,8 @@
 .erp-history-table td {
   border-bottom: 1px solid #e1ecf6;
   border-right: 1px solid #e1ecf6;
-  padding: 3px 6px;
-  height: 22px;
-  box-sizing: border-box;
+  padding: 4px 8px;
+  height: 26px;
   white-space: nowrap;
 }
 
@@ -726,7 +735,7 @@
   background-color: #eaf3fd;
 }
 
-/* Active Row Highlight: Soft Sky Blue with bold border */
+/* Active Row Highlight: Soft Sky Blue with bold font */
 .erp-history-table tbody tr.erp-row-selected {
   background-color: #d0e4fc !important;
 }
@@ -737,14 +746,28 @@
   border-bottom-color: #90caf9 !important;
 }
 
-.erp-empty-row td {
-  border-bottom: 1px solid #f0f4f8;
-  height: 22px;
+/* Empty State Message */
+.erp-empty-state-cell {
+  padding: 36px 16px !important;
+  text-align: center;
+  background-color: #ffffff;
   cursor: default;
 }
 
-.erp-empty-row:hover {
-  background-color: transparent !important;
+.erp-empty-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 12.5px;
+}
+
+.erp-empty-icon {
+  width: 28px;
+  height: 28px;
+  fill: #9ca3af;
 }
 
 /* ========================================================= */
@@ -754,10 +777,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 10px;
+  padding: 8px 14px;
   background-color: #f7faff;
   border-top: 1px solid var(--erp-border-color);
-  box-sizing: border-box;
   width: 100%;
 }
 
@@ -765,44 +787,52 @@
 .erp-summary-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
+/* Total Settled: Subtle Blue */
 .erp-summary-label {
   background-color: #d9ebfa;
   color: var(--erp-navy-text);
   font-weight: 700;
-  font-size: 11.5px;
-  padding: 3px 10px;
-  border-radius: 2px;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 3px;
   border: 1px solid var(--erp-grid-border);
-  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 .erp-summary-val-box {
   background-color: #eef4fa;
   border: 1px solid var(--erp-border-color);
-  border-radius: 2px;
-  padding: 3px 12px;
+  border-radius: 3px;
+  padding: 4px 16px;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   color: #000000;
-  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+/* Current Balance: Light Red */
+.erp-summary-label.erp-bal-label {
+  background-color: var(--erp-balance-bg);
+  border: 1px solid var(--erp-balance-border);
+  color: var(--erp-balance-text);
 }
 
 .erp-summary-bal-box {
   background-color: var(--erp-balance-bg);
   border: 1px solid var(--erp-balance-border);
-  border-radius: 2px;
-  padding: 3px 14px;
+  border-radius: 3px;
+  padding: 4px 18px;
   font-weight: 800;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--erp-balance-text);
-  box-sizing: border-box;
+  white-space: nowrap;
 }
 
 /* ========================================================= */
-/* MODALS (INVOICE LOOKUP & GRN LOOKUP)                      */
+/* MODALS (INVOICE LOOKUP)                                   */
 /* ========================================================= */
 .erp-modal-overlay {
   position: fixed;
@@ -819,10 +849,10 @@
 
 .erp-modal-card {
   background-color: #ffffff;
-  border-radius: 3px;
+  border-radius: 4px;
   border: 2px solid var(--erp-primary-blue);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  width: 720px;
+  width: 760px;
   max-width: 95vw;
   display: flex;
   flex-direction: column;
@@ -830,7 +860,7 @@
 }
 
 .erp-modal-header {
-  height: 26px;
+  height: 28px;
   background-color: var(--erp-primary-blue);
   display: flex;
   justify-content: space-between;
@@ -838,18 +868,18 @@
   padding: 0 6px 0 10px;
   color: #ffffff;
   font-weight: 700;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .erp-modal-body {
-  padding: 8px 10px;
+  padding: 10px 12px;
   background-color: #ffffff;
-  max-height: 380px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
 .erp-modal-footer {
-  padding: 6px 10px;
+  padding: 6px 12px;
   display: flex;
   justify-content: flex-end;
   background-color: #f7faff;
