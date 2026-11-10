@@ -435,16 +435,14 @@ export const getItemById = async (req, res, next) => {
     }
 
     if (!item) {
-      if (isSilent) {
-        return res.status(200).json({
-          success: true,
-          exists: false,
-          found: false,
-          data: null,
-          message: 'Item not found',
-        });
-      }
-      return res.status(404).json({ success: false, message: 'Item not found', data: null });
+      // Business outcome: item not found in Item Master, return 200 with success: false to avoid 404 error logs
+      return res.status(200).json({
+        success: false,
+        exists: false,
+        found: false,
+        data: null,
+        message: `Item '${decodedId}' not found in Item Master`,
+      });
     }
 
     return res.status(200).json({

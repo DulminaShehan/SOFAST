@@ -364,13 +364,24 @@ export const createInvoice = async (req, res, next) => {
       }
     }
 
-    // Auto-advance manual invoice number if conflict exists in database
-    if (isManual && finalInvoiceNumber) {
-      const existingInv = await Invoice.findOne({ invoiceNumber: finalInvoiceNumber });
+    // Auto-advance invoice number if conflict exists in database (both standard and manual)
+    if (finalInvoiceNumber) {
+      const existingInv = await Invoice.findOne({
+        $or: [
+          { invoiceNumber: finalInvoiceNumber },
+          { invoiceNumber: new RegExp(`^${finalInvoiceNumber}$`, 'i') },
+        ],
+      });
       if (existingInv) {
-        const nextData = await computeNextManualInvoiceNumber(db);
-        finalNo = nextData.no;
-        finalInvoiceNumber = nextData.invoiceNumber;
+        if (isManual) {
+          const nextData = await computeNextManualInvoiceNumber(db);
+          finalNo = nextData.no;
+          finalInvoiceNumber = nextData.invoiceNumber;
+        } else {
+          const nextData = await computeNextInvoiceNumber(db);
+          finalNo = nextData.no;
+          finalInvoiceNumber = nextData.invoiceNumber;
+        }
       }
     }
 
@@ -612,26 +623,29 @@ export const createInvoice = async (req, res, next) => {
       }
       appliedDeductions = [];
 
-      // If race condition on manual invoice number (11000 duplicate key), auto-retry once with fresh number
-      if (saveError.code === 11000 && isManual) {
+      // If race condition on invoice number (11000 duplicate key), auto-retry once with fresh number
+      if (saveError.code === 11000) {
         try {
-          const freshManual = await computeNextManualInvoiceNumber(db);
-          newInvoice.no = freshManual.no;
-          newInvoice.invoiceNumber = freshManual.invoiceNumber;
+          const freshData = isManual
+            ? await computeNextManualInvoiceNumber(db)
+            : await computeNextInvoiceNumber(db);
+          newInvoice.no = freshData.no;
+          newInvoice.invoiceNumber = freshData.invoiceNumber;
           await newInvoice.save();
+          finalNo = freshData.no;
+          finalInvoiceNumber = freshData.invoiceNumber;
         } catch (retryErr) {
+          const freshData = isManual
+            ? await computeNextManualInvoiceNumber(db).catch(() => null)
+            : await computeNextInvoiceNumber(db).catch(() => null);
           return res.status(409).json({
             success: false,
-            message: 'Manual invoice number conflict. Please refresh the invoice number.',
+            message: 'An invoice with this number already exists',
             conflict: true,
+            nextInvoiceNumber: freshData?.invoiceNumber || '',
+            nextNo: freshData?.no || 0,
           });
         }
-      } else if (saveError.code === 11000) {
-        return res.status(409).json({
-          success: false,
-          message: 'An invoice with this number already exists',
-          conflict: true,
-        });
       } else {
         throw saveError;
       }

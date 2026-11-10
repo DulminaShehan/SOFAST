@@ -272,8 +272,21 @@ export const getAlternativeProductByCode = async (req, res, next) => {
       }).lean();
 
       if (!item) {
-        return res.status(404).json({
-          success: false,
+        // Return 200 with empty alternative list for partial typing or unlisted items (avoids 404 console errors)
+        return res.status(200).json({
+          success: true,
+          found: false,
+          data: {
+            mainItemCode: rawCode,
+            mainItemId: null,
+            description: '',
+            mainItemDescription: '',
+            mainItemStock: 0,
+            alternativeCount: 0,
+            alternativeItemCodes: [],
+            alternativeItems: [],
+            status: 'Active',
+          },
           message: `Main Item '${rawCode}' not found in Item Master`,
         });
       }

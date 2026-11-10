@@ -1156,7 +1156,16 @@ function Invoice() {
       if (res.data?.success && res.data?.data) {
         return res.data.data;
       }
+      if (res.data && res.data.found === false) {
+        throw new Error(res.data.message || `Invoice '${invoiceNumber}' not found.`);
+      }
+      if (res.data && res.data.success === false && res.data.message) {
+        throw new Error(res.data.message);
+      }
     } catch (err) {
+      if (err.message && !err.response) {
+        throw err;
+      }
       if (err.response?.status === 404 || err.response?.data?.message?.includes('Resource not found') || err.response?.data?.message?.includes('not found')) {
         // Seamless fallback to /damage-returns/invoice/:invoiceNumber
         try {
@@ -1170,7 +1179,7 @@ function Invoice() {
       }
       throw err;
     }
-    throw new Error('Invoice not found.');
+    throw new Error(`Invoice '${invoiceNumber}' not found.`);
   };
 
   // Activate Invoice Return Mode directly in the Sales Invoice screen
@@ -2842,6 +2851,53 @@ function Invoice() {
       return null;
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to save Invoice';
+      const isConflict =
+        err.response?.status === 409 ||
+        err.response?.data?.conflict === true ||
+        (msg && msg.toLowerCase().includes('already exists'));
+
+      if (isConflict && !activeInvoiceId) {
+        try {
+          let nextNum = err.response?.data?.nextInvoiceNumber;
+          let nextNo = err.response?.data?.nextNo;
+          if (!nextNum) {
+            const nextRes = await api.get('/invoices/next-number');
+            nextNum = nextRes.data?.invoiceNumber;
+            nextNo = nextRes.data?.no;
+          }
+          if (nextNum) {
+            setInvoiceHeader((prev) => ({
+              ...prev,
+              invoiceNumber: nextNum,
+              no: nextNo || prev.no,
+            }));
+            payload.invoiceNumber = nextNum;
+            payload.no = nextNo || payload.no;
+            showNotification(`Invoice number was already taken. Automatically updated to '${nextNum}'. Saving...`, 'info');
+            const retryRes = await api.post('/invoices', payload);
+            if (retryRes.data && retryRes.data.success) {
+              const savedData = retryRes.data.data;
+              const savedId = savedData?._id;
+              const savedInvNum = savedData?.invoiceNumber || nextNum;
+              setActiveInvoiceId(savedId);
+              setInvoiceHeader((prev) => ({
+                ...prev,
+                invoiceNumber: savedInvNum,
+                no: savedData?.no || prev.no,
+                note: savedData?.note !== undefined ? savedData.note : (savedData?.remark !== undefined ? savedData.remark : prev.note),
+                remark: savedData?.remark !== undefined ? savedData.remark : (savedData?.note !== undefined ? savedData.note : prev.remark),
+              }));
+              showNotification(
+                `Invoice '${savedInvNum}' ${isHoldVal ? 'saved on HOLD' : 'saved successfully! Stock updated.'}`,
+                'success'
+              );
+              return savedData || { _id: savedId, invoiceNumber: savedInvNum };
+            }
+          }
+        } catch (retryErr) {
+          console.warn('Auto-retry on invoice number conflict failed:', retryErr);
+        }
+      }
       showNotification(msg, 'error');
       return null;
     } finally {

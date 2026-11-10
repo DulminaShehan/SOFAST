@@ -151,8 +151,11 @@ export const getInvoiceForReturn = async (req, res, next) => {
 
     const invoice = await Invoice.findOne(query).lean();
     if (!invoice) {
-      return res.status(404).json({
+      // Return 200 with found: false for business query (avoids 404 error logs)
+      return res.status(200).json({
         success: false,
+        found: false,
+        data: null,
         message: `Invoice '${cleanInv}' not found`,
       });
     }
