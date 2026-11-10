@@ -6,6 +6,7 @@ import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
+import { compareBillPrintItems } from '../../utils/itemSort';
 import './SettlementInvoice.css';
 
 /**
@@ -600,13 +601,9 @@ function SettlementInvoice() {
 
   // Reusable Compact Thermal Receipt Component
   const renderThermalReceiptContent = () => {
-    // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+    // Sort purchased line items in ascending (A-Z, 0-9) order based on item/product name
     // Applied exclusively to print preview and physical print layout without altering database order
-    const sortedPrintLineItems = [...displayLineItems].sort((a, b) => {
-      const nameA = (a.description || a.name || a.itemName || (a.jobType === 'Labour' || a.isService ? 'Delivery Charge' : '') || a.code || a.itemCode || '').trim();
-      const nameB = (b.description || b.name || b.itemName || (b.jobType === 'Labour' || b.isService ? 'Delivery Charge' : '') || b.code || b.itemCode || '').trim();
-      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
-    });
+    const sortedPrintLineItems = [...displayLineItems].sort(compareBillPrintItems);
 
     return (
       <div className="thermal-receipt">

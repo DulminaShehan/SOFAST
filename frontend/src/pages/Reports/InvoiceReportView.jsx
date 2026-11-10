@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
+import { compareBillPrintItems } from '../../utils/itemSort';
 import './InvoiceReportView.css';
 
 /**
@@ -57,15 +58,11 @@ function InvoiceReportView({ onNavigateTab }) {
   const [printReceiptOpen, setPrintReceiptOpen] = useState(false);
   const [printInvoiceData, setPrintInvoiceData] = useState(null);
 
-  // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+  // Sort purchased line items in ascending (A-Z, 0-9) order based on item/product name
   // Applied exclusively to print preview and physical print layout without altering database order
   const sortedPrintLineItems = useMemo(() => {
     if (!printInvoiceData?.lineItems) return [];
-    return [...printInvoiceData.lineItems].sort((a, b) => {
-      const nameA = (a.description || a.name || a.itemName || a.itemCode || a.code || '').trim();
-      const nameB = (b.description || b.name || b.itemName || b.itemCode || b.code || '').trim();
-      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
-    });
+    return [...printInvoiceData.lineItems].sort(compareBillPrintItems);
   }, [printInvoiceData]);
 
   // Fetch Report Data from Backend

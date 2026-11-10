@@ -5,6 +5,7 @@ import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import api from '../../services/api';
 import { useConfirm } from '../../context/ConfirmContext';
+import { compareBillPrintItems } from '../../utils/itemSort';
 import './ManualInvoice.css';
 
 /**
@@ -827,13 +828,9 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
 
   // Render Thermal Bill Content
   const renderThermalReceiptContent = () => {
-    // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+    // Sort purchased line items in ascending (A-Z, 0-9) order based on item/product name
     // Applied exclusively to print preview and physical print layout without altering scan/db order
-    const sortedPrintLineItems = [...lineItems].sort((a, b) => {
-      const nameA = (a.description || a.name || a.itemName || a.code || '').trim();
-      const nameB = (b.description || b.name || b.itemName || b.code || '').trim();
-      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
-    });
+    const sortedPrintLineItems = [...lineItems].sort(compareBillPrintItems);
 
     const net = invoiceCalculations.netTotal;
     const rcvd = amountReceived === '' ? net : parseFloat(amountReceived) || 0;

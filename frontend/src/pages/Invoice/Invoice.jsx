@@ -8,6 +8,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { handleEnterNavigation } from '../../hooks/useEnterKeyNavigation';
 import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut';
+import { compareBillPrintItems } from '../../utils/itemSort';
 import './Invoice.css';
 
 /**
@@ -3135,13 +3136,9 @@ function Invoice() {
 
   // Reusable Compact Thermal Receipt component for both Print and Preview
   const renderThermalReceiptContent = () => {
-    // Sort purchased line items in ascending alphabetical order (A to Z) based on item/product name
+    // Sort purchased line items in ascending (A-Z, 0-9) order based on item/product name
     // Applied exclusively to print preview and physical print layout without altering scan/db order
-    const sortedPrintLineItems = [...lineItems].sort((a, b) => {
-      const nameA = (a.description || a.name || a.itemName || (a.jobType === 'Labour' || a.isService ? 'Delivery Charge' : '') || a.code || '').trim();
-      const nameB = (b.description || b.name || b.itemName || (b.jobType === 'Labour' || b.isService ? 'Delivery Charge' : '') || b.code || '').trim();
-      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
-    });
+    const sortedPrintLineItems = [...lineItems].sort(compareBillPrintItems);
 
     const grossTotal = lineItems.reduce((acc, item) => {
       const p = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
