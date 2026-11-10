@@ -463,3 +463,140 @@ export const deleteSettlement = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Update an existing Settlement payment
+ */
+export const updateSettlement = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      amount,
+      method = 'Cash',
+      received = 0,
+      chequeNo = '',
+      bank = '',
+      dateRealized = '',
+      date,
+    } = req.body;
+
+    const settlement = await Settlement.findById(id);
+    if (!settlement) {
+      return res.status(404).json({
+        success: false,
+        message: 'Settlement record not found',
+      });
+    }
+
+    const payReceived = Math.round((parseFloat(received !== undefined && received !== null && received !== '' ? received : amount) || 0) * 100) / 100;
+    if (isNaN(payReceived) || payReceived <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment amount must be greater than 0',
+      });
+    }
+
+    const invNum = settlement.invoiceNumber || settlement.invoiceNo;
+    const invoice = await Invoice.findOne({
+      $or: [
+        { invoiceNumber: invNum },
+        { invoiceNumber: { $regex: new RegExp(`^${invNum}$`, 'i') } },
+        { no: Number(invNum) ? Number(invNum) : null },
+      ],
+    });
+
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: `Invoice '${invNum}' not found in database`,
+      });
+    }
+
+    const invGross = invoice.lineItems && invoice.lineItems.length > 0
+      ? invoice.lineItems.reduce((sum, li) => sum + (parseFloat(li.price || li.unitPrice || 0) * parseFloat(li.quantity || li.qty || 1)), 0)
+      : parseFloat(invoice.subTotal || invoice.amountToPay || invoice.netTotal || 0);
+
+    const invDiscounts = (invoice.lineItems && invoice.lineItems.length > 0
+      ? invoice.lineItems.reduce((sum, li) => sum + parseFloat(li.discountAmount || 0), 0)
+      : 0) + (parseFloat(invoice.specialDiscount) || 0);
+
+    const invReturn = Number(invoice.returnAmount || invoice.goodReturnAmount || 0);
+    const invoiceTotal = Math.round(Math.max(0, invGross - invDiscounts - invReturn) * 100) / 100;
+
+    // Find all settlements excluding the current one being edited
+    const otherSettlements = await Settlement.find({
+      _id: { $ne: settlement._id },
+      $or: [
+        { invoiceNumber: invoice.invoiceNumber },
+        { invoiceNo: invoice.invoiceNumber },
+        { invoiceNumber: String(invoice.no) },
+        { invoiceNo: String(invoice.no) },
+        { invoiceNo: Number(invoice.no) ? Number(invoice.no) : null },
+      ],
+    }).lean();
+
+    const otherSettledSum = Math.round(otherSettlements.reduce((sum, s) => sum + (Number(s.amount) || 0), 0) * 100) / 100;
+    const availableBalance = Math.round(Math.max(0, invoiceTotal - otherSettledSum) * 100) / 100;
+
+    const amountApplied = Math.round(Math.min(payReceived, availableBalance) * 100) / 100;
+    const changeAmount = Math.round(Math.max(0, payReceived - amountApplied) * 100) / 100;
+    const balanceAfter = Math.round(Math.max(0, availableBalance - amountApplied) * 100) / 100;
+    const totalPaidTowardInvoice = Math.round((otherSettledSum + amountApplied) * 100) / 100;
+
+    const payMethod = method || 'Cash';
+    if ((payMethod === 'Cheque' || payMethod === 'Credit Note') && !chequeNo?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: `Please enter the ${payMethod === 'Cheque' ? 'Cheque' : 'Credit Note'} number`,
+      });
+    }
+
+    if (payMethod === 'Cheque' && !bank?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter or select the Bank for the cheque',
+      });
+    }
+
+    // Update settlement
+    settlement.amount = amountApplied;
+    settlement.received = payReceived;
+    settlement.change = changeAmount;
+    settlement.method = payMethod;
+    settlement.chequeNo = chequeNo ? chequeNo.trim() : '';
+    settlement.bank = bank ? bank.trim() : '';
+    settlement.dateRealized = dateRealized ? String(dateRealized).trim() : '';
+    if (date) settlement.date = new Date(date);
+    settlement.balanceAfter = balanceAfter;
+    await settlement.save();
+
+    // Update invoice
+    invoice.dueAmount = balanceAfter;
+    invoice.paidAmount = totalPaidTowardInvoice;
+    invoice.amountReceived = totalPaidTowardInvoice;
+    invoice.isSettled = balanceAfter <= 0;
+    invoice.paymentStatus = balanceAfter <= 0 ? 'paid' : (totalPaidTowardInvoice > 0 ? 'partial' : 'unpaid');
+    await invoice.save();
+
+    if (invoice.customerCode) {
+      await syncCustomerOutstandingBalance(invoice.customerCode);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Settlement '${settlement.receiptNo}' updated successfully`,
+      data: settlement,
+      invoice: {
+        invoiceNumber: invoice.invoiceNumber,
+        value: invoiceTotal,
+        remainingBalance: balanceAfter,
+        amountApplied,
+        received: payReceived,
+        change: changeAmount,
+        totalPaid: totalPaidTowardInvoice,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -5,6 +5,7 @@ import {
   getSettlements,
   getSettlementsByInvoice,
   createSettlement,
+  updateSettlement,
   deleteSettlement,
 } from '../controllers/settlementController.js';
 
@@ -15,6 +16,7 @@ router.get('/banks', getBanks);
 router.get('/invoice/:invoiceNumber', getSettlementsByInvoice);
 router.get('/', getSettlements);
 router.post('/', createSettlement);
+router.put('/:id', updateSettlement);
 router.delete('/:id', deleteSettlement);
 
 export default router;

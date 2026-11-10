@@ -10,9 +10,16 @@ import { compareBillPrintItems } from '../../utils/itemSort';
 import './SettlementInvoice.css';
 
 /**
- * SOFAST MOTORS - Settlement Invoice Module
- * Exact Classic Visual Basic 6 desktop ERP layout matching legacy G.R. Settlement design.
- * Full MongoDB Atlas data integration, real-time calculations, and thermal receipt printing.
+ * SOFAST POS — Professional Desktop ERP Settlement Invoice Module
+ * Exact implementation of the SOFAST Customer Settlement / Receipt Entry design.
+ * Features:
+ * - Two-row Header: G.R. No., Invoice No., Supplier/Customer, Invoice Value, Return, Balance
+ * - Add Settlement Payment with column-aligned inputs and Bank / Receipt No.
+ * - Emerald Green Save, Delete, New, and Clear action buttons with confirmations
+ * - Full Settlement History table loading real MongoDB Atlas records
+ * - History row selection for editing/deletion
+ * - Real-time Summary: Total Settled and Current Balance
+ * - Dedicated Thermal Bill & Receipt Printing
  */
 function SettlementInvoice() {
   const navigate = useNavigate();
@@ -23,36 +30,40 @@ function SettlementInvoice() {
 
   // Backend Data Lists
   const [invoicesList, setInvoicesList] = useState([]);
+  const [grnsList, setGrnsList] = useState([]);
   const [banksList, setBanksList] = useState([]);
   const [settlementsList, setSettlementsList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // Top Section: G.R. / Invoice & Customer
+  // Section 1: Header Information
+  const [grnNumber, setGrnNumber] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [cashierUser, setCashierUser] = useState(
-    localStorage.getItem('username') || localStorage.getItem('userCode') || 'PC004'
+    localStorage.getItem('username') || localStorage.getItem('userCode') || 'Admin'
   );
 
-  // Middle Section: Payment / Settlement Inputs
+  // Section 2: Payment / Settlement Inputs
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [chequeNo, setChequeNo] = useState('');
   const [dateRealized, setDateRealized] = useState('');
   const [bank, setBank] = useState('');
   const [receiptNo, setReceiptNo] = useState('');
 
-  // Selected settlement in DataGrid for deletion
+  // Selected settlement in History table for editing/deletion
   const [selectedSettlementId, setSelectedSettlementId] = useState(null);
 
   // Modals & Popups
   const [invoiceLookupOpen, setInvoiceLookupOpen] = useState(false);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  const [grnLookupOpen, setGrnLookupOpen] = useState(false);
+  const [grnSearchQuery, setGrnSearchQuery] = useState('');
   const [receiptPreviewOpen, setReceiptPreviewOpen] = useState(false);
 
   // Current time for thermal receipt
@@ -67,12 +78,13 @@ function SettlementInvoice() {
     }, 4000);
   };
 
-  // Fetch Initial Data (Invoices, Banks, Next Receipt)
+  // Fetch Initial Data (Invoices, GRNs, Banks, Next Receipt)
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [invsRes, banksRes, recRes] = await Promise.all([
+      const [invsRes, grnsRes, banksRes, recRes] = await Promise.all([
         api.get('/invoices?type=standard&limit=250').catch(() => null),
+        api.get('/grn?limit=250').catch(() => null),
         api.get('/settlements/banks').catch(() => null),
         api.get('/settlements/next-receipt').catch(() => null),
       ]);
@@ -84,6 +96,9 @@ function SettlementInvoice() {
         );
         setInvoicesList(availableInvoices);
       }
+      if (grnsRes?.data?.data) {
+        setGrnsList(grnsRes.data.data);
+      }
       if (banksRes?.data?.data) {
         setBanksList(banksRes.data.data);
       }
@@ -91,7 +106,7 @@ function SettlementInvoice() {
         setReceiptNo(recRes.data.data.receiptNo);
       }
 
-      // Check if routed from Create Invoice or Remaining Balance with specific invoice
+      // Check if routed with specific invoice state
       if (location.state?.invoice) {
         handleSelectInvoice(location.state.invoice);
       } else if (location.state?.invoiceNumber) {
@@ -145,8 +160,9 @@ function SettlementInvoice() {
       setSelectedInvoiceNumber('');
       setCustomerName('');
       setCustomerAddress('');
+      setGrnNumber('');
       setPaymentAmount('');
-      setPaymentMethod('');
+      setPaymentMethod('Cash');
       setChequeNo('');
       setDateRealized('');
       setBank('');
@@ -158,6 +174,9 @@ function SettlementInvoice() {
     setSelectedInvoice(inv);
     setSelectedInvoiceNumber(inv.invoiceNumber || String(inv.no));
     setCustomerName(inv.customerName || (inv.customerCode ? `${inv.customerCode}` : ''));
+    if (inv.grnNumber || inv.lastGrn) {
+      setGrnNumber(inv.grnNumber || inv.lastGrn);
+    }
 
     const addr = inv.customerAddress || '';
     const tel = inv.customerTelephone || inv.telephone || '';
@@ -173,7 +192,7 @@ function SettlementInvoice() {
 
     // Reset payment inputs
     setPaymentAmount('');
-    setPaymentMethod('');
+    setPaymentMethod('Cash');
     setChequeNo('');
     setDateRealized('');
     setBank('');
@@ -181,6 +200,24 @@ function SettlementInvoice() {
 
     fetchInvoiceSettlements(inv.invoiceNumber || String(inv.no));
     setInvoiceLookupOpen(false);
+  };
+
+  // Handle GRN Selection
+  const handleSelectGrn = (grn) => {
+    if (!grn) return;
+    setGrnNumber(grn.grnNumber || grn.grnNo || '');
+    if (!customerName && (grn.supplierName || grn.supplierCode)) {
+      setCustomerName(grn.supplierName || grn.supplierCode);
+    }
+    if (grn.invoiceNumber) {
+      const matchInv = invoicesList.find(
+        (i) => String(i.invoiceNumber).toLowerCase() === String(grn.invoiceNumber).toLowerCase()
+      );
+      if (matchInv) {
+        handleSelectInvoice(matchInv);
+      }
+    }
+    setGrnLookupOpen(false);
   };
 
   // =========================================================================
@@ -213,15 +250,20 @@ function SettlementInvoice() {
         : (parseFloat(selectedInvoice.specialDiscount) || 0))
     : 0;
 
-  const amountToBePaid = selectedInvoice ? round2(Math.max(0, invoiceTotalGross - invoiceLineDiscounts)) : 0;
+  // 2. Returns Amount
+  const invoiceReturnAmount = selectedInvoice
+    ? round2(Number(selectedInvoice.returnAmount || selectedInvoice.goodReturnAmount || 0))
+    : 0;
 
-  // 2. Previously Saved Settlements Sum from MongoDB
+  const amountToBePaid = selectedInvoice ? round2(Math.max(0, invoiceTotalGross - invoiceLineDiscounts - invoiceReturnAmount)) : 0;
+
+  // 3. Previously Saved Settlements Sum from MongoDB
   const previouslyAppliedPayments = selectedInvoice
     ? round2(settlementsList.reduce((sum, s) => sum + (Number(s.amount) || 0), 0))
     : 0;
 
-  // 3. Outstanding Balance Before Current Payment
-  const outstandingBalanceBefore = selectedInvoice
+  // 4. Outstanding Current Balance
+  const currentBalance = selectedInvoice
     ? (settlementsList.length > 0
         ? round2(Math.max(0, amountToBePaid - previouslyAppliedPayments))
         : (selectedInvoice.isSettled === true || (selectedInvoice.paymentStatus === 'paid' && Number(selectedInvoice.dueAmount) === 0 && Number(selectedInvoice.paidAmount) > 0)
@@ -231,18 +273,13 @@ function SettlementInvoice() {
                 : amountToBePaid)))
     : 0;
 
-  // 4. Return Amount
-  const invoiceReturnAmount = selectedInvoice
-    ? round2(Number(selectedInvoice.returnAmount || selectedInvoice.goodReturnAmount || 0))
-    : 0;
-
   // 5. Current Typed Payment Calculations
   const hasTypedPayment = paymentAmount !== '' && !isNaN(parseFloat(paymentAmount));
   const typedAmount = hasTypedPayment ? round2(parseFloat(paymentAmount)) : 0;
 
   const amountReceivedVal = hasTypedPayment && typedAmount > 0 ? typedAmount : 0;
   const amountAppliedVal = hasTypedPayment && typedAmount > 0
-    ? round2(Math.min(amountReceivedVal, outstandingBalanceBefore))
+    ? round2(Math.min(amountReceivedVal, currentBalance))
     : 0;
   const changeCashReturnVal = hasTypedPayment && typedAmount > 0
     ? round2(Math.max(0, amountReceivedVal - amountAppliedVal))
@@ -250,8 +287,8 @@ function SettlementInvoice() {
 
   const totalAmountReceivedVal = round2(previouslyAppliedPayments + amountAppliedVal);
   const balanceAfterVal = hasTypedPayment && typedAmount > 0
-    ? round2(Math.max(0, outstandingBalanceBefore - amountAppliedVal))
-    : outstandingBalanceBefore;
+    ? round2(Math.max(0, currentBalance - amountAppliedVal))
+    : currentBalance;
 
   // Print Bill / Thermal Receipt handler
   const handlePrintBill = () => {
@@ -273,20 +310,53 @@ function SettlementInvoice() {
 
   const handlePrintReceipt = handlePrintBill;
 
-  // Button: New (Clears all fields completely to clean initial state)
-  const handleNew = async () => {
-    setSelectedInvoice(null);
-    setSelectedInvoiceNumber('');
-    setCustomerName('');
-    setCustomerAddress('');
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+  // Row selection in History table: load record into form for editing or deletion
+  const handleSelectHistoryRow = (st) => {
+    if (selectedSettlementId === st._id) {
+      // Deselect and clear
+      setSelectedSettlementId(null);
+      handleClearPaymentInputs();
+      return;
+    }
+
+    setSelectedSettlementId(st._id);
+    if (st.date) {
+      try {
+        setPaymentDate(new Date(st.date).toISOString().split('T')[0]);
+      } catch (e) {
+        setPaymentDate(new Date().toISOString().split('T')[0]);
+      }
+    }
+    setPaymentAmount(st.received !== undefined && st.received !== null ? String(st.received) : String(st.amount || ''));
+    setPaymentMethod(st.method || 'Cash');
+    setChequeNo(st.chequeNo || '');
+    setDateRealized(st.dateRealized || '');
+    setBank(st.bank || '');
+    setReceiptNo(st.receiptNo || '');
+
+    showNotification(`Selected settlement #${st.receiptNo || st.no} for editing/deletion`, 'info');
+  };
+
+  // Button: Clear Payment Inputs (keeps selected invoice intact)
+  const handleClearPaymentInputs = () => {
+    setSelectedSettlementId(null);
     setPaymentAmount('');
-    setPaymentMethod('');
+    setPaymentMethod('Cash');
     setChequeNo('');
     setDateRealized('');
     setBank('');
+    showNotification('Payment fields cleared', 'info');
+  };
+
+  // Button: New (Clears payment inputs and loads fresh next receipt number)
+  const handleNew = async () => {
     setSelectedSettlementId(null);
-    setSettlementsList([]);
+    setPaymentAmount('');
+    setPaymentMethod('Cash');
+    setChequeNo('');
+    setDateRealized('');
+    setBank('');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
 
     try {
       const recRes = await api.get('/settlements/next-receipt');
@@ -297,11 +367,11 @@ function SettlementInvoice() {
       // Retain existing receiptNo
     }
 
-    showNotification('Form cleared for new entry', 'info');
+    showNotification('Ready for new settlement entry', 'info');
   };
 
-  // Button: Save Settlement
-  const handleSaveSettlement = async () => {
+  // Button: Save Payment (Create or Update with Confirmation)
+  const handleSavePayment = async () => {
     if (isSubmitting || loading) return;
 
     if (!selectedInvoice || !selectedInvoiceNumber) {
@@ -314,34 +384,47 @@ function SettlementInvoice() {
       return;
     }
 
-    if (outstandingBalanceBefore <= 0) {
+    if (!selectedSettlementId && currentBalance <= 0) {
       showNotification('This invoice is already fully paid and settled', 'error');
-      return;
-    }
-
-    if (amountAppliedVal <= 0) {
-      showNotification('No payment amount can be applied to this invoice', 'error');
       return;
     }
 
     const method = paymentMethod || 'Cash';
 
-    if ((method === 'Cheque' || method === 'Credit Note') && !chequeNo.trim()) {
-      showNotification(`Please enter the ${method === 'Cheque' ? 'Cheque' : 'Credit Note'} number`, 'error');
+    // Only require cheque details when the selected payment method requires them
+    if (method === 'Cheque') {
+      if (!chequeNo.trim()) {
+        showNotification('Please enter the Cheque Number for cheque payment', 'error');
+        return;
+      }
+      if (!bank.trim()) {
+        showNotification('Please select or enter the Bank for cheque payment', 'error');
+        return;
+      }
+    } else if (method === 'Credit Note' && !chequeNo.trim()) {
+      showNotification('Please enter the Credit Note number', 'error');
       return;
     }
 
-    if (method === 'Cheque' && !bank.trim()) {
-      showNotification('Please select or enter the Bank for the cheque', 'error');
-      return;
-    }
+    const isEditing = Boolean(selectedSettlementId);
+    const confirmMessage = isEditing
+      ? `Do you wish to update settlement receipt #${receiptNo}?`
+      : 'Do you wish to save this settlement payment?';
+
+    const confirmed = await confirm({
+      title: isEditing ? 'SOFAST POS - Update Payment' : 'SOFAST POS - Save Payment',
+      message: confirmMessage,
+      icon: 'question',
+      defaultFocus: 'yes',
+    });
+    if (!confirmed) return;
 
     const payload = {
       invoiceNumber: selectedInvoiceNumber,
-      amount: amountAppliedVal, // Amount applied to reduce invoice balance
+      amount: amountAppliedVal,
       method,
-      received: amountReceivedVal, // Actual customer payment amount
-      change: changeCashReturnVal, // Change / cash return amount
+      received: amountReceivedVal,
+      change: changeCashReturnVal,
       chequeNo: chequeNo.trim(),
       bank: bank.trim(),
       dateRealized: dateRealized ? dateRealized.trim() : '',
@@ -352,7 +435,23 @@ function SettlementInvoice() {
     try {
       setIsSubmitting(true);
       setLoading(true);
-      const res = await api.post('/settlements', payload);
+
+      let res;
+      if (isEditing) {
+        try {
+          res = await api.put(`/settlements/${selectedSettlementId}`, payload);
+        } catch (err) {
+          if (err.response?.status === 404 || err.response?.status === 405) {
+            await api.delete(`/settlements/${selectedSettlementId}`);
+            res = await api.post('/settlements', payload);
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        res = await api.post('/settlements', payload);
+      }
+
       if (res.data?.success) {
         showNotification(res.data.message || 'Settlement saved successfully!', 'success');
 
@@ -391,11 +490,11 @@ function SettlementInvoice() {
         }
 
         // Reset payment entry inputs
+        setSelectedSettlementId(null);
         setPaymentAmount('');
         setChequeNo('');
         setDateRealized('');
         setBank('');
-        setSelectedSettlementId(null);
 
         // Prompt: "Do you wish to print this settlement receipt?" (Standard Windows Yes/No dialog)
         setTimeout(async () => {
@@ -419,7 +518,7 @@ function SettlementInvoice() {
     }
   };
 
-  // Button: Delete Settlement
+  // Button: Delete Settlement (with Confirmation)
   const handleDeleteSettlement = async () => {
     if (!selectedSettlementId) {
       showNotification('Please select a settlement row from Settlement History table below to delete', 'error');
@@ -457,6 +556,7 @@ function SettlementInvoice() {
         }
 
         setSelectedSettlementId(null);
+        handleClearPaymentInputs();
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to delete Settlement';
@@ -482,6 +582,18 @@ function SettlementInvoice() {
         inv.date?.toLowerCase().includes(q)
       );
     });
+
+  // Filtered GRNs for lookup modal
+  const filteredGrns = grnsList.filter((grn) => {
+    const q = grnSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (grn.grnNumber && String(grn.grnNumber).toLowerCase().includes(q)) ||
+      (grn.supplierName && String(grn.supplierName).toLowerCase().includes(q)) ||
+      (grn.supplierCode && String(grn.supplierCode).toLowerCase().includes(q)) ||
+      (grn.invoiceNumber && String(grn.invoiceNumber).toLowerCase().includes(q))
+    );
+  });
 
   // Reusable Compact Thermal Receipt Component
   const renderThermalReceiptContent = () => {
@@ -558,39 +670,45 @@ function SettlementInvoice() {
         <div className="thermal-receipt-totals">
           <div className="thermal-receipt-total-row thermal-receipt-total-main">
             <span>Amount to Be Paid:</span>
-            <span>{formatCurrency(amountToBePaid)}</span>
+            <span>Rs. {formatCurrency(amountToBePaid)}</span>
           </div>
           {invoiceLineDiscounts > 0 && (
             <div className="thermal-receipt-total-row">
               <span>Total Discount:</span>
-              <span>{formatCurrency(invoiceLineDiscounts)}</span>
+              <span>Rs. {formatCurrency(invoiceLineDiscounts)}</span>
+            </div>
+          )}
+          {invoiceReturnAmount > 0 && (
+            <div className="thermal-receipt-total-row">
+              <span>Return / Credit:</span>
+              <span>Rs. {formatCurrency(invoiceReturnAmount)}</span>
             </div>
           )}
           <div className="thermal-receipt-total-row">
-            <span>Total Paid Toward Inv:</span>
-            <span style={{ fontWeight: 'bold' }}>{formatCurrency(totalAmountReceivedVal)}</span>
+            <span>Total Settled:</span>
+            <span style={{ fontWeight: 'bold' }}>Rs. {formatCurrency(previouslyAppliedPayments)}</span>
           </div>
           {hasTypedPayment && typedAmount > 0 && (
             <>
               <div className="thermal-receipt-total-row">
                 <span>Payment Received:</span>
-                <span>{formatCurrency(amountReceivedVal)}</span>
+                <span>Rs. {formatCurrency(amountReceivedVal)}</span>
               </div>
               <div className="thermal-receipt-total-row">
                 <span>Amount Applied:</span>
-                <span style={{ fontWeight: 'bold' }}>{formatCurrency(amountAppliedVal)}</span>
+                <span style={{ fontWeight: 'bold' }}>Rs. {formatCurrency(amountAppliedVal)}</span>
               </div>
               {changeCashReturnVal > 0 && (
                 <div className="thermal-receipt-total-row">
                   <span>Change / Cash Return:</span>
-                  <span style={{ fontWeight: 'bold' }}>{formatCurrency(changeCashReturnVal)}</span>
+                  <span style={{ fontWeight: 'bold' }}>Rs. {formatCurrency(changeCashReturnVal)}</span>
                 </div>
               )}
             </>
           )}
           <div className="thermal-receipt-total-row">
-            <span>Remaining Balance:</span>
-            <span style={{ fontWeight: 'bold' }}>{formatCurrency(balanceAfterVal)}</span>
+            <span>Current Balance:</span>
+            <span style={{ fontWeight: 'bold', color: '#b30000' }}>Rs. {formatCurrency(currentBalance)}</span>
           </div>
         </div>
 
@@ -614,7 +732,7 @@ function SettlementInvoice() {
           <svg className="settlement-win-icon" viewBox="0 0 24 24">
             <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
           </svg>
-          <span className="settlement-win-heading">Settlement Invoice</span>
+          <span className="settlement-win-heading">SOFAST POS | Customer Settlement</span>
         </div>
         <div className="settlement-win-controls">
           <button type="button" className="settlement-ctrl-btn" aria-label="Minimize">&#8212;</button>
@@ -630,18 +748,18 @@ function SettlementInvoice() {
         </div>
       </header>
 
-      {/* 3. Main Classic VB6 ERP Form Container */}
+      {/* 3. Main Desktop ERP Form Container */}
       <main
-        className="settlement-vb6-main"
-        onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.settlement-vb6-btn-save' })}
+        className="settlement-erp-main"
+        onKeyDown={(e) => handleEnterNavigation(e, { saveButtonSelector: '.erp-btn-save' })}
       >
         {/* Notification Alert */}
         {notification && (
-          <div className={`settlement-vb6-alert ${notification.type}`}>
+          <div className={`settlement-erp-alert ${notification.type}`}>
             <span>{notification.message}</span>
             <button
               type="button"
-              className="settlement-vb6-alert-close"
+              className="settlement-erp-alert-close"
               onClick={() => setNotification(null)}
             >
               &#x2715;
@@ -649,210 +767,119 @@ function SettlementInvoice() {
           </div>
         )}
 
-        <div className="settlement-vb6-form-window">
+        <div className="settlement-erp-window-card">
           {/* ========================================================= */}
-          {/* TOP SECTION: G.R. No, Value, Customer, Return, Balance   */}
+          {/* SECTION 1: CUSTOMER SETTLEMENT / RECEIPT ENTRY (HEADER)   */}
           {/* ========================================================= */}
-          <div className="settlement-vb6-top-grid">
-            {/* Row 1: G.R. No, Value, Customer */}
-            <div className="settlement-vb6-top-row">
-              <div className="settlement-vb6-field grn-field">
-                <span className="settlement-vb6-navy-label grn-label">G.R. No: . . . .</span>
-                <div className="settlement-vb6-combo-wrap">
-                  <select
-                    className="settlement-vb6-select grn-select"
-                    value={selectedInvoiceNumber}
-                    onChange={(e) => {
-                      const invNum = e.target.value;
-                      const match = invoicesList.find((i) => i.invoiceNumber === invNum || String(i.no) === invNum);
-                      handleSelectInvoice(match || null);
-                    }}
-                  >
-                    <option value="">Select Invoice...</option>
-                    {invoicesList.map((inv) => (
-                      <option key={inv._id || inv.invoiceNumber} value={inv.invoiceNumber || inv.no}>
-                        {inv.invoiceNumber || inv.no} - {inv.customerName || 'Cash'}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="settlement-vb6-lookup-btn"
-                    title="Lookup Invoice (Search)"
-                    onClick={() => setInvoiceLookupOpen(true)}
-                  >
-                    ...
-                  </button>
-                </div>
-              </div>
-
-              <div className="settlement-vb6-field value-field">
-                <span className="settlement-vb6-navy-label value-label">Value:</span>
-                <input
-                  type="text"
-                  className="settlement-vb6-input readonly value-input"
-                  readOnly
-                  value={selectedInvoice ? formatCurrency(invoiceTotalGross) : ''}
-                />
-              </div>
-
-              <div className="settlement-vb6-field customer-field">
-                <span className="settlement-vb6-navy-label customer-label">Customer:</span>
-                <input
-                  type="text"
-                  className="settlement-vb6-input readonly customer-input"
-                  readOnly
-                  value={customerName}
-                />
-              </div>
+          <div className="erp-section-box">
+            <div className="erp-section-header">
+              <svg className="erp-section-header-icon" viewBox="0 0 24 24">
+                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+              </svg>
+              <span>Customer Settlement / Receipt Entry</span>
             </div>
 
-            {/* Row 2: (Blank space on left), Return, Balance */}
-            <div className="settlement-vb6-top-row row-2">
-              <div className="settlement-vb6-spacer-left"></div>
-
-              <div className="settlement-vb6-field return-field">
-                <span className="settlement-vb6-navy-label return-label">Return:</span>
-                <input
-                  type="text"
-                  className="settlement-vb6-input readonly return-input"
-                  readOnly
-                  value={selectedInvoice ? formatCurrency(invoiceReturnAmount) : ''}
-                />
-              </div>
-
-              <div className="settlement-vb6-field balance-field">
-                <span className="settlement-vb6-navy-label balance-label">Balance: . . .</span>
-                <input
-                  type="text"
-                  className="settlement-vb6-input readonly balance-input"
-                  readOnly
-                  value={selectedInvoice ? formatCurrency(outstandingBalanceBefore) : ''}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ========================================================= */}
-          {/* MIDDLE SECTION: Header Bar, Entry Row, Buttons & Bank/Rec */}
-          {/* ========================================================= */}
-          <div className="settlement-vb6-middle-container">
-            {/* 5-Column Silver Header Bar */}
-            <div className="settlement-vb6-header-bar">
-              <div className="settlement-vb6-th col-date">Date</div>
-              <div className="settlement-vb6-th col-amount">Amount</div>
-              <div className="settlement-vb6-th col-method">Method</div>
-              <div className="settlement-vb6-th col-cheque">Cheque No</div>
-              <div className="settlement-vb6-th col-realized">Date Realized</div>
-            </div>
-
-            {/* Entry Controls Row */}
-            <div className="settlement-vb6-entry-row">
-              <div className="settlement-vb6-td col-date">
-                <input
-                  type="date"
-                  className="settlement-vb6-grid-input"
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                />
-              </div>
-              <div className="settlement-vb6-td col-amount">
-                <input
-                  type="number"
-                  step="0.01"
-                  className="settlement-vb6-grid-input text-right"
-                  value={paymentAmount}
-                  placeholder=""
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                />
-              </div>
-              <div className="settlement-vb6-td col-method">
-                <select
-                  className="settlement-vb6-grid-select"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                >
-                  <option value="">Select</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Credit Note">Credit Note</option>
-                  <option value="Bank">Bank</option>
-                  <option value="Card">Card</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="settlement-vb6-td col-cheque">
-                <input
-                  type="text"
-                  className="settlement-vb6-grid-input"
-                  value={chequeNo}
-                  onChange={(e) => setChequeNo(e.target.value)}
-                />
-              </div>
-              <div className="settlement-vb6-td col-realized">
-                <input
-                  type="date"
-                  className="settlement-vb6-grid-input"
-                  value={dateRealized}
-                  onChange={(e) => setDateRealized(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Split Sub-Row: Left Buttons, Right Bank & Receipts No */}
-            <div className="settlement-vb6-subrow-split">
-              {/* Left Side: Save, Delete, New Buttons */}
-              <div className="settlement-vb6-buttons-area">
-                <button
-                  type="button"
-                  className="settlement-vb6-btn settlement-vb6-btn-save"
-                  onClick={handleSaveSettlement}
-                  disabled={loading || isSubmitting}
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  className="settlement-vb6-btn"
-                  onClick={handleDeleteSettlement}
-                  disabled={loading || !selectedSettlementId}
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  className="settlement-vb6-btn"
-                  onClick={handleNew}
-                >
-                  New
-                </button>
-              </div>
-
-              {/* Right Side: Bank & Receipts No Controls */}
-              <div className="settlement-vb6-bank-receipts-area">
-                <div className="settlement-vb6-meta-row">
-                  <div className="settlement-vb6-gray-label">Bank</div>
-                  <select
-                    className="settlement-vb6-select meta-select"
-                    value={bank}
-                    onChange={(e) => setBank(e.target.value)}
-                  >
-                    <option value="">Select Bank...</option>
-                    {banksList.map((b, idx) => (
-                      <option key={b._id || b.code || idx} value={b.code || b.description}>
-                        {b.description || b.name || b.code}
-                      </option>
-                    ))}
-                  </select>
+            <div className="erp-section-body">
+              {/* Row 1: G.R. No., Invoice No., Supplier / Customer */}
+              <div className="erp-form-row">
+                {/* G.R. No. */}
+                <div className="erp-field-group field-grn">
+                  <label className="erp-label">G.R. No.</label>
+                  <div className="erp-input-with-btn">
+                    <input
+                      type="text"
+                      className="erp-input text-bold"
+                      placeholder=""
+                      value={grnNumber}
+                      onChange={(e) => setGrnNumber(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="erp-search-btn"
+                      title="Search Goods Receive Note"
+                      onClick={() => setGrnLookupOpen(true)}
+                    >
+                      <svg viewBox="0 0 24 24" className="erp-search-icon">
+                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="settlement-vb6-meta-row">
-                  <div className="settlement-vb6-gray-label">Receipts No</div>
+                {/* Invoice No. */}
+                <div className="erp-field-group field-inv">
+                  <label className="erp-label">Invoice No.</label>
+                  <div className="erp-input-with-btn">
+                    <input
+                      type="text"
+                      className="erp-input text-bold"
+                      placeholder="INV-..."
+                      value={selectedInvoiceNumber}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedInvoiceNumber(val);
+                        const match = invoicesList.find((i) => i.invoiceNumber === val || String(i.no) === val);
+                        if (match) handleSelectInvoice(match);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="erp-search-btn"
+                      title="Search Invoices in Database"
+                      onClick={() => setInvoiceLookupOpen(true)}
+                    >
+                      <svg viewBox="0 0 24 24" className="erp-search-icon">
+                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Customer */}
+                <div className="erp-field-group field-customer">
+                  <label className="erp-label">Customer</label>
                   <input
                     type="text"
-                    className="settlement-vb6-input meta-input"
-                    value={receiptNo}
-                    onChange={(e) => setReceiptNo(e.target.value)}
+                    className="erp-input readonly text-bold"
+                    readOnly
+                    placeholder=""
+                    value={customerName}
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Invoice Value, Return, Balance */}
+              <div className="erp-form-row row-2">
+                {/* Invoice Value */}
+                <div className="erp-field-group field-inv-val">
+                  <label className="erp-label">Invoice Value</label>
+                  <input
+                    type="text"
+                    className="erp-input readonly text-right text-bold"
+                    readOnly
+                    value={selectedInvoice ? `Rs. ${formatCurrency(invoiceTotalGross)}` : ''}
+                  />
+                </div>
+
+                {/* Return */}
+                <div className="erp-field-group field-return">
+                  <label className="erp-label">Return</label>
+                  <input
+                    type="text"
+                    className="erp-input readonly text-right text-bold"
+                    readOnly
+                    value={selectedInvoice ? `Rs. ${formatCurrency(invoiceReturnAmount)}` : ''}
+                  />
+                </div>
+
+                {/* Balance (Highlighted in soft red) */}
+                <div className="erp-field-group field-balance">
+                  <label className="erp-label">Balance</label>
+                  <input
+                    type="text"
+                    className="erp-input readonly text-right text-bold erp-balance-highlight"
+                    readOnly
+                    value={selectedInvoice ? `Rs. ${formatCurrency(currentBalance)}` : ''}
                   />
                 </div>
               </div>
@@ -860,70 +887,272 @@ function SettlementInvoice() {
           </div>
 
           {/* ========================================================= */}
-          {/* BOTTOM SECTION: Large Classic ActiveX DataGrid Panel     */}
+          {/* SECTION 2: ADD SETTLEMENT PAYMENT                         */}
           {/* ========================================================= */}
-          <div className="settlement-vb6-datagrid-box">
-            <table className="settlement-vb6-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '38px', textAlign: 'center' }}>#</th>
-                  <th style={{ width: '95px' }}>Date</th>
-                  <th style={{ width: '105px', textAlign: 'right' }}>Amount</th>
-                  <th style={{ width: '90px' }}>Method</th>
-                  <th style={{ width: '120px' }}>Cheque No</th>
-                  <th style={{ width: '105px' }}>Date Realized</th>
-                  <th style={{ width: '135px' }}>Bank</th>
-                  <th style={{ width: '115px' }}>Receipts No</th>
-                  <th style={{ width: '105px', textAlign: 'right' }}>Balance</th>
-                  <th style={{ width: '85px', textAlign: 'center' }}>User</th>
-                </tr>
-              </thead>
-              <tbody>
-                {settlementsList.length === 0 ? (
-                  Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={`empty-${i}`} className="settlement-vb6-empty-tr">
-                      <td style={{ textAlign: 'center' }}>&nbsp;</td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
-                      <td></td>
+          <div className="erp-section-box">
+            <div className="erp-section-header">
+              <svg className="erp-section-header-icon" viewBox="0 0 24 24">
+                <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" />
+              </svg>
+              <span>Add Settlement Payment</span>
+            </div>
+
+            <div className="erp-section-body">
+              {/* Payment Entry Table Grid Header & Inputs */}
+              <div className="erp-payment-table-grid">
+                <div className="erp-grid-header-row">
+                  <div className="erp-grid-th th-date">Date</div>
+                  <div className="erp-grid-th th-amount">Amount (Rs.)</div>
+                  <div className="erp-grid-th th-method">Method</div>
+                  <div className="erp-grid-th th-cheque">Cheque No.</div>
+                  <div className="erp-grid-th th-realized">Date Realized</div>
+                </div>
+
+                <div className="erp-grid-inputs-row">
+                  <div className="erp-grid-td td-date">
+                    <input
+                      type="date"
+                      className="erp-grid-input"
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="erp-grid-td td-amount">
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="erp-grid-input text-right text-bold"
+                      placeholder="0.00"
+                      value={paymentAmount}
+                      onChange={(e) => setPaymentAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="erp-grid-td td-method">
+                    <select
+                      className="erp-grid-select"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="Cheque">Cheque</option>
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Card">Card</option>
+                      <option value="Credit Note">Credit Note</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="erp-grid-td td-cheque">
+                    <input
+                      type="text"
+                      className="erp-grid-input"
+                      placeholder={paymentMethod === 'Cheque' ? 'Enter Cheque No.' : ''}
+                      value={chequeNo}
+                      onChange={(e) => setChequeNo(e.target.value)}
+                    />
+                  </div>
+                  <div className="erp-grid-td td-realized">
+                    <input
+                      type="date"
+                      className="erp-grid-input"
+                      value={dateRealized}
+                      onChange={(e) => setDateRealized(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Lower Controls: Left Action Buttons, Right Bank & Receipt No. */}
+              <div className="erp-payment-subrow">
+                {/* Left Side: Buttons */}
+                <div className="erp-action-buttons-group">
+                  <button
+                    type="button"
+                    className="erp-btn erp-btn-save"
+                    onClick={handleSavePayment}
+                    disabled={loading || isSubmitting}
+                  >
+                    <svg viewBox="0 0 24 24" className="erp-btn-icon">
+                      <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+                    </svg>
+                    <span>{selectedSettlementId ? 'Update Payment' : 'Save Payment'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`erp-btn erp-btn-delete ${selectedSettlementId ? 'active-delete' : ''}`}
+                    onClick={handleDeleteSettlement}
+                    disabled={loading || !selectedSettlementId}
+                    title={selectedSettlementId ? 'Delete selected settlement' : 'Select a history row below to delete'}
+                  >
+                    <svg viewBox="0 0 24 24" className="erp-btn-icon">
+                      <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                    </svg>
+                    <span>Delete</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="erp-btn erp-btn-new"
+                    onClick={handleNew}
+                  >
+                    <svg viewBox="0 0 24 24" className="erp-btn-icon">
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                    <span>New</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="erp-btn erp-btn-clear"
+                    onClick={handleClearPaymentInputs}
+                  >
+                    <svg viewBox="0 0 24 24" className="erp-btn-icon">
+                      <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+                    </svg>
+                    <span>Clear</span>
+                  </button>
+                </div>
+
+                {/* Right Side: Bank & Receipt No. */}
+                <div className="erp-bank-receipt-group">
+                  <div className="erp-meta-line">
+                    <div className="erp-meta-pill">
+                      <svg viewBox="0 0 24 24" className="erp-meta-icon">
+                        <path d="M4 10v7h3v-7H4zm6 0v7h3v-7h-3zM2 22h19v-3H2v3zm14-12v7h3v-7h-3zm-4.5-9L2 6v2h19V6l-9.5-5z" />
+                      </svg>
+                      <span>Bank</span>
+                    </div>
+                    <select
+                      className="erp-meta-select"
+                      value={bank}
+                      onChange={(e) => setBank(e.target.value)}
+                    >
+                      <option value="">Select Bank...</option>
+                      {banksList.map((b, idx) => (
+                        <option key={b._id || b.code || idx} value={b.code || b.description}>
+                          {b.description || b.name || b.code}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="erp-meta-line">
+                    <div className="erp-meta-pill">
+                      <svg viewBox="0 0 24 24" className="erp-meta-icon">
+                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                      </svg>
+                      <span>Receipt No.</span>
+                    </div>
+                    <input
+                      type="text"
+                      className="erp-meta-input text-bold"
+                      value={receiptNo}
+                      onChange={(e) => setReceiptNo(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ========================================================= */}
+          {/* SECTION 3: SETTLEMENT HISTORY                             */}
+          {/* ========================================================= */}
+          <div className="erp-section-box">
+            <div className="erp-section-header">
+              <svg className="erp-section-header-icon" viewBox="0 0 24 24">
+                <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+              </svg>
+              <span>Settlement History</span>
+            </div>
+
+            <div className="erp-section-body erp-history-body">
+              <div className="erp-history-table-container">
+                <table className="erp-history-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '38px', textAlign: 'center' }}>#</th>
+                      <th style={{ width: '100px' }}>Date</th>
+                      <th style={{ width: '120px', textAlign: 'right' }}>Amount (Rs.)</th>
+                      <th style={{ width: '110px' }}>Method</th>
+                      <th style={{ width: '130px' }}>Cheque No.</th>
+                      <th style={{ width: '110px' }}>Date Realized</th>
+                      <th style={{ width: '145px' }}>Bank</th>
+                      <th style={{ width: '120px' }}>Receipt No.</th>
+                      <th style={{ width: '120px', textAlign: 'right' }}>Balance (Rs.)</th>
+                      <th style={{ width: '90px', textAlign: 'center' }}>User</th>
                     </tr>
-                  ))
-                ) : (
-                  settlementsList.map((st, idx) => {
-                    const isSelected = selectedSettlementId === st._id;
-                    const stAmount = Number(st.amount || 0);
-                    return (
-                      <tr
-                        key={st._id}
-                        className={isSelected ? 'vb6-row-selected' : ''}
-                        onClick={() => setSelectedSettlementId(isSelected ? null : st._id)}
-                      >
-                        <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                        <td>{new Date(st.date || st.createdAt).toLocaleDateString()}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
-                          {formatCurrency(stAmount)}
-                        </td>
-                        <td>{st.method || 'Cash'}</td>
-                        <td>{st.chequeNo || '-'}</td>
-                        <td>{st.dateRealized || '-'}</td>
-                        <td>{st.bank || '-'}</td>
-                        <td>{st.receiptNo || '-'}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          {st.balanceAfter !== undefined ? formatCurrency(st.balanceAfter) : '-'}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>{st.createdBy || 'PC004'}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {settlementsList.length === 0 ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <tr key={`empty-${i}`} className="erp-empty-row">
+                          <td style={{ textAlign: 'center' }}>&nbsp;</td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                          <td></td>
+                        </tr>
+                      ))
+                    ) : (
+                      settlementsList.map((st, idx) => {
+                        const isSelected = selectedSettlementId === st._id;
+                        const stAmount = Number(st.amount || 0);
+                        return (
+                          <tr
+                            key={st._id}
+                            className={isSelected ? 'erp-row-selected' : ''}
+                            onClick={() => handleSelectHistoryRow(st)}
+                            title="Click to load into payment form for editing or deletion"
+                          >
+                            <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                            <td>{new Date(st.date || st.createdAt).toLocaleDateString()}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                              {formatCurrency(stAmount)}
+                            </td>
+                            <td>{st.method || 'Cash'}</td>
+                            <td>{st.chequeNo || '-'}</td>
+                            <td>{st.dateRealized || '-'}</td>
+                            <td>{st.bank || '-'}</td>
+                            <td>{st.receiptNo || '-'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                              {st.balanceAfter !== undefined ? formatCurrency(st.balanceAfter) : '-'}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>{st.createdBy || 'Admin'}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ===================================================== */}
+              {/* SECTION 4: SUMMARY SECTION (BOTTOM BAR)               */}
+              {/* ===================================================== */}
+              <div className="erp-summary-bar">
+                {/* Left: Total Settled */}
+                <div className="erp-summary-left">
+                  <div className="erp-summary-label">Total Settled</div>
+                  <div className="erp-summary-val-box">
+                    <span>Rs. {formatCurrency(previouslyAppliedPayments)}</span>
+                  </div>
+                </div>
+
+                {/* Right: Current Balance */}
+                <div className="erp-summary-right">
+                  <div className="erp-summary-label">Current Balance</div>
+                  <div className="erp-summary-bal-box">
+                    <span>Rs. {formatCurrency(currentBalance)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -933,80 +1162,42 @@ function SettlementInvoice() {
         {renderThermalReceiptContent()}
       </div>
 
-      {/* DEDICATED RECEIPT PREVIEW MODAL */}
-      {receiptPreviewOpen && (
-        <div className="receipt-modal-overlay">
-          <div className="receipt-modal-container">
-            <div className="receipt-modal-header">
-              <span>Receipt Preview - Invoice #{selectedInvoiceNumber || '-'}</span>
-              <button
-                type="button"
-                className="settlement-ctrl-btn close"
-                style={{ width: '24px', height: '20px' }}
-                onClick={() => setReceiptPreviewOpen(false)}
-              >
-                &#x2715;
-              </button>
-            </div>
-            <div className="receipt-modal-body">
-              {renderThermalReceiptContent()}
-            </div>
-            <div className="receipt-modal-footer">
-              <button
-                type="button"
-                className="settlement-vb6-btn"
-                onClick={handlePrintBill}
-              >
-                Print
-              </button>
-              <button
-                type="button"
-                className="settlement-vb6-btn"
-                onClick={() => setReceiptPreviewOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Invoice Search Lookup Modal */}
       {invoiceLookupOpen && (
-        <div className="settlement-modal-overlay">
-          <div className="settlement-modal-window">
-            <div className="settlement-modal-titlebar">
+        <div className="erp-modal-overlay">
+          <div className="erp-modal-card">
+            <div className="erp-modal-header">
               <span>Select Invoice from Database</span>
               <button
                 type="button"
                 className="settlement-ctrl-btn close"
-                style={{ width: '24px', height: '20px' }}
+                style={{ width: '22px', height: '22px' }}
                 onClick={() => setInvoiceLookupOpen(false)}
               >
                 &#x2715;
               </button>
             </div>
-            <div className="settlement-modal-body">
+            <div className="erp-modal-body">
               <input
                 type="text"
-                className="settlement-vb6-input"
-                style={{ width: '100%', fontSize: '11px', marginBottom: '8px' }}
+                className="erp-input"
+                style={{ width: '100%', marginBottom: '10px' }}
                 placeholder="Search by Invoice No, Customer Code, Name..."
                 value={invoiceSearchQuery}
                 onChange={(e) => setInvoiceSearchQuery(e.target.value)}
                 autoFocus
               />
               <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
-                <table className="settlement-vb6-table">
+                <table className="erp-history-table">
                   <thead>
                     <tr>
                       <th style={{ width: '40px' }}>#</th>
-                      <th style={{ width: '90px' }}>Invoice No</th>
-                      <th style={{ width: '90px' }}>Date</th>
+                      <th style={{ width: '95px' }}>Invoice No</th>
+                      <th style={{ width: '95px' }}>Date</th>
                       <th>Customer</th>
-                      <th style={{ width: '95px', textAlign: 'right' }}>Total (Rs.)</th>
-                      <th style={{ width: '95px', textAlign: 'right' }}>Due (Rs.)</th>
-                      <th style={{ width: '60px' }}>Action</th>
+                      <th style={{ width: '100px', textAlign: 'right' }}>Total (Rs.)</th>
+                      <th style={{ width: '100px', textAlign: 'right' }}>Due (Rs.)</th>
+                      <th style={{ width: '65px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1020,7 +1211,7 @@ function SettlementInvoice() {
                       filteredInvoices.map((inv, idx) => (
                         <tr key={inv._id || inv.invoiceNumber} onClick={() => handleSelectInvoice(inv)}>
                           <td style={{ textAlign: 'center' }}>{idx + 1}</td>
-                          <td style={{ fontWeight: 'bold', color: '#000080' }}>
+                          <td style={{ fontWeight: 'bold', color: '#003366' }}>
                             {inv.invoiceNumber || inv.no}
                           </td>
                           <td>{new Date(inv.date || inv.createdAt).toLocaleDateString()}</td>
@@ -1031,7 +1222,7 @@ function SettlementInvoice() {
                               maximumFractionDigits: 2,
                             })}
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#b91c1c' }}>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#b30000' }}>
                             {Number(inv.dueAmount !== undefined ? inv.dueAmount : inv.amountToPay || 0).toLocaleString(
                               'en-US',
                               { minimumFractionDigits: 2, maximumFractionDigits: 2 }
@@ -1040,8 +1231,8 @@ function SettlementInvoice() {
                           <td style={{ textAlign: 'center' }}>
                             <button
                               type="button"
-                              className="settlement-vb6-btn"
-                              style={{ height: '22px', minWidth: '48px', padding: '0 4px', fontSize: '11px' }}
+                              className="erp-btn erp-btn-new"
+                              style={{ height: '22px', minWidth: '50px', padding: '0 6px', fontSize: '11px' }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleSelectInvoice(inv);
@@ -1057,11 +1248,105 @@ function SettlementInvoice() {
                 </table>
               </div>
             </div>
-            <div className="settlement-modal-footer">
+            <div className="erp-modal-footer">
               <button
                 type="button"
-                className="settlement-vb6-btn"
+                className="erp-btn erp-btn-clear"
                 onClick={() => setInvoiceLookupOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GRN Search Lookup Modal */}
+      {grnLookupOpen && (
+        <div className="erp-modal-overlay">
+          <div className="erp-modal-card">
+            <div className="erp-modal-header">
+              <span>Select Goods Receive Note (GRN)</span>
+              <button
+                type="button"
+                className="settlement-ctrl-btn close"
+                style={{ width: '22px', height: '22px' }}
+                onClick={() => setGrnLookupOpen(false)}
+              >
+                &#x2715;
+              </button>
+            </div>
+            <div className="erp-modal-body">
+              <input
+                type="text"
+                className="erp-input"
+                style={{ width: '100%', marginBottom: '10px' }}
+                placeholder="Search by GRN No, Supplier Name, Invoice No..."
+                value={grnSearchQuery}
+                onChange={(e) => setGrnSearchQuery(e.target.value)}
+                autoFocus
+              />
+              <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                <table className="erp-history-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px' }}>#</th>
+                      <th style={{ width: '120px' }}>GRN No</th>
+                      <th style={{ width: '95px' }}>Date</th>
+                      <th>Supplier</th>
+                      <th style={{ width: '100px' }}>Invoice No</th>
+                      <th style={{ width: '110px', textAlign: 'right' }}>Total (Rs.)</th>
+                      <th style={{ width: '65px', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredGrns.length === 0 ? (
+                      <tr>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '16px', color: '#666' }}>
+                          No matching GRNs found
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredGrns.map((grn, idx) => (
+                        <tr key={grn._id || grn.grnNumber} onClick={() => handleSelectGrn(grn)}>
+                          <td style={{ textAlign: 'center' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: 'bold', color: '#003366' }}>
+                            {grn.grnNumber || grn.grnNo}
+                          </td>
+                          <td>{grn.date ? new Date(grn.date).toLocaleDateString() : '-'}</td>
+                          <td>{grn.supplierName || grn.supplierCode || '-'}</td>
+                          <td>{grn.invoiceNumber || '-'}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                            {Number(grn.totalAmount || grn.netTotal || 0).toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              className="erp-btn erp-btn-new"
+                              style={{ height: '22px', minWidth: '50px', padding: '0 6px', fontSize: '11px' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectGrn(grn);
+                              }}
+                            >
+                              Select
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="erp-modal-footer">
+              <button
+                type="button"
+                className="erp-btn erp-btn-clear"
+                onClick={() => setGrnLookupOpen(false)}
               >
                 Close
               </button>
