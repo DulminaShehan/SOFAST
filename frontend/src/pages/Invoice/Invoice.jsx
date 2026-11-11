@@ -2928,18 +2928,21 @@ function Invoice() {
     navigate('/settlement-invoice');
   };
 
-  // BUTTON: SAVE / COMPLETE INVOICE WITH PRINT CONFIRMATION
-  // Prompt requirement: "Do you wish to print this invoice?"
-  // Buttons:
-  // Yes — Save the invoice and print the bill.
-  // No — Do not save and do not print.
-  const handleSaveInvoiceWithPrintConfirmation = async () => {
-    // In Return Mode, Save button or Enter confirms and processes the Return!
+  // COMBINED BUTTON: SAVE + BILL PRINT
+  // Unifies Save and Bill Print into one single action:
+  // 1. Validate the invoice
+  // 2. Save invoice to MongoDB (if not already saved) & deduct stock exactly once
+  // 3. Wait for backend confirmation
+  // 4. Print invoice automatically
+  // 5. After successful printing, automatically open a fresh new blank invoice with next number
+  const handleSaveAndPrint = async () => {
+    // In Return Mode, Save button confirms and processes the Return
     if (isReturnMode) {
       handleConfirmAndProcessReturn();
       return;
     }
 
+    // 1. Validation
     if (lineItems.length === 0) {
       showNotification('Please add at least one item before saving the invoice', 'error');
       return;
@@ -2952,19 +2955,32 @@ function Invoice() {
       }
     }
 
-    const choice = await confirmInvoicePrint('Do you wish to print this invoice?');
-
-    // If No or cancelled: do not save and do not print
-    if (choice !== 'yes') {
+    // 2. If invoice is already saved in database, proceed directly to print (never duplicate save or deduct stock twice)
+    if (activeInvoiceId) {
+      handlePrint();
       return;
     }
 
-    // If Yes: Save invoice and print bill
-    const saved = await handleSaveInvoice(false, true);
-    if (saved) {
-      handlePrint();
+    // 3. If invoice has unsaved items, save it to MongoDB first (deducts stock once, records payment once)
+    showNotification('Saving invoice and updating stock...', 'info');
+    try {
+      const saved = await handleSaveInvoice(false, true);
+      if (saved) {
+        showNotification(`Invoice #${saved.invoiceNumber || invoiceHeader.invoiceNumber} saved successfully. Printing bill...`, 'success');
+        handlePrint();
+      } else {
+        // If save failed, do NOT print and do NOT clear current invoice data!
+        showNotification('Failed to save invoice. Printing cancelled to protect data integrity.', 'error');
+      }
+    } catch (err) {
+      console.error('Error during combined save & print:', err);
+      showNotification('Failed to save invoice. Printing cancelled.', 'error');
     }
   };
+
+  // Backwards-compatible aliases
+  const handleSaveInvoiceWithPrintConfirmation = handleSaveAndPrint;
+  const handleBillPrint = handleSaveAndPrint;
 
   // BUTTON: DELETE INVOICE
   const handleDeleteInvoice = async () => {
@@ -3035,34 +3051,7 @@ function Invoice() {
     showNotification('No saved invoice or line item selected to delete', 'info');
   };
 
-  // BUTTON: BILL PRINT
-  const handleBillPrint = async () => {
-    if (lineItems.length === 0) {
-      showNotification('Please add items to invoice before printing', 'error');
-      return;
-    }
-
-    // 1. If invoice is already saved in database, proceed directly to print (never duplicate save or deduct stock twice)
-    if (activeInvoiceId) {
-      handlePrint();
-      return;
-    }
-
-    // 2. If invoice has unsaved items, save it first (deduct inventory stock once & generate sequential invoice number)
-    showNotification('Saving invoice and preparing bill...', 'info');
-    try {
-      const saved = await handleSaveInvoice(false, true);
-      if (saved) {
-        showNotification(`Invoice #${saved.invoiceNumber || invoiceHeader.invoiceNumber} saved successfully. Printing bill...`, 'success');
-        handlePrint();
-      } else {
-        showNotification('Failed to save invoice. Printing cancelled to protect data integrity.', 'error');
-      }
-    } catch (err) {
-      console.error('Error during bill print save:', err);
-      showNotification('Failed to save invoice. Printing cancelled.', 'error');
-    }
-  };
+// Note: handleBillPrint is unified with handleSaveAndPrint
 
   // Print Invoice (Thermal Receipt) and automatically transition to a fresh new bill
   const handlePrint = async () => {
@@ -3697,19 +3686,9 @@ function Invoice() {
                   <button
                     type="button"
                     className="sofast-classic-btn"
-                    style={{ color: '#004d40', fontWeight: 'bold' }}
-                    onClick={handleBillPrint}
+                    onClick={handleSaveAndPrint}
                     disabled={loading}
-                    title="Save invoice (if unsaved) and print bill receipt"
-                  >
-                    Bill Print
-                  </button>
-                  <button
-                    type="button"
-                    className="sofast-classic-btn"
-                    onClick={handleSaveInvoiceWithPrintConfirmation}
-                    disabled={loading}
-                    title="Save invoice to database and update stock (Enter / Click)"
+                    title="Save invoice to database, update stock, and print bill (Enter / Click)"
                   >
                     Save
                   </button>
@@ -4794,19 +4773,10 @@ function Invoice() {
                 </button>
                 <button
                   type="button"
-                  className="sofast-bottom-btn sofast-btn-print"
-                  onClick={handleBillPrint}
-                  disabled={loading}
-                  title="Save invoice (if unsaved) and print thermal bill receipt"
-                >
-                  Bill Print
-                </button>
-                <button
-                  type="button"
                   className="sofast-bottom-btn sofast-btn-save"
-                  onClick={handleSaveInvoiceWithPrintConfirmation}
+                  onClick={handleSaveAndPrint}
                   disabled={loading}
-                  title="Save invoice to database and update stock (Enter / Click)"
+                  title="Save invoice to database, update stock, and print bill (Enter / Click)"
                 >
                   Save
                 </button>
