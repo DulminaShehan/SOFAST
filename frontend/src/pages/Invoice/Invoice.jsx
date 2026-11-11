@@ -2649,10 +2649,11 @@ function Invoice() {
     try {
       setLoading(true);
       const nextNumRes = await api.get('/invoices/next-number');
-      if (nextNumRes?.data?.data) {
-        const invNum = nextNumRes.data.data.invoiceNumber || String(nextNumRes.data.data.no || 1).padStart(4, '0');
+      const numData = nextNumRes?.data?.data || nextNumRes?.data;
+      if (numData) {
+        const invNum = numData.invoiceNumber || String(numData.no || 1).padStart(4, '0');
         setInvoiceHeader({
-          no: nextNumRes.data.data.no,
+          no: numData.no || 1,
           invoiceNumber: invNum,
           date: new Date().toISOString().split('T')[0],
           customerCode: '',
@@ -3041,36 +3042,48 @@ function Invoice() {
       return;
     }
 
-    // 1. Always open the Receipt Preview modal immediately so user sees the bill on screen
-    setPreviewModalOpen(true);
-
-    // 2. If invoice is already saved, trigger print directly
+    // 1. If invoice is already saved in database, proceed directly to print (never duplicate save or deduct stock twice)
     if (activeInvoiceId) {
       handlePrint();
       return;
     }
 
-    // 3. If invoice has unsaved items, save it to assign sequential invoice number and deduct stock
+    // 2. If invoice has unsaved items, save it first (deduct inventory stock once & generate sequential invoice number)
     showNotification('Saving invoice and preparing bill...', 'info');
     try {
       const saved = await handleSaveInvoice(false, true);
       if (saved) {
-        showNotification(`Invoice #${saved.invoiceNumber || invoiceHeader.invoiceNumber} saved. Printing bill...`, 'success');
+        showNotification(`Invoice #${saved.invoiceNumber || invoiceHeader.invoiceNumber} saved successfully. Printing bill...`, 'success');
         handlePrint();
       } else {
-        showNotification('Invoice preview loaded. You can print directly from the preview window.', 'info');
+        showNotification('Failed to save invoice. Printing cancelled to protect data integrity.', 'error');
       }
     } catch (err) {
       console.error('Error during bill print save:', err);
-      showNotification('Invoice preview loaded. Click Print to proceed.', 'info');
+      showNotification('Failed to save invoice. Printing cancelled.', 'error');
     }
   };
 
   // Print Invoice (Thermal Receipt) and automatically transition to a fresh new bill
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (lineItems.length === 0) {
       showNotification('Please add items or select an invoice first before printing', 'error');
       return;
+    }
+
+    // Safety guard: Ensure invoice is saved before printing if not yet saved
+    if (!activeInvoiceId) {
+      try {
+        const saved = await handleSaveInvoice(false, true);
+        if (!saved) {
+          showNotification('Failed to save invoice. Printing cancelled.', 'error');
+          return;
+        }
+      } catch (err) {
+        console.error('Error auto-saving in handlePrint:', err);
+        showNotification('Failed to save invoice. Printing cancelled.', 'error');
+        return;
+      }
     }
 
     setPreviewModalOpen(true);
@@ -3081,7 +3094,7 @@ function Invoice() {
       hasTransitioned = true;
       window.removeEventListener('afterprint', transitionToNewBill);
       setPreviewModalOpen(false);
-      // Automatically reset to a fresh new bill for the next customer
+      // Automatically reset to a fresh new blank invoice for the next customer
       handleNew(true);
       setTimeout(() => {
         itemCodeInputRef.current?.focus();
@@ -3096,9 +3109,12 @@ function Invoice() {
         try {
           window.print();
         } catch (e) {
-          console.warn('window.print error:', e);
+          console.error('window.print error:', e);
+          showNotification('Printing failed. Invoice remains saved.', 'error');
+          window.removeEventListener('afterprint', transitionToNewBill);
+          return;
         }
-        // Fallback for environments where afterprint may not trigger or synchronous print returns
+        // Fallback transition for environments where afterprint may not trigger or synchronous print returns
         setTimeout(() => {
           transitionToNewBill();
         }, 300);
@@ -3677,6 +3693,16 @@ function Invoice() {
                     title="Prepare form for New Invoice"
                   >
                     New
+                  </button>
+                  <button
+                    type="button"
+                    className="sofast-classic-btn"
+                    style={{ color: '#004d40', fontWeight: 'bold' }}
+                    onClick={handleBillPrint}
+                    disabled={loading}
+                    title="Save invoice (if unsaved) and print bill receipt"
+                  >
+                    Bill Print
                   </button>
                   <button
                     type="button"
@@ -4765,6 +4791,15 @@ function Invoice() {
                   title="Start a new invoice (clears unsaved items with confirmation)"
                 >
                   New
+                </button>
+                <button
+                  type="button"
+                  className="sofast-bottom-btn sofast-btn-print"
+                  onClick={handleBillPrint}
+                  disabled={loading}
+                  title="Save invoice (if unsaved) and print thermal bill receipt"
+                >
+                  Bill Print
                 </button>
                 <button
                   type="button"
