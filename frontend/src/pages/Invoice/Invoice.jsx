@@ -2911,7 +2911,7 @@ function Invoice() {
   // BUTTON: CREATE INVOICE (Clicking this button goes to Settlement Invoice)
   const handleCreateInvoiceButtonClick = async () => {
     if (lineItems.length > 0) {
-      const saved = await handleSaveInvoice(false);
+      const saved = await handleSaveInvoice(false, true);
       if (saved) {
         navigate('/settlement-invoice', {
           state: { invoiceNumber: saved.invoiceNumber || invoiceHeader.invoiceNumber }
@@ -3053,7 +3053,7 @@ function Invoice() {
     // 3. If invoice has unsaved items, save it to assign sequential invoice number and deduct stock
     showNotification('Saving invoice and preparing bill...', 'info');
     try {
-      const saved = await handleSaveInvoice(false);
+      const saved = await handleSaveInvoice(false, true);
       if (saved) {
         showNotification(`Invoice #${saved.invoiceNumber || invoiceHeader.invoiceNumber} saved. Printing bill...`, 'success');
         handlePrint();
@@ -3066,17 +3066,43 @@ function Invoice() {
     }
   };
 
-  // Print Invoice (Thermal Receipt)
+  // Print Invoice (Thermal Receipt) and automatically transition to a fresh new bill
   const handlePrint = () => {
     if (lineItems.length === 0) {
       showNotification('Please add items or select an invoice first before printing', 'error');
       return;
     }
+
     setPreviewModalOpen(true);
+
+    let hasTransitioned = false;
+    const transitionToNewBill = () => {
+      if (hasTransitioned) return;
+      hasTransitioned = true;
+      window.removeEventListener('afterprint', transitionToNewBill);
+      setPreviewModalOpen(false);
+      // Automatically reset to a fresh new bill for the next customer
+      handleNew(true);
+      setTimeout(() => {
+        itemCodeInputRef.current?.focus();
+        itemCodeInputRef.current?.select();
+      }, 150);
+    };
+
+    window.addEventListener('afterprint', transitionToNewBill, { once: true });
+
     requestAnimationFrame(() => {
       setTimeout(() => {
-        window.print();
-      }, 100);
+        try {
+          window.print();
+        } catch (e) {
+          console.warn('window.print error:', e);
+        }
+        // Fallback for environments where afterprint may not trigger or synchronous print returns
+        setTimeout(() => {
+          transitionToNewBill();
+        }, 300);
+      }, 120);
     });
   };
 

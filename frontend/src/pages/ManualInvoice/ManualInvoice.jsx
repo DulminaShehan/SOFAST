@@ -668,19 +668,41 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
     // If Yes: Save manual invoice and print bill
     const saved = await handleSaveInvoice(true);
     if (saved) {
-      setPrintTime(
-        new Date().toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: true,
-        })
-      );
-      setReceiptPreviewOpen(true);
-      setTimeout(() => {
-        window.print();
-      }, 200);
+      handlePrintManualReceipt();
     }
+  };
+
+  // Dedicated Print Helper: Prints thermal receipt and transitions to fresh new manual bill
+  const handlePrintManualReceipt = () => {
+    setPrintTime(
+      new Date().toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      })
+    );
+    setReceiptPreviewOpen(true);
+
+    let hasTransitioned = false;
+    const transitionToNewManual = () => {
+      if (hasTransitioned) return;
+      hasTransitioned = true;
+      window.removeEventListener('afterprint', transitionToNewManual);
+      setReceiptPreviewOpen(false);
+      handleNewInvoice();
+    };
+
+    window.addEventListener('afterprint', transitionToNewManual, { once: true });
+
+    setTimeout(() => {
+      try {
+        window.print();
+      } catch (e) {
+        console.warn('window.print error in manual invoice:', e);
+      }
+      setTimeout(transitionToNewManual, 300);
+    }, 200);
   };
 
   // Bill Print
@@ -690,26 +712,13 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
       return;
     }
 
-    setPrintTime(
-      new Date().toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      })
-    );
-
     // Auto-save if invoice hasn't been saved yet
     if (!activeInvoiceId) {
       const saved = await handleSaveInvoice(true);
       if (!saved) return;
     }
 
-    // Open print preview and launch browser print dialog
-    setReceiptPreviewOpen(true);
-    setTimeout(() => {
-      window.print();
-    }, 200);
+    handlePrintManualReceipt();
   };
 
   // Delete saved Manual Invoice
@@ -1986,7 +1995,7 @@ function ManualInvoice({ isModal = false, onClose, onInvoiceSaved } = {}) {
               <button
                 type="button"
                 className="manual-btn manual-btn-primary"
-                onClick={() => window.print()}
+                onClick={handlePrintManualReceipt}
               >
                 🖨️ Print Again
               </button>
