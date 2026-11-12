@@ -1275,6 +1275,50 @@
   line-height: 1.25;
 }
 
+/* Sales Return / Return Bill Thermal Receipt Styles */
+.thermal-return-banner {
+  text-align: center;
+  margin: 2px 0;
+  padding: 2px 0;
+}
+
+.thermal-return-heading {
+  font-size: 14.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #000000;
+  text-transform: uppercase;
+}
+
+.thermal-return-subheading {
+  font-size: 10px;
+  font-style: italic;
+  color: #333333;
+}
+
+.thermal-orig-inv-highlight {
+  font-size: 14px;
+  font-weight: 900;
+  color: #000000;
+}
+
+.thermal-return-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.thermal-return-table th {
+  border-bottom: 1px dashed #000000;
+  padding: 2px 0;
+  font-size: 10.5px;
+  font-weight: bold;
+}
+
+.thermal-return-table td {
+  padding: 2px 0;
+  vertical-align: top;
+}
+
 #thermal-receipt-print-area {
   display: none;
   height: auto;
@@ -1817,9 +1861,10 @@
 
 /* Distinct Input Colors */
 .code-olive-input {
-  background-color: #8f8a4a !important;
-  color: #ffffff !important;
-  font-weight: bold;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #7f9db9 !important;
+  font-weight: normal;
 }
 
 .coupon-green-input {
@@ -2260,8 +2305,9 @@
   border: 1px solid #7f9db9;
   background: #fff;
   min-height: 160px;
-  max-height: 220px;
-  overflow: scroll;
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: auto;
   width: 100%;
   box-sizing: border-box;
 }
@@ -2271,6 +2317,7 @@
   border-collapse: collapse;
   font-size: 12.5px;
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+  table-layout: auto;
 }
 
 .sofast-grid-table th {
@@ -2900,6 +2947,17 @@
 
 .sofast-btn-exit-return:hover {
   background: #eeeeee !important;
+}
+
+.sofast-btn-reprint-return {
+  background: #1565c0 !important;
+  color: #ffffff !important;
+  border: 1px solid #0d47a1 !important;
+  font-weight: bold;
+}
+
+.sofast-btn-reprint-return:hover {
+  background: #1976d2 !important;
 }
 
 /* ========================================================= */

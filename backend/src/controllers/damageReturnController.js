@@ -161,10 +161,17 @@ export const getInvoiceForReturn = async (req, res, next) => {
     }
 
     // Same-Day Return Policy Restriction:
-    // Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight).
-    // Once the system clock passes 12:00 AM (midnight), invoices created on previous days must be locked from being returned.
+    // Returns are strictly permitted ONLY within the same calendar day of issue (before 12:00 AM midnight),
+    // unless bypass is requested (e.g. Sales Invoice return mode or bypassSameDay flag).
     const invoiceDateVal = invoice.date || invoice.createdAt;
-    if (!isSameCalendarDay(invoiceDateVal)) {
+    const bypassPolicy =
+      req.query.bypassSameDay === 'true' ||
+      req.query.force === 'true' ||
+      req.query.allowAnyDate === 'true' ||
+      req.headers['x-bypass-sameday'] === 'true' ||
+      req.baseUrl === '/api/invoices';
+
+    if (!bypassPolicy && !isSameCalendarDay(invoiceDateVal)) {
       return res.status(400).json({
         success: false,
         sameDayPolicyViolated: true,
@@ -1926,6 +1933,12 @@ export const processInvoiceReturn = async (req, res, next) => {
       data: {
         returnNumber: firstReturnNumber,
         invoiceNumber: invNum,
+        invoiceDate: invoice.date,
+        customerCode: invoice.customerCode || invoice.cuscode || '',
+        customerName: invoice.customerName || invoice.cusname || 'Walk-in Customer',
+        customerTelephone: invoice.customerTelephone || invoice.telephone || '',
+        customerAddress: invoice.customerAddress || '',
+        paymentMethod: invoice.paymentMethod || invoice.paidBy || 'Cash',
         totalReturnAmount,
         balanceAdjusted,
         refundPaid: Math.max(0, Math.round((totalReturnAmount - balanceAdjusted) * 100) / 100),
