@@ -194,6 +194,7 @@ function ItemMaster() {
   const menuRef = useRef(null);
   const colorPaletteRef = useRef(null);
   const nativeColorInputRef = useRef(null);
+  const searchDebounceRef = useRef(null);
   const navigate = useNavigate();
   const { confirmSave, confirmDelete } = useConfirmDialog();
 
@@ -333,6 +334,18 @@ function ItemMaster() {
     }, 4500);
   };
 
+  // Debounced search for similar items in the list when entering an item code
+  const searchSimilarItems = (query) => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    searchDebounceRef.current = setTimeout(async () => {
+      const trimmed = (query || '').trim();
+      setSearchTerm(trimmed);
+      await fetchItems(trimmed, 1, pageSize);
+    }, 250);
+  };
+
   // Form input changes
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -348,6 +361,11 @@ function ItemMaster() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+
+    // Show similar items in the list as the user types/enters an Item Code
+    if (name === 'code') {
+      searchSimilarItems(value);
+    }
   };
 
   // Category change with dependent Sub Category filtering
@@ -475,6 +493,8 @@ function ItemMaster() {
 
     await fetchNextCode();
     await fetchNextBarcode();
+    setSearchTerm('');
+    await fetchItems('', 1, pageSize);
     if (codeInputRef.current) {
       codeInputRef.current.focus();
     }
@@ -1335,34 +1355,45 @@ function ItemMaster() {
 
   // Search item by Item Code (from search bar or Item Code input field)
   const handleSearchByCode = async (codeToSearch) => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
     const code = (codeToSearch || formData.code || '').trim();
     if (!code) {
-      handleOpenItemSearchModal('');
+      setSearchTerm('');
+      await fetchItems('', 1, pageSize);
       return;
     }
 
     try {
       setLoading(true);
-      const res = await api.get(`/items?search=${encodeURIComponent(code)}&limit=25`);
+      setSearchTerm(code);
+      const res = await api.get(`/items?search=${encodeURIComponent(code)}&limit=${pageSize}&page=1`);
       const results = res.data?.data || [];
+      const total = res.data?.total || results.length;
 
-      // Exact match on code
+      // Update the items table list immediately with all similar items
+      setItems(results);
+      setTotalItems(total);
+      setTotalPages(res.data?.totalPages || 1);
+      setCurrentPage(1);
+
+      // Check for exact match on code
       const exactCodeMatch = results.find(
         (it) => it.code && it.code.trim().toLowerCase() === code.toLowerCase()
       );
 
       if (exactCodeMatch) {
         handleRowClick(exactCodeMatch, true);
-        showNotification(`Item '${exactCodeMatch.code}' found. Details loaded and editable.`, 'success');
-      } else if (results.length === 1) {
-        handleRowClick(results[0], true);
-        showNotification(`Item '${results[0].code}' found. Details loaded and editable.`, 'success');
+        showNotification(`Item '${exactCodeMatch.code}' found and loaded. Similar items displayed in list below.`, 'success');
+      } else if (results.length > 0) {
+        showNotification(`Found ${total} similar item(s) in list below. Click any item to load details.`, 'info');
       } else {
-        handleOpenItemSearchModal(code);
+        showNotification(`No existing items found matching '${code}'. Enter details to create new item.`, 'info');
       }
     } catch (error) {
-      console.warn('Direct code search failed, opening search modal:', error);
-      handleOpenItemSearchModal(code);
+      console.warn('Direct code search failed:', error);
+      showNotification('Error searching items in database', 'error');
     } finally {
       setLoading(false);
     }
