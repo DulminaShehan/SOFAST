@@ -3500,8 +3500,6 @@ function Invoice() {
       returnReason = 'Customer Return',
     } = lastProcessedReturn;
 
-    const sortedReturnedItems = [...returnedItems].sort(compareBillPrintItems);
-
     return (
       <div className="thermal-receipt thermal-return-receipt">
         {/* 1. Header (Standard SOFAST Company Header) */}
@@ -3598,14 +3596,14 @@ function Invoice() {
             </tr>
           </thead>
           <tbody>
-            {sortedReturnedItems.length === 0 ? (
+            {returnedItems.length === 0 ? (
               <tr>
                 <td colSpan="3" style={{ textAlign: 'center', color: '#666', fontStyle: 'italic', padding: '4px 0' }}>
                   No items returned
                 </td>
               </tr>
             ) : (
-              sortedReturnedItems.map((item, idx) => {
+              returnedItems.map((item, idx) => {
                 const sold = Number(item.originalSoldQuantity || 0);
                 const prev = Number(item.previouslyReturnedQuantity || 0);
                 const ret = Number(item.currentReturnQuantity || 0);
