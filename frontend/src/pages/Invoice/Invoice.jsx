@@ -4345,49 +4345,36 @@ function Invoice() {
                   <div
                     className="sofast-color-field-container"
                     ref={invoiceColorPaletteRef}
-                    style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '160px', flexShrink: 0 }}
+                    style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '130px', flexShrink: 0 }}
                   >
-                    {/* Visual Color Preview Swatch */}
-                    <div
-                      className="sofast-color-preview-swatch"
-                      style={{
-                        width: '22px',
-                        height: '21px',
-                        borderRadius: '2px',
-                        border: '1px solid #7f9db9',
-                        backgroundColor: resolveColorHex(itemEntry.color) || '#ffffff',
-                        boxShadow: 'inset 0 0 2px rgba(0,0,0,0.25), 0 1px 1px rgba(0,0,0,0.1)',
-                        cursor: 'pointer',
-                        flexShrink: 0,
-                        marginRight: '3px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                      onClick={() => setShowInvoiceColorPalette((prev) => !prev)}
-                      title={itemEntry.color ? `Color: ${itemEntry.color} (Click to open palette)` : 'Click to select Color'}
-                    >
-                      {!itemEntry.color && <span style={{ fontSize: '10px', color: '#999' }}>-</span>}
-                    </div>
-
-                    {/* Color Text Box */}
+                    {/* Color Text Box (Shows only color fill, no name text) */}
                     <input
                       type="text"
                       name="color"
+                      readOnly
                       className="sofast-input"
                       style={{
                         flex: 1,
                         minWidth: 0,
-                        height: '21px',
-                        borderLeft: resolveColorHex(itemEntry.color)
-                          ? `6px solid ${resolveColorHex(itemEntry.color)}`
-                          : '1px solid #7f9db9',
-                        paddingLeft: '5px',
-                        fontWeight: itemEntry.color ? 'bold' : 'normal',
+                        height: '25px',
+                        backgroundColor: resolveColorHex(itemEntry.color) || '#ffffff',
+                        border: '1px solid #7f9db9',
+                        borderRadius: '1px',
+                        cursor: 'pointer',
+                        color: 'transparent',
+                        caretColor: 'transparent',
+                        boxShadow: itemEntry.color ? 'inset 0 0 2px rgba(0,0,0,0.25)' : 'none',
+                        transition: 'background-color 0.15s ease',
                       }}
-                      value={itemEntry.color || ''}
-                      onChange={handleItemEntryChange}
-                      placeholder="Color"
+                      value=""
+                      onClick={() => setShowInvoiceColorPalette((prev) => !prev)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setShowInvoiceColorPalette((prev) => !prev);
+                        }
+                      }}
+                      title={itemEntry.color ? `Color: ${itemEntry.color} (Click to change)` : 'Click to select Color'}
                       autoComplete="off"
                     />
 
@@ -4398,18 +4385,19 @@ function Invoice() {
                       onClick={() => setShowInvoiceColorPalette((prev) => !prev)}
                       title="Choose Color Palette"
                       style={{
-                        marginLeft: '3px',
-                        width: '24px',
-                        height: '21px',
+                        marginLeft: '4px',
+                        width: '26px',
+                        height: '25px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         padding: 0,
                         cursor: 'pointer',
-                        fontSize: '11px',
+                        fontSize: '12px',
                         backgroundColor: '#f8fafc',
                         border: '1px solid #7f9db9',
                         borderRadius: '1px',
+                        flexShrink: 0,
                       }}
                     >
                       🎨
@@ -4816,31 +4804,21 @@ function Invoice() {
                           </div>
                         )}
                         {activePreviewItem.color && (
-                          <div style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px' }}>
+                          <div style={{ marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
                             <span style={{ color: '#555', fontWeight: 'bold' }}>Color:</span>
                             <span
                               style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '1px 6px',
-                                borderRadius: '3px',
-                                backgroundColor: '#f1f5f9',
-                                border: '1px solid #cbd5e1',
-                                fontWeight: 'bold',
+                                width: '28px',
+                                height: '16px',
+                                borderRadius: '2px',
+                                backgroundColor: resolveColorHex(activePreviewItem.color) || '#ffffff',
+                                border: '1px solid #7f9db9',
+                                display: 'inline-block',
+                                boxShadow: 'inset 0 0 2px rgba(0,0,0,0.2)',
+                                verticalAlign: 'middle',
                               }}
-                            >
-                              <span
-                                style={{
-                                  width: '10px',
-                                  height: '10px',
-                                  borderRadius: '2px',
-                                  backgroundColor: resolveColorHex(activePreviewItem.color) || '#999',
-                                  border: '1px solid #666',
-                                }}
-                              />
-                              {activePreviewItem.color}
-                            </span>
+                              title={activePreviewItem.color}
+                            />
                           </div>
                         )}
                         {alternativeProducts.length > 0 && (

@@ -1998,44 +1998,35 @@ function ItemMaster() {
                   Color . . . . . . . . .
                 </label>
                 <div className="field-control-group color-field-group" ref={colorPaletteRef} style={{ width: '230px', position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  {/* Visual Color Preview Swatch */}
-                  <div
-                    className="item-color-preview-swatch"
-                    style={{
-                      width: '24px',
-                      height: '22px',
-                      borderRadius: '2px',
-                      border: '1px solid #7f9db9',
-                      backgroundColor: resolveColorHex(formData.color) || '#ffffff',
-                      boxShadow: 'inset 0 0 2px rgba(0,0,0,0.25), 0 1px 1px rgba(0,0,0,0.1)',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    onClick={() => setShowColorPalette((prev) => !prev)}
-                    title={formData.color ? `Selected Color: ${formData.color} (Click to open palette)` : 'Click to select Color'}
-                  >
-                    {!formData.color && <span style={{ fontSize: '10px', color: '#999' }}>-</span>}
-                  </div>
-
-                  {/* Color Text Box */}
+                  {/* Color Text Box (Shows only color fill, no name text) */}
                   <input
                     id="item-color"
                     name="color"
                     type="text"
+                    readOnly
                     className="input-classic"
                     style={{
                       flex: 1,
                       minWidth: 0,
-                      borderLeft: resolveColorHex(formData.color) ? `6px solid ${resolveColorHex(formData.color)}` : '1px solid #7f9db9',
-                      paddingLeft: '6px',
-                      fontWeight: formData.color ? 'bold' : 'normal',
+                      height: '22px',
+                      backgroundColor: resolveColorHex(formData.color) || '#ffffff',
+                      border: '1px solid #7f9db9',
+                      borderRadius: '1px',
+                      cursor: 'pointer',
+                      color: 'transparent',
+                      caretColor: 'transparent',
+                      boxShadow: formData.color ? 'inset 0 0 2px rgba(0,0,0,0.25)' : 'none',
+                      transition: 'background-color 0.15s ease',
                     }}
-                    value={formData.color}
-                    onChange={handleInputChange}
-                    placeholder="Color (e.g. Red, Blue)"
+                    value=""
+                    onClick={() => setShowColorPalette((prev) => !prev)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setShowColorPalette((prev) => !prev);
+                      }
+                    }}
+                    title={formData.color ? `Color: ${formData.color} (Click to change)` : 'Click to select Color'}
                     autoComplete="off"
                   />
 
@@ -2049,6 +2040,14 @@ function ItemMaster() {
                       backgroundColor: '#f8fafc',
                       width: '24px',
                       height: '22px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: 'pointer',
+                      border: '1px solid #7f9db9',
+                      borderRadius: '1px',
+                      flexShrink: 0,
                     }}
                   >
                     <span className="swatch-palette-icon">🎨</span>
