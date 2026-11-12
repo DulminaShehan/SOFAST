@@ -100,6 +100,12 @@ function ItemMaster() {
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [dbStatus, setDbStatus] = useState({ connected: true });
 
+  // Item Code Autocomplete Suggestion Dropdown State
+  const [codeDropdownOpen, setCodeDropdownOpen] = useState(false);
+  const [highlightedCodeIndex, setHighlightedCodeIndex] = useState(-1);
+  const [suggestedItems, setSuggestedItems] = useState([]);
+  const codeDropdownRef = useRef(null);
+
   // Lookup modal state
   const [lookupModal, setLookupModal] = useState({
     isOpen: false,
@@ -313,7 +319,7 @@ function ItemMaster() {
     fetchNextBarcode();
   }, []);
 
-  // Close top menu and color palette on outside click
+  // Close top menu, color palette, and item code dropdown on outside click
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -321,6 +327,9 @@ function ItemMaster() {
       }
       if (colorPaletteRef.current && !colorPaletteRef.current.contains(e.target)) {
         setShowColorPalette(false);
+      }
+      if (codeDropdownRef.current && !codeDropdownRef.current.contains(e.target)) {
+        setCodeDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -334,16 +343,71 @@ function ItemMaster() {
     }, 4500);
   };
 
-  // Debounced search for similar items in the list when entering an item code
+  // Debounced search for similar items in the suggestion dropdown & table when typing Item Code
   const searchSimilarItems = (query) => {
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
     }
+    const trimmed = (query || '').trim();
+    if (!trimmed) {
+      setSuggestedItems([]);
+      setCodeDropdownOpen(false);
+      setSearchTerm('');
+      fetchItems('', 1, pageSize);
+      return;
+    }
     searchDebounceRef.current = setTimeout(async () => {
-      const trimmed = (query || '').trim();
-      setSearchTerm(trimmed);
-      await fetchItems(trimmed, 1, pageSize);
-    }, 250);
+      try {
+        const res = await api.get(`/items?search=${encodeURIComponent(trimmed)}&limit=50`);
+        const list = res.data?.data || [];
+        setSuggestedItems(list);
+        setCodeDropdownOpen(list.length > 0);
+        setHighlightedCodeIndex(0);
+        // Also update the lower items records table in sync
+        setItems(list);
+        setTotalItems(res.data?.total || list.length);
+        setTotalPages(res.data?.totalPages || 1);
+        setCurrentPage(1);
+        setSearchTerm(trimmed);
+      } catch (err) {
+        console.warn('Error fetching item code suggestions:', err);
+      }
+    }, 200);
+  };
+
+  // Keyboard navigation on Item Code autocomplete input
+  const handleCodeInputKeyDown = (e) => {
+    if (e.key === 'F2') {
+      e.preventDefault();
+      setCodeDropdownOpen(false);
+      handleOpenItemSearchModal(formData.code);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!codeDropdownOpen) {
+        if (suggestedItems.length > 0) setCodeDropdownOpen(true);
+      } else {
+        setHighlightedCodeIndex((prev) =>
+          prev < Math.min(suggestedItems.length, 80) - 1 ? prev + 1 : prev
+        );
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (codeDropdownOpen) {
+        setHighlightedCodeIndex((prev) => (prev > 0 ? prev - 1 : 0));
+      }
+    } else if (e.key === 'Escape') {
+      setCodeDropdownOpen(false);
+      setHighlightedCodeIndex(-1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (codeDropdownOpen && highlightedCodeIndex >= 0 && suggestedItems[highlightedCodeIndex]) {
+        handleSelectItemFromSearch(suggestedItems[highlightedCodeIndex]);
+        setCodeDropdownOpen(false);
+      } else {
+        handleSearchByCode(formData.code);
+      }
+    }
   };
 
   // Form input changes
@@ -493,6 +557,8 @@ function ItemMaster() {
 
     await fetchNextCode();
     await fetchNextBarcode();
+    setSuggestedItems([]);
+    setCodeDropdownOpen(false);
     setSearchTerm('');
     await fetchItems('', 1, pageSize);
     if (codeInputRef.current) {
@@ -1529,7 +1595,7 @@ function ItemMaster() {
                 <label className="field-label top-label-code" htmlFor="item-code">
                   Item Code . . . . . .
                 </label>
-                <div className="top-code-field-wrapper" style={{ gridColumn: '2 / span 2', gridRow: '1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div className="top-code-field-wrapper" style={{ gridColumn: '2 / span 2', gridRow: '1', display: 'flex', alignItems: 'center', gap: '6px', position: 'relative' }} ref={codeDropdownRef}>
                   <input
                     id="item-code"
                     name="code"
@@ -1538,21 +1604,16 @@ function ItemMaster() {
                     style={{ width: '160px' }}
                     value={formData.code}
                     onChange={handleInputChange}
-                    onKeyDown={(e) => {
-                      if (e.key === 'F2') {
-                        e.preventDefault();
-                        handleOpenItemSearchModal(formData.code);
-                      } else if (e.key === 'Enter') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleSearchByCode(formData.code);
+                    onFocus={() => {
+                      if (formData.code && formData.code.trim() && suggestedItems.length > 0) {
+                        setCodeDropdownOpen(true);
                       }
                     }}
+                    onKeyDown={handleCodeInputKeyDown}
                     ref={codeInputRef}
                     placeholder="Enter Code... (F2)"
-                    list="item-master-code-datalist"
                     autoComplete="off"
-                    title="Enter Item Code and press Enter, or click Search / press F2 to search every item"
+                    title="Enter Item Code to search similar items, or click Search / press F2"
                   />
                   <button
                     type="button"
@@ -1563,13 +1624,45 @@ function ItemMaster() {
                   >
                     🔍 Search (F2)
                   </button>
-                  <datalist id="item-master-code-datalist">
-                    {(items || []).slice(0, 300).map((itm) => (
-                      <option key={itm._id || itm.code} value={itm.code}>
-                        {itm.code} — {itm.description}
-                      </option>
-                    ))}
-                  </datalist>
+
+                  {/* Item Master: Item Code Autocomplete Suggestion Dropdown Table */}
+                  {codeDropdownOpen && suggestedItems.length > 0 && (
+                    <div className="item-code-dropdown-panel">
+                      <div className="item-code-dropdown-header">
+                        <span style={{ width: '110px' }}>Item Code</span>
+                        <span style={{ flex: 1, padding: '0 8px' }}>Description</span>
+                        <span style={{ width: '85px', textAlign: 'right' }}>Selling Price</span>
+                        <span style={{ width: '60px', textAlign: 'right' }}>Stock</span>
+                      </div>
+                      <div className="item-code-dropdown-list">
+                        {suggestedItems.slice(0, 80).map((itm, idx) => (
+                          <div
+                            key={itm._id || itm.code}
+                            className={`item-code-dropdown-row ${highlightedCodeIndex === idx ? 'highlighted' : ''}`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleSelectItemFromSearch(itm);
+                              setCodeDropdownOpen(false);
+                            }}
+                            onMouseEnter={() => setHighlightedCodeIndex(idx)}
+                          >
+                            <span className="dropdown-col-code">{itm.code}</span>
+                            <span className="dropdown-col-desc">{itm.description}</span>
+                            <span className="dropdown-col-price">
+                              {Number(itm.sellingPrice || itm.finalSellingPrice || 0).toFixed(2)}
+                            </span>
+                            <span className="dropdown-col-stock">
+                              {itm.quantity !== undefined ? itm.quantity : (itm.stockInHand || 0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="item-code-dropdown-footer">
+                        <span>Showing {Math.min(suggestedItems.length, 80)} of {suggestedItems.length} matching items</span>
+                        <span>Click an item to load details</span>
+                      </div>
+                    </div>
+                  )}
                   {selectedId ? (
                     <span
                       className="badge-editing-mode"
