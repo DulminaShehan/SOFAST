@@ -194,11 +194,6 @@ function Invoice() {
   const [lookupPage, setLookupPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
 
-  // Item Dropdown List State (Quick item selection right on Code input)
-  const [itemDropdownOpen, setItemDropdownOpen] = useState(false);
-  const [highlightedItemIndex, setHighlightedItemIndex] = useState(-1);
-  const itemDropdownRef = useRef(null);
-
   // Item Color Selection & Palette Popover State
   const [showInvoiceColorPalette, setShowInvoiceColorPalette] = useState(false);
   const invoiceColorPaletteRef = useRef(null);
@@ -445,9 +440,6 @@ function Invoice() {
     const handleOutsideClick = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setActiveDropdown(null);
-      }
-      if (itemDropdownRef.current && !itemDropdownRef.current.contains(e.target)) {
-        setItemDropdownOpen(false);
       }
       if (invoiceColorPaletteRef.current && !invoiceColorPaletteRef.current.contains(e.target)) {
         setShowInvoiceColorPalette(false);
@@ -1730,7 +1722,7 @@ function Invoice() {
     }
 
     if (!item) {
-      showNotification(`Item '${code}' not found in Item Master`, 'error');
+      showNotification('Item Code Not Found.', 'error');
       return;
     }
 
@@ -1842,8 +1834,6 @@ function Invoice() {
     }
 
     fetchAlternativeProducts(item.code);
-    setItemDropdownOpen(false);
-    setHighlightedItemIndex(-1);
     setLookupModal({ isOpen: false, type: null, title: '', search: '' });
     setTimeout(() => {
       quantityInputRef.current?.focus();
@@ -1891,7 +1881,6 @@ function Invoice() {
 
     if (newJobType === 'Labour') {
       // Switching to Labour: pre-populate delivery charge defaults
-      setItemDropdownOpen(false);
       setAlternativeProducts([]);
       setSelectedItemPreview(null);
       setItemEntry((prev) => {
@@ -1992,7 +1981,7 @@ function Invoice() {
   };
 
   // Handle Keyboard navigation on Item Code input
-  const handleCodeKeyDown = (e) => {
+  const handleCodeKeyDown = async (e) => {
     if (invoiceHeader.jobType === 'Labour') {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -2007,7 +1996,6 @@ function Invoice() {
     if (e.key === 'F2' || e.key === 'F4') {
       e.preventDefault();
       e.stopPropagation();
-      setItemDropdownOpen(false);
       setLookupModal({
         isOpen: true,
         type: 'item',
@@ -2017,89 +2005,43 @@ function Invoice() {
       setLookupPage(1);
       return;
     }
-    if (e.key === 'ArrowDown') {
+
+    if (e.key === 'Enter') {
       e.preventDefault();
-      if (!itemDropdownOpen) {
-        setItemDropdownOpen(true);
-        setHighlightedItemIndex(0);
-      } else {
-        setHighlightedItemIndex((prev) =>
-          prev < Math.min(filteredDropdownItems.length, 80) - 1 ? prev + 1 : prev
-        );
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (itemDropdownOpen) {
-        setHighlightedItemIndex((prev) => (prev > 0 ? prev - 1 : 0));
-      }
-    } else if (e.key === 'Escape') {
-      setItemDropdownOpen(false);
-      setHighlightedItemIndex(-1);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (
-        itemDropdownOpen &&
-        highlightedItemIndex >= 0 &&
-        filteredDropdownItems[highlightedItemIndex]
-      ) {
-        loadItemIntoEntry(filteredDropdownItems[highlightedItemIndex], itemEntry.quantity || '1');
-        setItemDropdownOpen(false);
-        setHighlightedItemIndex(-1);
+      const rawQuery = String(itemEntry.code || '').trim();
+      if (!rawQuery) {
         return;
       }
 
-      const query = String(itemEntry.code || '').trim().toLowerCase();
-      if (!query) {
-        setItemDropdownOpen(false);
-        setLookupModal({
-          isOpen: true,
-          type: 'item',
-          title: 'Select Item from Item Master',
-          search: '',
-        });
-        setLookupPage(1);
-        return;
-      }
+      const queryLower = rawQuery.toLowerCase();
 
-      const match = itemsList.find(
-        (i) =>
-          i.code?.toLowerCase() === query ||
-          i.barcode?.toLowerCase() === query ||
-          i.barCode?.toLowerCase() === query ||
-          i.description?.toLowerCase() === query
-      );
+      // 1. Search locally in itemsList for an EXACT match on code, itemCode, barcode, or barCode
+      // Case-insensitive exact match that preserves leading zeros (e.g. '0005' === '0005')
+      const match = itemsList.find((i) => {
+        const c = String(i.code !== undefined && i.code !== null ? i.code : (i.itemCode || '')).trim().toLowerCase();
+        const b = String(i.barcode !== undefined && i.barcode !== null ? i.barcode : (i.barCode || '')).trim().toLowerCase();
+        return c === queryLower || (b && b === queryLower);
+      });
 
       if (match) {
-        loadItemIntoEntry(match, itemEntry.quantity || '1');
-        setItemDropdownOpen(false);
-        setHighlightedItemIndex(-1);
-      } else if (filteredDropdownItems.length > 0) {
-        loadItemIntoEntry(filteredDropdownItems[0], itemEntry.quantity || '1');
-        setItemDropdownOpen(false);
-        setHighlightedItemIndex(-1);
-      } else {
-        // Query backend directly in case item wasn't preloaded
-        api.get(`/items/${encodeURIComponent(query)}?silent=true`)
-          .then((res) => {
-            if (res.data?.success && res.data.data) {
-              loadItemIntoEntry(res.data.data, itemEntry.quantity || '1');
-            } else {
-              api.get(`/items?search=${encodeURIComponent(query)}&limit=10`)
-                .then((sRes) => {
-                  if (sRes.data?.data && sRes.data.data.length > 0) {
-                    loadItemIntoEntry(sRes.data.data[0], itemEntry.quantity || '1');
-                  } else {
-                    showNotification(`Item '${query}' not found in Item Master`, 'error');
-                  }
-                })
-                .catch(() => null);
-            }
-          })
-          .catch(() => {
-            showNotification(`Item '${query}' not found in Item Master`, 'error');
-          });
-        setItemDropdownOpen(false);
+        await loadItemIntoEntry(match, itemEntry.quantity || '1');
+        return;
       }
+
+      // 2. Query backend directly in case item wasn't preloaded (exact code or barcode)
+      try {
+        const res = await api.get(`/items/${encodeURIComponent(rawQuery)}?silent=true`);
+        if (res.data?.success && res.data.data) {
+          await loadItemIntoEntry(res.data.data, itemEntry.quantity || '1');
+          return;
+        }
+      } catch (err) {
+        // Backend search failed
+      }
+
+      // 3. Exact item not found: Display exact user-specified message
+      // DO NOT automatically select a different item with a similar code!
+      showNotification('Item Code Not Found.', 'error');
     }
   };
 
@@ -2109,30 +2051,45 @@ function Invoice() {
     let updated = { ...itemEntry, [name]: value };
     const isLabour = invoiceHeader.jobType === 'Labour';
 
-    // Auto-match Item by Code or Barcode (Material only)
+    // Item Code field typing
     if (name === 'code') {
       if (isLabour) {
-        setItemDropdownOpen(false);
         setItemEntry(updated);
         return;
       }
-      setItemDropdownOpen(true);
-      setHighlightedItemIndex(0);
-      const trimmed = String(value || '').trim().toLowerCase();
-      const match = itemsList.find(
-        (i) =>
-          (i.code && String(i.code).toLowerCase() === trimmed) ||
-          (i.itemCode && String(i.itemCode).toLowerCase() === trimmed) ||
-          (i.barcode && String(i.barcode).toLowerCase() === trimmed) ||
-          (i.barCode && String(i.barCode).toLowerCase() === trimmed)
-      );
 
-      if (match) {
-        loadItemIntoEntry(match, itemEntry.quantity || '1');
-        return;
-      } else {
+      // If user clears the code field, clear loaded item details so they can enter another code
+      if (!value || !value.trim()) {
+        setItemEntry({
+          ...itemEntry,
+          code: '',
+          description: '',
+          color: '',
+          secondDesc: '',
+          price: 0,
+          rate: '0.00',
+          availableQty: 0,
+          totalStoredStock: 0,
+          itemCost: '0.00',
+          lastGrn: '',
+          lastGrnDate: '',
+          lastGrnFormatted: '',
+          quantity: '1',
+          discountPercentage: '',
+          discountAmount: 0,
+          finalPrice: 0,
+          value: 0,
+          total: 0,
+          note: '',
+        });
         setAlternativeProducts([]);
+        setSelectedItemPreview(null);
+        return;
       }
+
+      // While typing, update the code text without auto-selecting similar items or showing dropdown
+      setItemEntry(updated);
+      return;
     }
 
     // Quantity change: validate customer purchase quantity against available stock and recalculate Value
@@ -2384,6 +2341,22 @@ function Invoice() {
       if (!itemEntry.code || itemEntry.code.trim() === '') {
         showNotification('Please enter or select an Item Code first', 'error');
         itemCodeInputRef.current?.focus();
+        return;
+      }
+      if (!itemEntry.description || itemEntry.description.trim() === '') {
+        const raw = String(itemEntry.code).trim();
+        const rawLower = raw.toLowerCase();
+        const match = itemsList.find((i) => {
+          const c = String(i.code !== undefined && i.code !== null ? i.code : (i.itemCode || '')).trim().toLowerCase();
+          const b = String(i.barcode !== undefined && i.barcode !== null ? i.barcode : (i.barCode || '')).trim().toLowerCase();
+          return c === rawLower || (b && b === rawLower);
+        });
+        if (!match) {
+          showNotification('Item Code Not Found.', 'error');
+          itemCodeInputRef.current?.focus();
+          return;
+        }
+        loadItemIntoEntry(match, itemEntry.quantity || '1');
         return;
       }
     }
@@ -3285,8 +3258,8 @@ function Invoice() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lineItems, invoiceHeader, activeInvoiceId, payment, discountModalOpen, discountInputPercentage]);
 
-  // Filtered items for quick dropdown list (Code field)
-  const filteredDropdownItems = useMemo(() => {
+  // Filtered items for quick catalog table (right column)
+  const filteredCatalogItems = useMemo(() => {
     const raw = String(itemEntry.code || '').trim().toLowerCase();
     if (!raw) return itemsList;
     const tokens = raw.split(/\s+/).filter(Boolean);
@@ -4170,7 +4143,6 @@ function Invoice() {
                   <span className="sofast-navy-label" style={{ width: '95px' }}>Code</span>
                   <div
                     className="sofast-code-search-container"
-                    ref={itemDropdownRef}
                     style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '215px', marginRight: '8px' }}
                   >
                     <input
@@ -4189,12 +4161,7 @@ function Invoice() {
                       value={itemEntry.code}
                       onChange={handleItemEntryChange}
                       onKeyDown={handleCodeKeyDown}
-                      onFocus={() => {
-                        if (itemEntry.code && itemEntry.code.trim()) {
-                          setItemDropdownOpen(true);
-                        }
-                      }}
-                      placeholder="Type code/name/barcode (F2)"
+                      placeholder="Item Code / Barcode (F2)"
                       autoComplete="off"
                     />
                     <button
@@ -4213,48 +4180,10 @@ function Invoice() {
                         });
                         setLookupPage(1);
                       }}
-                      title={invoiceHeader.jobType === 'Labour' ? 'Labour delivery charge (no Item Master needed)' : 'Search all 5,993+ items in Item Master (F2 / F4)'}
+                      title={invoiceHeader.jobType === 'Labour' ? 'Labour delivery charge (no Item Master needed)' : 'Search all items in Item Master (F2)'}
                     >
                       &#128269;
                     </button>
-                    {/* Quick Auto-suggest Dropdown Panel directly beneath Code - Material */}
-                    {itemDropdownOpen && filteredDropdownItems.length > 0 && (
-                      <div className="invoice-item-dropdown-panel">
-                        <div className="invoice-item-dropdown-header">
-                          <span style={{ width: '95px' }}>Code</span>
-                          <span style={{ flex: 1 }}>Description</span>
-                          <span style={{ width: '65px', textAlign: 'right' }}>Price</span>
-                          <span style={{ width: '45px', textAlign: 'right' }}>Stock</span>
-                        </div>
-                        <div className="invoice-item-dropdown-list">
-                          {filteredDropdownItems.slice(0, 80).map((item, idx) => (
-                            <div
-                              key={item._id || item.code}
-                              className={`invoice-item-dropdown-row ${highlightedItemIndex === idx ? 'highlighted' : ''}`}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                handleSelectItemFromLookup(item);
-                              }}
-                              onMouseEnter={() => setHighlightedItemIndex(idx)}
-                            >
-                              <span className="dropdown-col-code">{item.code}</span>
-                              <span className="dropdown-col-desc">{item.description}</span>
-                              <span className="dropdown-col-price">
-                                {Number(item.sellingPrice || item.finalSellingPrice || 0).toFixed(2)}
-                              </span>
-                              <span className="dropdown-col-stock">
-                                {item.quantity !== undefined ? item.quantity : (item.stockInHand || 0)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                        {filteredDropdownItems.length > 80 && (
-                          <div className="invoice-item-dropdown-footer">
-                            Showing 80 of {filteredDropdownItems.length} matching items. Click 🔍 or press F2 for full list.
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                   <span className="sofast-navy-label" style={{ width: '45px' }}>GRN . .</span>
                   <input
@@ -4635,7 +4564,7 @@ function Invoice() {
                           Description
                           {itemEntry.code && (
                             <span style={{ fontSize: '11px', color: '#000080', marginLeft: '6px', fontWeight: 'bold' }}>
-                              ({filteredDropdownItems.length} found)
+                              ({filteredCatalogItems.length} found)
                             </span>
                           )}
                         </th>
@@ -4645,7 +4574,7 @@ function Invoice() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredDropdownItems.length === 0 ? (
+                      {filteredCatalogItems.length === 0 ? (
                         <tr>
                           <td colSpan="5" style={{ padding: '8px', color: '#888', fontStyle: 'italic', textAlign: 'center' }}>
                             No items matching "{itemEntry.code}"
@@ -4653,7 +4582,7 @@ function Invoice() {
                         </tr>
                       ) : (
                         <>
-                          {filteredDropdownItems.slice(0, 150).map((item) => {
+                          {filteredCatalogItems.slice(0, 150).map((item) => {
                             const isSelected =
                               (activePreviewItem && activePreviewItem.code?.toLowerCase() === item.code?.toLowerCase()) ||
                               (itemEntry.code && item.code?.toLowerCase() === itemEntry.code.toLowerCase());
@@ -4700,10 +4629,10 @@ function Invoice() {
                               </tr>
                             );
                           })}
-                          {filteredDropdownItems.length > 150 && (
+                          {filteredCatalogItems.length > 150 && (
                             <tr>
                               <td colSpan="5" style={{ padding: '4px', color: '#000080', background: '#ece9d8', textAlign: 'center', fontSize: '11px', fontStyle: 'italic', borderTop: '1px solid #7f9db9' }}>
-                                Showing top 150 of {filteredDropdownItems.length} items. Type to search or press F2 for all.
+                                Showing top 150 of {filteredCatalogItems.length} items. Type to search or press F2 for all.
                               </td>
                             </tr>
                           )}
