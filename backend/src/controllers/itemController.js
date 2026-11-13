@@ -1192,6 +1192,7 @@ export const bulkImportItems = async (req, res, next) => {
           damagedStock: 0,
           sellingPrice: item.sellingPrice,
           finalSellingPrice: item.sellingPrice,
+          discountedPrice: item.sellingPrice,
           averageCost: item.cost,
           lastGrnPrice: item.cost,
           costPrice: item.cost,
@@ -1253,23 +1254,24 @@ export const bulkImportItems = async (req, res, next) => {
         const bulkOps = chunk.map((u) => {
           const updateFields = {
             description: u.description,
-            quantity: u.quantity,
-            stockInHand: u.quantity,
-            sellingPrice: u.sellingPrice,
-            finalSellingPrice: u.sellingPrice,
-            averageCost: u.cost,
-            lastGrnPrice: u.cost,
-            costPrice: u.cost,
-            value: u.value,
+            quantity: Math.max(0, Number(u.quantity) || 0),
+            stockInHand: Math.max(0, Number(u.quantity) || 0),
+            sellingPrice: Math.max(0, Number(u.sellingPrice) || 0),
+            finalSellingPrice: Math.max(0, Number(u.sellingPrice) || 0),
+            discountedPrice: Math.max(0, Number(u.sellingPrice) || 0),
+            averageCost: Math.max(0, Number(u.cost) || 0),
+            lastGrnPrice: Math.max(0, Number(u.cost) || 0),
+            costPrice: Math.max(0, Number(u.cost) || 0),
+            value: Math.max(0, Number(u.value) || 0),
             lastImportBatch: batchId,
             lastImportDate: importDate,
           };
-          if (u.bin) {
-            updateFields.location = u.bin;
-            updateFields.rackBin = u.bin;
+          if (u.bin && String(u.bin).trim()) {
+            updateFields.location = String(u.bin).trim();
+            updateFields.rackBin = String(u.bin).trim();
           }
-          if (u.category) {
-            updateFields.category = u.category;
+          if (u.category && String(u.category).trim() && String(u.category).trim() !== 'General') {
+            updateFields.category = String(u.category).trim();
           }
           return {
             updateOne: {

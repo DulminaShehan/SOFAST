@@ -998,9 +998,9 @@ function ItemMaster() {
     if (type === 'sample_5') {
       url = '/sample_test_items.csv';
       label = 'sample_test_items.csv (5 items)';
-    } else if (type === 'xlsx') {
-      url = '/closingstock3 report excel -15.10.2026.xlsx';
-      label = 'closingstock3 report excel -15.10.2026.xlsx (5,974 Items)';
+    } else if (type === 'xlsx' || type === 'complete_xlsx') {
+      url = '/SOFAST_Complete_Closing_Stock_Import.xlsx';
+      label = 'SOFAST_Complete_Closing_Stock_Import.xlsx (5,974 Items)';
     }
 
     try {
@@ -2999,9 +2999,9 @@ function ItemMaster() {
                         className="btn-classic"
                         disabled={isProcessingImport}
                         onClick={() => handleLoadPredefined('xlsx')}
-                        title="Load Excel (.xlsx) version of Closing Stock report"
+                        title="Load SOFAST_Complete_Closing_Stock_Import.xlsx with all 5,974 records and 7 fields"
                       >
-                        📊 Load Excel (.xlsx) Report
+                        📊 Load SOFAST_Complete_Closing_Stock_Import.xlsx (5,974 Items)
                       </button>
                       <button
                         type="button"
