@@ -233,8 +233,10 @@ function Invoice() {
     return null;
   }, [selectedItemPreview, itemEntry.code, itemsList, lineItems, selectedLineIndex]);
 
-  // Receipt Preview Modal
+  // Receipt & Cash Invoice Preview Modal
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  // Dual print format: '80mm' (80mm Thermal Receipt) | 'a4' (A4 Cash Invoice)
+  const [printFormat, setPrintFormat] = useState(() => localStorage.getItem('sofast_print_format') || '80mm');
 
   // Calculate Discount Modal State
   const [discountModalOpen, setDiscountModalOpen] = useState(false);
@@ -639,7 +641,7 @@ function Invoice() {
     return null;
   };
 
-  // Helper: compute line item pricing with discount and round off
+  // Helper: compute line item pricing with discount and ceiling round off
   const computeLinePricing = (
     priceVal,
     qtyVal,
@@ -647,7 +649,8 @@ function Invoice() {
     discAmtVal,
     source = 'percentage',
     roundOption = 'No Round Off',
-    roundStep = 10
+    roundStep = 10,
+    isRoundOff = false
   ) => {
     const price = parseFloat(priceVal) || 0;
     const qty = Math.max(0, parseFloat(qtyVal) || 0);
@@ -664,13 +667,20 @@ function Invoice() {
 
     let netValue = Math.max(0, gross - discAmt);
 
-    // Apply Round Off rule if configured
-    const step = Number(roundStep) || 10;
+    // Apply Round Off rule if configured (Feature 3: Ceiling logic to next multiple of 10)
     const opt = (roundOption || 'No Round Off').trim();
-    if (opt === 'Round Up' || opt === 'Up') {
-      netValue = Math.ceil(netValue / step) * step;
+    const shouldCeil = Boolean(isRoundOff || opt === 'Round Up' || opt === 'Up');
+    if (shouldCeil) {
+      // Formula: RoundedAmount = Math.ceil(NetAmount / 10.0) * 10
+      netValue = Math.ceil(netValue / 10.0) * 10;
+      discAmt = Math.max(0, gross - netValue);
+      if (source !== 'amount') {
+        discPct = gross > 0 ? (discAmt / gross) * 100 : discPct;
+      }
     } else if (opt === 'Round Down' || opt === 'Down') {
+      const step = Number(roundStep) || 10;
       netValue = Math.floor(netValue / step) * step;
+      discAmt = Math.max(0, gross - netValue);
     }
 
     return {
@@ -680,11 +690,12 @@ function Invoice() {
         ? (source === 'amount' ? discPct.toFixed(2) : String(discPctVal))
         : (discPctVal !== '' ? String(discPctVal) : ''),
       discountAmount: discAmt
-        ? (source === 'percentage' ? discAmt.toFixed(2) : String(discAmtVal))
+        ? discAmt.toFixed(2)
         : (discAmtVal !== '' ? String(discAmtVal) : ''),
       finalPrice: netValue.toFixed(2),
       value: netValue.toFixed(2),
       total: netValue.toFixed(2),
+      is_round_off: shouldCeil,
     };
   };
 
@@ -964,11 +975,20 @@ function Invoice() {
         const price = Number(item.sellingPrice !== undefined ? item.sellingPrice : item.price) || 0;
         const qty = Number(item.quantity) || 1;
         const gross = Math.round(price * qty * 100) / 100;
-        const discAmt = Math.round((gross * pct) / 100 * 100) / 100;
-        const netValue = Math.max(0, Math.round((gross - discAmt) * 100) / 100);
+        let discAmt = Math.round((gross * pct) / 100 * 100) / 100;
+        let netValue = Math.max(0, Math.round((gross - discAmt) * 100) / 100);
+
+        const isRound = Boolean(item.is_round_off || item.roundOff || item.roundOffOption === 'Round Up' || item.roundOffOption === 'Up');
+        if (isRound) {
+          // Feature 3: Ceiling logic to next multiple of 10
+          netValue = Math.ceil(netValue / 10.0) * 10;
+          discAmt = Math.max(0, gross - netValue);
+        }
 
         return {
           ...item,
+          is_round_off: isRound,
+          roundOff: isRound,
           discountPercentage: pct,
           discountAmount: discAmt,
           discount: pct > 0 ? `${pct}%` : '0%',
@@ -1757,7 +1777,8 @@ function Invoice() {
       initDiscPct = String(item.discountPercentage);
     }
 
-    const roundOpt = item.roundOffOption || 'No Round Off';
+    const isRound = Boolean(item.is_round_off || item.roundOff || item.roundOffOption === 'Round Up' || item.roundOffOption === 'Up');
+    const roundOpt = item.roundOffOption || (isRound ? 'Round Up' : 'No Round Off');
     const roundStp = item.roundOffStep || 10;
 
     // 5. Quantity & Value: Default customer purchase quantity (editable, default 1)
@@ -1769,7 +1790,8 @@ function Invoice() {
       '',
       'percentage',
       roundOpt,
-      roundStp
+      roundStp,
+      isRound
     );
 
     // 6. Cost: Last GRN purchase cost from supplier
@@ -1804,6 +1826,8 @@ function Invoice() {
       lastGrn: grnNum,
       lastGrnDate: grnDate,
       lastGrnFormatted: lastGrnFormatted,
+      is_round_off: isRound,
+      roundOff: isRound,
       roundOffOption: roundOpt,
       roundOffStep: roundStp,
       discountPercentage: comp.discountPercentage,
@@ -2413,6 +2437,7 @@ function Invoice() {
 
     const discPct = parseFloat(itemEntry.discountPercentage) || 0;
     const discAmt = parseFloat(itemEntry.discountAmount) || 0;
+    const isRound = Boolean(itemEntry.is_round_off || itemEntry.roundOff || itemEntry.roundOffOption === 'Round Up' || itemEntry.roundOffOption === 'Up');
     const comp = computeLinePricing(
       price,
       saleQty,
@@ -2420,7 +2445,8 @@ function Invoice() {
       discAmt,
       'percentage',
       itemEntry.roundOffOption,
-      itemEntry.roundOffStep
+      itemEntry.roundOffStep,
+      isRound
     );
     const finalPrice = parseFloat(comp.finalPrice) || Math.max(0, (price * saleQty) - discAmt);
 
@@ -2436,6 +2462,10 @@ function Invoice() {
       type: isLabour ? 'Labour' : 'Material',
       isService: isLabour,
       location: isLabour ? '-' : (itemEntry.location || 'Main Store'),
+      rackBin: itemEntry.rackBin || '',
+      is_round_off: isRound,
+      roundOff: isRound,
+      roundOffOption: itemEntry.roundOffOption || (isRound ? 'Round Up' : 'No Round Off'),
       availableQty: isLabour ? '-' : avail,
       quantity: saleQty,
       sellingPrice: price,
@@ -3157,13 +3187,15 @@ function Invoice() {
 
 // Note: handleBillPrint is unified with handleSaveAndPrint
 
-  // Print Invoice (Thermal Receipt) and automatically transition to a fresh new bill
-  const handlePrint = async () => {
+  // Print Invoice (Dual formats: 80mm Thermal Receipt or A4 Cash Invoice)
+  const handlePrint = async (formatOverride = null) => {
     setIsReturnPrintMode(false);
     if (lineItems.length === 0) {
       showNotification('Please add items or select an invoice first before printing', 'error');
       return;
     }
+
+    const activeFormat = formatOverride || printFormat;
 
     // Safety guard: Ensure invoice is saved before printing if not yet saved
     if (!activeInvoiceId) {
@@ -3182,11 +3214,34 @@ function Invoice() {
 
     setPreviewModalOpen(true);
 
+    // Dynamic @page styling injection for exact printer paper handling
+    const pageStyleId = 'sofast-dynamic-print-page-style';
+    let styleTag = document.getElementById(pageStyleId);
+    if (!styleTag) {
+      styleTag = document.createElement('style');
+      styleTag.id = pageStyleId;
+      document.head.appendChild(styleTag);
+    }
+
+    if (activeFormat === 'a4') {
+      document.body.classList.remove('print-80mm-mode');
+      document.body.classList.add('print-a4-mode');
+      styleTag.innerHTML = `@page { size: A4 portrait; margin: 8mm 10mm; }`;
+    } else {
+      document.body.classList.remove('print-a4-mode');
+      document.body.classList.add('print-80mm-mode');
+      styleTag.innerHTML = `@page { size: 80mm auto; margin: 0; }`;
+    }
+
     let hasTransitioned = false;
     const transitionToNewBill = () => {
       if (hasTransitioned) return;
       hasTransitioned = true;
       window.removeEventListener('afterprint', transitionToNewBill);
+      document.body.classList.remove('print-80mm-mode', 'print-a4-mode');
+      if (styleTag && styleTag.parentNode) {
+        styleTag.parentNode.removeChild(styleTag);
+      }
       setPreviewModalOpen(false);
       // Automatically reset to a fresh new blank invoice for the next customer
       handleNew(true);
@@ -3206,6 +3261,7 @@ function Invoice() {
           console.error('window.print error:', e);
           showNotification('Printing failed. Invoice remains saved.', 'error');
           window.removeEventListener('afterprint', transitionToNewBill);
+          document.body.classList.remove('print-80mm-mode', 'print-a4-mode');
           return;
         }
         // Fallback transition for environments where afterprint may not trigger or synchronous print returns
@@ -3336,10 +3392,30 @@ function Invoice() {
   }, [filteredItems, lookupPage]);
 
 
-  // Reusable Compact Thermal Receipt component for both Print and Preview
+  // Date formatting helpers for dual printing formats
+  const formatInvoiceDate = (dateVal) => {
+    if (!dateVal) return new Date().toLocaleDateString('en-GB');
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatPrintOnDateTime = () => {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const year = now.getFullYear();
+    const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+    return `${month}/${day}/${year} - ${timeStr}`;
+  };
+
+  // 1. COMPACT 80MM THERMAL RECEIPT TEMPLATE
   const renderThermalReceiptContent = () => {
-    // Sort purchased line items in ascending (A-Z, 0-9) order based on item/product name
-    // Applied exclusively to print preview and physical print layout without altering scan/db order
+    // Sort purchased line items using Feature 2 strict priority order:
+    // Priority 1: A-Z (excl. SF) -> Priority 2: 0-9 -> Priority 3: SF* prefix at very bottom
     const sortedPrintLineItems = [...lineItems].sort(compareBillPrintItems);
 
     const grossTotal = lineItems.reduce((acc, item) => {
@@ -3349,24 +3425,37 @@ function Invoice() {
     }, 0);
     const calculatedDiscount = (grossTotal - amountToPay) > 0 ? (grossTotal - amountToPay) : specialDiscVal;
 
+    const formattedDate = formatInvoiceDate(invoiceHeader.date);
+    const currentTimeStr = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
     return (
       <div className="thermal-receipt">
-        <div className="thermal-receipt-header">
-          <div className="thermal-receipt-title">SOFA ST (PVT) LTD</div>
-          <div className="thermal-receipt-subtitle">Dealer for David Peris Motor Company</div>
-          <div className="thermal-receipt-address">7E, MADDE GODA ROAD, MATHUGAMA</div>
-          <div className="thermal-receipt-address">034-2210680, 074-0295088</div>
+        {/* Header (Centered) */}
+        <div className="thermal-receipt-header" style={{ textAlign: 'center' }}>
+          <div className="thermal-receipt-title" style={{ color: '#cc0000', fontWeight: 'bold', fontSize: '18px' }}>
+            SOFAST (PVT) LTD
+          </div>
+          <div className="thermal-receipt-subtitle" style={{ fontSize: '11px', fontWeight: 'bold' }}>
+            Dealer for David Peris Motor Company
+          </div>
+          <div className="thermal-receipt-address" style={{ fontSize: '10.5px' }}>
+            7E, MADDEGODA ROAD, MATHUGAMA
+          </div>
+          <div className="thermal-receipt-address" style={{ fontSize: '10.5px' }}>
+            034-2210680, 074-0295088
+          </div>
         </div>
 
         <div className="thermal-receipt-dashed"></div>
 
-        <div className="thermal-receipt-meta">
-          <div className="thermal-receipt-meta-row">
-            <span>Date: {invoiceHeader.date}</span>
-            <span>Time: {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+        {/* Metadata Block */}
+        <div className="thermal-receipt-meta" style={{ fontSize: '11px' }}>
+          <div className="thermal-receipt-meta-row" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Date:{formattedDate}</span>
+            <span>Time: {currentTimeStr}</span>
           </div>
-          <div className="thermal-receipt-meta-row">
-            <span>Inv No: {invoiceHeader.invoiceNumber || '-'}</span>
+          <div className="thermal-receipt-meta-row" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Inv No:{invoiceHeader.invoiceNumber || '-'}</span>
             <span>User: PC004</span>
           </div>
           {invoiceHeader.customerName && (
@@ -3378,58 +3467,61 @@ function Invoice() {
 
         <div className="thermal-receipt-dashed"></div>
 
-        {/* Items Table */}
-        <table className="thermal-receipt-table">
-          <thead>
-            <tr>
-              <th className="thermal-th-item" style={{ textAlign: 'left' }}>Item</th>
-              <th className="thermal-th-qtyrate" style={{ textAlign: 'right' }}>Qty x Rate</th>
-              <th className="thermal-th-amount" style={{ textAlign: 'right' }}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedPrintLineItems.length === 0 ? (
-              <tr>
-                <td colSpan="3" style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '2px 0' }}>
-                  No line items
-                </td>
-              </tr>
-            ) : (
-              sortedPrintLineItems.map((item, idx) => {
-                const itemQty = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
-                const itemRate = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
-                const itemTotal = parseFloat(item.value !== undefined && item.value !== '' ? item.value : (item.finalPrice !== undefined ? item.finalPrice : itemRate * itemQty)) || 0;
-                return (
-                  <tr key={idx} className="thermal-tr-item">
-                    <td className="thermal-td-item" style={{ textAlign: 'left', wordBreak: 'break-word' }}>
-                      {item.jobType === 'Labour' || item.isService
-                        ? (item.description || 'Delivery Charge')
-                        : `${item.code ? `${item.code} - ` : ''}${item.description || ''}${item.color ? ` (${item.color})` : ''}`}
-                    </td>
-                    <td className="thermal-td-qtyrate" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {itemQty.toFixed(2)} x {itemRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="thermal-td-amount" style={{ textAlign: 'right', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+        {/* Line Items (Two-row layout per item) */}
+        <div className="thermal-receipt-items">
+          {sortedPrintLineItems.length === 0 ? (
+            <div style={{ textAlign: 'center', color: '#555', fontStyle: 'italic', padding: '3px 0' }}>
+              No line items
+            </div>
+          ) : (
+            sortedPrintLineItems.map((item, idx) => {
+              const itemQty = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
+              const itemRate = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
+              const itemTotal = parseFloat(item.value !== undefined && item.value !== '' ? item.value : (item.finalPrice !== undefined ? item.finalPrice : itemRate * itemQty)) || 0;
+              const loc = String(item.rackBin || item.bin || item.location || '').trim();
+              const hasLoc = loc && loc !== '-' && loc.toLowerCase() !== 'main store';
+              const code = String(item.code || item.itemCode || '').trim();
+              const desc = String(item.description || item.name || '').trim();
+
+              // Row 1: [LocationCode]-[ItemCode] - [ItemDescription]
+              const row1Text = (item.jobType === 'Labour' || item.isService)
+                ? (desc || 'Delivery Charge')
+                : hasLoc
+                  ? `${loc}-${code} - ${desc}${item.color ? ` (${item.color})` : ''}`
+                  : `${code ? `${code} - ` : ''}${desc}${item.color ? ` (${item.color})` : ''}`;
+
+              return (
+                <div key={idx} className="thermal-item-block" style={{ marginBottom: '3px' }}>
+                  {/* Row 1 */}
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', wordBreak: 'break-word', lineHeight: '1.2' }}>
+                    {row1Text}
+                  </div>
+                  {/* Row 2: [Qty] x [Rate] (indented/centered) and [LineAmount] (right-aligned) */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginTop: '1px' }}>
+                    <span style={{ paddingLeft: '18px' }}>
+                      {itemQty.toFixed(2)} &nbsp;&nbsp;x&nbsp;&nbsp; {itemRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span style={{ fontWeight: 'bold' }}>
                       {itemTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                    </span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
 
         <div className="thermal-receipt-dashed"></div>
 
         {/* Totals Section */}
         <div className="thermal-receipt-totals">
-          <div className="thermal-receipt-total-row thermal-receipt-total-main">
+          <div className="thermal-receipt-total-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'bold' }}>
             <span>Amount to Be Paid:</span>
-            <span>
+            <span style={{ color: '#cc0000', fontWeight: 'bold' }}>
               {Number(amountToPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
-          <div className="thermal-receipt-total-row">
+          <div className="thermal-receipt-total-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
             <span>Total Discount:</span>
             <span>
               {Number(calculatedDiscount || 0).toLocaleString('en-US', {
@@ -3438,14 +3530,17 @@ function Invoice() {
               })}
             </span>
           </div>
-          <div className="thermal-receipt-total-row">
+
+          <div className="thermal-receipt-dashed"></div>
+
+          <div className="thermal-receipt-total-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
             <span>Amount Received:</span>
             <span style={{ fontWeight: 'bold' }}>
               {Number(amountReceivedVal || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
-          <div className="thermal-receipt-total-row">
-            <span>Balance:</span>
+          <div className="thermal-receipt-total-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
+            <span>Balance :</span>
             <span style={{ fontWeight: 'bold' }}>
               {Number(dueAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
@@ -3455,7 +3550,7 @@ function Invoice() {
         {(invoiceHeader.note || invoiceHeader.remark) && (
           <>
             <div className="thermal-receipt-dashed"></div>
-            <div className="thermal-receipt-note" style={{ fontSize: '11px', padding: '2px 0', wordBreak: 'break-word' }}>
+            <div className="thermal-receipt-note" style={{ fontSize: '10.5px', padding: '2px 0', wordBreak: 'break-word' }}>
               <strong>Note:</strong> {invoiceHeader.note || invoiceHeader.remark}
             </div>
           </>
@@ -3463,8 +3558,190 @@ function Invoice() {
 
         <div className="thermal-receipt-dashed"></div>
 
-        <div className="thermal-receipt-notice">
+        {/* Footer */}
+        <div className="thermal-receipt-notice" style={{ fontSize: '10px', textAlign: 'center', lineHeight: '1.25', margin: '4px 0' }}>
           In case of price discrepancy, return the items & bill within 3 days for refund of difference
+        </div>
+
+        <div style={{ textAlign: 'center', fontStyle: 'italic', fontFamily: 'Courier New, monospace', fontSize: '10px', marginTop: '4px' }}>
+          Software by<br />
+          S.L.M.D.Chinthana-0777722076
+        </div>
+      </div>
+    );
+  };
+
+  // 2. FULL A4 CASH INVOICE TEMPLATE
+  const renderA4CashInvoiceContent = () => {
+    // Sort purchased line items using Feature 2 strict priority order:
+    // Priority 1: A-Z (excl. SF) -> Priority 2: 0-9 -> Priority 3: SF* prefix at very bottom
+    const sortedPrintLineItems = [...lineItems].sort(compareBillPrintItems);
+
+    const grossTotal = lineItems.reduce((acc, item) => {
+      const p = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
+      const q = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
+      return acc + (p * q);
+    }, 0);
+    const calculatedDiscount = (grossTotal - amountToPay) > 0 ? (grossTotal - amountToPay) : specialDiscVal;
+
+    const formattedDate = formatInvoiceDate(invoiceHeader.date);
+    const printOnFormatted = formatPrintOnDateTime();
+
+    const customerDisplay = invoiceHeader.customerName
+      ? `${invoiceHeader.customerName}${invoiceHeader.customerAddress ? `, ${invoiceHeader.customerAddress}` : ''}`
+      : 'Walk-in Customer';
+
+    const vehicleDisplay = invoiceHeader.vehicleNo || invoiceHeader.model || invoiceHeader.brand || '';
+    const jobDoneByDisplay = invoiceHeader.jobDoneBy || '';
+    const remarkDisplay = invoiceHeader.remark || invoiceHeader.note || '';
+
+    return (
+      <div className="a4-cash-invoice">
+        {/* Top Header */}
+        <div className="a4-inv-header-top">
+          <div className="a4-inv-copy-status">Copy 2</div>
+        </div>
+
+        <div className="a4-inv-title-block">
+          <div className="a4-inv-company-name">SOFAST (PVT) LTD</div>
+          <div className="a4-inv-sub1">Spare Parts Dealer for David Pieris Motor Company</div>
+          <div className="a4-inv-sub2">7E, MADDEGODA ROAD, MATHUGAMA</div>
+          <div className="a4-inv-sub3">Tel:034-2210680, 074-0295088</div>
+          <div className="a4-inv-title">CASH INVOICE</div>
+        </div>
+
+        {/* Metadata Grid */}
+        <div className="a4-inv-meta-grid">
+          <div className="a4-inv-meta-left">
+            <div className="a4-inv-meta-line">
+              <span className="a4-meta-lbl">Customer Name:</span>
+              <span className="a4-meta-val" style={{ textTransform: 'uppercase' }}>{customerDisplay}</span>
+            </div>
+            <div className="a4-inv-meta-line" style={{ display: 'flex', gap: '16px' }}>
+              <div>
+                <span className="a4-meta-lbl">Vehicle No:</span>
+                <span className="a4-meta-val" style={{ marginLeft: '12px' }}>{vehicleDisplay}</span>
+              </div>
+              <div style={{ marginLeft: '30px' }}>
+                <span className="a4-meta-lbl">Job Done by:</span>
+                <span className="a4-meta-val" style={{ marginLeft: '8px' }}>{jobDoneByDisplay}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="a4-inv-meta-right">
+            <div className="a4-inv-meta-line" style={{ textAlign: 'right' }}>
+              <span className="a4-meta-lbl">Invoice Number:</span>
+              <span className="a4-meta-val" style={{ minWidth: '90px', display: 'inline-block', textAlign: 'right', fontWeight: 'bold' }}>
+                {invoiceHeader.invoiceNumber || '-'}
+              </span>
+            </div>
+            <div className="a4-inv-meta-line" style={{ textAlign: 'right' }}>
+              <span className="a4-meta-lbl">Date:</span>
+              <span className="a4-meta-val" style={{ minWidth: '90px', display: 'inline-block', textAlign: 'right' }}>
+                {formattedDate}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Itemized Table */}
+        <table className="a4-inv-table">
+          <thead>
+            <tr>
+              <th className="a4-th-loca">Loca.</th>
+              <th className="a4-th-desc">Description</th>
+              <th className="a4-th-qty">Qty</th>
+              <th className="a4-th-rate">Rate</th>
+              <th className="a4-th-disc">Discount</th>
+              <th className="a4-th-amount">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedPrintLineItems.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '16px 0', fontStyle: 'italic' }}>
+                  No line items
+                </td>
+              </tr>
+            ) : (
+              sortedPrintLineItems.map((item, idx) => {
+                const itemQty = parseFloat(item.quantity !== undefined ? item.quantity : (item.qty || 1)) || 1;
+                const itemRate = parseFloat(item.price !== undefined && item.price !== '' ? item.price : (item.sellingPrice || item.rate || 0)) || 0;
+                const itemTotal = parseFloat(item.value !== undefined && item.value !== '' ? item.value : (item.finalPrice !== undefined ? item.finalPrice : itemRate * itemQty)) || 0;
+                const grossLine = itemRate * itemQty;
+                const lineDisc = Math.max(0, grossLine - itemTotal);
+
+                const loc = String(item.rackBin || item.bin || item.location || '').trim();
+                const hasLoc = loc && loc !== '-' && loc.toLowerCase() !== 'main store';
+                const code = String(item.code || item.itemCode || '').trim();
+                const desc = String(item.description || item.name || '').trim();
+
+                const locaDisplay = hasLoc ? `${loc} ${code}` : code;
+
+                return (
+                  <tr key={idx} className="a4-tr-item">
+                    <td className="a4-td-loca">{locaDisplay}</td>
+                    <td className="a4-td-desc">{desc}</td>
+                    <td className="a4-td-qty">{itemQty.toFixed(2)}</td>
+                    <td className="a4-td-rate">
+                      {itemRate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="a4-td-disc">
+                      {lineDisc > 0
+                        ? lineDisc.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        : '0.00'}
+                    </td>
+                    <td className="a4-td-amount">
+                      {itemTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+
+        {/* Totals & Notes */}
+        <div className="a4-inv-totals-block">
+          <div className="a4-inv-totals-left">
+            <div className="a4-discount-line">
+              <span className="a4-total-lbl">Total Discount:</span>
+              <span className="a4-total-val">
+                {Number(calculatedDiscount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="a4-remark-line" style={{ marginTop: '8px' }}>
+              <span className="a4-total-lbl">Remark:</span>
+              <span className="a4-total-val" style={{ marginLeft: '6px' }}>{remarkDisplay}</span>
+            </div>
+          </div>
+
+          <div className="a4-inv-totals-right">
+            <div className="a4-grand-total-line">
+              <span className="a4-grand-lbl">Grand Total:</span>
+              <span className="a4-grand-val">
+                {Number(amountToPay || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Block */}
+        <div className="a4-inv-footer-block">
+          <div className="a4-inv-footer-sign">
+            <div className="a4-sign-user">PC004</div>
+            <div className="a4-sign-label">Prepared By</div>
+          </div>
+
+          <div className="a4-inv-footer-printon">
+            Print on : {printOnFormatted}
+          </div>
+        </div>
+
+        {/* Bottom Terms */}
+        <div className="a4-inv-bottom-terms">
+          Electric items will not be changed. Returns are accepted within 2 days if items are unused and in the same condition.Your item need to have the original bill.
         </div>
       </div>
     );
@@ -5660,15 +5937,22 @@ function Invoice() {
         </div>
       )}
 
-      {/* Invoice Receipt / Return Bill Preview Modal */}
+      {/* Invoice Receipt / Cash Invoice / Return Bill Preview Modal */}
       {previewModalOpen && (
         <div className="invoice-modal-overlay">
-          <div className="invoice-modal-window" style={{ width: '380px', maxWidth: '95vw' }}>
+          <div
+            className="invoice-modal-window"
+            style={{
+              width: isReturnPrintMode || printFormat === '80mm' ? '410px' : '860px',
+              maxWidth: '98vw',
+              transition: 'width 0.2s ease',
+            }}
+          >
             <div className="invoice-modal-titlebar">
               <span>
                 {isReturnPrintMode
                   ? `Return Bill Preview — Original Invoice #${lastProcessedReturn?.originalInvoiceNumber || '-'}`
-                  : `Receipt Preview - Invoice #${invoiceHeader.invoiceNumber || '-'}`}
+                  : `${printFormat === 'a4' ? 'A4 Cash Invoice Preview' : '80mm Thermal Receipt Preview'} - Invoice #${invoiceHeader.invoiceNumber || '-'}`}
               </span>
               <button
                 type="button"
@@ -5682,18 +5966,86 @@ function Invoice() {
                 &#x2715;
               </button>
             </div>
-            <div className="invoice-modal-body" style={{ background: '#808080', display: 'flex', justifyContent: 'center', padding: '12px' }}>
+
+            {/* Print Format Selector (80mm vs A4) */}
+            {!isReturnPrintMode && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  background: '#ece9d8',
+                  borderBottom: '1px solid #7f9db9',
+                }}
+              >
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#002D62' }}>Print Format:</span>
+                <button
+                  type="button"
+                  className="invoice-btn-classic"
+                  style={{
+                    padding: '3px 12px',
+                    fontWeight: printFormat === '80mm' ? 'bold' : 'normal',
+                    backgroundColor: printFormat === '80mm' ? '#002D62' : '#ece9d8',
+                    color: printFormat === '80mm' ? '#ffffff' : '#000000',
+                  }}
+                  onClick={() => {
+                    setPrintFormat('80mm');
+                    localStorage.setItem('sofast_print_format', '80mm');
+                  }}
+                  title="Switch to 80mm compact thermal receipt format"
+                >
+                  🖨️ 80mm Thermal Receipt
+                </button>
+                <button
+                  type="button"
+                  className="invoice-btn-classic"
+                  style={{
+                    padding: '3px 12px',
+                    fontWeight: printFormat === 'a4' ? 'bold' : 'normal',
+                    backgroundColor: printFormat === 'a4' ? '#002D62' : '#ece9d8',
+                    color: printFormat === 'a4' ? '#ffffff' : '#000000',
+                  }}
+                  onClick={() => {
+                    setPrintFormat('a4');
+                    localStorage.setItem('sofast_print_format', 'a4');
+                  }}
+                  title="Switch to full A4 Cash Invoice layout"
+                >
+                  📄 A4 Cash Invoice
+                </button>
+              </div>
+            )}
+
+            <div
+              className="invoice-modal-body"
+              style={{
+                background: '#808080',
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '12px',
+                maxHeight: '75vh',
+                overflowY: 'auto',
+              }}
+            >
               {isReturnPrintMode && lastProcessedReturn
                 ? renderReturnThermalReceiptContent()
-                : renderThermalReceiptContent()}
+                : printFormat === 'a4'
+                  ? renderA4CashInvoiceContent()
+                  : renderThermalReceiptContent()}
             </div>
+
             <div className="invoice-modal-footer">
               <button
                 type="button"
                 className="invoice-btn-classic"
-                onClick={isReturnPrintMode ? () => handlePrintReturnBill() : handlePrint}
+                style={{ fontWeight: 'bold' }}
+                onClick={isReturnPrintMode ? () => handlePrintReturnBill() : () => handlePrint(printFormat)}
               >
-                {isReturnPrintMode ? 'Print Return Bill' : 'Print'}
+                {isReturnPrintMode
+                  ? 'Print Return Bill'
+                  : `Print ${printFormat === 'a4' ? 'A4 Cash Invoice' : '80mm Receipt'}`}
               </button>
               <button
                 type="button"
@@ -5966,11 +6318,16 @@ function Invoice() {
         </ErrorBoundary>
       )}
 
-      {/* DEDICATED PRINT AREA FOR 80MM/58MM THERMAL RECEIPT */}
+      {/* DEDICATED PRINT AREA FOR 80MM THERMAL RECEIPT */}
       <div id="thermal-receipt-print-area">
         {isReturnPrintMode && lastProcessedReturn
           ? renderReturnThermalReceiptContent()
           : renderThermalReceiptContent()}
+      </div>
+
+      {/* DEDICATED PRINT AREA FOR A4 CASH INVOICE */}
+      <div id="a4-invoice-print-area">
+        {renderA4CashInvoiceContent()}
       </div>
     </div>
   );

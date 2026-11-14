@@ -48,23 +48,20 @@ export const resolveColorHex = (color) => {
 /**
  * Calculate Pricing with Round Off & Discount (Multiples of Rs. 10)
  */
-const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal = 10) => {
+const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal = 10, isRoundOff = false) => {
   const sellingPrice = Math.max(0, parseFloat(spVal) || 0);
   const discountPercentage = Math.min(100, Math.max(0, parseFloat(discPctVal) || 0));
   const discountAmount = Math.round(((sellingPrice * discountPercentage) / 100) * 100) / 100;
   const discountedPrice = Math.max(0, Math.round((sellingPrice - discountAmount) * 100) / 100);
   const step = Math.max(1, parseFloat(stepVal) || 10);
 
-  const remainder = Math.round((discountedPrice % step) * 100) / 100;
-  const isExactMultiple = remainder === 0 || Math.abs(remainder - step) < 0.001;
-
   let finalPrice = discountedPrice;
   const opt = (roundOption || 'No Round Off').trim();
+  const shouldCeil = Boolean(isRoundOff || opt === 'Round Up' || opt === 'Up');
 
-  if (isExactMultiple) {
-    finalPrice = discountedPrice;
-  } else if (opt === 'Round Up' || opt === 'Up') {
-    finalPrice = Math.ceil(discountedPrice / step) * step;
+  if (shouldCeil) {
+    // Upward ceiling rounding logic: Math.ceil(NetAmount / 10.0) * 10
+    finalPrice = Math.ceil(discountedPrice / 10.0) * 10;
   } else if (opt === 'Round Down' || opt === 'Down') {
     finalPrice = Math.floor(discountedPrice / step) * step;
   } else {
@@ -76,7 +73,8 @@ const computePricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal
     discountPercentage: discPctVal,
     discountAmount: Math.round(discountAmount * 100) / 100,
     discountedPrice: Math.round(discountedPrice * 100) / 100,
-    roundOffOption: opt,
+    is_round_off: shouldCeil,
+    roundOffOption: shouldCeil ? 'Round Up' : opt,
     roundOffStep: step,
     finalSellingPrice: Math.round(finalPrice * 100) / 100,
   };
@@ -188,6 +186,7 @@ function ItemMaster() {
     supplierCode: '',       // 16. Supplier Code
     remark: '',             // 17. Remark
     color: '',              // 18. Color
+    is_round_off: false,    // 19. Round Off Flag (Boolean checkbox)
     roundOffOption: 'No Round Off', // 19. Round Off (Up / Down)
     discountPercentage: '', // 20. Discount (%)
   });
@@ -465,15 +464,20 @@ function ItemMaster() {
     }));
   };
 
-  // Round Off radio button toggle (Up / Down)
+  // Round Off toggle (Up / Down / Checkbox)
   const handleRoundOffChange = (opt) => {
     setIsDirty(true);
     setFormData((prev) => {
       // Toggle off if clicked again
       const newOption = prev.roundOffOption === opt ? 'No Round Off' : opt;
+      const isRound = newOption === 'Round Up' || newOption === 'Up';
+      const pricing = computePricing(prev.sellingPrice, prev.discountPercentage, newOption, 10, isRound);
       return {
         ...prev,
+        is_round_off: isRound,
         roundOffOption: newOption,
+        finalSellingPrice: pricing.finalSellingPrice,
+        discountedPrice: pricing.discountedPrice,
       };
     });
   };
@@ -637,7 +641,9 @@ function ItemMaster() {
       suppCode: formData.supplierCode ? formData.supplierCode.trim() : '',
       remark: formData.remark ? formData.remark.trim() : '',
       color: formData.color ? formData.color.trim() : '',
-      roundOffOption: formData.roundOffOption || 'No Round Off',
+      is_round_off: Boolean(formData.is_round_off),
+      roundOff: Boolean(formData.is_round_off),
+      roundOffOption: formData.roundOffOption || (formData.is_round_off ? 'Round Up' : 'No Round Off'),
       discountPercentage: formData.discountPercentage !== '' ? Number(formData.discountPercentage) || 0 : 0,
     };
 
@@ -1368,7 +1374,8 @@ function ItemMaster() {
       supplierCode: suppCode,
       remark: item.remark || '',
       color: item.color || '',
-      roundOffOption: item.roundOffOption || 'No Round Off',
+      is_round_off: Boolean(item.is_round_off || item.roundOffOption === 'Round Up' || item.roundOffOption === 'Up'),
+      roundOffOption: item.roundOffOption || (item.is_round_off ? 'Round Up' : 'No Round Off'),
       discountPercentage: item.discountPercentage !== undefined ? item.discountPercentage : '',
     });
   };
@@ -2250,15 +2257,40 @@ function ItemMaster() {
                   )}
                 </div>
 
-                {/* Round Off Options: Up and Down using classic desktop radio buttons */}
-                <div className="round-off-group" style={{ marginLeft: '36px' }}>
-                  <span className="field-label" style={{ width: '120px' }}>Round Off . . . . .</span>
-                  <label className="radio-label">
+                {/* Round Off: Boolean checkbox & ceiling toggle */}
+                <div className="round-off-group" style={{ marginLeft: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="field-label" style={{ width: '100px' }}>Round Off . . . .</span>
+                  <label className="checkbox-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    <input
+                      type="checkbox"
+                      name="is_round_off"
+                      checked={Boolean(formData.is_round_off)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsDirty(true);
+                        setFormData((prev) => {
+                          const updated = {
+                            ...prev,
+                            is_round_off: checked,
+                            roundOffOption: checked ? 'Round Up' : 'No Round Off',
+                          };
+                          const pricing = computePricing(updated.sellingPrice, updated.discountPercentage, updated.roundOffOption, 10, checked);
+                          return {
+                            ...updated,
+                            finalSellingPrice: pricing.finalSellingPrice,
+                            discountedPrice: pricing.discountedPrice,
+                          };
+                        });
+                      }}
+                    />
+                    <span style={{ fontSize: '11px', color: '#002D62' }}>Ceil (Up to 10)</span>
+                  </label>
+                  <label className="radio-label" style={{ marginLeft: '4px' }}>
                     <input
                       type="radio"
                       name="roundOffOption"
                       value="Round Up"
-                      checked={formData.roundOffOption === 'Round Up' || formData.roundOffOption === 'Up'}
+                      checked={Boolean(formData.is_round_off) || formData.roundOffOption === 'Round Up' || formData.roundOffOption === 'Up'}
                       onChange={() => handleRoundOffChange('Round Up')}
                     />
                     <span>Up</span>
@@ -2268,7 +2300,7 @@ function ItemMaster() {
                       type="radio"
                       name="roundOffOption"
                       value="Round Down"
-                      checked={formData.roundOffOption === 'Round Down' || formData.roundOffOption === 'Down'}
+                      checked={!formData.is_round_off && (formData.roundOffOption === 'Round Down' || formData.roundOffOption === 'Down')}
                       onChange={() => handleRoundOffChange('Round Down')}
                     />
                     <span>Down</span>
@@ -2362,19 +2394,20 @@ function ItemMaster() {
                       <th style={{ width: '95px' }}>Sub Category</th>
                       <th style={{ width: '90px' }}>Location</th>
                       <th style={{ width: '110px' }}>Supplier</th>
+                      <th style={{ width: '75px', textAlign: 'center' }}>Round Off</th>
                       <th style={{ width: '65px', textAlign: 'center' }}>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="12" className="grid-empty-state">
+                        <td colSpan="13" className="grid-empty-state">
                           Loading item records...
                         </td>
                       </tr>
                     ) : items.length === 0 ? (
                       <tr>
-                        <td colSpan="12" className="grid-empty-state">
+                        <td colSpan="13" className="grid-empty-state">
                           No item records found in database. Click &quot;New&quot; to add an item.
                         </td>
                       </tr>
@@ -2411,6 +2444,22 @@ function ItemMaster() {
                           <td>{item.subCategory || '-'}</td>
                           <td>{item.location || 'Main Store'}</td>
                           <td>{item.supplier || item.supplierCode || item.suppCode || '-'}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span
+                              className={item.is_round_off ? 'badge-active' : 'badge-inactive'}
+                              style={{
+                                fontSize: '10.5px',
+                                padding: '2px 6px',
+                                borderRadius: '3px',
+                                background: item.is_round_off ? '#dcfce7' : '#f1f5f9',
+                                color: item.is_round_off ? '#166534' : '#64748b',
+                                border: item.is_round_off ? '1px solid #86efac' : '1px solid #cbd5e1',
+                                fontWeight: 'bold',
+                              }}
+                            >
+                              {item.is_round_off ? 'Yes' : 'No'}
+                            </span>
+                          </td>
                           <td style={{ textAlign: 'center' }}>
                             <span className={item.status === 'I' || item.status === 'Inactive' ? 'badge-inactive' : 'badge-active'}>
                               {item.status === 'I' || item.status === 'Inactive' ? 'Inactive' : 'Active'}

@@ -4,25 +4,37 @@ import Item from '../models/Item.js';
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
 /**
+ * Upward Ceiling Round-Off Calculation (Formula: Math.ceil(NetAmount / 10.0) * 10)
+ * Always rounds UP (ceiling) to the next highest multiple of 10 if not an exact multiple.
+ * E.g., 657 -> 660, 651 -> 660, 650 -> 650.
+ */
+export const calculateCeilingRoundOff = (netAmount) => {
+  const num = Math.max(0, parseFloat(netAmount) || 0);
+  return Math.ceil(num / 10.0) * 10;
+};
+
+/**
  * Calculate decimal-safe item pricing with discount and round-off (multiples of Rs. 10)
  */
-export const computeItemPricing = (spVal, discPctVal, roundOption = 'No Round Off', stepVal = 10) => {
+export const computeItemPricing = (
+  spVal,
+  discPctVal,
+  roundOption = 'No Round Off',
+  stepVal = 10,
+  isRoundOff = false
+) => {
   const sellingPrice = Math.max(0, parseFloat(spVal) || 0);
   const discountPercentage = Math.min(100, Math.max(0, parseFloat(discPctVal) || 0));
   const discountAmount = Math.round(((sellingPrice * discountPercentage) / 100) * 100) / 100;
   const discountedPrice = Math.max(0, Math.round((sellingPrice - discountAmount) * 100) / 100);
   const step = Math.max(1, parseFloat(stepVal) || 10);
 
-  const remainder = Math.round((discountedPrice % step) * 100) / 100;
-  const isExactMultiple = remainder === 0 || Math.abs(remainder - step) < 0.001;
+  const opt = (roundOption || 'No Round Off').trim();
+  const shouldCeil = Boolean(isRoundOff || opt === 'Round Up' || opt === 'Up');
 
   let finalPrice = discountedPrice;
-  const opt = (roundOption || 'No Round Off').trim();
-
-  if (isExactMultiple) {
-    finalPrice = discountedPrice;
-  } else if (opt === 'Round Up' || opt === 'Up') {
-    finalPrice = Math.ceil(discountedPrice / step) * step;
+  if (shouldCeil) {
+    finalPrice = calculateCeilingRoundOff(discountedPrice);
   } else if (opt === 'Round Down' || opt === 'Down') {
     finalPrice = Math.floor(discountedPrice / step) * step;
   } else {
@@ -34,7 +46,8 @@ export const computeItemPricing = (spVal, discPctVal, roundOption = 'No Round Of
     discountPercentage,
     discountAmount,
     discountedPrice,
-    roundOffOption: opt,
+    is_round_off: shouldCeil,
+    roundOffOption: shouldCeil ? 'Round Up' : opt,
     roundOffStep: step,
     finalSellingPrice: Math.round(finalPrice * 100) / 100,
   };
@@ -46,11 +59,19 @@ export const computeItemPricing = (spVal, discPctVal, roundOption = 'No Round Of
 const normalizeItem = (item) => {
   if (!item) return null;
   const stock = item.quantity !== undefined ? item.quantity : (item.stockInHand !== undefined ? item.stockInHand : 0);
+  const isRoundOff = Boolean(
+    item.is_round_off ||
+    item.roundOffOption === 'Round Up' ||
+    item.roundOffOption === 'Up' ||
+    item.roundOff === true ||
+    item.roundOff === 1
+  );
   const pricing = computeItemPricing(
     item.sellingPrice,
     item.discountPercentage,
     item.roundOffOption,
-    item.roundOffStep || 10
+    item.roundOffStep || 10,
+    isRoundOff
   );
 
   const finalSellingPrice = item.finalSellingPrice !== undefined && Number(item.finalSellingPrice) > 0
@@ -74,7 +95,8 @@ const normalizeItem = (item) => {
     quantity: stock,
     stockInHand: stock,
     damagedStock: item.damagedStock !== undefined ? Number(item.damagedStock) : 0,
-    roundOff: item.roundOff !== undefined ? Number(item.roundOff) : 0,
+    is_round_off: isRoundOff,
+    roundOff: isRoundOff,
     roundOffOption: pricing.roundOffOption,
     roundOffStep: pricing.roundOffStep,
     discountPercentage: pricing.discountPercentage,
@@ -531,11 +553,19 @@ export const createItem = async (req, res, next) => {
     }
 
     const stockQty = Number(stockInHand) || Number(quantity) || 0;
+    const isRoundOff = Boolean(
+      req.body.is_round_off ||
+      roundOffOption === 'Round Up' ||
+      roundOffOption === 'Up' ||
+      roundOff === true ||
+      roundOff === 1
+    );
     const pricing = computeItemPricing(
       sellingPrice,
       discountPercentage,
       roundOffOption,
-      roundOffStep || 10
+      roundOffStep || 10,
+      isRoundOff
     );
 
     let cleanBarcode = (barcode || barCode || '').trim();
@@ -617,6 +647,8 @@ export const createItem = async (req, res, next) => {
       color: (color || '').trim(),
       roundOffOption: pricing.roundOffOption,
       roundOffStep: 10,
+      is_round_off: isRoundOff,
+      roundOff: isRoundOff,
       discountPercentage: pricing.discountPercentage,
       discountAmount: pricing.discountAmount,
       discountedPrice: pricing.discountedPrice,
@@ -760,12 +792,21 @@ export const updateItem = async (req, res, next) => {
       if (!isNaN(dStock)) item.damagedStock = dStock;
     }
 
-    // Discount & decimal-safe pricing calculation with multiples of Rs. 10 round-off
+    // Discount & decimal-safe pricing calculation with ceiling multiples of Rs. 10 round-off
     const curSp = updateData.sellingPrice !== undefined ? Number(updateData.sellingPrice) || 0 : (item.sellingPrice || 0);
     const curDiscPct = updateData.discountPercentage !== undefined ? Number(updateData.discountPercentage) || 0 : (item.discountPercentage || 0);
-    const curRoundOpt = updateData.roundOffOption !== undefined ? updateData.roundOffOption : (item.roundOffOption || 'No Round Off');
-    const pricing = computeItemPricing(curSp, curDiscPct, curRoundOpt, 10);
+    const curIsRoundOff = updateData.is_round_off !== undefined
+      ? Boolean(updateData.is_round_off)
+      : (updateData.roundOff !== undefined
+          ? Boolean(updateData.roundOff)
+          : Boolean(item.is_round_off || item.roundOffOption === 'Round Up' || item.roundOffOption === 'Up'));
+    const curRoundOpt = updateData.roundOffOption !== undefined
+      ? updateData.roundOffOption
+      : (curIsRoundOff ? 'Round Up' : (item.roundOffOption || 'No Round Off'));
+    const pricing = computeItemPricing(curSp, curDiscPct, curRoundOpt, 10, curIsRoundOff);
 
+    item.is_round_off = pricing.is_round_off;
+    item.roundOff = pricing.is_round_off;
     item.sellingPrice = pricing.sellingPrice;
     item.discountPercentage = pricing.discountPercentage;
     item.discountAmount = pricing.discountAmount;

@@ -247,6 +247,10 @@ function PrinterSetup() {
       description: formData.description.trim(),
     };
 
+    if (formData.isDefault) {
+      localStorage.setItem('sofast_print_format', formData.paperSize === 'A4' ? 'a4' : '80mm');
+    }
+
     if (existingIndex >= 0) {
       updatedList[existingIndex] = printerObj;
       setPrintersList(updatedList);

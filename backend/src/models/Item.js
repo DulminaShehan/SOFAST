@@ -79,8 +79,13 @@ const itemSchema = new mongoose.Schema(
       default: 0,
     },
     roundOff: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed,
       default: 0,
+    },
+    is_round_off: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     roundOffOption: {
       type: String,

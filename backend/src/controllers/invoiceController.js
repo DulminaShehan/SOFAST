@@ -440,15 +440,28 @@ export const createInvoice = async (req, res, next) => {
         });
       }
 
-      // If price not explicitly supplied, lookup item's configured customer selling price (Standard Material items only)
-      if (!isManual && !isLabour && price <= 0 && code) {
+      let isItemRoundOff = Boolean(
+        item.is_round_off ||
+        item.roundOff === true ||
+        item.roundOff === 1 ||
+        item.roundOffOption === 'Round Up' ||
+        item.roundOffOption === 'Up'
+      );
+
+      // If price not explicitly supplied or checking round off, lookup item's configured customer selling price (Standard Material items only)
+      if (!isManual && !isLabour && code) {
         const dbItem = await Item.findOne({
           $or: [{ code }, { barcode: code }, { barCode: code }],
         }).lean();
         if (dbItem) {
-          price = dbItem.finalSellingPrice !== undefined && Number(dbItem.finalSellingPrice) > 0
-            ? Number(dbItem.finalSellingPrice)
-            : (Number(dbItem.sellingPrice) || 0);
+          if (price <= 0) {
+            price = dbItem.finalSellingPrice !== undefined && Number(dbItem.finalSellingPrice) > 0
+              ? Number(dbItem.finalSellingPrice)
+              : (Number(dbItem.sellingPrice) || 0);
+          }
+          if (!isItemRoundOff && (dbItem.is_round_off || dbItem.roundOffOption === 'Round Up' || dbItem.roundOffOption === 'Up' || dbItem.roundOff === true || dbItem.roundOff === 1)) {
+            isItemRoundOff = true;
+          }
         }
       }
 
@@ -463,7 +476,13 @@ export const createInvoice = async (req, res, next) => {
       }
 
       const gross = price * safeQty;
-      const lineVal = Math.max(0, gross - discAmt);
+      let lineVal = Math.max(0, gross - discAmt);
+      if (isItemRoundOff) {
+        // Feature 3: Ceiling round-off formula: Math.ceil(NetAmount / 10.0) * 10
+        lineVal = Math.ceil(lineVal / 10.0) * 10;
+        discAmt = Math.max(0, gross - lineVal);
+        discPct = gross > 0 ? (discAmt / gross) * 100 : 0;
+      }
       calculatedSubTotal += lineVal;
       calculatedGrossSubTotal += gross;
       calculatedTotalDiscount += discAmt;
@@ -477,6 +496,8 @@ export const createInvoice = async (req, res, next) => {
         type: isManual ? 'Manual' : (isLabour ? 'Labour' : (item.type || 'Material')),
         isService: isLabour,
         location: isManual ? '-' : (isLabour ? '-' : (item.location || 'Main Store')),
+        is_round_off: isItemRoundOff,
+        roundOff: isItemRoundOff,
         quantity: safeQty,
         qty: safeQty,
         masterPack: String(item.masterPack || '1'),
@@ -801,6 +822,14 @@ export const updateInvoice = async (req, res, next) => {
       let discPct = isLabour ? 0 : Math.min(100, Math.max(0, parseFloat(item.discountPercentage) || 0));
       let discAmt = isLabour ? 0 : Math.max(0, parseFloat(item.discountAmount) || 0);
 
+      let isItemRoundOff = Boolean(
+        item.is_round_off ||
+        item.roundOff === true ||
+        item.roundOff === 1 ||
+        item.roundOffOption === 'Round Up' ||
+        item.roundOffOption === 'Up'
+      );
+
       if (discPct > 0 && (!discAmt || discAmt === 0)) {
         discAmt = (price * discPct) / 100 * qty;
       } else if (discAmt > 0 && (!discPct || discPct === 0) && price > 0) {
@@ -808,7 +837,12 @@ export const updateInvoice = async (req, res, next) => {
       }
 
       const gross = price * qty;
-      const lineVal = Math.max(0, gross - discAmt);
+      let lineVal = Math.max(0, gross - discAmt);
+      if (isItemRoundOff) {
+        lineVal = Math.ceil(lineVal / 10.0) * 10;
+        discAmt = Math.max(0, gross - lineVal);
+        discPct = gross > 0 ? (discAmt / gross) * 100 : 0;
+      }
       calculatedSubTotal += lineVal;
       calculatedGrossSubTotal += gross;
       calculatedTotalDiscount += discAmt;
@@ -822,6 +856,8 @@ export const updateInvoice = async (req, res, next) => {
         type: isManual ? 'Manual' : (isLabour ? 'Labour' : (item.type || 'Material')),
         isService: isLabour,
         location: isManual ? '-' : (isLabour ? '-' : (item.location || 'Main Store')),
+        is_round_off: isItemRoundOff,
+        roundOff: isItemRoundOff,
         quantity: qty,
         qty: qty,
         masterPack: String(item.masterPack || '1'),
